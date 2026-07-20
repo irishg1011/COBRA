@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Reusable Header Placeholder -->
+    <div id="header-placeholder"></div>
+
+    <main class="hero-container">
+        <!-- Left Side: Copy Elements -->
+        <section class="content-col">
+            <h1>
+                Learn<br>
+                Python<br>
+                <span class="text-green">The<br>Interactive<br>Way</span>
+            </h1>
+            <p class="description">
+                Master Python through interactive lessons, hands-on coding exercises, and real-time feedback. Learn at your own pace and build your programming skills with confidence.
+            </p>
+        </section>
+
+        <!-- Right Side: Interactive Authentication Card -->
+        <section class="visual-col">
+            <div class="auth-card">
+                <!-- Toggle Slider Buttons -->
+                <div class="auth-toggle">
+                    <button type="button" class="toggle-btn active" id="switchToSignIn">Sign In</button>
+                    <button type="button" class="toggle-btn" id="switchToSignUp">Sign Up</button>
+                </div>
+
+                <!-- 1. SIGN IN FORM PANEL -->
+                <div id="signInPanel">
+                    <div class="form-header">
+                        <h2>Welcome Back</h2>
+                        <p>Sign in to continue your Python journey</p>
+                    </div>
+
+                    <form class="auth-form" onsubmit="event.preventDefault();">
+                        <div class="input-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" placeholder="Enter username" required>
+                        </div>
+
+                        <div class="input-group password-group">
+                            <label for="password">Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="password" placeholder="Enter password" required>
+                                <div class="toggle-password-visibility" id="togglePassword">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a href="#" class="forgot-link">Forgot your password?</a>
+                        <button type="submit" class="btn-login">Login</button>
+                    </form>
+                </div>
+                
+                <!-- SIGN IN SUCCESS PANEL (Hidden by Default) -->
+                <div id="signInSuccessPanel" style="display: none;">
+                    <div class="success-container">
+                        <!-- Blue Verified Circle SVG -->
+                        <div class="signin-success-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="10" stroke="#00D0FF" stroke-width="2"/>
+                                <path d="M8 12L11 15L16 9" stroke="#38FF92" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div class="form-header centered-header">
+                            <h2>Sign In Successful!</h2>
+                            <p>Redirecting to your dashboard...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. SIGN UP FORM PANEL - STEP 1 -->
+                <div id="signUpPanel" style="display: none;">
+                    <div class="form-header">
+                        <h2>Create your account</h2>
+                        <p>Start learning Python with CobraByte today</p>
+                    </div>
+
+                    <form class="auth-form" onsubmit="event.preventDefault();">
+                        <div class="input-group">
+                            <label for="firstName">First name</label>
+                            <input type="text" id="firstName" placeholder="Enter first name" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="lastName">Last name</label>
+                            <input type="text" id="lastName" placeholder="Enter last name" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="birthdate">Birthdate</label>
+                            <input type="date" id="birthdate" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="gender">Gender</label>
+                            <select id="gender" name="gender" required>
+                                <option value="" disabled selected hidden>Enter gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="button-wrapper">
+                            <!-- Added an ID to this button to target step switching -->
+                            <button type="button" class="btn-login btn-next" id="goToStep2">Next</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 3. SIGN UP FORM PANEL - STEP 2 (Hidden by Default) -->
+                <div id="signUpStep2Panel" style="display: none;">
+                    <!-- Back Button Link -->
+                    <a href="#" class="back-link" id="backToStep1">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points='15 18 9 12 15 6'></polyline></svg> Back
+                    </a>
+
+                    <div class="form-header">
+                        <h2>Create your account</h2>
+                        <p>Start learning Python with CobraByte today</p>
+                    </div>
+
+                    <form class="auth-form" onsubmit="event.preventDefault();">
+                        <div class="input-group">
+                            <label for="email">Email address</label>
+                            <input type="email" id="email" placeholder="Enter valid email address" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="regUsername">Username</label>
+                            <input type="text" id="regUsername" placeholder="Enter username" required>
+                        </div>
+
+                        <div class="input-group password-group">
+                            <label for="createPassword">Create password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="createPassword" placeholder="Enter password" required>
+                                <div class="toggle-password-visibility" id="toggleCreatePassword">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="input-group password-group">
+                            <label for="confirmPassword">Confirm password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="confirmPassword" placeholder="Enter confirm password" required>
+                                <div class="toggle-password-visibility" id="toggleConfirmPassword">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="button-wrapper">
+                            <button type="submit" class="btn-login btn-next">Proceed</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 4. SIGN UP FORM PANEL - STEP 3 (Email Verification - Hidden by Default) -->
+                <div id="signUpStep3Panel" style="display: none;">
+                    <!-- Back Button Link -->
+                    <a href="#" class="back-link" id="backToStep2">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points='15 18 9 12 15 6'></polyline></svg> Back
+                    </a>
+
+                    <div class="verification-container">
+                        <!-- Paper Airplane Icon SVG -->
+                        <div class="verification-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M22 2L11 13M22 2L15 22L11 13M11 13L2 9L22 2" stroke="url(#gradient-id)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <defs>
+                                    <linearGradient id="gradient-id" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#00D0FF" />
+                                        <stop offset="100%" stop-color="#38FF92" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+
+                        <div class="form-header centered-header">
+                            <h2>Verify your email</h2>
+                            <p>We sent a 6-digit verification code to <span id="userEmailPlaceholder" style="font-weight: 600; color: #111111;">danzenaquino@gmail.com</span></p>
+                        </div>
+
+                        <!-- 6-Digit OTP Inputs -->
+                        <div class="otp-container">
+                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                        </div>
+
+                        <div class="timer-container">
+                            <p class="timer-text">Code expires in <span id="countdown">5:00</span></p>
+                            <a href="#" class="resend-link">Resend code</a>
+                        </div>
+
+                        <button type="button" class="btn-login btn-verify" id="btnFinish">Verify & Create Account</button>
+                    </div>
+                </div>
+
+                <!-- 5. SIGN UP FORM PANEL - STEP 4 (Success Screen - Hidden by Default) -->
+                <div id="signUpStep4Panel" style="display: none;">
+                    <div class="success-container">
+                        <!-- Verified Envelope Icon SVG -->
+                        <div class="success-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <!-- Envelope Body -->
+                                <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6M22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6M22 6L12 13L2 6" stroke="url(#success-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <!-- Checkmark Badge Background -->
+                                <circle cx="18" cy="6" r="5" fill="#22C55E" />
+                                <!-- Checkmark Line -->
+                                <path d="M16 6L17.5 7.5L20 5" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                <defs>
+                                    <linearGradient id="success-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#00D0FF" />
+                                        <stop offset="100%" stop-color="#38FF92" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+
+                        <div class="form-header centered-header">
+                            <h2>Account Verified!</h2>
+                            <p>Welcome to CobraByte, <span id="successUserPlaceholder" style="font-weight: 600;">Danzen Aquino</span>! Your account has been successfully created and verified.</p>
+                        </div>
+
+                        <button type="button" class="btn-login btn-success-nav" id="btnBackToSignIn">Back to Sign In</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- CRITICAL: Linked to your unified script file instead of the duplicate inline fetch -->
+    <script src="script.js"></script>
+</body>
+</html>

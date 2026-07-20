@@ -1,0 +1,629 @@
+/* ==========================================================================
+   GLOBAL SETTINGS & VARIABLES
+   ========================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #EFECE1;
+    color: #000000;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ==========================================================================
+   DYNAMIC HEADER
+   ========================================================================== */
+header {
+    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
+    padding: 10px 8%; /* Kept clean padding constraints for the nav text alignment */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 70px; /* Fixed height for consistent header size */
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    margin-right: auto; /* Pushes the logo as far left as possible, independent of nav links */
+    padding-left: 20px; /* Spacially matches layout design constraints at the far edge */
+}
+
+.logo-img {
+    height: 45px;
+    width: auto;
+    display: block;
+}
+
+nav ul {
+    display: flex;
+    list-style: none;
+    gap: 30px;
+}
+
+nav a {
+    text-decoration: none;
+    color: #003344;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+/* ==========================================================================
+   UNIVERSAL LAYOUT (Shared between Index and Login)
+   ========================================================================== */
+.hero-container {
+    max-width: 1200px;
+    width: 100%;
+    margin: auto;
+    padding: 40px 8%;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 80px; /* Enhanced gap to prevent text and card/image crowding */
+    align-items: center;
+}
+
+.content-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+h1 {
+    font-size: 64px;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 25px;
+    letter-spacing: -1px;
+}
+
+.text-green {
+    color: #139C38; /* Unified vibrant green across both screens */
+    display: block;
+}
+
+.description {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #2D2D2D;
+    max-width: 460px;
+}
+
+.visual-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.hero-image {
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    object-fit: contain;
+}
+
+/* ==========================================================================
+   COMPONENTS
+   ========================================================================== */
+
+/* Homepage CTA Button */
+.btn-cta {
+    display: inline-block;
+    background: linear-gradient(135deg, #00D2FF 0%, #00FF87 100%);
+    color: #FFFFFF;
+    font-size: 22px;
+    font-weight: 700;
+    padding: 14px 45px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 210, 255, 0.2);
+    transition: transform 0.2s;
+    margin-top: 20px;
+}
+
+.btn-cta:hover {
+    transform: translateY(-2px);
+}
+
+/* Interactive Authentication Card */
+.auth-card {
+    background: #FFFFFF;
+    border-radius: 16px; /* Smoother curve matching modern web aesthetics */
+    padding: 40px;
+    width: 100%;
+    max-width: 450px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+.auth-toggle {
+    display: flex;
+    background: #D5D5D5;
+    border-radius: 25px;
+    padding: 4px;
+    margin-bottom: 30px;
+}
+
+.toggle-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 20px;
+    transition: all 0.2s ease;
+    color: #A0A0A0;
+}
+
+.toggle-btn.active {
+    background: #FFFFFF;
+    color: #000000;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.form-header h2 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111111;
+    margin-bottom: 6px;
+}
+
+.form-header p {
+    font-size: 14px;
+    color: #666666;
+    margin-bottom: 28px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 22px;
+}
+
+.input-group label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+    margin-bottom: 8px;
+}
+
+.input-group input,
+.input-group select {
+    background: #EDEAE4;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 14px;
+    color: #333333;
+    outline: none;
+    width: 100%;
+    display: block;
+    height: 48px; /* Hard locking the height ensures all fields match perfectly */
+    box-sizing: border-box;
+}
+
+/* Reduce bottom margins on sign-up fields to save vertical space */
+#signUpPanel .input-group {
+    margin-bottom: 14px; /* Reduced from 22px to bring fields closer together */
+}
+
+/* Give the Next button a tiny bit of breathing room from the gender selector */
+#signUpPanel .button-wrapper {
+    margin-top: 20px;
+}
+
+/* --- Step 2 Elements Stylings --- */
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+    text-decoration: none;
+    margin-bottom: 15px;
+    transition: color 0.2s ease;
+}
+
+.back-link:hover {
+    color: #139C38;
+}
+
+#signUpStep2Panel .input-group {
+    margin-bottom: 14px;
+}
+
+/* --- Step 3 Verification Elements Stylings --- */
+.verification-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.verification-icon {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 20px;
+}
+
+.verification-icon svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-15deg); /* Matches the dynamic tilt in your design */
+}
+
+.centered-header h2 {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.centered-header p {
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 25px;
+}
+
+/* 6-box input alignment grid */
+.otp-container {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 25px;
+    width: 100%;
+}
+
+.otp-input {
+    width: 48px;
+    height: 56px;
+    background: #FFFFFF;
+    border: 1px solid #CCCCCC;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #111111;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.otp-input:focus {
+    border-color: #1CE8C8;
+    box-shadow: 0 0 0 2px rgba(28, 232, 200, 0.1);
+}
+
+/* Timer and Resend alignments */
+.timer-container {
+    margin-bottom: 30px;
+}
+
+.timer-text {
+    font-size: 14px;
+    color: #333333;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+.resend-link {
+    font-size: 14px;
+    color: #139C38;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.resend-link:hover {
+    text-decoration: underline;
+}
+
+.btn-verify {
+    border-radius: 12px; /* Square-ish modern pill button matching design */
+}
+
+/* --- Step 4 Success Elements Stylings --- */
+.success-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 0;
+}
+
+.success-icon {
+    width: 90px;
+    height: 90px;
+    margin-bottom: 25px;
+}
+
+.success-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.btn-success-nav {
+    width: auto;
+    min-width: 200px;
+    padding: 14px 40px;
+    border-radius: 12px;
+    margin-top: 10px;
+}
+
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.password-wrapper input {
+    padding-right: 40px;
+}
+
+.toggle-password-visibility {
+    position: absolute;
+    right: 14px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+}
+
+.eye-icon {
+    width: 100%;
+    height: 100%;
+    color: #666666; /* Elegant gray that matches the placeholder */
+    transition: color 0.2s ease;
+}
+
+.eye-icon:hover {
+    color: #139C38; /* Changes to your brand green when hovered */
+}
+
+.forgot-link {
+    display: inline-block;
+    font-size: 13px;
+    color: #139C38; /* Swapped to match the brand typography green */
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 28px;
+}
+
+.forgot-link:hover {
+    text-decoration: underline;
+}
+
+/* Action Button */
+.btn-login {
+    width: 100%;
+    border: none;
+    padding: 15px;
+    border-radius: 25px;
+    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(28, 232, 200, 0.3);
+    transition: transform 0.1s ease;
+}
+
+.btn-login:active {
+    transform: scale(0.98);
+}
+
+/* ==========================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+@media (max-width: 900px) {
+    .hero-container {
+        grid-template-columns: 1fr;
+        text-align: center;
+        gap: 50px;
+        padding-top: 20px;
+    }
+    h1 { font-size: 48px; }
+    .description { margin: 0 auto; }
+    header { flex-direction: column; gap: 15px; }
+    .auth-card { margin: 0 auto; }
+}
+
+/* ==========================================================================
+   SIGN UP COMPONENT MODIFICATIONS
+   ========================================================================== */
+
+/* --- Select & Date Styling fixes to match inputs --- */
+input[type="date"], select {
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: inherit;
+    color: #666666;
+}
+
+select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+    cursor: pointer;
+}
+
+/* Form panel wrapper layout rules */
+.button-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.btn-next {
+    width: auto;
+    min-width: 140px;
+    padding: 12px 35px;
+}
+
+/* ==========================================================================
+   DASHBOARD ARCHITECTURE STYLINGS
+   ========================================================================== */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: #003344;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+
+.icon-btn:hover {
+    transform: scale(1.1);
+}
+
+/* Dashboard Parent Wrapper layout */
+.dashboard-container {
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 60px 8%;
+}
+
+.dashboard-intro {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 60px;
+    align-items: flex-start;
+    margin-bottom: 50px;
+}
+
+.intro-desc-col h3 {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #000000;
+    margin-bottom: 8px;
+}
+
+.intro-desc-col p {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #333333;
+}
+
+/* Learning Path Grid Architecture */
+.paths-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+}
+
+.path-card {
+    background: #E3DEC1; /* Matched darker canvas block layout blend background */
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-image-wrapper {
+    width: 100%;
+    height: 240px;
+    overflow: hidden;
+}
+
+.card-banner {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-body {
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+/* Styled Badges */
+.badge {
+    align-self: flex-start;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+.badge-learn {
+    background: #FDBA74;
+    color: #C2410C;
+}
+
+.badge-practice {
+    background: #FCA5A5;
+    color: #B91C1C;
+}
+
+.card-body h2 {
+    font-size: 26px;
+    font-weight: 800;
+    color: #111111;
+    margin-bottom: 12px;
+}
+
+.card-body p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #2D2D2D;
+    margin-bottom: 25px;
+    flex-grow: 1;
+}
+
+/* Arrow Navigation Action Links */
+.card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    color: #139C38;
+    font-weight: 700;
+    font-size: 15px;
+    transition: gap 0.2s;
+}
+
+.card-link:hover {
+    gap: 10px;
+}
+
+/* Component Success Vector Adjustments */
+.signin-success-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px auto;
+}
+
+/* Dashboard Responsive Layout rules overrides */
+@media (max-width: 900px) {
+    .dashboard-intro {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    .paths-grid {
+        grid-template-columns: 1fr;
+    }
+}
