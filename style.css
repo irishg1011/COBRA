@@ -356,6 +356,31 @@ h1 {
     margin-top: 10px;
 }
 
+/* --- Forgot Password Extras --- */
+.footer-back-wrapper {
+    margin-top: 35px;
+    border-top: 1px solid #EDEAE4;
+    padding-top: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.back-to-login-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333333;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.back-to-login-link:hover {
+    color: #139C38;
+}
+
 .password-wrapper {
     position: relative;
     display: flex;
