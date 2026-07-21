@@ -1,29 +1,36 @@
-from flask import Flask, request, jsonify
+"""
+login.py - CobraByte Backend Server
+------------------------------------
+Flask routes for user registration, authentication, and OTP verification.
+"""
+
+from api import generate_otp, send_email
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
+CORS(app)  # Enables cross-origin requests from Live Server (http://127.0.0.1:5500)
 
 # ============================================================
-# DATABASE CONFIG (same as your cobradb.py)
+# DATABASE CONFIG
 # ============================================================
 DB_HOST = "localhost"
 DB_USER = "root"
-DB_PASSWORD = ""            # leave empty for default XAMPP/WAMP setup
+DB_PASSWORD = ""
 DB_NAME = "cobra_db"
 
 ACCOUNT_TABLE = "account_tbl"
-PROFILE_TABLE = "profile_tbl"       # <-- confirm this table name
+PROFILE_TABLE = "profile_tbl"
+DEFAULT_U_TYPE = 2  # 2 = Learner
 
-# Default user type assigned to new sign-ups (check usertype_tbl for the
-# correct id, e.g. 1 = student)
-DEFAULT_U_TYPE = 1
-# ============================================================
+# Temporary in-memory OTP storage: { "user_email@gmail.com": "123456" }
+otp_storage = {}
 
 
 def get_db_connection():
-    """Opens a connection to cobra_db."""
     try:
         connection = mysql.connector.connect(
             host=DB_HOST,
@@ -39,23 +46,53 @@ def get_db_connection():
 
 
 def generate_acc_id(cursor):
-    """
-    Generates a new acc_id like 'ACC00001', 'ACC00002', etc.
-    Fits within varchar(15). Adjust this if you already have your own
-    ID scheme elsewhere in the system.
-    """
     cursor.execute(f"SELECT COUNT(*) AS total FROM {ACCOUNT_TABLE}")
     total = cursor.fetchone()[0]
-    new_id = f"ACC{total + 1:05d}"
-    return new_id
+    return f"ACC{total + 1:05d}"
 
 
 # ============================================================
-# SIGN UP
+# ROUTE: SEND SIGNUP OTP
+# ============================================================
+@app.route("/send-otp", methods=["POST"])
+def handle_send_otp():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+
+    if not email:
+        return jsonify({"success": False, "message": "Email is required."}), 400
+
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE email = %s", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            connection.close()
+            return jsonify({"success": False, "message": "Email is already registered."}), 409
+        cursor.close()
+        connection.close()
+
+    otp_code = generate_otp()
+    otp_storage[email] = otp_code
+
+    sent = send_email(
+        to_email=email,
+        subject="CobraByte - Email Verification Code",
+        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 5 minutes."
+    )
+
+    if sent:
+        return jsonify({"success": True, "message": "OTP sent successfully!"}), 200
+    return jsonify({"success": False, "message": "Failed to send OTP email."}), 500
+
+
+# ============================================================
+# ROUTE: SIGN UP (VERIFY OTP & SAVE TO MYSQL)
 # ============================================================
 @app.route("/signup", methods=["POST"])
 def signup():
-    data = request.form if request.form else (request.get_json(silent=True) or {})
+    data = request.get_json(silent=True) or {}
 
     first_name = (data.get("firstName") or "").strip()
     last_name = (data.get("lastName") or "").strip()
@@ -65,86 +102,55 @@ def signup():
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
     confirm_password = (data.get("confirmPassword") or "").strip()
+    user_otp = (data.get("otp") or "").strip()
 
-    # ------------------------------------------------------------
-    # VALIDATION: lahat ng fields kailangan ma-fill up bago mag-proceed.
-    # ------------------------------------------------------------
-    required_fields = {
-        "First name": first_name,
-        "Last name": last_name,
-        "Birthdate": birthdate,
-        "Gender": gender,
-        "Email": email,
-        "Username": username,
-        "Password": password,
-        "Confirm password": confirm_password,
-    }
-
-    missing = [label for label, value in required_fields.items() if not value]
-    if missing:
-        return jsonify({
-            "success": False,
-            "message": f"Please fill in the following field(s): {', '.join(missing)}."
-        }), 400
+    if not all([first_name, last_name, birthdate, gender, email, username, password, confirm_password, user_otp]):
+        return jsonify({"success": False, "message": "All fields are required."}), 400
 
     if password != confirm_password:
-        return jsonify({
-            "success": False,
-            "message": "Password and confirm password do not match."
-        }), 400
+        return jsonify({"success": False, "message": "Passwords do not match."}), 400
 
-    if len(username) > 15:
-        return jsonify({
-            "success": False,
-            "message": "Username must be 15 characters or fewer."
-        }), 400
+    # Validate OTP code against stored memory
+    stored_otp = otp_storage.get(email)
+    if not stored_otp or stored_otp != user_otp:
+        return jsonify({"success": False, "message": "Invalid or expired verification code."}), 400
 
     connection = get_db_connection()
     if connection is None:
-        return jsonify({"success": False, "message": "Could not connect to the database."}), 500
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
 
     try:
         cursor = connection.cursor()
 
-        # Check if username or email already exists
         cursor.execute(
             f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE username = %s OR email = %s",
             (username, email)
         )
         if cursor.fetchone():
-            return jsonify({
-                "success": False,
-                "message": "Username or email is already taken."
-            }), 409
+            return jsonify({"success": False, "message": "Username or email is already taken."}), 409
 
         hashed_password = generate_password_hash(password)
         new_acc_id = generate_acc_id(cursor)
 
-        # Insert into account_tbl
+        # 1. Insert into account_tbl
         cursor.execute(
-            f"""INSERT INTO {ACCOUNT_TABLE}
-                (acc_id, email, username, password, u_type, failed_attempts, is_deleted)
-                VALUES (%s, %s, %s, %s, %s, 0, 0)""",
+            f"INSERT INTO {ACCOUNT_TABLE} (acc_id, email, username, password, u_type, failed_attempts, is_deleted) VALUES (%s, %s, %s, %s, %s, 0, 0)",
             (new_acc_id, email, username, hashed_password, DEFAULT_U_TYPE)
         )
 
-        # ------------------------------------------------------------
-        # Insert into profile_tbl (PLACEHOLDER - confirm real column names)
-        # ------------------------------------------------------------
+        # 2. Insert into profile_tbl matching exact structure (acc_id, email, username, firstname, lastname, gender, birthdate)
         cursor.execute(
-            f"""INSERT INTO {PROFILE_TABLE}
-                (acc_id, first_name, last_name, birthdate, gender)
-                VALUES (%s, %s, %s, %s, %s)""",
-            (new_acc_id, first_name, last_name, birthdate, gender)
+            f"INSERT INTO {PROFILE_TABLE} (acc_id, email, username, firstname, lastname, gender, birthdate) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (new_acc_id, email, username, first_name, last_name, gender, birthdate)
         )
 
         connection.commit()
         cursor.close()
 
-        return jsonify({
-            "success": True,
-            "message": "Account created successfully."
-        }), 201
+        # Clean up OTP after registration
+        otp_storage.pop(email, None)
+
+        return jsonify({"success": True, "message": "Account created successfully."}), 201
 
     except Error as e:
         connection.rollback()
@@ -155,57 +161,34 @@ def signup():
 
 
 # ============================================================
-# LOGIN
+# ROUTE: LOGIN
 # ============================================================
 @app.route("/login", methods=["POST"])
 def login():
-    data = request.form if request.form else (request.get_json(silent=True) or {})
-
+    data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
 
-    # ------------------------------------------------------------
-    # VALIDATION: parehong hindi puwedeng blangko bago mag-proceed.
-    # ------------------------------------------------------------
     if not username or not password:
-        return jsonify({
-            "success": False,
-            "message": "Please fill in your username and password before logging in."
-        }), 400
+        return jsonify({"success": False, "message": "Please enter both username and password."}), 400
 
     connection = get_db_connection()
     if connection is None:
-        return jsonify({"success": False, "message": "Could not connect to the database."}), 500
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
 
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            f"""SELECT acc_id, password, is_deleted
-                FROM {ACCOUNT_TABLE}
-                WHERE username = %s""",
+            f"SELECT acc_id, password, is_deleted FROM {ACCOUNT_TABLE} WHERE username = %s",
             (username,)
         )
         account = cursor.fetchone()
         cursor.close()
 
-        # Wrong username, or account was soft-deleted
-        if not account or account.get("is_deleted"):
-            return jsonify({
-                "success": False,
-                "message": "Wrong username or password."
-            }), 401
+        if not account or account.get("is_deleted") or not check_password_hash(account["password"], password):
+            return jsonify({"success": False, "message": "Invalid username or password."}), 401
 
-        # Wrong password
-        if not check_password_hash(account["password"], password):
-            return jsonify({
-                "success": False,
-                "message": "Wrong username or password."
-            }), 401
-
-        return jsonify({
-            "success": True,
-            "message": "Login successful. Redirecting to dashboard..."
-        }), 200
+        return jsonify({"success": True, "message": "Login successful. Redirecting..."}), 200
 
     except Error as e:
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
@@ -213,6 +196,119 @@ def login():
         if connection.is_connected():
             connection.close()
 
+# ============================================================
+# ROUTE: SEND FORGOT PASSWORD OTP
+# ============================================================
+@app.route("/forgot-password/send-otp", methods=["POST"])
+def forgot_password_send_otp():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
 
+    if not email:
+        return jsonify({"success": False, "message": "Please enter your email address."}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE email = %s AND is_deleted = 0", (email,))
+        account = cursor.fetchone()
+        cursor.close()
+
+        if not account:
+            return jsonify({"success": False, "message": "No account found with this email address."}), 404
+
+        # Generate OTP and store in memory
+        otp_code = generate_otp()
+        otp_storage[f"forgot_{email}"] = otp_code
+
+        # Send email using api.py
+        sent = send_email(
+            to_email=email,
+            subject="CobraByte - Password Reset Code",
+            body_text=f"Your 6-digit password reset code is: {otp_code}\nThis code expires in 5 minutes."
+        )
+
+        if sent:
+            return jsonify({"success": True, "message": "Reset code sent to your email."}), 200
+        return jsonify({"success": False, "message": "Failed to send email. Please try again."}), 500
+
+    except Error as e:
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+# ============================================================
+# ROUTE: VERIFY FORGOT PASSWORD OTP
+# ============================================================
+@app.route("/forgot-password/verify-otp", methods=["POST"])
+def forgot_password_verify_otp():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    user_otp = (data.get("otp") or "").strip()
+
+    if not email or not user_otp:
+        return jsonify({"success": False, "message": "Email and OTP code are required."}), 400
+
+    stored_otp = otp_storage.get(f"forgot_{email}")
+    if not stored_otp or stored_otp != user_otp:
+        return jsonify({"success": False, "message": "Invalid or expired verification code."}), 400
+
+    return jsonify({"success": True, "message": "OTP verified successfully."}), 200
+
+
+# ============================================================
+# ROUTE: RESET PASSWORD (UPDATE IN MYSQL)
+# ============================================================
+@app.route("/forgot-password/reset-password", methods=["POST"])
+def forgot_password_reset():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    new_password = (data.get("newPassword") or "").strip()
+    confirm_password = (data.get("confirmPassword") or "").strip()
+
+    if not email or not new_password or not confirm_password:
+        return jsonify({"success": False, "message": "All fields are required."}), 400
+
+    if new_password != confirm_password:
+        return jsonify({"success": False, "message": "Passwords do not match."}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor()
+        
+        # Hash the new password before updating
+        hashed_password = generate_password_hash(new_password)
+
+        cursor.execute(
+            f"UPDATE {ACCOUNT_TABLE} SET password = %s WHERE email = %s AND is_deleted = 0",
+            (hashed_password, email)
+        )
+        connection.commit()
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            return jsonify({"success": False, "message": "Account not found or password not updated."}), 404
+
+        cursor.close()
+
+        # Clean up stored OTP after successful reset
+        otp_storage.pop(f"forgot_{email}", None)
+
+        return jsonify({"success": True, "message": "Password updated successfully."}), 200
+
+    except Error as e:
+        connection.rollback()
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+            
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
