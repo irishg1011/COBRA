@@ -5,7 +5,7 @@ Flask routes for user registration, authentication, and OTP verification.
 """
 
 from api import generate_otp, send_email
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
@@ -309,6 +309,17 @@ def forgot_password_reset():
     finally:
         if connection.is_connected():
             connection.close()
-            
+
+# ============================================================
+# ROUTE: SERVE FRONTEND PAGES
+# ============================================================
+@app.route("/")
+def serve_login():
+    return send_from_directory('.', 'login.html')
+
+@app.route("/<path:filename>")
+def serve_static_files(filename):
+    return send_from_directory('.', filename)
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

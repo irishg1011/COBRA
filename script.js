@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    const API_BASE_URL = "";
 
     // Header Injection
     const headerPlaceholder = document.getElementById('header-placeholder');
@@ -29,7 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Form Helpers
+    // ============================================================
+    // FORM HELPERS & LOADING STATE HELPERS
+    // ============================================================
     function validateRequiredFields(fields) {
         for (const field of fields) {
             if (!field) continue;
@@ -73,6 +75,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!afterEl) return;
         const errorEl = afterEl.parentElement.querySelector('.js-error-message');
         if (errorEl) errorEl.remove();
+    }
+
+    // TASK 1 HELPERS: Set & Reset Loading State on Buttons
+    function setButtonLoading(button, loadingText = "Processing...") {
+        if (!button) return;
+        if (!button.dataset.originalHtml) {
+            button.dataset.originalHtml = button.innerHTML;
+        }
+        button.disabled = true;
+        button.classList.add('btn-loading');
+        button.innerHTML = `<span class="btn-spinner"></span><span>${loadingText}</span>`;
+    }
+
+    function resetButtonLoading(button) {
+        if (!button) return;
+        button.disabled = false;
+        button.classList.remove('btn-loading');
+        if (button.dataset.originalHtml) {
+            button.innerHTML = button.dataset.originalHtml;
+        }
     }
 
     // Elements Setup
@@ -161,6 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
 
+            setButtonLoading(proceedToStep3, "Sending Code...");
+
             try {
                 const response = await fetch(`${API_BASE_URL}/send-otp`, {
                     method: 'POST',
@@ -181,6 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 alert('Could not send verification code. Ensure your backend server is running.');
+            } finally {
+                resetButtonLoading(proceedToStep3);
             }
         });
     }
@@ -200,6 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const otpInputs = document.querySelectorAll('#signUpStep3Panel .otp-input');
             const otpCode = Array.from(otpInputs).map(i => i.value).join('');
+
+            setButtonLoading(verifyAndFinish, "Creating Account...");
 
             try {
                 const response = await fetch(`${API_BASE_URL}/signup`, {
@@ -231,6 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 alert('Could not reach the server.');
+            } finally {
+                resetButtonLoading(verifyAndFinish);
             }
         });
     }
@@ -261,9 +291,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (signInFormElement) {
         signInFormElement.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const submitBtn = signInFormElement.querySelector('button[type="submit"]') || signInFormElement.querySelector('.btn-login');
 
             if (!validateRequiredFields([usernameInput, passwordInput])) return;
             clearInlineError(passwordInput.closest('.password-wrapper'));
+
+            setButtonLoading(submitBtn, "Signing in...");
 
             try {
                 const response = await fetch(`${API_BASE_URL}/login`, {
@@ -287,6 +320,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 showInlineError(passwordInput.closest('.password-wrapper'), 'Could not reach server.');
+            } finally {
+                resetButtonLoading(submitBtn);
             }
         });
     }
@@ -308,11 +343,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnForgotProceed) {
         btnForgotProceed.addEventListener('click', async (e) => {
-            e.preventDefault(); // Prevents form submit page reload
+            e.preventDefault();
 
             if (!validateRequiredFields([forgotEmailInput])) return;
 
             const userEmail = forgotEmailInput.value.trim();
+
+            setButtonLoading(btnForgotProceed, "Verifying...");
 
             try {
                 const response = await fetch(`${API_BASE_URL}/forgot-password/send-otp`, {
@@ -335,11 +372,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 alert('Could not reach the server. Make sure your Flask backend is running.');
+            } finally {
+                resetButtonLoading(btnForgotProceed);
             }
         });
     }
 
-    // Step 2 Verify Code -> Call Backend & Move to Step 3 (Set New Password)
+    // Step 2 Verify Code -> Move to Step 3
     const btnVerifyForgotCode = document.getElementById('btnVerifyForgotCode');
     if (btnVerifyForgotCode) {
         btnVerifyForgotCode.addEventListener('click', async (e) => {
@@ -349,6 +388,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const otpInputs = document.querySelectorAll('#forgotOtpPanel .otp-input');
             const otpCode = Array.from(otpInputs).map(i => i.value).join('');
             const userEmail = forgotEmailInput ? forgotEmailInput.value.trim() : '';
+
+            setButtonLoading(btnVerifyForgotCode, "Verifying Code...");
 
             try {
                 const response = await fetch(`${API_BASE_URL}/forgot-password/verify-otp`, {
@@ -367,11 +408,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 alert('Could not verify code. Ensure server is running.');
+            } finally {
+                resetButtonLoading(btnVerifyForgotCode);
             }
         });
     }
 
-    // Step 3 Reset Password -> Save to MySQL & Show Step 4 (Success)
+    // Step 3 Reset Password -> Save to MySQL & Show Step 4
     const btnResetPassword = document.getElementById('btnResetPassword');
     const forgotNewPasswordInput = document.getElementById('forgotNewPassword');
     const forgotConfirmPasswordInput = document.getElementById('forgotConfirmPassword');
@@ -389,6 +432,8 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'));
 
             const userEmail = forgotEmailInput ? forgotEmailInput.value.trim() : '';
+
+            setButtonLoading(btnResetPassword, "Resetting Password...");
 
             try {
                 const response = await fetch(`${API_BASE_URL}/forgot-password/reset-password`, {
@@ -411,6 +456,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), 'Could not update password. Check server.');
+            } finally {
+                resetButtonLoading(btnResetPassword);
             }
         });
     }
