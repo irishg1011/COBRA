@@ -50,7 +50,6 @@ def generate_acc_id(cursor):
     total = cursor.fetchone()[0]
     return f"ACC{total + 1:05d}"
 
-
 # ============================================================
 # ROUTE: SEND SIGNUP OTP
 # ============================================================
@@ -58,6 +57,7 @@ def generate_acc_id(cursor):
 def handle_send_otp():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
+    username = (data.get("username") or "").strip()
 
     if not email:
         return jsonify({"success": False, "message": "Email is required."}), 400
@@ -65,13 +65,28 @@ def handle_send_otp():
     connection = get_db_connection()
     if connection:
         cursor = connection.cursor()
+        
+        # Check both fields independently
         cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE email = %s", (email,))
-        if cursor.fetchone():
-            cursor.close()
-            connection.close()
-            return jsonify({"success": False, "message": "Email is already registered."}), 409
+        email_exists = cursor.fetchone()
+
+        username_exists = None
+        if username:
+            cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE username = %s", (username,))
+            username_exists = cursor.fetchone()
+
         cursor.close()
         connection.close()
+
+        # Build a combined error message if both exist
+        errors = []
+        if email_exists:
+            errors.append("An account with this email already exists.")
+        if username_exists:
+            errors.append("This username is already taken.")
+
+        if errors:
+            return jsonify({"success": False, "message": " ".join(errors)}), 409
 
     otp_code = generate_otp()
     otp_storage[email] = otp_code
@@ -85,7 +100,6 @@ def handle_send_otp():
     if sent:
         return jsonify({"success": True, "message": "OTP sent successfully!"}), 200
     return jsonify({"success": False, "message": "Failed to send OTP email."}), 500
-
 
 # ============================================================
 # ROUTE: SIGN UP (VERIFY OTP & SAVE TO MYSQL)

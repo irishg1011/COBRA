@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const API_BASE_URL = "";
+    const API_BASE_URL = "http://127.0.0.1:5000";
 
     // Header Injection
     const headerPlaceholder = document.getElementById('header-placeholder');
@@ -175,24 +175,56 @@ document.addEventListener('DOMContentLoaded', () => {
         proceedToStep3.addEventListener('click', async (e) => {
             e.preventDefault();
 
-            if (!validateRequiredFields([emailInput, regUsernameInput, createPasswordInput, confirmPasswordInput])) return;
-
-            if (createPasswordInput.value.trim() !== confirmPasswordInput.value.trim()) {
-                showInlineError(confirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
-                return;
-            }
+            // Clear previous errors first
+            clearInlineError(emailInput);
+            clearInlineError(regUsernameInput);
             clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
 
-            setButtonLoading(proceedToStep3, "Sending Code...");
+            let hasError = false;
 
+            // 1. Check required fields
+            if (!emailInput.value.trim() || !regUsernameInput.value.trim() || !createPasswordInput.value.trim() || !confirmPasswordInput.value.trim()) {
+                alert("All fields are required.");
+                return;
+            }
+
+            // 2. Check if passwords match locally
+            if (createPasswordInput.value.trim() !== confirmPasswordInput.value.trim()) {
+                showInlineError(confirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
+                hasError = true;
+            }
+
+            // 3. Check database for existing email/username via backend
             try {
                 const response = await fetch(`${API_BASE_URL}/send-otp`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: emailInput.value.trim() })
+                    body: JSON.stringify({ 
+                        email: emailInput.value.trim(),
+                        username: regUsernameInput.value.trim() 
+                    })
                 });
                 const result = await response.json();
 
+                if (!result.success) {
+                    if (result.message.includes("email")) {
+                        showInlineError(emailInput, "An account with this email already exists.");
+                        hasError = true;
+                    }
+                    if (result.message.includes("username")) {
+                        showInlineError(regUsernameInput, "This username is already taken.");
+                        hasError = true;
+                    }
+                    if (!result.message.includes("email") && !result.message.includes("username")) {
+                        alert(result.message);
+                        hasError = true;
+                    }
+                }
+
+                // If any error occurred (password mismatch OR database duplicates), stop here
+                if (hasError) return;
+
+                // If everything is completely valid, proceed to Step 3 OTP screen
                 if (result.success) {
                     const placeholder = document.getElementById('userEmailPlaceholder');
                     if (placeholder) placeholder.textContent = emailInput.value;
@@ -200,13 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     hideAllPanels();
                     if (authToggleBar) authToggleBar.style.display = 'none';
                     if (signUpStep3Panel) signUpStep3Panel.style.display = 'block';
-                } else {
-                    alert(result.message);
                 }
+
             } catch (err) {
                 alert('Could not send verification code. Ensure your backend server is running.');
-            } finally {
-                resetButtonLoading(proceedToStep3);
             }
         });
     }
