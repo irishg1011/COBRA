@@ -1,9 +1,44 @@
+"""
+CobraByte - Sign Up & Login Backend (Flask)
+--------------------------------------------
+Based on your existing cobradb.py connection config and the account_tbl
+structure shown in phpMyAdmin:
+
+    account_tbl
+    -----------
+    acc_id          varchar(15)   PRIMARY KEY   <-- system-generated ID (not typed by user)
+    email           varchar(100)
+    username        varchar(30)   UNIQUE        <-- used for login
+    password        varchar(255)
+    u_type          int(10)       FK -> usertype_tbl
+    failed_attempts tinyint(1)
+    is_deleted      tinyint(1)
+    deleted_at      timestamp
+
+NOTE ON "acc_id":
+Since acc_id is the PRIMARY KEY but is a varchar(15) with no auto-increment,
+something has to generate it during sign up. This code auto-generates one
+(see generate_acc_id() below) using a simple "ACC" + zero-padded counter
+scheme. If you already generate acc_id a different way (e.g. in another
+part of your system), replace generate_acc_id() with that logic instead.
+
+PLACEHOLDERS YOU STILL NEED TO CONFIRM:
+- profile_tbl columns (first_name, last_name, birthdate, gender_id, acc_id)
+- gender_tbl columns (gender_id, gender_name)
+Adjust the PROFILE_COLUMNS section below once you confirm the real names.
+
+Install what you need:
+    pip install flask mysql-connector-python werkzeug
+"""
+
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+CORS(app)  # allows requests from other origins/ports, e.g. Live Server on :5500
 
 # ============================================================
 # DATABASE CONFIG (same as your cobradb.py)

@@ -1,5 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
 
+    // Your HTML is served by Live Server (127.0.0.1:5500) while Flask
+    // runs separately on 127.0.0.1:5000 — so we point directly to it.
+    const API_BASE_URL = "http://127.0.0.1:5000";
+
     // 1. Handle Header Injection
     const headerPlaceholder = document.getElementById('header-placeholder');
     if (headerPlaceholder) {
@@ -30,17 +34,73 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ----------------------------------------------------------
+    // VALIDATION HELPER
+    // Explicitly checks a list of fields one by one and shows the
+    // native "Please fill out this field" warning on the first
+    // empty one found. Returns false immediately if any is empty,
+    // so the calling code can stop and NOT proceed to the next step.
+    // ----------------------------------------------------------
+    function validateRequiredFields(fields) {
+        for (const field of fields) {
+            if (!field) continue;
+            if (!field.value || field.value.trim() === '') {
+                field.setCustomValidity('Please fill out this field.');
+                field.reportValidity();
+                field.focus();
+
+                const clearOnInput = () => {
+                    field.setCustomValidity('');
+                    field.removeEventListener('input', clearOnInput);
+                };
+                field.addEventListener('input', clearOnInput);
+
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function validateOtpComplete(containerSelector) {
+        const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
+        const complete = [...inputs].every(input => input.value.trim() !== '');
+        if (!complete) {
+            alert('Please enter the complete 6-digit code.');
+        }
+        return complete;
+    }
+
+    function showInlineError(afterEl, message) {
+        if (!afterEl) { alert(message); return; }
+        let errorEl = afterEl.parentElement.querySelector('.js-error-message');
+        if (!errorEl) {
+            errorEl = document.createElement('p');
+            errorEl.className = 'js-error-message';
+            errorEl.style.color = '#e02424';
+            errorEl.style.fontSize = '14px';
+            errorEl.style.marginTop = '8px';
+            afterEl.insertAdjacentElement('afterend', errorEl);
+        }
+        errorEl.textContent = message;
+    }
+
+    function clearInlineError(afterEl) {
+        if (!afterEl) return;
+        const errorEl = afterEl.parentElement.querySelector('.js-error-message');
+        if (errorEl) errorEl.remove();
+    }
+
     // 4. Panel Navigation Setup
     const authToggleBar = document.querySelector('.auth-toggle');
     const signInBtn = document.getElementById('switchToSignIn');
     const signUpBtn = document.getElementById('switchToSignUp');
-    
+
     const signInPanel = document.getElementById('signInPanel');
     const signUpPanel = document.getElementById('signUpPanel');
     const signUpStep2Panel = document.getElementById('signUpStep2Panel');
     const signUpStep3Panel = document.getElementById('signUpStep3Panel');
     const signUpStep4Panel = document.getElementById('signUpStep4Panel');
-    
+
     // Forgot Password Panels
     const forgotPasswordPanel = document.getElementById('forgotPasswordPanel');
     const forgotOtpPanel = document.getElementById('forgotOtpPanel');
@@ -54,16 +114,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const backToSignIn = document.getElementById('btnBackToSignIn');
     const backToStep1 = document.getElementById('backToStep1');
     const backToStep2 = document.getElementById('backToStep2');
-    
+
     // Forgot Password Flow Triggers
     const forgotLink = document.querySelector('.forgot-link');
     const btnForgotProceed = document.getElementById('btnForgotProceed');
     const btnVerifyForgotCode = document.getElementById('btnVerifyForgotCode');
     const btnResetPassword = document.getElementById('btnResetPassword');
 
+    // Step 1 fields
+    const firstNameInput = document.getElementById('firstName');
+    const lastNameInput = document.getElementById('lastName');
+    const birthdateInput = document.getElementById('birthdate');
+    const genderSelect = document.getElementById('gender');
+
+    // Step 2 fields
+    const emailInput = document.getElementById('email');
+    const regUsernameInput = document.getElementById('regUsername');
+    const createPasswordInput = document.getElementById('createPassword');
+    const confirmPasswordInput = document.getElementById('confirmPassword');
+
+    // Forgot password fields
+    const forgotEmailInput = document.getElementById('forgotEmail');
+    const forgotNewPasswordInput = document.getElementById('forgotNewPassword');
+    const forgotConfirmPasswordInput = document.getElementById('forgotConfirmPassword');
+
+    // Sign in fields
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+
     // Master function to hide absolutely all views
     function hideAllPanels() {
-        const panels = [signInPanel, signUpPanel, signUpStep2Panel, signUpStep3Panel, signUpStep4Panel, 
+        const panels = [signInPanel, signUpPanel, signUpStep2Panel, signUpStep3Panel, signUpStep4Panel,
                         forgotPasswordPanel, forgotOtpPanel, setNewPasswordPanel, forgotSuccessPanel];
         panels.forEach(p => { if(p) p.style.display = 'none'; });
         if(document.getElementById('signInSuccessPanel')) document.getElementById('signInSuccessPanel').style.display = 'none';
@@ -89,20 +170,43 @@ document.addEventListener('DOMContentLoaded', () => {
         signInBtn.addEventListener('click', showSignInView);
     }
 
-    // Registration step routing handlers
-    if (goToStep2) goToStep2.addEventListener('click', () => { hideAllPanels(); if(signUpStep2Panel) signUpStep2Panel.style.display = 'block'; });
+    // ==========================================================
+    // Registration step routing handlers (NOW WITH VALIDATION)
+    // ==========================================================
+    if (goToStep2) {
+        goToStep2.addEventListener('click', () => {
+            const step1Fields = [firstNameInput, lastNameInput, birthdateInput, genderSelect];
+            if (!validateRequiredFields(step1Fields)) return; // stop here if any field is empty
+
+            hideAllPanels();
+            if (signUpStep2Panel) signUpStep2Panel.style.display = 'block';
+        });
+    }
+
     if (backToStep1) backToStep1.addEventListener('click', (e) => { e.preventDefault(); hideAllPanels(); if(signUpPanel) signUpPanel.style.display = 'block'; });
-    
+
     if (proceedToStep3) {
-        proceedToStep3.addEventListener('click', () => {
-            const emailInput = document.getElementById('email');
+        proceedToStep3.addEventListener('click', (e) => {
+            e.preventDefault(); // this is a type="submit" button; stop the form submit ourselves
+
+            const step2Fields = [emailInput, regUsernameInput, createPasswordInput, confirmPasswordInput];
+            if (!validateRequiredFields(step2Fields)) return; // stop here if any field is empty
+
+            if (createPasswordInput.value.trim() !== confirmPasswordInput.value.trim()) {
+                showInlineError(confirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
+                return;
+            }
+            clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
+
             const placeholder = document.getElementById('userEmailPlaceholder');
             if (emailInput && emailInput.value && placeholder) placeholder.textContent = emailInput.value;
+
             hideAllPanels();
             if (authToggleBar) authToggleBar.style.display = 'none';
             if(signUpStep3Panel) signUpStep3Panel.style.display = 'block';
         });
     }
+
     if (backToStep2) {
         backToStep2.addEventListener('click', (e) => {
             e.preventDefault(); hideAllPanels();
@@ -110,19 +214,48 @@ document.addEventListener('DOMContentLoaded', () => {
             if(signUpStep2Panel) signUpStep2Panel.style.display = 'block';
         });
     }
+
+    // Step 3 -> creates the account for real via /signup
     if (verifyAndFinish) {
-        verifyAndFinish.addEventListener('click', () => {
-            const fullName = ((document.getElementById('firstName')?.value || '') + ' ' + (document.getElementById('lastName')?.value || '')).trim();
-            const namePlaceholder = document.getElementById('successUserPlaceholder');
-            if (fullName && namePlaceholder) namePlaceholder.textContent = fullName;
-            hideAllPanels();
-            if(signUpStep4Panel) signUpStep4Panel.style.display = 'block';
+        verifyAndFinish.addEventListener('click', async () => {
+            if (!validateOtpComplete('#signUpStep3Panel')) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        firstName: firstNameInput?.value.trim(),
+                        lastName: lastNameInput?.value.trim(),
+                        birthdate: birthdateInput?.value,
+                        gender: genderSelect?.value,
+                        email: emailInput?.value.trim(),
+                        username: regUsernameInput?.value.trim(),
+                        password: createPasswordInput?.value.trim(),
+                        confirmPassword: confirmPasswordInput?.value.trim()
+                    })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    const fullName = ((firstNameInput?.value || '') + ' ' + (lastNameInput?.value || '')).trim();
+                    const namePlaceholder = document.getElementById('successUserPlaceholder');
+                    if (fullName && namePlaceholder) namePlaceholder.textContent = fullName;
+                    hideAllPanels();
+                    if(signUpStep4Panel) signUpStep4Panel.style.display = 'block';
+                } else {
+                    alert(result.message); // e.g. "Username or email is already taken."
+                }
+            } catch (err) {
+                alert('Could not reach the server. Please try again.');
+            }
         });
     }
+
     if (backToSignIn) backToSignIn.addEventListener('click', showSignInView);
 
     // ==========================================================================
-    // FORGOT PASSWORD ENGINE INTERACTION ROUTING
+    // FORGOT PASSWORD ENGINE INTERACTION ROUTING (NOW WITH VALIDATION)
     // ==========================================================================
     if (forgotLink) {
         forgotLink.addEventListener('click', (e) => {
@@ -136,7 +269,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Step 1 -> Step 2 (OTP)
     if (btnForgotProceed) {
         btnForgotProceed.addEventListener('click', () => {
-            const forgotEmailVal = document.getElementById('forgotEmail')?.value || 'your email';
+            if (!validateRequiredFields([forgotEmailInput])) return;
+
+            const forgotEmailVal = forgotEmailInput?.value || 'your email';
             document.querySelectorAll('.dynamic-forgot-email').forEach(el => {
                 el.textContent = forgotEmailVal;
             });
@@ -148,6 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Step 2 -> Step 3 (New Password Fields)
     if (btnVerifyForgotCode) {
         btnVerifyForgotCode.addEventListener('click', () => {
+            if (!validateOtpComplete('#forgotOtpPanel')) return;
+
             hideAllPanels();
             if(setNewPasswordPanel) setNewPasswordPanel.style.display = 'block';
         });
@@ -156,6 +293,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Step 3 -> Step 4 (Success Card)
     if (btnResetPassword) {
         btnResetPassword.addEventListener('click', () => {
+            if (!validateRequiredFields([forgotNewPasswordInput, forgotConfirmPasswordInput])) return;
+
+            if (forgotNewPasswordInput.value.trim() !== forgotConfirmPasswordInput.value.trim()) {
+                showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
+                return;
+            }
+            clearInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'));
+
             hideAllPanels();
             if(forgotSuccessPanel) forgotSuccessPanel.style.display = 'block';
         });
@@ -188,16 +333,39 @@ document.addEventListener('DOMContentLoaded', () => {
     setupOtpJumping('#signUpStep3Panel');
     setupOtpJumping('#forgotOtpPanel');
 
-    // 6. Sign In Form Submission Redirect Logic (3-Second Pause)
+    // 6. Sign In Form Submission -> real /login check
     const signInFormElement = document.querySelector('#signInPanel form');
     if (signInFormElement) {
-        signInFormElement.addEventListener('submit', (e) => {
-            e.preventDefault(); 
-            if (authToggleBar) authToggleBar.style.display = 'none';
-            if(signInPanel) signInPanel.style.display = 'none';
-            const successPanel = document.getElementById('signInSuccessPanel');
-            if (successPanel) successPanel.style.display = 'block';
-            setTimeout(() => { window.location.href = 'dashboard.html'; }, 3000);
+        signInFormElement.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateRequiredFields([usernameInput, passwordInput])) return;
+
+            clearInlineError(passwordInput.closest('.password-wrapper'));
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: usernameInput.value.trim(),
+                        password: passwordInput.value.trim()
+                    })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    if (authToggleBar) authToggleBar.style.display = 'none';
+                    if(signInPanel) signInPanel.style.display = 'none';
+                    const successPanel = document.getElementById('signInSuccessPanel');
+                    if (successPanel) successPanel.style.display = 'block';
+                    setTimeout(() => { window.location.href = 'dashboard.html'; }, 3000);
+                } else {
+                    showInlineError(passwordInput.closest('.password-wrapper'), result.message);
+                }
+            } catch (err) {
+                showInlineError(passwordInput.closest('.password-wrapper'), 'Could not reach the server. Please try again.');
+            }
         });
     }
 
