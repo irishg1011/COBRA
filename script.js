@@ -97,6 +97,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- REAL-TIME PASSWORD STRENGTH VALIDATOR HELPER ---
+    function setupPasswordValidator(passwordInputId, checkerBoxId, prefix = "") {
+        const pwdInput = document.getElementById(passwordInputId);
+        const checkerBox = document.getElementById(checkerBoxId);
+        if (!pwdInput || !checkerBox) return;
+
+        const pfx = prefix ? `${prefix}-` : '';
+        const reqLength = document.getElementById(`${pfx}req-length`);
+        const reqUpper = document.getElementById(`${pfx}req-upper`);
+        const reqLower = document.getElementById(`${pfx}req-lower`);
+        const reqNumber = document.getElementById(`${pfx}req-number`);
+        const reqSpecial = document.getElementById(`${pfx}req-special`);
+
+        const updateValidationUI = (val) => {
+            const hasLength = val.length >= 8;
+            const hasUpper = /[A-Z]/.test(val);
+            const hasLower = /[a-z]/.test(val);
+            const hasNumber = /[0-9]/.test(val);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(val);
+
+            if (reqLength) {
+                reqLength.textContent = (hasLength ? '✓' : '✗') + ' Requires at least 8 characters';
+                reqLength.style.color = hasLength ? '#0e9f6e' : '#e02424';
+            }
+            if (reqUpper) {
+                reqUpper.textContent = (hasUpper ? '✓' : '✗') + ' Requires an uppercase letter (A-Z)';
+                reqUpper.style.color = hasUpper ? '#0e9f6e' : '#e02424';
+            }
+            if (reqLower) {
+                reqLower.textContent = (hasLower ? '✓' : '✗') + ' Requires a lowercase letter (a-z)';
+                reqLower.style.color = hasLower ? '#0e9f6e' : '#e02424';
+            }
+            if (reqNumber) {
+                reqNumber.textContent = (hasNumber ? '✓' : '✗') + ' Requires a number (0-9)';
+                reqNumber.style.color = hasNumber ? '#0e9f6e' : '#e02424';
+            }
+            if (reqSpecial) {
+                reqSpecial.textContent = (hasSpecial ? '✓' : '✗') + ' Requires a special character (!@#$%^&*)';
+                reqSpecial.style.color = hasSpecial ? '#0e9f6e' : '#e02424';
+            }
+        };
+
+        pwdInput.addEventListener('focus', () => {
+            checkerBox.style.display = 'block';
+            updateValidationUI(pwdInput.value);
+        });
+
+        pwdInput.addEventListener('input', () => {
+            checkerBox.style.display = 'block';
+            updateValidationUI(pwdInput.value);
+        });
+
+        pwdInput.addEventListener('blur', () => {
+            if (!pwdInput.value) {
+                checkerBox.style.display = 'none';
+            }
+        });
+    }
+
+    setupPasswordValidator('createPassword', 'createPassword-checker', '');
+    setupPasswordValidator('forgotNewPassword', 'forgotNewPassword-checker', 'forgot');
+
     // --- COUNTDOWN TIMER STATE & FUNCTIONS ---
     let signUpOtpExpired = false;
     let forgotOtpExpired = false;
@@ -213,8 +275,10 @@ document.addEventListener('DOMContentLoaded', () => {
         proceedToStep3.addEventListener('click', async (e) => {
             e.preventDefault();
 
+            // Clear previous errors first
             clearInlineError(emailInput);
             clearInlineError(regUsernameInput);
+            clearInlineError(createPasswordInput.closest('.password-wrapper'));
             clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
 
             let hasError = false;
@@ -224,11 +288,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (createPasswordInput.value.trim() !== confirmPasswordInput.value.trim()) {
+            // Check password strength requirement locally
+            const pwdVal = createPasswordInput.value.trim();
+            const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+            if (!strongRegex.test(pwdVal)) {
+                showInlineError(createPasswordInput.closest('.password-wrapper'), 'Password does not meet the strength requirements.');
+                hasError = true;
+            }
+
+            // Check confirm password match locally
+            if (pwdVal !== confirmPasswordInput.value.trim()) {
                 showInlineError(confirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
                 hasError = true;
             }
 
+            // Always check backend for existing email/username simultaneously
             try {
                 const response = await fetch(`${API_BASE_URL}/send-otp`, {
                     method: 'POST',
@@ -557,7 +631,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!validateRequiredFields([forgotNewPasswordInput, forgotConfirmPasswordInput])) return;
 
-            if (forgotNewPasswordInput.value.trim() !== forgotConfirmPasswordInput.value.trim()) {
+            const pwdVal = forgotNewPasswordInput.value.trim();
+            const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+            if (!strongRegex.test(pwdVal)) {
+                showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), 'Password does not meet the strength requirements.');
+                return;
+            }
+
+            if (pwdVal !== forgotConfirmPasswordInput.value.trim()) {
                 showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
                 return;
             }

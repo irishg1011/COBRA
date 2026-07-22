@@ -176,12 +176,31 @@
                                 <label for="forgotNewPassword">New Password</label>
                                 <div class="password-wrapper">
                                     <input type="password" id="forgotNewPassword" placeholder="Enter new password" required>
+                                    <div class="toggle-password-visibility">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div id="forgotNewPassword-checker" class="password-strength-box" style="display: none; margin-top: 6px; font-size: 13px;">
+                                    <p id="forgot-req-length" style="color: #e02424; margin: 2px 0;">✗ Requires at least 8 characters</p>
+                                    <p id="forgot-req-upper" style="color: #e02424; margin: 2px 0;">✗ Requires an uppercase letter (A-Z)</p>
+                                    <p id="forgot-req-lower" style="color: #e02424; margin: 2px 0;">✗ Requires a lowercase letter (a-z)</p>
+                                    <p id="forgot-req-number" style="color: #e02424; margin: 2px 0;">✗ Requires a number (0-9)</p>
+                                    <p id="forgot-req-special" style="color: #e02424; margin: 2px 0;">✗ Requires a special character (!@#$%^&*)</p>
                                 </div>
                             </div>
                             <div class="input-group password-group">
                                 <label for="forgotConfirmPassword">Confirm Password</label>
                                 <div class="password-wrapper">
                                     <input type="password" id="forgotConfirmPassword" placeholder="Enter confirm password" required>
+                                    <div class="toggle-password-visibility">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        </svg>
+                                    </div>
                                 </div>
                             </div>
                             <button type="button" class="btn-login" id="btnResetPassword" style="border-radius: 12px; margin-top: 10px;">Reset Password</button>
@@ -255,12 +274,32 @@
                             <label for="createPassword">Create password</label>
                             <div class="password-wrapper">
                                 <input type="password" id="createPassword" placeholder="Enter password" required>
+                                <div class="toggle-password-visibility">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <!-- Password Strength Validator Box for Sign Up -->
+                            <div id="createPassword-checker" class="password-strength-box" style="display: none; margin-top: 6px; font-size: 13px; text-align: left;">
+                                <p id="req-length" style="color: #e02424; margin: 2px 0;">✗ Requires at least 8 characters</p>
+                                <p id="req-upper" style="color: #e02424; margin: 2px 0;">✗ Requires an uppercase letter (A-Z)</p>
+                                <p id="req-lower" style="color: #e02424; margin: 2px 0;">✗ Requires a lowercase letter (a-z)</p>
+                                <p id="req-number" style="color: #e02424; margin: 2px 0;">✗ Requires a number (0-9)</p>
+                                <p id="req-special" style="color: #e02424; margin: 2px 0;">✗ Requires a special character (!@#$%^&*)</p>
                             </div>
                         </div>
                         <div class="input-group password-group">
                             <label for="confirmPassword">Confirm password</label>
                             <div class="password-wrapper">
                                 <input type="password" id="confirmPassword" placeholder="Enter confirm password" required>
+                                <div class="toggle-password-visibility">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    </svg>
+                                </div>
                             </div>
                         </div>
                         <div class="button-wrapper">
