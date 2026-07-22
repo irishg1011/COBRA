@@ -33,7 +33,7 @@ DEFAULT_U_TYPE = 2  # 2 = Learner
 otp_storage = {}
 
 # Reusable robust password strength regex validator
-PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?\":{}|<>]).{8,}$")
+PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_,.?\":{}|<>]).{8,}$")
 
 
 def get_db_connection():
