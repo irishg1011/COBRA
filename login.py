@@ -84,15 +84,13 @@ def handle_send_otp():
         cursor.close()
         connection.close()
 
-        # Build a combined error message if both exist
-        errors = []
-        if email_exists:
-            errors.append("An account with this email already exists.")
-        if username_exists:
-            errors.append("This username is already taken.")
-
-        if errors:
-            return jsonify({"success": False, "message": " ".join(errors)}), 409
+        # Return explicit individual messages or a combined one containing the keywords "email" and "username"
+        if email_exists and username_exists:
+            return jsonify({"success": False, "message": "An account with this email already exists and this username is already taken."}), 409
+        elif email_exists:
+            return jsonify({"success": False, "message": "An account with this email already exists."}), 409
+        elif username_exists:
+            return jsonify({"success": False, "message": "This username is already taken."}), 409
 
     otp_code = generate_otp()
     # Store OTP with a 60-second expiration timestamp matching frontend timer

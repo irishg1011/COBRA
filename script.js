@@ -577,11 +577,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (!result.success) {
                     let backendHasError = false;
-                    if (result.message.toLowerCase().includes("email")) {
+                    const msg = result.message.toLowerCase();
+                    
+                    if (msg.includes("email") || msg.includes("already exists")) {
                         showInlineError(emailInput, "An account with this email already exists.");
                         backendHasError = true;
                     }
-                    if (result.message.toLowerCase().includes("username")) {
+                    if (msg.includes("username") || msg.includes("taken")) {
                         showInlineError(regUsernameInput, "This username is already taken.");
                         backendHasError = true;
                     }
