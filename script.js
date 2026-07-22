@@ -398,6 +398,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (signUpFormStep1) signUpFormStep1.reset();
         if (signUpFormStep2) signUpFormStep2.reset();
 
+        // Extra cleanup for inputs in panels without form wrappers
+        document.querySelectorAll('#signUpPanel input, #signUpPanel select, #signUpStep2Panel input, #signUpStep2Panel select').forEach(inp => {
+            if (inp.type !== 'checkbox' && inp.type !== 'hidden') inp.value = '';
+        });
+
         clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
 
         if (emailInput) clearInlineError(emailInput);
@@ -423,6 +428,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const signInForm = document.querySelector('#signInPanel form');
         if (signInForm) signInForm.reset();
 
+        document.querySelectorAll('#signInPanel input').forEach(inp => {
+            if (inp.type !== 'checkbox' && inp.type !== 'hidden') inp.value = '';
+        });
+
         if (passwordInput && passwordInput.closest('.password-wrapper')) {
             clearInlineError(passwordInput.closest('.password-wrapper'));
         }
@@ -434,6 +443,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (forgotForm) forgotForm.reset();
         if (setNewPwdForm) setNewPwdForm.reset();
+
+        // Thorough manual cleanup for ALL Forgot Password panels
+        document.querySelectorAll('#forgotPasswordPanel input, #setNewPasswordPanel input').forEach(inp => {
+            if (inp.type !== 'checkbox' && inp.type !== 'hidden') inp.value = '';
+        });
 
         clearOtpInputs('#forgotOtpPanel', 'showForgotOtp');
 
@@ -467,9 +481,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showSignInView() {
-        hideAllPanels();
         resetSignUpForm();
         resetForgotPasswordForm();
+        resetSignInForm(); // Added explicit call
+        hideAllPanels();
         if (authToggleBar) authToggleBar.style.display = 'flex';
         if (signInBtn) signInBtn.classList.add('active');
         if (signUpBtn) signUpBtn.classList.remove('active');
@@ -477,9 +492,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showSignUpView() {
-        hideAllPanels();
         resetSignInForm();
         resetForgotPasswordForm();
+        resetSignUpForm(); // Added explicit call
+        hideAllPanels();
         if (authToggleBar) authToggleBar.style.display = 'flex';
         if (signInBtn) signInBtn.classList.remove('active');
         if (signUpBtn) signUpBtn.classList.add('active');
