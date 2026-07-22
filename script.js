@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- REAL-TIME PASSWORD STRENGTH VALIDATOR HELPER ---
+    // --- PASSWORD STRENGTH VALIDATOR (Hides checklist when not focused) ---
     function setupPasswordValidator(passwordInputId, checkerBoxId, prefix = "") {
         const pwdInput = document.getElementById(passwordInputId);
         const checkerBox = document.getElementById(checkerBoxId);
@@ -150,14 +150,48 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         pwdInput.addEventListener('blur', () => {
-            if (!pwdInput.value) {
-                checkerBox.style.display = 'none';
-            }
+            checkerBox.style.display = 'none';
         });
     }
 
     setupPasswordValidator('createPassword', 'createPassword-checker', '');
     setupPasswordValidator('forgotNewPassword', 'forgotNewPassword-checker', 'forgot');
+
+    // --- REAL-TIME PASSWORD MATCH INDICATOR ---
+    function setupPasswordMatchIndicator(passwordInputId, confirmInputId, indicatorId) {
+        const pwdInput = document.getElementById(passwordInputId);
+        const confirmInput = document.getElementById(confirmInputId);
+        const indicator = document.getElementById(indicatorId);
+        if (!pwdInput || !confirmInput || !indicator) return;
+
+        const updateMatchUI = () => {
+            const pwdVal = pwdInput.value;
+            const confirmVal = confirmInput.value;
+
+            if (!confirmVal) {
+                indicator.style.display = 'none';
+                return;
+            }
+
+            indicator.style.display = 'block';
+            if (pwdVal === confirmVal) {
+                indicator.textContent = '✓ Passwords match';
+                indicator.style.color = '#0e9f6e'; // Green
+            } else {
+                indicator.textContent = '✗ Passwords do not match';
+                indicator.style.color = '#e02424'; // Red
+            }
+        };
+
+        confirmInput.addEventListener('focus', updateMatchUI);
+        confirmInput.addEventListener('input', updateMatchUI);
+        pwdInput.addEventListener('input', () => {
+            if (confirmInput.value) updateMatchUI();
+        });
+    }
+
+    setupPasswordMatchIndicator('createPassword', 'confirmPassword', 'confirmPassword-match');
+    setupPasswordMatchIndicator('forgotNewPassword', 'forgotConfirmPassword', 'forgotConfirmPassword-match');
 
     // --- COUNTDOWN TIMER STATE & FUNCTIONS ---
     let signUpOtpExpired = false;
@@ -630,6 +664,8 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
 
             if (!validateRequiredFields([forgotNewPasswordInput, forgotConfirmPasswordInput])) return;
+            clearInlineError(forgotNewPasswordInput.closest('.password-wrapper'));
+            clearInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'));
 
             const pwdVal = forgotNewPasswordInput.value.trim();
             const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
