@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =========================================================================
-    // --- TASK 12: DYNAMIC INPUT FORMATTING ---
+    // --- TASK 12 & 15: DYNAMIC INPUT FORMATTING & STRICT CHARACTER VALIDATION ---
     // =========================================================================
     document.addEventListener('input', (e) => {
         const input = e.target;
@@ -36,25 +36,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const start = input.selectionStart;
         const end = input.selectionEnd;
-        const val = input.value;
+        let val = input.value;
 
-        // 1. First Name & Last Name -> First Letter Capitalized
+        // 1. First Name & Last Name -> Letters and Spaces ONLY, Title Case
         if (input.id === 'firstName' || input.id === 'lastName') {
+            val = val.replace(/[^a-zA-Z\s]/g, '');
             if (val.length > 0) {
-                input.value = val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
-                if (start !== null && end !== null) input.setSelectionRange(start, end);
+                val = val.replace(/\b\w/g, char => char.toUpperCase());
             }
-        }
-
-        // 2. Username Fields -> ALL UPPERCASE
-        if (input.id === 'username' || input.id === 'regUsername') {
-            input.value = val.toLowerCase();
+            input.value = val;
             if (start !== null && end !== null) input.setSelectionRange(start, end);
         }
 
-        // 3. Email Fields -> ALL lowercase
+        // 2. Username Fields -> ALL LOWERCASE, Letters, Numbers, @, and _ ONLY
+        if (input.id === 'username' || input.id === 'regUsername') {
+            val = val.toLowerCase().replace(/[^a-z0-9@_]/g, '');
+            input.value = val;
+            if (start !== null && end !== null) input.setSelectionRange(start, end);
+        }
+
+        // 3. Email Fields -> ALL LOWERCASE, Letters, Numbers, @, ., -, _ ONLY
         if (input.id === 'email' || input.id === 'forgotEmail') {
-            input.value = val.toLowerCase();
+            val = val.toLowerCase().replace(/[^a-z0-9@._-]/g, '');
+            input.value = val;
             if (start !== null && end !== null) input.setSelectionRange(start, end);
         }
     });
@@ -205,7 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasUpper = /[A-Z]/.test(val);
             const hasLower = /[a-z]/.test(val);
             const hasNumber = /[0-9]/.test(val);
-            // Includes underscore (_)
             const hasSpecial = /[!@#$%^&*()_,.?":{}|<>]/.test(val);
 
             if (reqLength) {
@@ -390,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
-    // --- FORM RESET HELPERS ---
+    // --- FORM RESET HELPERS (TASK 14) ---
     function resetSignUpForm() {
         const signUpFormStep1 = document.querySelector('#signUpPanel form');
         const signUpFormStep2 = document.querySelector('#signUpStep2Panel form');
@@ -398,7 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (signUpFormStep1) signUpFormStep1.reset();
         if (signUpFormStep2) signUpFormStep2.reset();
 
-        // Extra cleanup for inputs in panels without form wrappers
         document.querySelectorAll('#signUpPanel input, #signUpPanel select, #signUpStep2Panel input, #signUpStep2Panel select').forEach(inp => {
             if (inp.type !== 'checkbox' && inp.type !== 'hidden') inp.value = '';
         });
@@ -444,7 +446,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (forgotForm) forgotForm.reset();
         if (setNewPwdForm) setNewPwdForm.reset();
 
-        // Thorough manual cleanup for ALL Forgot Password panels
         document.querySelectorAll('#forgotPasswordPanel input, #setNewPasswordPanel input').forEach(inp => {
             if (inp.type !== 'checkbox' && inp.type !== 'hidden') inp.value = '';
         });
@@ -483,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showSignInView() {
         resetSignUpForm();
         resetForgotPasswordForm();
-        resetSignInForm(); // Added explicit call
+        resetSignInForm();
         hideAllPanels();
         if (authToggleBar) authToggleBar.style.display = 'flex';
         if (signInBtn) signInBtn.classList.add('active');
@@ -494,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showSignUpView() {
         resetSignInForm();
         resetForgotPasswordForm();
-        resetSignUpForm(); // Added explicit call
+        resetSignUpForm();
         hideAllPanels();
         if (authToggleBar) authToggleBar.style.display = 'flex';
         if (signInBtn) signInBtn.classList.remove('active');
@@ -540,6 +541,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // Strict Email Format Regex Check
+            const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+            if (!emailRegex.test(emailInput.value.trim())) {
+                showInlineError(emailInput, 'Please enter a valid email address (e.g., name@example.com).');
+                hasError = true;
+            }
+
             const pwdVal = createPasswordInput.value.trim();
             const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_,.?":{}|<>]).{8,}$/;
             if (!strongRegex.test(pwdVal)) {
@@ -551,6 +559,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 showInlineError(confirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
                 hasError = true;
             }
+
+            if (hasError) return;
+
+            setButtonLoading(proceedToStep3, "Sending Code...");
 
             try {
                 const response = await fetch(`${API_BASE_URL}/send-otp`, {
@@ -566,19 +578,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!result.success) {
                     if (result.message.includes("email")) {
                         showInlineError(emailInput, "An account with this email already exists.");
-                        hasError = true;
                     }
                     if (result.message.includes("username")) {
                         showInlineError(regUsernameInput, "This username is already taken.");
-                        hasError = true;
                     }
                     if (!result.message.includes("email") && !result.message.includes("username")) {
                         alert(result.message);
-                        hasError = true;
                     }
+                    return;
                 }
-
-                if (hasError) return;
 
                 if (result.success) {
                     const placeholder = document.getElementById('userEmailPlaceholder');
@@ -598,6 +606,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (err) {
                 alert('Could not send verification code. Ensure your backend server is running.');
+            } finally {
+                resetButtonLoading(proceedToStep3);
             }
         });
     }
@@ -606,10 +616,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resendOtpLink) {
         resendOtpLink.addEventListener('click', async (e) => {
             e.preventDefault();
-            // Guardrail: Ignore click if disabled or currently sending
             if (resendOtpLink.style.pointerEvents === 'none' || resendOtpLink.dataset.sending === "true") return;
 
-            // 1. Immediately disable and set visual loading state
             resendOtpLink.dataset.sending = "true";
             resendOtpLink.style.pointerEvents = 'none';
             resendOtpLink.style.opacity = '0.5';
@@ -628,7 +636,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const result = await response.json();
 
-                // Revert link text back to "Resend code"
                 resendOtpLink.textContent = originalText;
 
                 if (result.success) {
@@ -637,7 +644,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     startOtpCountdown(document.getElementById('otpTimerDisplay'), resendOtpLink, true);
                 } else {
                     alert(result.message);
-                    // Re-enable if server returned an error without starting timer
                     resendOtpLink.style.pointerEvents = 'auto';
                     resendOtpLink.style.opacity = '1';
                     resendOtpLink.style.cursor = 'pointer';
@@ -831,9 +837,18 @@ document.addEventListener('DOMContentLoaded', () => {
         btnForgotProceed.addEventListener('click', async (e) => {
             e.preventDefault();
 
+            clearInlineError(forgotEmailInput);
+
             if (!validateRequiredFields([forgotEmailInput])) return;
 
             const userEmail = forgotEmailInput.value.trim();
+
+            // Strict Email Format Regex Check
+            const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+            if (!emailRegex.test(userEmail)) {
+                showInlineError(forgotEmailInput, 'Please enter a valid email address (e.g., name@example.com).');
+                return;
+            }
 
             setButtonLoading(btnForgotProceed, "Verifying...");
 
@@ -861,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         false
                     );
                 } else {
-                    alert(result.message);
+                    showInlineError(forgotEmailInput, result.message);
                 }
             } catch (err) {
                 alert('Could not reach the server. Make sure your Flask backend is running.');
@@ -875,10 +890,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resendForgotLink) {
         resendForgotLink.addEventListener('click', async (e) => {
             e.preventDefault();
-            // Guardrail: Ignore click if disabled or currently sending
             if (resendForgotLink.style.pointerEvents === 'none' || resendForgotLink.dataset.sending === "true") return;
 
-            // 1. Immediately disable and set visual loading state
             resendForgotLink.dataset.sending = "true";
             resendForgotLink.style.pointerEvents = 'none';
             resendForgotLink.style.opacity = '0.5';
@@ -894,7 +907,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const result = await response.json();
 
-                // Revert link text back to "Resend code"
                 resendForgotLink.textContent = originalText;
 
                 if (result.success) {
@@ -903,7 +915,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     startOtpCountdown(document.getElementById('forgotTimerDisplay'), resendForgotLink, false);
                 } else {
                     alert(result.message);
-                    // Re-enable if server returned an error without starting timer
                     resendForgotLink.style.pointerEvents = 'auto';
                     resendForgotLink.style.opacity = '1';
                     resendForgotLink.style.cursor = 'pointer';
