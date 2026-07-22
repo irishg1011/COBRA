@@ -10,6 +10,7 @@ from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import check_password_hash, generate_password_hash
+from datetime import datetime
 import time
 import re
 
@@ -171,7 +172,7 @@ def signup():
 
         # 1. Insert into account_tbl
         cursor.execute(
-            f"INSERT INTO {ACCOUNT_TABLE} (acc_id, email, username, password, u_type, failed_attempts, is_deleted) VALUES (%s, %s, %s, %s, %s, 0, 0)",
+            f"INSERT INTO {ACCOUNT_TABLE} (acc_id, email, username, password, u_type, failed_attempts, lockout_until, is_deleted) VALUES (%s, %s, %s, %s, %s, 0, NULL, 0)",
             (new_acc_id, email, username, hashed_password, DEFAULT_U_TYPE)
         )
 
@@ -198,7 +199,7 @@ def signup():
 
 
 # ============================================================
-# ROUTE: LOGIN
+# ROUTE: LOGIN (WITH AUTO-RESET & LOCKOUT PROTECTION)
 # ============================================================
 @app.route("/login", methods=["POST"])
 def login():
@@ -215,15 +216,76 @@ def login():
 
     try:
         cursor = connection.cursor(dictionary=True)
+        
+        # Fetch account details
         cursor.execute(
-            f"SELECT acc_id, password, is_deleted FROM {ACCOUNT_TABLE} WHERE username = %s",
+            f"SELECT acc_id, password, failed_attempts, lockout_until, is_deleted FROM {ACCOUNT_TABLE} WHERE username = %s",
             (username,)
         )
         account = cursor.fetchone()
-        cursor.close()
 
-        if not account or account.get("is_deleted") or not check_password_hash(account["password"], password):
+        if not account or account.get("is_deleted"):
+            cursor.close()
             return jsonify({"success": False, "message": "Invalid username or password."}), 401
+
+        lockout_until = account.get("lockout_until")
+        
+        # Automatically reset attempts and clear lockout if 1-minute timeout has passed
+        if lockout_until and datetime.now() >= lockout_until:
+            cursor.execute(
+                f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL WHERE acc_id = %s",
+                (account["acc_id"],)
+            )
+            connection.commit()
+            account["failed_attempts"] = 0
+            account["lockout_until"] = None
+            lockout_until = None
+
+        # Check if account is currently locked out
+        if lockout_until and datetime.now() < lockout_until:
+            cursor.close()
+            return jsonify({
+                "success": False, 
+                "message": "Too many failed attempts. Please try again in 1 minute."
+            }), 423  # HTTP 423 Locked
+
+        # Verify Password Hash
+        if not check_password_hash(account["password"], password):
+            failed_attempts = account.get("failed_attempts", 0) + 1
+            
+            if failed_attempts >= 5:
+                # Lock account for 1 minute
+                cursor.execute(
+                    f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = %s, lockout_until = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE acc_id = %s",
+                    (failed_attempts, account["acc_id"])
+                )
+                connection.commit()
+                cursor.close()
+                return jsonify({
+                    "success": False, 
+                    "message": "Too many failed attempts. Please try again in 1 minute."
+                }), 423
+            else:
+                # Increment failed attempts and return remaining count out of 5
+                cursor.execute(
+                    f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = %s WHERE acc_id = %s",
+                    (failed_attempts, account["acc_id"])
+                )
+                connection.commit()
+                cursor.close()
+                attempts_remaining = 5 - failed_attempts
+                return jsonify({
+                    "success": False, 
+                    "message": f"Incorrect password. {attempts_remaining} attempt(s) remaining."
+                }), 401
+
+        # Successful login: Reset failed attempts and clear lockout state
+        cursor.execute(
+            f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL WHERE acc_id = %s",
+            (account["acc_id"],)
+        )
+        connection.commit()
+        cursor.close()
 
         return jsonify({"success": True, "message": "Login successful. Redirecting..."}), 200
 
@@ -308,7 +370,7 @@ def forgot_password_verify_otp():
 
 
 # ============================================================
-# ROUTE: RESET PASSWORD (UPDATE IN MYSQL)
+# ROUTE: RESET PASSWORD (UPDATE IN MYSQL & CLEAR LOCKOUT)
 # ============================================================
 @app.route("/forgot-password/reset-password", methods=["POST"])
 def forgot_password_reset():
@@ -340,8 +402,9 @@ def forgot_password_reset():
         # Hash the new password before updating
         hashed_password = generate_password_hash(new_password)
 
+        # Update password and automatically clear failed attempts / lockout state
         cursor.execute(
-            f"UPDATE {ACCOUNT_TABLE} SET password = %s WHERE email = %s AND is_deleted = 0",
+            f"UPDATE {ACCOUNT_TABLE} SET password = %s, failed_attempts = 0, lockout_until = NULL WHERE email = %s AND is_deleted = 0",
             (hashed_password, email)
         )
         connection.commit()

@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- PASSWORD STRENGTH VALIDATOR (Hides checklist when not focused) ---
+    // --- PASSWORD STRENGTH VALIDATOR HELPER ---
     function setupPasswordValidator(passwordInputId, checkerBoxId, prefix = "") {
         const pwdInput = document.getElementById(passwordInputId);
         const checkerBox = document.getElementById(checkerBoxId);
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupPasswordValidator('createPassword', 'createPassword-checker', '');
     setupPasswordValidator('forgotNewPassword', 'forgotNewPassword-checker', 'forgot');
 
-    // --- REAL-TIME PASSWORD MATCH INDICATOR ---
+    // --- REAL-TIME PASSWORD MATCH INDICATOR HELPER ---
     function setupPasswordMatchIndicator(passwordInputId, confirmInputId, indicatorId) {
         const pwdInput = document.getElementById(passwordInputId);
         const confirmInput = document.getElementById(confirmInputId);
@@ -495,6 +495,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const signInFormElement = document.querySelector('#signInPanel form');
     if (signInFormElement) {
+        let lockoutTimerInterval = null;
+
         signInFormElement.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = signInFormElement.querySelector('button[type="submit"]') || signInFormElement.querySelector('.btn-login');
@@ -504,8 +506,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setButtonLoading(submitBtn, "Signing in...");
 
+            let response;
             try {
-                const response = await fetch(`${API_BASE_URL}/login`, {
+                response = await fetch(`${API_BASE_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -516,18 +519,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (result.success) {
+                    if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
                     if (authToggleBar) authToggleBar.style.display = 'none';
                     if (signInPanel) signInPanel.style.display = 'none';
                     const successPanel = document.getElementById('signInSuccessPanel');
                     if (successPanel) successPanel.style.display = 'block';
                     setTimeout(() => { window.location.href = 'dashboard.html'; }, 3000);
                 } else {
-                    showInlineError(passwordInput.closest('.password-wrapper'), result.message);
+                    // Clear the password field on any failed login attempt or lockout
+                    passwordInput.value = '';
+
+                    if (response.status === 423) {
+                        resetButtonLoading(submitBtn);
+                        submitBtn.disabled = true;
+
+                        let timeLeft = 60;
+                        if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
+
+                        const updateCountdownMessage = () => {
+                            const minutes = Math.floor(timeLeft / 60);
+                            const seconds = timeLeft % 60;
+                            const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                            showInlineError(passwordInput.closest('.password-wrapper'), `Too many failed attempts. Please try again in ${timeFormatted}.`);
+                        };
+
+                        updateCountdownMessage();
+
+                        lockoutTimerInterval = setInterval(() => {
+                            timeLeft--;
+                            if (timeLeft < 0) {
+                                clearInterval(lockoutTimerInterval);
+                                clearInlineError(passwordInput.closest('.password-wrapper'));
+                                submitBtn.disabled = false;
+                            } else {
+                                updateCountdownMessage();
+                            }
+                        }, 1000);
+                    } else {
+                        resetButtonLoading(submitBtn);
+                        showInlineError(passwordInput.closest('.password-wrapper'), result.message);
+                    }
                 }
             } catch (err) {
-                showInlineError(passwordInput.closest('.password-wrapper'), 'Could not reach server.');
-            } finally {
                 resetButtonLoading(submitBtn);
+                showInlineError(passwordInput.closest('.password-wrapper'), 'Could not reach server.');
             }
         });
     }
