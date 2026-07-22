@@ -242,10 +242,13 @@ def login():
         # Check if account is currently locked out
         if lockout_until and datetime.now() < lockout_until:
             cursor.close()
+            # Calculate exact remaining seconds until lockout expires
+            remaining_seconds = int((lockout_until - datetime.now()).total_seconds())
             return jsonify({
                 "success": False, 
-                "message": "Too many failed attempts. Please try again in 1 minute."
-            }), 423  # HTTP 423 Locked
+                "message": f"Too many failed attempts. Please try again in 1 minute.",
+                "remaining_seconds": max(1, remaining_seconds)
+            }), 423 # HTTP 423 Locked
 
         # Verify Password Hash
         if not check_password_hash(account["password"], password):
@@ -261,7 +264,8 @@ def login():
                 cursor.close()
                 return jsonify({
                     "success": False, 
-                    "message": "Too many failed attempts. Please try again in 1 minute."
+                    "message": "Too many failed attempts. Please try again in 1 minute.",
+                    "remaining_seconds": 60
                 }), 423
             else:
                 # Increment failed attempts and return remaining count out of 5

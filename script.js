@@ -753,14 +753,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const signInFormElement = document.querySelector('#signInPanel form');
     if (signInFormElement) {
-        let lockoutTimerInterval = null;
+        // Dictionary to store active lockout states per username: { "username": { timeLeft: 60, interval: setInterval(...) } }
+        window.activeLockouts = window.activeLockouts || {};
+
+        const updateSignInUIForCurrentUsername = () => {
+            const currentTypedUser = usernameInput.value.trim().toLowerCase();
+            const submitBtn = signInFormElement.querySelector('button[type="submit"]') || signInFormElement.querySelector('.btn-login');
+
+            if (!currentTypedUser) {
+                clearInlineError(passwordInput.closest('.password-wrapper'));
+                if (submitBtn) submitBtn.disabled = false;
+                return;
+            }
+
+            // Check if this specific typed username is currently locked out
+            if (window.activeLockouts[currentTypedUser]) {
+                const lockoutData = window.activeLockouts[currentTypedUser];
+                if (submitBtn) submitBtn.disabled = true;
+                const minutes = Math.floor(lockoutData.timeLeft / 60);
+                const seconds = lockoutData.timeLeft % 60;
+                const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                showInlineError(passwordInput.closest('.password-wrapper'), `Too many failed attempts. Please try again in ${timeFormatted}.`);
+            } else {
+                clearInlineError(passwordInput.closest('.password-wrapper'));
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        };
+
+        if (usernameInput) {
+            usernameInput.addEventListener('input', updateSignInUIForCurrentUsername);
+        }
 
         signInFormElement.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = signInFormElement.querySelector('button[type="submit"]') || signInFormElement.querySelector('.btn-login');
+            const targetUsername = usernameInput.value.trim().toLowerCase();
 
             if (!validateRequiredFields([usernameInput, passwordInput])) return;
             clearInlineError(passwordInput.closest('.password-wrapper'));
+
+            // If this account is already locked out locally, block submission immediately
+            if (window.activeLockouts[targetUsername]) {
+                updateSignInUIForCurrentUsername();
+                return;
+            }
 
             setButtonLoading(submitBtn, "Signing in...");
 
@@ -770,14 +806,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        username: usernameInput.value.trim(),
+                        username: targetUsername,
                         password: passwordInput.value.trim()
                     })
                 });
                 const result = await response.json();
 
                 if (result.success) {
-                    if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
+                    // Clear lockout for this user if they successfully logged in
+                    if (window.activeLockouts[targetUsername]) {
+                        clearInterval(window.activeLockouts[targetUsername].interval);
+                        delete window.activeLockouts[targetUsername];
+                    }
+
                     if (authToggleBar) authToggleBar.style.display = 'none';
                     if (signInPanel) signInPanel.style.display = 'none';
                     const successPanel = document.getElementById('signInSuccessPanel');
@@ -787,33 +828,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     passwordInput.value = '';
 
                     if (response.status === 423) {
-                        resetButtonLoading(submitBtn);
+                        // Explicitly clear loading state and reset button
                         submitBtn.disabled = true;
+                        submitBtn.classList.remove('btn-loading');
+                        submitBtn.innerHTML = "Login"; // or your original button text
+                        
+                        const serverTimeLeft = result.remaining_seconds || 60;
 
-                        let timeLeft = 60;
-                        if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
+                        if (!window.activeLockouts[targetUsername]) {
+                            window.activeLockouts[targetUsername] = {
+                                timeLeft: serverTimeLeft,
+                                interval: null
+                            };
+                        }
 
-                        const updateCountdownMessage = () => {
-                            const minutes = Math.floor(timeLeft / 60);
-                            const seconds = timeLeft % 60;
-                            const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                            showInlineError(passwordInput.closest('.password-wrapper'), `Too many failed attempts. Please try again in ${timeFormatted}.`);
-                        };
+                        const lockoutData = window.activeLockouts[targetUsername];
+                        lockoutData.timeLeft = serverTimeLeft;
 
-                        updateCountdownMessage();
+                        if (lockoutData.interval) clearInterval(lockoutData.interval);
 
-                        lockoutTimerInterval = setInterval(() => {
-                            timeLeft--;
-                            if (timeLeft < 0) {
-                                clearInterval(lockoutTimerInterval);
-                                clearInlineError(passwordInput.closest('.password-wrapper'));
-                                submitBtn.disabled = false;
+                        lockoutData.interval = setInterval(() => {
+                            lockoutData.timeLeft--;
+
+                            if (lockoutData.timeLeft < 0) {
+                                clearInterval(lockoutData.interval);
+                                delete window.activeLockouts[targetUsername];
+
+                                if (usernameInput.value.trim().toLowerCase() === targetUsername) {
+                                    clearInlineError(passwordInput.closest('.password-wrapper'));
+                                    submitBtn.disabled = false;
+                                }
                             } else {
-                                updateCountdownMessage();
+                                if (usernameInput.value.trim().toLowerCase() === targetUsername) {
+                                    const minutes = Math.floor(lockoutData.timeLeft / 60);
+                                    const seconds = lockoutData.timeLeft % 60;
+                                    const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                                    submitBtn.disabled = true;
+                                    showInlineError(passwordInput.closest('.password-wrapper'), `Too many failed attempts. Please try again in ${timeFormatted}.`);
+                                }
                             }
                         }, 1000);
+
+                        updateSignInUIForCurrentUsername();
                     } else {
-                        resetButtonLoading(submitBtn);
+                        // Explicitly clear loading state for normal errors (like wrong password)
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('btn-loading');
+                        submitBtn.innerHTML = "Login";
+                        
                         showInlineError(passwordInput.closest('.password-wrapper'), result.message);
                     }
                 }
