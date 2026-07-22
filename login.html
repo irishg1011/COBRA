@@ -132,18 +132,26 @@
                             <h2>Verify your email</h2>
                             <p>We sent a 6-digit verification code to <span class="dynamic-forgot-email" style="font-weight: 600; color: #111111;">danzenaquino@gmail.com</span></p>
                         </div>
-                        <div class="otp-container forgot-otp-inputs">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                        <div class="otp-wrapper">
+                            <div class="otp-container forgot-otp-inputs">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            </div>
+                            <div class="show-otp-container">
+                                <input type="checkbox" id="showForgotOtp">
+                                <label for="showForgotOtp">Show OTP</label>
+                            </div>
                         </div>
-                        <div class="timer-container">
-                            <p class="timer-text">Code expires in <span id="forgotTimerDisplay">1:00</span></p>
-                            <a href="#" class="resend-link" id="resendForgotLink">Resend code</a>
+                        
+                        <div class="timer-container" style="margin-bottom: 20px; font-size: 14px;">
+                            <p class="timer-text" style="color: #666; margin-bottom: 4px;">Code expires in <span id="forgotTimerDisplay" style="font-weight: 600; color: #111;">1:00</span></p>
+                            <a href="#" class="resend-link" id="resendForgotLink" style="color: #139C38; font-weight: 600; text-decoration: none;">Resend code</a>
                         </div>
+
                         <button type="button" class="btn-login" id="btnVerifyForgotCode" style="border-radius: 12px;">Verify Code</button>
                         <div class="footer-back-wrapper">
                             <a href="#" class="back-to-login-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to log in</a>
@@ -202,7 +210,6 @@
                                         </svg>
                                     </div>
                                 </div>
-                                <!-- Match Indicator for Forgot Password -->
                                 <p id="forgotConfirmPassword-match" style="display: none; margin-top: 6px; font-size: 13px; font-weight: 500;"></p>
                             </div>
                             <button type="button" class="btn-login" id="btnResetPassword" style="border-radius: 12px; margin-top: 10px;">Reset Password</button>
@@ -283,7 +290,6 @@
                                     </svg>
                                 </div>
                             </div>
-                            <!-- Password Strength Validator Box for Sign Up -->
                             <div id="createPassword-checker" class="password-strength-box" style="display: none; margin-top: 6px; font-size: 13px; text-align: left;">
                                 <p id="req-length" style="color: #e02424; margin: 2px 0;">✗ Requires at least 8 characters</p>
                                 <p id="req-upper" style="color: #e02424; margin: 2px 0;">✗ Requires an uppercase letter (A-Z)</p>
@@ -303,7 +309,6 @@
                                     </svg>
                                 </div>
                             </div>
-                            <!-- Match Indicator for Sign Up -->
                             <p id="confirmPassword-match" style="display: none; margin-top: 6px; font-size: 13px; font-weight: 500;"></p>
                         </div>
                         <div class="button-wrapper">
@@ -320,13 +325,19 @@
                             <h2>Verify your email</h2>
                             <p>We sent a 6-digit verification code to <span id="userEmailPlaceholder" style="font-weight: 600; color: #111111;">danzenaquino@gmail.com</span></p>
                         </div>
-                        <div class="otp-container">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
-                            <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                        <div class="otp-wrapper">
+                            <div class="otp-container">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            </div>
+                            <div class="show-otp-container">
+                                <input type="checkbox" id="showSignUpOtp">
+                                <label for="showSignUpOtp">Show OTP</label>
+                            </div>
                         </div>
                         <div class="timer-container">
                             <p class="timer-text">Code expires in <span id="otpTimerDisplay">1:00</span></p>

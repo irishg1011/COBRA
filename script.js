@@ -27,6 +27,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- OTP MASKING & CHECKBOX BINDING ---
+    const configureOtpInputs = (containerSelector, checkboxId) => {
+        const container = document.querySelector(containerSelector);
+        if (!container) return;
+
+        const inputs = container.querySelectorAll('.otp-input');
+        const checkbox = document.getElementById(checkboxId);
+
+        if (checkbox) {
+            checkbox.addEventListener('change', () => {
+                const targetType = checkbox.checked ? 'text' : 'password';
+                inputs.forEach(inp => inp.setAttribute('type', targetType));
+            });
+        }
+
+        inputs.forEach(input => {
+            input.setAttribute('type', 'password');
+            input.setAttribute('placeholder', 'X');
+
+            input.addEventListener('input', () => {
+                input.style.borderColor = '';
+                input.style.backgroundColor = '';
+            });
+        });
+    };
+
+    configureOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
+    configureOtpInputs('#forgotOtpPanel', 'showForgotOtp');
+
+    window.setOtpBoxesState = function(containerSelector, isCorrect, shouldClear = false) {
+        const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
+        inputs.forEach(input => {
+            if (isCorrect) {
+                input.style.borderColor = '#0e9f6e';
+                input.style.backgroundColor = '#ecfdf5';
+            } else {
+                input.style.borderColor = '#e02424';
+                input.style.backgroundColor = '#fef2f2';
+                if (shouldClear) {
+                    input.value = '';
+                }
+            }
+        });
+        if (shouldClear && inputs.length > 0) {
+            inputs[0].focus();
+        }
+    };
+
     function validateRequiredFields(fields) {
         for (const field of fields) {
             if (!field) continue;
@@ -48,13 +96,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function validateOtpComplete(containerSelector) {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
         const complete = [...inputs].every(input => input.value.trim() !== '');
-        if (!complete) alert('Please enter the complete 6-digit code.');
+        if (!complete) {
+            alert('Please enter the complete 6-digit code.');
+            setOtpBoxesState(containerSelector, false, false);
+        }
         return complete;
     }
 
-    function clearOtpInputs(containerSelector) {
+    function clearOtpInputs(containerSelector, checkboxId) {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
-        inputs.forEach(input => input.value = '');
+        inputs.forEach(input => {
+            input.value = '';
+            input.style.borderColor = '';
+            input.style.backgroundColor = '';
+            input.setAttribute('type', 'password');
+        });
+        const checkbox = document.getElementById(checkboxId);
+        if (checkbox) checkbox.checked = false;
         if (inputs.length > 0) inputs[0].focus();
     }
 
@@ -165,6 +223,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pwdInput || !confirmInput || !indicator) return;
 
         const updateMatchUI = () => {
+            clearInlineError(confirmInput.closest('.password-wrapper'));
+            clearInlineError(pwdInput.closest('.password-wrapper'));
+
             const pwdVal = pwdInput.value;
             const confirmVal = confirmInput.value;
 
@@ -176,10 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
             indicator.style.display = 'block';
             if (pwdVal === confirmVal) {
                 indicator.textContent = '✓ Passwords match';
-                indicator.style.color = '#0e9f6e'; // Green
+                indicator.style.color = '#0e9f6e';
             } else {
                 indicator.textContent = '✗ Passwords do not match';
-                indicator.style.color = '#e02424'; // Red
+                indicator.style.color = '#e02424';
             }
         };
 
@@ -193,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupPasswordMatchIndicator('createPassword', 'confirmPassword', 'confirmPassword-match');
     setupPasswordMatchIndicator('forgotNewPassword', 'forgotConfirmPassword', 'forgotConfirmPassword-match');
 
-    // --- COUNTDOWN TIMER STATE & FUNCTIONS ---
+    // --- COUNTDOWN TIMERS ---
     let signUpOtpExpired = false;
     let forgotOtpExpired = false;
 
@@ -234,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     }
 
+    // --- PANEL NAVIGATION STATE ---
     const authToggleBar = document.querySelector('.auth-toggle');
     const signInBtn = document.getElementById('switchToSignIn');
     const signUpBtn = document.getElementById('switchToSignUp');
@@ -309,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
         proceedToStep3.addEventListener('click', async (e) => {
             e.preventDefault();
 
-            // Clear previous errors first
             clearInlineError(emailInput);
             clearInlineError(regUsernameInput);
             clearInlineError(createPasswordInput.closest('.password-wrapper'));
@@ -322,7 +383,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Check password strength requirement locally
             const pwdVal = createPasswordInput.value.trim();
             const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
             if (!strongRegex.test(pwdVal)) {
@@ -330,13 +390,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 hasError = true;
             }
 
-            // Check confirm password match locally
             if (pwdVal !== confirmPasswordInput.value.trim()) {
                 showInlineError(confirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
                 hasError = true;
             }
 
-            // Always check backend for existing email/username simultaneously
             try {
                 const response = await fetch(`${API_BASE_URL}/send-otp`, {
                     method: 'POST',
@@ -373,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (authToggleBar) authToggleBar.style.display = 'none';
                     if (signUpStep3Panel) signUpStep3Panel.style.display = 'block';
 
-                    clearOtpInputs('#signUpStep3Panel');
+                    clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
                     startOtpCountdown(
                         document.getElementById('otpTimerDisplay'), 
                         document.getElementById('resendOtpLink'),
@@ -404,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
                 if (result.success) {
                     alert('New verification code sent successfully!');
-                    clearOtpInputs('#signUpStep3Panel');
+                    clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
                     startOtpCountdown(document.getElementById('otpTimerDisplay'), resendOtpLink, true);
                 } else {
                     alert(result.message);
@@ -427,6 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
         verifyAndFinish.addEventListener('click', async () => {
             if (signUpOtpExpired) {
                 alert("Your verification code has expired. Please click 'Resend code' to get a new one.");
+                setOtpBoxesState('#signUpStep3Panel', false, true);
                 return;
             }
 
@@ -456,16 +515,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (result.success) {
+                    setOtpBoxesState('#signUpStep3Panel', true, false);
                     const fullName = ((firstNameInput?.value || '') + ' ' + (lastNameInput?.value || '')).trim();
                     const namePlaceholder = document.getElementById('successUserPlaceholder');
                     if (fullName && namePlaceholder) namePlaceholder.textContent = fullName;
 
-                    hideAllPanels();
-                    if (signUpStep4Panel) signUpStep4Panel.style.display = 'block';
+                    setTimeout(() => {
+                        hideAllPanels();
+                        if (signUpStep4Panel) signUpStep4Panel.style.display = 'block';
+                    }, 400);
                 } else {
+                    setOtpBoxesState('#signUpStep3Panel', false, true);
                     alert(result.message);
                 }
             } catch (err) {
+                setOtpBoxesState('#signUpStep3Panel', false, true);
                 alert('Could not reach the server.');
             } finally {
                 resetButtonLoading(verifyAndFinish);
@@ -479,7 +543,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
         inputs.forEach((input, index) => {
             input.addEventListener('input', (e) => {
-                if (e.target.value.length === 1 && index < inputs.length - 1) {
+                const val = e.target.value;
+                if (val.length === 1 && index < inputs.length - 1) {
                     inputs[index + 1].focus();
                 }
             });
@@ -526,7 +591,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (successPanel) successPanel.style.display = 'block';
                     setTimeout(() => { window.location.href = 'dashboard.html'; }, 3000);
                 } else {
-                    // Clear the password field on any failed login attempt or lockout
                     passwordInput.value = '';
 
                     if (response.status === 423) {
@@ -567,6 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- FORGOT PASSWORD NAVIGATION & HANDLERS ---
     const forgotLink = document.querySelector('.forgot-link');
     if (forgotLink) {
         forgotLink.addEventListener('click', (e) => {
@@ -607,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     hideAllPanels();
                     if (forgotOtpPanel) forgotOtpPanel.style.display = 'block';
 
-                    clearOtpInputs('#forgotOtpPanel');
+                    clearOtpInputs('#forgotOtpPanel', 'showForgotOtp');
                     startOtpCountdown(
                         document.getElementById('forgotTimerDisplay'), 
                         document.getElementById('resendForgotLink'),
@@ -638,7 +703,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
                 if (result.success) {
                     alert('New password reset code sent!');
-                    clearOtpInputs('#forgotOtpPanel');
+                    clearOtpInputs('#forgotOtpPanel', 'showForgotOtp');
                     startOtpCountdown(document.getElementById('forgotTimerDisplay'), resendForgotLink, false);
                 } else {
                     alert(result.message);
@@ -656,6 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (forgotOtpExpired) {
                 alert("Your verification code has expired. Please click 'Resend code' to get a new one.");
+                setOtpBoxesState('#forgotOtpPanel', false, true);
                 return;
             }
 
@@ -677,12 +743,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (result.success) {
-                    hideAllPanels();
-                    if (setNewPasswordPanel) setNewPasswordPanel.style.display = 'block';
+                    setOtpBoxesState('#forgotOtpPanel', true, false);
+                    setTimeout(() => {
+                        hideAllPanels();
+                        if (setNewPasswordPanel) setNewPasswordPanel.style.display = 'block';
+                    }, 400);
                 } else {
+                    setOtpBoxesState('#forgotOtpPanel', false, true);
                     alert(result.message);
                 }
             } catch (err) {
+                setOtpBoxesState('#forgotOtpPanel', false, true);
                 alert('Could not verify code. Ensure server is running.');
             } finally {
                 resetButtonLoading(btnVerifyForgotCode);
@@ -690,6 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- RESET PASSWORD CLICK HANDLER ---
     const btnResetPassword = document.getElementById('btnResetPassword');
     const forgotNewPasswordInput = document.getElementById('forgotNewPassword');
     const forgotConfirmPasswordInput = document.getElementById('forgotConfirmPassword');
@@ -698,22 +770,35 @@ document.addEventListener('DOMContentLoaded', () => {
         btnResetPassword.addEventListener('click', async (e) => {
             e.preventDefault();
 
-            if (!validateRequiredFields([forgotNewPasswordInput, forgotConfirmPasswordInput])) return;
+            const confirmWrapper = forgotConfirmPasswordInput.closest('.password-wrapper');
             clearInlineError(forgotNewPasswordInput.closest('.password-wrapper'));
-            clearInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'));
+            clearInlineError(confirmWrapper);
+
+            if (!validateRequiredFields([forgotNewPasswordInput, forgotConfirmPasswordInput])) return;
 
             const pwdVal = forgotNewPasswordInput.value.trim();
+            const confirmVal = forgotConfirmPasswordInput.value.trim();
             const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+
+            const matchIndicator = document.getElementById('forgotConfirmPassword-match');
+
+            // Collect all validation errors
+            let errors = [];
+
             if (!strongRegex.test(pwdVal)) {
-                showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), 'Password does not meet the strength requirements.');
-                return;
+                errors.push('Password does not meet the strength requirements.');
             }
 
-            if (pwdVal !== forgotConfirmPasswordInput.value.trim()) {
-                showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
+            if (pwdVal !== confirmVal) {
+                errors.push('Passwords do not match.');
+            }
+
+            // If there are any errors, display them all together and stop
+            if (errors.length > 0) {
+                if (matchIndicator) matchIndicator.style.display = 'none';
+                showInlineError(confirmWrapper, errors.join(' '));
                 return;
             }
-            clearInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'));
 
             const userEmail = forgotEmailInput ? forgotEmailInput.value.trim() : '';
 
@@ -725,8 +810,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         email: userEmail,
-                        newPassword: forgotNewPasswordInput.value.trim(),
-                        confirmPassword: forgotConfirmPasswordInput.value.trim()
+                        newPassword: pwdVal,
+                        confirmPassword: confirmVal
                     })
                 });
 
@@ -736,22 +821,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     hideAllPanels();
                     if (forgotSuccessPanel) forgotSuccessPanel.style.display = 'block';
                 } else {
-                    showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), result.message);
+                    if (matchIndicator) matchIndicator.style.display = 'none';
+                    showInlineError(confirmWrapper, result.message);
                 }
             } catch (err) {
-                showInlineError(forgotConfirmPasswordInput.closest('.password-wrapper'), 'Could not update password. Check server.');
+                if (matchIndicator) matchIndicator.style.display = 'none';
+                showInlineError(confirmWrapper, 'Could not reset password.');
             } finally {
                 resetButtonLoading(btnResetPassword);
             }
         });
     }
 
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('.back-to-login-link') || e.target.closest('.back-to-login-btn')) {
-            e.preventDefault();
-            showSignInView();
-        }
-    });
-
-    showSignInView();
 });

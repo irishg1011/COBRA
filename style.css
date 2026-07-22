@@ -679,3 +679,39 @@ select {
         transform: rotate(360deg);
     }
 }
+/* Container wrapper to bound the width to the OTP input boxes */
+.otp-wrapper {
+    display: inline-block;
+    text-align: left;
+    margin: 0 auto;
+}
+
+/* Left-align the checkbox to the edge of the first box */
+.show-otp-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-top: 12px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.show-otp-container input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: #139C38;
+}
+
+.show-otp-container label {
+    cursor: pointer;
+    user-select: none;
+}
+
+.password-wrapper + .js-error-message ~ #forgotConfirmPassword-match,
+.password-wrapper + .js-error-message ~ #confirmPassword-match {
+    display: none !important;
+}
