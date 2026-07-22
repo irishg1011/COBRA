@@ -62,8 +62,8 @@ def generate_acc_id(cursor):
 @app.route("/send-otp", methods=["POST"])
 def handle_send_otp():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
-    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower() 
+    username = (data.get("username") or "").strip().lower()
 
     if not email:
         return jsonify({"success": False, "message": "Email is required."}), 400
@@ -118,12 +118,12 @@ def handle_send_otp():
 def signup():
     data = request.get_json(silent=True) or {}
 
-    first_name = (data.get("firstName") or "").strip()
-    last_name = (data.get("lastName") or "").strip()
+    first_name = (data.get("firstName") or "").strip().title() 
+    last_name = (data.get("lastName") or "").strip().title()
     birthdate = (data.get("birthdate") or "").strip()
     gender = (data.get("gender") or "").strip()
-    email = (data.get("email") or "").strip()
-    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower() 
+    username = (data.get("username") or "").strip().lower()
     password = (data.get("password") or "").strip()
     confirm_password = (data.get("confirmPassword") or "").strip()
     user_otp = (data.get("otp") or "").strip()
@@ -204,7 +204,7 @@ def signup():
 @app.route("/login", methods=["POST"])
 def login():
     data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip()
+    username = (data.get("username") or "").strip().lower()
     password = (data.get("password") or "").strip()
 
     if not username or not password:
@@ -301,7 +301,7 @@ def login():
 @app.route("/forgot-password/send-otp", methods=["POST"])
 def forgot_password_send_otp():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
+    email = (data.get("email") or "").strip().lower()
 
     if not email:
         return jsonify({"success": False, "message": "Please enter your email address."}), 400
@@ -349,7 +349,7 @@ def forgot_password_send_otp():
 @app.route("/forgot-password/verify-otp", methods=["POST"])
 def forgot_password_verify_otp():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
+    email = (data.get("email") or "").strip().lower()
     user_otp = (data.get("otp") or "").strip()
 
     if not email or not user_otp:
@@ -375,7 +375,7 @@ def forgot_password_verify_otp():
 @app.route("/forgot-password/reset-password", methods=["POST"])
 def forgot_password_reset():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
+    email = (data.get("email") or "").strip().lower()
     new_password = (data.get("newPassword") or "").strip()
     confirm_password = (data.get("confirmPassword") or "").strip()
 

@@ -27,6 +27,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // =========================================================================
+    // --- TASK 12: DYNAMIC INPUT FORMATTING ---
+    // =========================================================================
+    document.addEventListener('input', (e) => {
+        const input = e.target;
+        if (!input || input.tagName !== 'INPUT') return;
+
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const val = input.value;
+
+        // 1. First Name & Last Name -> First Letter Capitalized
+        if (input.id === 'firstName' || input.id === 'lastName') {
+            if (val.length > 0) {
+                input.value = val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+                if (start !== null && end !== null) input.setSelectionRange(start, end);
+            }
+        }
+
+        // 2. Username Fields -> ALL UPPERCASE
+        if (input.id === 'username' || input.id === 'regUsername') {
+            input.value = val.toLowerCase();
+            if (start !== null && end !== null) input.setSelectionRange(start, end);
+        }
+
+        // 3. Email Fields -> ALL lowercase
+        if (input.id === 'email' || input.id === 'forgotEmail') {
+            input.value = val.toLowerCase();
+            if (start !== null && end !== null) input.setSelectionRange(start, end);
+        }
+    });
+
     // --- OTP MASKING & CHECKBOX BINDING ---
     const configureOtpInputs = (containerSelector, checkboxId) => {
         const container = document.querySelector(containerSelector);
@@ -332,21 +364,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
 
-    // =========================================================================
     // --- TASK 10: UNIVERSAL UNSAVED CHANGES CHECK ---
-    // =========================================================================
     function activePanelHasInputs() {
         const allPanels = document.querySelectorAll(
             '#signInPanel, #signUpPanel, #signUpStep2Panel, #signUpStep3Panel, #forgotPasswordPanel, #forgotOtpPanel, #setNewPasswordPanel'
         );
 
         for (const panel of allPanels) {
-            // Check only the panel currently visible on screen
             if (panel && panel.style.display !== 'none' && getComputedStyle(panel).display !== 'none') {
                 const inputs = panel.querySelectorAll('input:not([type="checkbox"]):not([type="hidden"]), select');
                 for (const input of inputs) {
                     if (input.value && input.value.trim() !== '') {
-                        return true; // Found unsubmitted data in the active panel!
+                        return true;
                     }
                 }
             }
@@ -891,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const pwdVal = forgotNewPasswordInput.value.trim();
             const confirmVal = forgotConfirmPasswordInput.value.trim();
-            const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+            const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_,.?":{}|<>]).{8,}$/;
 
             const matchIndicator = document.getElementById('forgotConfirmPassword-match');
 
