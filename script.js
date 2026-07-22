@@ -534,12 +534,12 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInlineError(createPasswordInput.closest('.password-wrapper'));
             clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
 
-            let hasError = false;
-
             if (!emailInput.value.trim() || !regUsernameInput.value.trim() || !createPasswordInput.value.trim() || !confirmPasswordInput.value.trim()) {
                 alert("All fields are required.");
                 return;
             }
+
+            let hasError = false;
 
             // Strict Email Format Regex Check
             const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
@@ -560,8 +560,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 hasError = true;
             }
 
-            if (hasError) return;
-
+            // Always call the backend so email/username duplicates are checked, 
+            // even if password or email format rules fail on the frontend!
             setButtonLoading(proceedToStep3, "Sending Code...");
 
             try {
@@ -576,33 +576,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (!result.success) {
-                    if (result.message.includes("email")) {
+                    let backendHasError = false;
+                    if (result.message.toLowerCase().includes("email")) {
                         showInlineError(emailInput, "An account with this email already exists.");
+                        backendHasError = true;
                     }
-                    if (result.message.includes("username")) {
+                    if (result.message.toLowerCase().includes("username")) {
                         showInlineError(regUsernameInput, "This username is already taken.");
+                        backendHasError = true;
                     }
-                    if (!result.message.includes("email") && !result.message.includes("username")) {
+                    if (!backendHasError && !hasError) {
                         alert(result.message);
                     }
-                    return;
                 }
 
-                if (result.success) {
-                    const placeholder = document.getElementById('userEmailPlaceholder');
-                    if (placeholder) placeholder.textContent = emailInput.value;
+                // If frontend rules failed OR backend returned an error, stop here
+                if (hasError || !result.success) return;
 
-                    hideAllPanels();
-                    if (authToggleBar) authToggleBar.style.display = 'none';
-                    if (signUpStep3Panel) signUpStep3Panel.style.display = 'block';
+                // If everything is completely successful, proceed to Step 3 OTP screen
+                const placeholder = document.getElementById('userEmailPlaceholder');
+                if (placeholder) placeholder.textContent = emailInput.value;
 
-                    clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
-                    startOtpCountdown(
-                        document.getElementById('otpTimerDisplay'), 
-                        document.getElementById('resendOtpLink'),
-                        true
-                    );
-                }
+                hideAllPanels();
+                if (authToggleBar) authToggleBar.style.display = 'none';
+                if (signUpStep3Panel) signUpStep3Panel.style.display = 'block';
+
+                clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
+                startOtpCountdown(
+                    document.getElementById('otpTimerDisplay'), 
+                    document.getElementById('resendOtpLink'),
+                    true
+                );
 
             } catch (err) {
                 alert('Could not send verification code. Ensure your backend server is running.');
@@ -1055,6 +1059,67 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!confirmViewSwitch()) return;
             showSignInView();
         });
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+
+        const activeElement = document.activeElement;
+        if (!activeElement || (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'SELECT')) return;
+
+        e.preventDefault();
+
+        const visiblePanel = activeElement.closest(
+            '#signInPanel, #signUpPanel, #signUpStep2Panel, #signUpStep3Panel, #forgotPasswordPanel, #forgotOtpPanel, #setNewPasswordPanel'
+        );
+        if (!visiblePanel) return;
+
+        // Gather all focusable inputs/selects inside the currently active panel in order
+        const focusableInputs = Array.from(visiblePanel.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]), select'))
+            .filter(el => !el.disabled && el.offsetParent !== null);
+
+        const currentIndex = focusableInputs.indexOf(activeElement);
+
+        // If there is a next input field in the form, move focus to it
+        if (currentIndex !== -1 && currentIndex < focusableInputs.length - 1) {
+            focusableInputs[currentIndex + 1].focus();
+            if (focusableInputs[currentIndex + 1].tagName === 'INPUT') {
+                focusableInputs[currentIndex + 1].select();
+            }
+            return;
+        }
+
+        // If we are on the last input field of the panel, trigger the primary action button
+        const panelId = visiblePanel.id;
+
+        if (panelId === 'signInPanel') {
+            const loginBtn = visiblePanel.querySelector('button[type="submit"], .btn-login');
+            if (loginBtn) loginBtn.click();
+        }
+        else if (panelId === 'signUpPanel') {
+            const nextBtn = document.getElementById('goToStep2');
+            if (nextBtn) nextBtn.click();
+        }
+        else if (panelId === 'signUpStep2Panel') {
+            const proceedBtn = visiblePanel.querySelector('.btn-next');
+            if (proceedBtn) proceedBtn.click();
+        }
+        else if (panelId === 'signUpStep3Panel') {
+            const finishBtn = document.getElementById('btnFinish');
+            if (finishBtn) finishBtn.click();
+        }
+        else if (panelId === 'forgotPasswordPanel') {
+            const forgotProceedBtn = document.getElementById('btnForgotProceed');
+            if (forgotProceedBtn) forgotProceedBtn.click();
+        }
+        else if (panelId === 'forgotOtpPanel') {
+            const verifyForgotBtn = document.getElementById('btnVerifyForgotCode');
+            if (verifyForgotBtn) verifyForgotBtn.click();
+        }
+        else if (panelId === 'setNewPasswordPanel') {
+            const resetBtn = document.getElementById('btnResetPassword');
+            if (resetBtn) resetBtn.click();
+        }
     });
 
 });
