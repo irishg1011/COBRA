@@ -173,7 +173,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasUpper = /[A-Z]/.test(val);
             const hasLower = /[a-z]/.test(val);
             const hasNumber = /[0-9]/.test(val);
-            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(val);
+            // Includes underscore (_)
+            const hasSpecial = /[!@#$%^&*()_,.?":{}|<>]/.test(val);
 
             if (reqLength) {
                 reqLength.textContent = (hasLength ? '✓' : '✗') + ' Requires at least 8 characters';
@@ -192,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 reqNumber.style.color = hasNumber ? '#0e9f6e' : '#e02424';
             }
             if (reqSpecial) {
-                reqSpecial.textContent = (hasSpecial ? '✓' : '✗') + ' Requires a special character (!@#$%^&*)';
+                reqSpecial.textContent = (hasSpecial ? '✓' : '✗') + ' Requires a special character (!@#$%^&*_)';
                 reqSpecial.style.color = hasSpecial ? '#0e9f6e' : '#e02424';
             }
         };
@@ -495,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const pwdVal = createPasswordInput.value.trim();
-            const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+            const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_,.?":{}|<>]).{8,}$/;
             if (!strongRegex.test(pwdVal)) {
                 showInlineError(createPasswordInput.closest('.password-wrapper'), 'Password does not meet the strength requirements.');
                 hasError = true;
