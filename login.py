@@ -10,6 +10,7 @@ from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import check_password_hash, generate_password_hash
+import time
 
 app = Flask(__name__)
 CORS(app)  # Enables cross-origin requests from Live Server (http://127.0.0.1:5500)
@@ -26,7 +27,7 @@ ACCOUNT_TABLE = "account_tbl"
 PROFILE_TABLE = "profile_tbl"
 DEFAULT_U_TYPE = 2  # 2 = Learner
 
-# Temporary in-memory OTP storage: { "user_email@gmail.com": "123456" }
+# Temporary in-memory OTP storage with timestamp expiration: { "key": {"otp": "123456", "expires_at": 1234567890.0} }
 otp_storage = {}
 
 
@@ -89,12 +90,16 @@ def handle_send_otp():
             return jsonify({"success": False, "message": " ".join(errors)}), 409
 
     otp_code = generate_otp()
-    otp_storage[email] = otp_code
+    # Store OTP with a 60-second expiration timestamp matching frontend timer
+    otp_storage[email] = {
+        "otp": otp_code,
+        "expires_at": time.time() + 60
+    }
 
     sent = send_email(
         to_email=email,
         subject="CobraByte - Email Verification Code",
-        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 5 minutes."
+        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 1 minute."
     )
 
     if sent:
@@ -124,10 +129,17 @@ def signup():
     if password != confirm_password:
         return jsonify({"success": False, "message": "Passwords do not match."}), 400
 
-    # Validate OTP code against stored memory
-    stored_otp = otp_storage.get(email)
-    if not stored_otp or stored_otp != user_otp:
-        return jsonify({"success": False, "message": "Invalid or expired verification code."}), 400
+    # Validate OTP code and check expiration against timestamp
+    stored_record = otp_storage.get(email)
+    if not stored_record:
+        return jsonify({"success": False, "message": "No verification code found. Please request a new code."}), 400
+
+    if time.time() > stored_record["expires_at"]:
+        otp_storage.pop(email, None)
+        return jsonify({"success": False, "message": "Verification code has expired. Please click 'Resend code'."}), 400
+
+    if stored_record["otp"] != user_otp:
+        return jsonify({"success": False, "message": "Invalid verification code."}), 400
 
     connection = get_db_connection()
     if connection is None:
@@ -152,7 +164,7 @@ def signup():
             (new_acc_id, email, username, hashed_password, DEFAULT_U_TYPE)
         )
 
-        # 2. Insert into profile_tbl matching exact structure (acc_id, email, username, firstname, lastname, gender, birthdate)
+        # 2. Insert into profile_tbl matching exact structure
         cursor.execute(
             f"INSERT INTO {PROFILE_TABLE} (acc_id, email, username, firstname, lastname, gender, birthdate) VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (new_acc_id, email, username, first_name, last_name, gender, birthdate)
@@ -234,15 +246,18 @@ def forgot_password_send_otp():
         if not account:
             return jsonify({"success": False, "message": "No account found with this email address."}), 404
 
-        # Generate OTP and store in memory
+        # Generate OTP and store in memory with expiration timestamp
         otp_code = generate_otp()
-        otp_storage[f"forgot_{email}"] = otp_code
+        otp_storage[f"forgot_{email}"] = {
+            "otp": otp_code,
+            "expires_at": time.time() + 60
+        }
 
         # Send email using api.py
         sent = send_email(
             to_email=email,
             subject="CobraByte - Password Reset Code",
-            body_text=f"Your 6-digit password reset code is: {otp_code}\nThis code expires in 5 minutes."
+            body_text=f"Your 6-digit password reset code is: {otp_code}\nThis code expires in 1 minute."
         )
 
         if sent:
@@ -267,9 +282,16 @@ def forgot_password_verify_otp():
     if not email or not user_otp:
         return jsonify({"success": False, "message": "Email and OTP code are required."}), 400
 
-    stored_otp = otp_storage.get(f"forgot_{email}")
-    if not stored_otp or stored_otp != user_otp:
-        return jsonify({"success": False, "message": "Invalid or expired verification code."}), 400
+    stored_record = otp_storage.get(f"forgot_{email}")
+    if not stored_record:
+        return jsonify({"success": False, "message": "No verification code found. Please request a new code."}), 400
+
+    if time.time() > stored_record["expires_at"]:
+        otp_storage.pop(f"forgot_{email}", None)
+        return jsonify({"success": False, "message": "Verification code has expired. Please click 'Resend code'."}), 400
+
+    if stored_record["otp"] != user_otp:
+        return jsonify({"success": False, "message": "Invalid verification code."}), 400
 
     return jsonify({"success": True, "message": "OTP verified successfully."}), 200
 

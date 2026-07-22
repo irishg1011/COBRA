@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const API_BASE_URL = "http://127.0.0.1:5000";
 
-    // Header Injection
     const headerPlaceholder = document.getElementById('header-placeholder');
     if (headerPlaceholder) {
         fetch('header.html')
@@ -11,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => console.error('Error loading header:', error));
     }
 
-    // Password Visibility Icons
     const openEyePath = `<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />`;
     const closedEyePath = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 1-4.243-4.243m4.242 4.242L9.88 9.88" />`;
 
@@ -29,9 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ============================================================
-    // FORM HELPERS & LOADING STATE HELPERS
-    // ============================================================
     function validateRequiredFields(fields) {
         for (const field of fields) {
             if (!field) continue;
@@ -57,6 +52,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return complete;
     }
 
+    function clearOtpInputs(containerSelector) {
+        const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
+        inputs.forEach(input => input.value = '');
+        if (inputs.length > 0) inputs[0].focus();
+    }
+
     function showInlineError(afterEl, message) {
         if (!afterEl) { alert(message); return; }
         let errorEl = afterEl.parentElement.querySelector('.js-error-message');
@@ -77,7 +78,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (errorEl) errorEl.remove();
     }
 
-    // TASK 1 HELPERS: Set & Reset Loading State on Buttons
     function setButtonLoading(button, loadingText = "Processing...") {
         if (!button) return;
         if (!button.dataset.originalHtml) {
@@ -97,7 +97,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Elements Setup
+    // --- COUNTDOWN TIMER STATE & FUNCTIONS ---
+    let signUpOtpExpired = false;
+    let forgotOtpExpired = false;
+
+    function startOtpCountdown(timerDisplayEl, resendLinkEl, isSignUp = true) {
+        if (!timerDisplayEl) return;
+
+        if (timerDisplayEl.intervalId) clearInterval(timerDisplayEl.intervalId);
+
+        let timeLeft = 60;
+        if (isSignUp) signUpOtpExpired = false;
+        else forgotOtpExpired = false;
+
+        if (resendLinkEl) {
+            resendLinkEl.style.pointerEvents = 'none';
+            resendLinkEl.style.opacity = '0.5';
+            resendLinkEl.style.cursor = 'default';
+        }
+
+        timerDisplayEl.intervalId = setInterval(() => {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+
+            timerDisplayEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+            if (timeLeft <= 0) {
+                clearInterval(timerDisplayEl.intervalId);
+                if (isSignUp) signUpOtpExpired = true;
+                else forgotOtpExpired = true;
+
+                if (resendLinkEl) {
+                    resendLinkEl.style.pointerEvents = 'auto';
+                    resendLinkEl.style.opacity = '1';
+                    resendLinkEl.style.cursor = 'pointer';
+                }
+            } else {
+                timeLeft--;
+            }
+        }, 1000);
+    }
+
     const authToggleBar = document.querySelector('.auth-toggle');
     const signInBtn = document.getElementById('switchToSignIn');
     const signUpBtn = document.getElementById('switchToSignUp');
@@ -159,7 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
         signInBtn.addEventListener('click', showSignInView);
     }
 
-    // Step 1 -> Step 2
     if (goToStep2) {
         goToStep2.addEventListener('click', () => {
             if (!validateRequiredFields([firstNameInput, lastNameInput, birthdateInput, genderSelect])) return;
@@ -170,31 +209,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (backToStep1) backToStep1.addEventListener('click', (e) => { e.preventDefault(); hideAllPanels(); if (signUpPanel) signUpPanel.style.display = 'block'; });
 
-    // Step 2 -> Step 3 (Requests OTP Email via Backend)
     if (proceedToStep3) {
         proceedToStep3.addEventListener('click', async (e) => {
             e.preventDefault();
 
-            // Clear previous errors first
             clearInlineError(emailInput);
             clearInlineError(regUsernameInput);
             clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
 
             let hasError = false;
 
-            // 1. Check required fields
             if (!emailInput.value.trim() || !regUsernameInput.value.trim() || !createPasswordInput.value.trim() || !confirmPasswordInput.value.trim()) {
                 alert("All fields are required.");
                 return;
             }
 
-            // 2. Check if passwords match locally
             if (createPasswordInput.value.trim() !== confirmPasswordInput.value.trim()) {
                 showInlineError(confirmPasswordInput.closest('.password-wrapper'), 'Passwords do not match.');
                 hasError = true;
             }
 
-            // 3. Check database for existing email/username via backend
             try {
                 const response = await fetch(`${API_BASE_URL}/send-otp`, {
                     method: 'POST',
@@ -221,10 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // If any error occurred (password mismatch OR database duplicates), stop here
                 if (hasError) return;
 
-                // If everything is completely valid, proceed to Step 3 OTP screen
                 if (result.success) {
                     const placeholder = document.getElementById('userEmailPlaceholder');
                     if (placeholder) placeholder.textContent = emailInput.value;
@@ -232,10 +264,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     hideAllPanels();
                     if (authToggleBar) authToggleBar.style.display = 'none';
                     if (signUpStep3Panel) signUpStep3Panel.style.display = 'block';
+
+                    clearOtpInputs('#signUpStep3Panel');
+                    startOtpCountdown(
+                        document.getElementById('otpTimerDisplay'), 
+                        document.getElementById('resendOtpLink'),
+                        true
+                    );
                 }
 
             } catch (err) {
                 alert('Could not send verification code. Ensure your backend server is running.');
+            }
+        });
+    }
+
+    const resendOtpLink = document.getElementById('resendOtpLink');
+    if (resendOtpLink) {
+        resendOtpLink.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (resendOtpLink.style.pointerEvents === 'none') return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/send-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: emailInput.value.trim(),
+                        username: regUsernameInput.value.trim() 
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('New verification code sent successfully!');
+                    clearOtpInputs('#signUpStep3Panel');
+                    startOtpCountdown(document.getElementById('otpTimerDisplay'), resendOtpLink, true);
+                } else {
+                    alert(result.message);
+                }
+            } catch (err) {
+                alert('Could not resend code.');
             }
         });
     }
@@ -248,9 +315,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Step 3 -> Finish Registration
     if (verifyAndFinish) {
         verifyAndFinish.addEventListener('click', async () => {
+            if (signUpOtpExpired) {
+                alert("Your verification code has expired. Please click 'Resend code' to get a new one.");
+                return;
+            }
+
             if (!validateOtpComplete('#signUpStep3Panel')) return;
 
             const otpInputs = document.querySelectorAll('#signUpStep3Panel .otp-input');
@@ -296,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (backToSignIn) backToSignIn.addEventListener('click', showSignInView);
 
-    // OTP Inputs Auto Jump
     const setupOtpJumping = (containerSelector) => {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
         inputs.forEach((input, index) => {
@@ -315,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupOtpJumping('#signUpStep3Panel');
     setupOtpJumping('#forgotOtpPanel');
 
-    // Login Form Submission
     const signInFormElement = document.querySelector('#signInPanel form');
     if (signInFormElement) {
         signInFormElement.addEventListener('submit', async (e) => {
@@ -355,7 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Forgot Password Link Click -> Show Panel 1
     const forgotLink = document.querySelector('.forgot-link');
     if (forgotLink) {
         forgotLink.addEventListener('click', (e) => {
@@ -366,7 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Step 1 Proceed -> Send OTP via Flask Backend & Show Step 2
     const btnForgotProceed = document.getElementById('btnForgotProceed');
     const forgotEmailInput = document.getElementById('forgotEmail');
 
@@ -396,6 +463,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     hideAllPanels();
                     if (forgotOtpPanel) forgotOtpPanel.style.display = 'block';
+
+                    clearOtpInputs('#forgotOtpPanel');
+                    startOtpCountdown(
+                        document.getElementById('forgotTimerDisplay'), 
+                        document.getElementById('resendForgotLink'),
+                        false
+                    );
                 } else {
                     alert(result.message);
                 }
@@ -407,11 +481,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Step 2 Verify Code -> Move to Step 3
+    const resendForgotLink = document.getElementById('resendForgotLink');
+    if (resendForgotLink) {
+        resendForgotLink.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (resendForgotLink.style.pointerEvents === 'none') return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/forgot-password/send-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: forgotEmailInput.value.trim() })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('New password reset code sent!');
+                    clearOtpInputs('#forgotOtpPanel');
+                    startOtpCountdown(document.getElementById('forgotTimerDisplay'), resendForgotLink, false);
+                } else {
+                    alert(result.message);
+                }
+            } catch (err) {
+                alert('Could not resend code.');
+            }
+        });
+    }
+
     const btnVerifyForgotCode = document.getElementById('btnVerifyForgotCode');
     if (btnVerifyForgotCode) {
         btnVerifyForgotCode.addEventListener('click', async (e) => {
             e.preventDefault();
+
+            if (forgotOtpExpired) {
+                alert("Your verification code has expired. Please click 'Resend code' to get a new one.");
+                return;
+            }
+
             if (!validateOtpComplete('#forgotOtpPanel')) return;
 
             const otpInputs = document.querySelectorAll('#forgotOtpPanel .otp-input');
@@ -443,7 +547,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Step 3 Reset Password -> Save to MySQL & Show Step 4
     const btnResetPassword = document.getElementById('btnResetPassword');
     const forgotNewPasswordInput = document.getElementById('forgotNewPassword');
     const forgotConfirmPasswordInput = document.getElementById('forgotConfirmPassword');
@@ -491,7 +594,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // "Back to log in" links handler
     document.addEventListener('click', (e) => {
         if (e.target.closest('.back-to-login-link') || e.target.closest('.back-to-login-btn')) {
             e.preventDefault();
