@@ -331,6 +331,104 @@ document.addEventListener('DOMContentLoaded', () => {
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
 
+    // =========================================================================
+    // --- TASK 10: UNIVERSAL UNSAVED CHANGES CHECK ---
+    // =========================================================================
+    function activePanelHasInputs() {
+        const allPanels = document.querySelectorAll(
+            '#signInPanel, #signUpPanel, #signUpStep2Panel, #signUpStep3Panel, #forgotPasswordPanel, #forgotOtpPanel, #setNewPasswordPanel'
+        );
+
+        for (const panel of allPanels) {
+            // Check only the panel currently visible on screen
+            if (panel && panel.style.display !== 'none' && getComputedStyle(panel).display !== 'none') {
+                const inputs = panel.querySelectorAll('input:not([type="checkbox"]):not([type="hidden"]), select');
+                for (const input of inputs) {
+                    if (input.value && input.value.trim() !== '') {
+                        return true; // Found unsubmitted data in the active panel!
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    function confirmViewSwitch() {
+        if (activePanelHasInputs()) {
+            return confirm("Are you sure you want to switch views? Your inputted data will be lost.");
+        }
+        return true;
+    }
+
+    // --- FORM RESET HELPERS ---
+    function resetSignUpForm() {
+        const signUpFormStep1 = document.querySelector('#signUpPanel form');
+        const signUpFormStep2 = document.querySelector('#signUpStep2Panel form');
+
+        if (signUpFormStep1) signUpFormStep1.reset();
+        if (signUpFormStep2) signUpFormStep2.reset();
+
+        clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
+
+        if (emailInput) clearInlineError(emailInput);
+        if (regUsernameInput) clearInlineError(regUsernameInput);
+        if (createPasswordInput && createPasswordInput.closest('.password-wrapper')) {
+            clearInlineError(createPasswordInput.closest('.password-wrapper'));
+        }
+        if (confirmPasswordInput && confirmPasswordInput.closest('.password-wrapper')) {
+            clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
+        }
+
+        const createChecker = document.getElementById('createPassword-checker');
+        if (createChecker) createChecker.style.display = 'none';
+
+        const matchIndicator = document.getElementById('confirmPassword-match');
+        if (matchIndicator) {
+            matchIndicator.style.display = 'none';
+            matchIndicator.textContent = '';
+        }
+    }
+
+    function resetSignInForm() {
+        const signInForm = document.querySelector('#signInPanel form');
+        if (signInForm) signInForm.reset();
+
+        if (passwordInput && passwordInput.closest('.password-wrapper')) {
+            clearInlineError(passwordInput.closest('.password-wrapper'));
+        }
+    }
+
+    function resetForgotPasswordForm() {
+        const forgotForm = document.querySelector('#forgotPasswordPanel form');
+        const setNewPwdForm = document.querySelector('#setNewPasswordPanel form');
+
+        if (forgotForm) forgotForm.reset();
+        if (setNewPwdForm) setNewPwdForm.reset();
+
+        clearOtpInputs('#forgotOtpPanel', 'showForgotOtp');
+
+        const forgotEmailInp = document.getElementById('forgotEmail');
+        const forgotNewPwdInp = document.getElementById('forgotNewPassword');
+        const forgotConfirmPwdInp = document.getElementById('forgotConfirmPassword');
+
+        if (forgotEmailInp) clearInlineError(forgotEmailInp);
+        if (forgotNewPwdInp && forgotNewPwdInp.closest('.password-wrapper')) {
+            clearInlineError(forgotNewPwdInp.closest('.password-wrapper'));
+        }
+        if (forgotConfirmPwdInp && forgotConfirmPwdInp.closest('.password-wrapper')) {
+            clearInlineError(forgotConfirmPwdInp.closest('.password-wrapper'));
+        }
+
+        const forgotChecker = document.getElementById('forgotNewPassword-checker');
+        if (forgotChecker) forgotChecker.style.display = 'none';
+
+        const forgotMatchIndicator = document.getElementById('forgotConfirmPassword-match');
+        if (forgotMatchIndicator) {
+            forgotMatchIndicator.style.display = 'none';
+            forgotMatchIndicator.textContent = '';
+        }
+    }
+
     function hideAllPanels() {
         const panels = [signInPanel, signUpPanel, signUpStep2Panel, signUpStep3Panel, signUpStep4Panel,
                         forgotPasswordPanel, forgotOtpPanel, setNewPasswordPanel, forgotSuccessPanel];
@@ -340,21 +438,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showSignInView() {
         hideAllPanels();
+        resetSignUpForm();
+        resetForgotPasswordForm();
         if (authToggleBar) authToggleBar.style.display = 'flex';
         if (signInBtn) signInBtn.classList.add('active');
         if (signUpBtn) signUpBtn.classList.remove('active');
         if (signInPanel) signInPanel.style.display = 'block';
     }
 
+    function showSignUpView() {
+        hideAllPanels();
+        resetSignInForm();
+        resetForgotPasswordForm();
+        if (authToggleBar) authToggleBar.style.display = 'flex';
+        if (signInBtn) signInBtn.classList.remove('active');
+        if (signUpBtn) signUpBtn.classList.add('active');
+        if (signUpPanel) signUpPanel.style.display = 'block';
+    }
+
     if (signInBtn && signUpBtn) {
         signUpBtn.addEventListener('click', () => {
-            hideAllPanels();
-            if (authToggleBar) authToggleBar.style.display = 'flex';
-            signInBtn.classList.remove('active');
-            signUpBtn.classList.add('active');
-            if (signUpPanel) signUpPanel.style.display = 'block';
+            if (signInBtn.classList.contains('active') && !confirmViewSwitch()) return;
+            showSignUpView();
         });
-        signInBtn.addEventListener('click', showSignInView);
+
+        signInBtn.addEventListener('click', () => {
+            if (signUpBtn.classList.contains('active') && !confirmViewSwitch()) return;
+            showSignInView();
+        });
     }
 
     if (goToStep2) {
@@ -636,6 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (forgotLink) {
         forgotLink.addEventListener('click', (e) => {
             e.preventDefault();
+            if (!confirmViewSwitch()) return;
             hideAllPanels();
             if (authToggleBar) authToggleBar.style.display = 'none';
             if (forgotPasswordPanel) forgotPasswordPanel.style.display = 'block';
@@ -782,7 +894,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const matchIndicator = document.getElementById('forgotConfirmPassword-match');
 
-            // Collect all validation errors
             let errors = [];
 
             if (!strongRegex.test(pwdVal)) {
@@ -793,7 +904,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 errors.push('Passwords do not match.');
             }
 
-            // If there are any errors, display them all together and stop
             if (errors.length > 0) {
                 if (matchIndicator) matchIndicator.style.display = 'none';
                 showInlineError(confirmWrapper, errors.join(' '));
@@ -832,5 +942,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    const backToLoginLinks = document.querySelectorAll('.back-to-login-link, .back-to-login-btn');
+    backToLoginLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!confirmViewSwitch()) return;
+            showSignInView();
+        });
+    });
 
 });
