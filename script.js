@@ -590,7 +590,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resendOtpLink) {
         resendOtpLink.addEventListener('click', async (e) => {
             e.preventDefault();
-            if (resendOtpLink.style.pointerEvents === 'none') return;
+            // Guardrail: Ignore click if disabled or currently sending
+            if (resendOtpLink.style.pointerEvents === 'none' || resendOtpLink.dataset.sending === "true") return;
+
+            // 1. Immediately disable and set visual loading state
+            resendOtpLink.dataset.sending = "true";
+            resendOtpLink.style.pointerEvents = 'none';
+            resendOtpLink.style.opacity = '0.5';
+            resendOtpLink.style.cursor = 'not-allowed';
+            const originalText = resendOtpLink.textContent;
+            resendOtpLink.textContent = 'Sending code...';
+
             try {
                 const response = await fetch(`${API_BASE_URL}/send-otp`, {
                     method: 'POST',
@@ -601,15 +611,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                 });
                 const result = await response.json();
+
+                // Revert link text back to "Resend code"
+                resendOtpLink.textContent = originalText;
+
                 if (result.success) {
                     alert('New verification code sent successfully!');
                     clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
                     startOtpCountdown(document.getElementById('otpTimerDisplay'), resendOtpLink, true);
                 } else {
                     alert(result.message);
+                    // Re-enable if server returned an error without starting timer
+                    resendOtpLink.style.pointerEvents = 'auto';
+                    resendOtpLink.style.opacity = '1';
+                    resendOtpLink.style.cursor = 'pointer';
                 }
             } catch (err) {
+                resendOtpLink.textContent = originalText;
                 alert('Could not resend code.');
+                resendOtpLink.style.pointerEvents = 'auto';
+                resendOtpLink.style.opacity = '1';
+                resendOtpLink.style.cursor = 'pointer';
+            } finally {
+                resendOtpLink.dataset.sending = "false";
             }
         });
     }
@@ -835,7 +859,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resendForgotLink) {
         resendForgotLink.addEventListener('click', async (e) => {
             e.preventDefault();
-            if (resendForgotLink.style.pointerEvents === 'none') return;
+            // Guardrail: Ignore click if disabled or currently sending
+            if (resendForgotLink.style.pointerEvents === 'none' || resendForgotLink.dataset.sending === "true") return;
+
+            // 1. Immediately disable and set visual loading state
+            resendForgotLink.dataset.sending = "true";
+            resendForgotLink.style.pointerEvents = 'none';
+            resendForgotLink.style.opacity = '0.5';
+            resendForgotLink.style.cursor = 'not-allowed';
+            const originalText = resendForgotLink.textContent;
+            resendForgotLink.textContent = 'Sending code...';
+
             try {
                 const response = await fetch(`${API_BASE_URL}/forgot-password/send-otp`, {
                     method: 'POST',
@@ -843,15 +877,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ email: forgotEmailInput.value.trim() })
                 });
                 const result = await response.json();
+
+                // Revert link text back to "Resend code"
+                resendForgotLink.textContent = originalText;
+
                 if (result.success) {
                     alert('New password reset code sent!');
                     clearOtpInputs('#forgotOtpPanel', 'showForgotOtp');
                     startOtpCountdown(document.getElementById('forgotTimerDisplay'), resendForgotLink, false);
                 } else {
                     alert(result.message);
+                    // Re-enable if server returned an error without starting timer
+                    resendForgotLink.style.pointerEvents = 'auto';
+                    resendForgotLink.style.opacity = '1';
+                    resendForgotLink.style.cursor = 'pointer';
                 }
             } catch (err) {
+                resendForgotLink.textContent = originalText;
                 alert('Could not resend code.');
+                resendForgotLink.style.pointerEvents = 'auto';
+                resendForgotLink.style.opacity = '1';
+                resendForgotLink.style.cursor = 'pointer';
+            } finally {
+                resendForgotLink.dataset.sending = "false";
             }
         });
     }
