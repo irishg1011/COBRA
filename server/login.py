@@ -4,7 +4,7 @@ login.py - CobraByte Backend Server
 Flask routes for user registration, authentication, and OTP verification.
 """
 
-from api import generate_otp, send_email
+from server.api import generate_otp, send_email
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import mysql.connector
@@ -25,7 +25,7 @@ DB_USER = "root"
 DB_PASSWORD = ""
 DB_NAME = "cobra_db"
 
-ACCOUNT_TABLE = "account_tbl"
+ACCOUNT_TABLE = "account_tbl" 
 PROFILE_TABLE = "profile_tbl"
 DEFAULT_U_TYPE = 2  # 2 = Learner
 
