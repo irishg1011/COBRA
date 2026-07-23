@@ -1,0 +1,401 @@
+/* ==========================================================================
+   INTERACTIVE AUTHENTICATION CARDS & FORMS
+   ========================================================================== */
+.auth-card {
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%;
+    max-width: 450px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+@media (max-width: 900px) {
+    .auth-card { margin: 0 auto; }
+}
+
+.auth-toggle {
+    display: flex;
+    background: #D5D5D5;
+    border-radius: 25px;
+    padding: 4px;
+    margin-bottom: 30px;
+}
+
+.toggle-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 20px;
+    transition: all 0.2s ease;
+    color: #A0A0A0;
+}
+
+.toggle-btn.active {
+    background: #FFFFFF;
+    color: #000000;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.form-header h2 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111111;
+    margin-bottom: 6px;
+}
+
+.form-header p {
+    font-size: 14px;
+    color: #666666;
+    margin-bottom: 28px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 22px;
+}
+
+.input-group label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+    margin-bottom: 8px;
+}
+
+.input-group input,
+.input-group select {
+    background: #EDEAE4;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 14px;
+    color: #333333;
+    outline: none;
+    width: 100%;
+    display: block;
+    height: 48px;
+    box-sizing: border-box;
+}
+
+input[type="date"], select {
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: inherit;
+    color: #666666;
+}
+
+select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+    cursor: pointer;
+}
+
+/* Sign up field overrides */
+#signUpPanel .input-group,
+#signUpStep2Panel .input-group {
+    margin-bottom: 14px;
+}
+
+#signUpPanel .button-wrapper {
+    margin-top: 20px;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+    text-decoration: none;
+    margin-bottom: 15px;
+    transition: color 0.2s ease;
+}
+
+.back-link:hover {
+    color: #139C38;
+}
+
+/* --- OTP Verification Styling --- */
+.verification-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.verification-icon {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 20px;
+}
+
+.verification-icon svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-15deg);
+}
+
+.centered-header h2 {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.centered-header p {
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 25px;
+}
+
+.otp-container {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 25px;
+    width: 100%;
+}
+
+.otp-input {
+    width: 48px;
+    height: 56px;
+    background: #FFFFFF;
+    border: 1px solid #CCCCCC;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #111111;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.otp-input:focus {
+    border-color: #1CE8C8;
+    box-shadow: 0 0 0 2px rgba(28, 232, 200, 0.1);
+}
+
+.timer-container {
+    margin-bottom: 30px;
+}
+
+.timer-text {
+    font-size: 14px;
+    color: #333333;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+.resend-link {
+    font-size: 14px;
+    color: #139C38;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.resend-link:hover {
+    text-decoration: underline;
+}
+
+.otp-wrapper {
+    display: inline-block;
+    text-align: left;
+    margin: 0 auto;
+}
+
+.show-otp-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-top: 12px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.show-otp-container input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: #139C38;
+}
+
+.show-otp-container label {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* --- Success Screen --- */
+.success-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 0;
+}
+
+.success-icon {
+    width: 90px;
+    height: 90px;
+    margin-bottom: 25px;
+}
+
+.success-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.btn-success-nav {
+    width: auto;
+    min-width: 200px;
+    padding: 14px 40px;
+    border-radius: 12px;
+    margin-top: 10px;
+}
+
+.signin-success-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px auto;
+}
+
+/* --- Password Fields & Links --- */
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.password-wrapper input {
+    padding-right: 40px;
+}
+
+.toggle-password-visibility {
+    position: absolute;
+    right: 14px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+}
+
+.eye-icon {
+    width: 100%;
+    height: 100%;
+    color: #666666;
+    transition: color 0.2s ease;
+}
+
+.eye-icon:hover {
+    color: #139C38;
+}
+
+.forgot-link {
+    display: inline-block;
+    font-size: 13px;
+    color: #139C38;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 28px;
+}
+
+.forgot-link:hover {
+    text-decoration: underline;
+}
+
+.footer-back-wrapper {
+    margin-top: 35px;
+    border-top: 1px solid #EDEAE4;
+    padding-top: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.back-to-login-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333333;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.back-to-login-link:hover {
+    color: #139C38;
+}
+
+/* --- Buttons & Loading States --- */
+.button-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.btn-next {
+    width: auto;
+    min-width: 140px;
+    padding: 12px 35px;
+}
+
+.btn-login, .btn-verify {
+    width: 100%;
+    border: none;
+    padding: 15px;
+    border-radius: 25px;
+    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(28, 232, 200, 0.3);
+    transition: transform 0.1s ease;
+}
+
+.btn-login:active, .btn-verify:active {
+    transform: scale(0.98);
+}
+
+.btn-loading {
+    opacity: 0.75 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+}
+
+.btn-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: btn-spin 0.6s linear infinite;
+}
+
+@keyframes btn-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.password-wrapper + .js-error-message ~ #forgotConfirmPassword-match,
+.password-wrapper + .js-error-message ~ #confirmPassword-match {
+    display: none !important;
+}

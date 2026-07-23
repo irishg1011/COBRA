@@ -33,19 +33,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. Confirm Logout Action, Storage Clear & Cache Invalidation
+    // 3. Confirm Logout Action, Storage Clear & Cache Invalidation (Updated path)
     if (confirmLogoutBtn) {
         confirmLogoutBtn.addEventListener('click', () => {
             localStorage.clear();
             sessionStorage.clear();
-            window.location.replace('login.html');
+            window.location.replace('/auth/login.html');
         });
     }
 
-    // 4. Prevent Back-Button Browser Caching Restoration
+    // 4. Prevent Back-Button Browser Caching Restoration (Updated path)
     window.addEventListener('pageshow', (event) => {
         if (event.persisted || performance.getEntriesByType("navigation")[0]?.type === "back_forward") {
-            window.location.replace('login.html');
+            window.location.replace('/auth/login.html');
         }
     });
 });
