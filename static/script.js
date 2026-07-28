@@ -823,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (signInPanel) signInPanel.style.display = 'none';
                     const successPanel = document.getElementById('signInSuccessPanel');
                     if (successPanel) successPanel.style.display = 'block';
-                    setTimeout(() => { window.location.href = 'dashboard.html'; }, 3000);
+                    setTimeout(() => { window.location.href = '../templates/dashboard.html'; }, 3000);
                 } else {
                     passwordInput.value = '';
 

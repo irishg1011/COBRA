@@ -4,6 +4,7 @@ login.py - CobraByte Backend Server
 Flask routes for user registration, authentication, and OTP verification.
 """
 
+from flask import Flask, jsonify, request, send_from_directory, render_template
 from api import generate_otp, send_email
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -14,7 +15,7 @@ from datetime import datetime
 import time
 import re
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='../templates', static_folder='../static')
 CORS(app)  # Enables cross-origin requests from Live Server (http://127.0.0.1:5500)
 
 # ============================================================
@@ -25,7 +26,7 @@ DB_USER = "root"
 DB_PASSWORD = ""
 DB_NAME = "cobra_db"
 
-ACCOUNT_TABLE = "account_tbl"
+ACCOUNT_TABLE = "account_tbl" 
 PROFILE_TABLE = "profile_tbl"
 DEFAULT_U_TYPE = 2  # 2 = Learner
 
@@ -399,9 +400,25 @@ def forgot_password_reset():
         return jsonify({"success": False, "message": "Could not connect to database."}), 500
 
     try:
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True) # Ginawang dictionary=True para makuha sa key name
         
-        # Hash the new password before updating
+        # 1. Kunin muna ang kasalukuyang password hash ng user
+        cursor.execute(f"SELECT password FROM {ACCOUNT_TABLE} WHERE email = %s AND is_deleted = 0", (email,))
+        account = cursor.fetchone()
+
+        if not account:
+            cursor.close()
+            return jsonify({"success": False, "message": "Account not found."}), 404
+
+        # 2. DAGDAG CHECK: I-verify kung ang bagong password ay pareho sa lumang password
+        if check_password_hash(account["password"], new_password):
+            cursor.close()
+            return jsonify({
+                "success": False, 
+                "message": "Your new password cannot be the same as your old password."
+            }), 400
+
+        # 3. Hash the new password before updating
         hashed_password = generate_password_hash(new_password)
 
         # Update password and automatically clear failed attempts / lockout state
@@ -410,10 +427,6 @@ def forgot_password_reset():
             (hashed_password, email)
         )
         connection.commit()
-
-        if cursor.rowcount == 0:
-            cursor.close()
-            return jsonify({"success": False, "message": "Account not found or password not updated."}), 404
 
         cursor.close()
 
@@ -439,6 +452,15 @@ def serve_login():
 @app.route("/<path:filename>")
 def serve_static_files(filename):
     return send_from_directory('.', filename)
+
+from flask import render_template  # Add this import at the top
+
+# ============================================================
+# ROUTE: DASHBOARD PAGE
+# ============================================================
+@app.route("/dashboard")
+def dashboard():
+    return render_template('/../dashboard.html')
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
