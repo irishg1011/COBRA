@@ -87,7 +87,7 @@ def handle_send_otp():
 
         # Return explicit individual messages or a combined one containing the keywords "email" and "username"
         if email_exists and username_exists:
-            return jsonify({"success": False, "message": "An account with this email already exists and this username is already taken."}), 409
+            return  jsonify({"success": False, "message": "An account with this email already exists and this username is already taken."}), 409
         elif email_exists:
             return jsonify({"success": False, "message": "An account with this email already exists."}), 409
         elif username_exists:
