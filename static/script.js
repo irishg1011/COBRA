@@ -563,7 +563,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (signUpBtn) signUpBtn.classList.add('active');
         if (signUpPanel) signUpPanel.style.display = 'block';
     }
-
+    window.addEventListener('pageshow', () => {
+        showSignInView();
+    });
     if (signInBtn && signUpBtn) {
         signUpBtn.addEventListener('click', () => {
             if (signInBtn.classList.contains('active') && !confirmViewSwitch()) return;
