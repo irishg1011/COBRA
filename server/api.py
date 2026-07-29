@@ -12,8 +12,8 @@ import smtplib
 # ============================================================
 # CONFIG - GMAIL CREDENTIALS
 # ============================================================
-GMAIL_ADDRESS = "gmark7688@gmail.com"
-GMAIL_APP_PASSWORD = "wwppfzltxqtcgffq"  # 16-character App Password (no spaces)
+GMAIL_ADDRESS = "cobra.ofcsystem@gmail.com"
+GMAIL_APP_PASSWORD = "djtagpiyhdnuetps"  # 16-character App Password (no spaces)
 # ============================================================
 
 
