@@ -367,6 +367,66 @@ document.addEventListener('DOMContentLoaded', () => {
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
 
+    // =========================================================================
+    // --- FEATURE 1: MINIMUM AGE (13+) RESTRICTION FOR SIGN UP ---
+    // =========================================================================
+    const MIN_SIGNUP_AGE = 13;
+    const MAX_SIGNUP_AGE = 60;
+
+    function calculateAge(birthdateStr) {
+        if (!birthdateStr) return null;
+        const birthDate = new Date(birthdateStr + 'T00:00:00');
+        if (isNaN(birthDate.getTime())) return null;
+
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const hasHadBirthdayThisYear =
+            (today.getMonth() > birthDate.getMonth()) ||
+            (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+        if (!hasHadBirthdayThisYear) age--;
+        return age;
+    }
+
+    function setMaxBirthdate() {
+        if (!birthdateInput) return;
+        const today = new Date();
+        const maxDate = new Date(today.getFullYear() - MIN_SIGNUP_AGE, today.getMonth(), today.getDate());
+        const yyyy = maxDate.getFullYear();
+        const mm = String(maxDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(maxDate.getDate()).padStart(2, '0');
+        birthdateInput.setAttribute('max', `${yyyy}-${mm}-${dd}`);
+    }
+
+    setMaxBirthdate();
+
+    // =========================================================================
+    // --- FEATURE 2: LOAD GENDER OPTIONS FROM MySQL (gender_tbl) ---
+    // =========================================================================
+    async function loadGenderOptions() {
+        if (!genderSelect) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/genders`);
+            if (!response.ok) throw new Error('Request failed');
+            const genders = await response.json();
+
+            if (!Array.isArray(genders)) throw new Error('Unexpected response');
+
+            genders.forEach(g => {
+                const option = document.createElement('option');
+                option.value = g.gender;
+                option.textContent = g.gender;
+                genderSelect.appendChild(option);
+            });
+        } catch (err) {
+            console.error('Error loading gender list:', err);
+            genderSelect.disabled = true;
+            alert('Unable to load gender list.');
+        }
+    }
+
+    loadGenderOptions();
+
     // --- TASK 10: UNIVERSAL UNSAVED CHANGES CHECK ---
     function activePanelHasInputs() {
         const allPanels = document.querySelectorAll(
@@ -415,6 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirmPasswordInput && confirmPasswordInput.closest('.password-wrapper')) {
             clearInlineError(confirmPasswordInput.closest('.password-wrapper'));
         }
+        if (birthdateInput) clearInlineError(birthdateInput);
 
         const createChecker = document.getElementById('createPassword-checker');
         if (createChecker) createChecker.style.display = 'none';
@@ -518,6 +579,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (goToStep2) {
         goToStep2.addEventListener('click', () => {
             if (!validateRequiredFields([firstNameInput, lastNameInput, birthdateInput, genderSelect])) return;
+
+            // --- FEATURE 1: Block proceeding if the user is under 13 ---
+            clearInlineError(birthdateInput);
+            const age = calculateAge(birthdateInput.value);
+            if (age === null || age < MIN_SIGNUP_AGE) {
+                showInlineError(birthdateInput, 'You must be at least 13 years old to create an account.');
+                birthdateInput.focus();
+                return;
+            }
+
+            if (age > MAX_SIGNUP_AGE) {
+                showInlineError(birthdateInput, 'You must be 60 years old or younger to create an account.');
+                birthdateInput.focus();
+                return;
+            }
+
             hideAllPanels();
             if (signUpStep2Panel) signUpStep2Panel.style.display = 'block';
         });

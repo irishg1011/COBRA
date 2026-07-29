@@ -28,7 +28,10 @@ DB_NAME = "cobra_db"
 
 ACCOUNT_TABLE = "account_tbl" 
 PROFILE_TABLE = "profile_tbl"
+GENDER_TABLE = "gender_tbl"
 DEFAULT_U_TYPE = 2  # 2 = Learner
+MIN_SIGNUP_AGE = 13
+MAX_SIGNUP_AGE = 60
 
 # Temporary in-memory OTP storage with timestamp expiration: { "key": {"otp": "123456", "expires_at": 1234567890.0} }
 otp_storage = {}
@@ -56,6 +59,26 @@ def generate_acc_id(cursor):
     cursor.execute(f"SELECT COUNT(*) AS total FROM {ACCOUNT_TABLE}")
     total = cursor.fetchone()[0]
     return f"ACC{total + 1:05d}"
+
+
+def calculate_age(birthdate_str):
+    """
+    Parses a birthdate string (expected format: YYYY-MM-DD, which is what
+    HTML <input type="date"> sends) and returns the user's current age
+    in whole years. Returns None if the date is missing or malformed.
+    """
+    if not birthdate_str:
+        return None
+    try:
+        birth_date = datetime.strptime(birthdate_str, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+    today = datetime.now().date()
+    age = today.year - birth_date.year - (
+        (today.month, today.day) < (birth_date.month, birth_date.day)
+    )
+    return age
 
 # ============================================================
 # ROUTE: SEND SIGNUP OTP
@@ -129,6 +152,25 @@ def signup():
 
     if not all([first_name, last_name, birthdate, gender, email, username, password, confirm_password, user_otp]):
         return jsonify({"success": False, "message": "All fields are required."}), 400
+
+    # ------------------------------------------------------------
+    # AGE VALIDATION (Backend Enforcement - Feature 1)
+    # ------------------------------------------------------------
+    age = calculate_age(birthdate)
+    if age is None:
+        return jsonify({"success": False, "message": "Please enter a valid birthdate."}), 400
+
+    if age < MIN_SIGNUP_AGE:
+        return jsonify({
+            "success": False,
+            "message": "You must be at least 13 years old to create an account."
+        }), 400
+
+    if age > MAX_SIGNUP_AGE:
+        return jsonify({
+            "success": False,
+            "message": "You must be 60 years old or younger to create an account."
+        }), 400
 
     if password != confirm_password:
         return jsonify({"success": False, "message": "Passwords do not match."}), 400
@@ -437,6 +479,29 @@ def forgot_password_reset():
 
     except Error as e:
         connection.rollback()
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
+# ROUTE: GET GENDER OPTIONS (Feature 2)
+# ============================================================
+@app.route("/genders", methods=["GET"])
+def get_genders():
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(f"SELECT gender_id, gender FROM {GENDER_TABLE} ORDER BY gender_id ASC")
+        genders = cursor.fetchall()
+        cursor.close()
+        return jsonify(genders), 200
+
+    except Error as e:
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
     finally:
         if connection.is_connected():

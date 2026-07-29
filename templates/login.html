@@ -250,11 +250,13 @@
                         </div>
                         <div class="input-group">
                             <label for="gender">Gender</label>
+                            <!--
+                                Feature 2: Gender options are no longer hardcoded.
+                                script.js fetches GET /genders on page load and
+                                dynamically appends <option> elements here.
+                            -->
                             <select id="gender" name="gender" required>
                                 <option value="" disabled selected hidden>Choose gender</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                                <option value="Other">Other</option>
                             </select>
                         </div>
                         <div class="button-wrapper">
