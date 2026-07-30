@@ -33,6 +33,14 @@ DEFAULT_U_TYPE = 2  # 2 = Learner
 MIN_SIGNUP_AGE = 13
 MAX_SIGNUP_AGE = 60
 
+# ------------------------------------------------------------
+# LEARNER ID GENERATION CONFIG
+# ------------------------------------------------------------
+# Only Learner accounts are supported for now (Admin creation is not
+# implemented yet), so every generated ID uses this fixed prefix.
+LEARNER_ID_PREFIX = "LR"
+LEARNER_ID_SEQ_DIGITS = 4  # 0001, 0002, ... 9999 per day
+
 # Temporary in-memory OTP storage with timestamp expiration: { "key": {"otp": "123456", "expires_at": 1234567890.0} }
 otp_storage = {}
 
@@ -56,9 +64,56 @@ def get_db_connection():
 
 
 def generate_acc_id(cursor):
-    cursor.execute(f"SELECT COUNT(*) AS total FROM {ACCOUNT_TABLE}")
-    total = cursor.fetchone()[0]
-    return f"ACC{total + 1:05d}"
+    """
+    Generates a unique, sequential Learner account ID in the format:
+
+        LR YYMMDD 0000
+        └┬┘ └──┬──┘ └┬─┘
+     prefix  date   4-digit sequence, resets to 0001 every new day
+
+    Example: a learner signing up on 2026-07-29 gets "LR2607290001",
+    the next one that same day gets "LR2607290002", and so on. When the
+    date rolls over, the sequence starts again at 0001.
+
+    IMPORTANT - concurrency & failure safety:
+    This function must be called from inside an open DB transaction
+    (mysql-connector defaults to autocommit=False, and the caller commits
+    only after the INSERT into account_tbl succeeds). It uses
+    "SELECT ... FOR UPDATE" to lock the row(s) matching today's prefix
+    before reading the current highest sequence number. That means:
+
+      - If two signups happen at the same moment, the second one's
+        SELECT ... FOR UPDATE blocks until the first transaction either
+        commits (so it sees the new highest ID) or rolls back (so it
+        reuses that same sequence number). Either way, no two accounts
+        can ever end up with the same ID.
+      - If a signup fails partway through (e.g. a later validation error
+        or DB error causes a rollback), the ID that was tentatively
+        reserved for it is never actually consumed - the next successful
+        signup will generate that same sequence number instead of
+        skipping it.
+    """
+    today_prefix = f"{LEARNER_ID_PREFIX}{datetime.now().strftime('%y%m%d')}"
+
+    # Lock the most recent ID for today's prefix (if any) so no other
+    # concurrent transaction can read/generate against it until we're done.
+    cursor.execute(
+        f"""SELECT acc_id FROM {ACCOUNT_TABLE}
+            WHERE acc_id LIKE %s
+            ORDER BY acc_id DESC
+            LIMIT 1
+            FOR UPDATE""",
+        (f"{today_prefix}%",)
+    )
+    row = cursor.fetchone()
+
+    if row:
+        last_seq = int(row[0][-LEARNER_ID_SEQ_DIGITS:])
+        next_seq = last_seq + 1
+    else:
+        next_seq = 1
+
+    return f"{today_prefix}{next_seq:0{LEARNER_ID_SEQ_DIGITS}d}"
 
 
 def calculate_age(birthdate_str):
@@ -150,6 +205,10 @@ def signup():
     confirm_password = (data.get("confirmPassword") or "").strip()
     user_otp = (data.get("otp") or "").strip()
 
+    # NOTE: acc_id is intentionally NOT read from the request body anywhere
+    # in this route. It is always generated server-side by generate_acc_id(),
+    # so there is no way for a client to submit or override their own ID.
+
     if not all([first_name, last_name, birthdate, gender, email, username, password, confirm_password, user_otp]):
         return jsonify({"success": False, "message": "All fields are required."}), 400
 
@@ -209,6 +268,12 @@ def signup():
             return jsonify({"success": False, "message": "Username or email is already taken."}), 409
 
         hashed_password = generate_password_hash(password)
+
+        # Generate the Learner account ID (LRYYMMDD0000). This must happen
+        # inside this same transaction/connection - generate_acc_id() takes
+        # a row lock (SELECT ... FOR UPDATE) that is only released when this
+        # transaction commits or rolls back, which is what keeps concurrent
+        # signups from ever generating the same ID.
         new_acc_id = generate_acc_id(cursor)
 
         # 1. Insert into account_tbl
@@ -229,7 +294,7 @@ def signup():
         # Clean up OTP after registration
         otp_storage.pop(email, None)
 
-        return jsonify({"success": True, "message": "Account created successfully."}), 201
+        return jsonify({"success": True, "message": "Account created successfully.", "acc_id": new_acc_id}), 201
 
     except Error as e:
         connection.rollback()
