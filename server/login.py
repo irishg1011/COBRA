@@ -16,8 +16,12 @@ import time
 import re
 from login_logs import log_login_attempt  # NEW: reusable login attempt logger
 
+
+
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 CORS(app)  # Enables cross-origin requests from Live Server (http://127.0.0.1:5500)
+
+
 
 # ============================================================
 # DATABASE CONFIG

@@ -1,0 +1,266 @@
+/* ==========================================================================
+   ADMIN LAYOUT SHELL
+   ========================================================================== */
+.admin-body {
+    background: #F4F2EC;
+    display: block;
+}
+
+.admin-layout {
+    display: flex;
+    align-items: flex-start;
+    min-height: 100vh;
+}
+
+.admin-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-content {
+    padding: 32px;
+    max-width: 1320px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* ==========================================================================
+   PAGE TITLE / WELCOME ROW
+   ========================================================================== */
+.admin-page-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+}
+
+.admin-page-title-row h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #111111;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+}
+
+.admin-page-greeting {
+    font-size: 15px;
+    font-weight: 600;
+    color: #2D2D2D;
+    margin-bottom: 2px;
+}
+
+.admin-page-subtext {
+    font-size: 13px;
+    color: #7A7A7A;
+}
+
+.admin-page-title-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.admin-datetime {
+    font-size: 13px;
+    font-weight: 600;
+    color: #444444;
+}
+
+.admin-title-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-outline-green,
+.btn-solid-green {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    border: 1.5px solid #139C38;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.btn-outline-green svg,
+.btn-solid-green svg {
+    width: 15px;
+    height: 15px;
+}
+
+.btn-outline-green {
+    background: #FFFFFF;
+    color: #139C38;
+}
+
+.btn-outline-green:hover {
+    background: #EAF8EE;
+}
+
+.btn-solid-green {
+    background: #139C38;
+    color: #FFFFFF;
+}
+
+.btn-solid-green:hover {
+    transform: translateY(-1px);
+    background: #0F8530;
+}
+
+/* ==========================================================================
+   SUMMARY STAT CARDS
+   ========================================================================== */
+.admin-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 18px;
+    margin-bottom: 28px;
+}
+
+.stat-card {
+    background: #FFFFFF;
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.stat-icon-blue { background: #E4F3FF; color: #0B84D6; }
+.stat-icon-green { background: #E4F8EA; color: #139C38; }
+.stat-icon-gray { background: #EFEFEF; color: #767676; }
+.stat-icon-teal { background: #E1FBF5; color: #0E9F8E; }
+
+.stat-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8A8A8A;
+}
+
+.stat-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: #111111;
+}
+
+/* ==========================================================================
+   SEARCH & FILTER TOOLBAR
+   ========================================================================== */
+.admin-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.admin-toolbar-search {
+    flex: 1;
+    min-width: 240px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #FFFFFF;
+    border: 1px solid #ECEAE3;
+    border-radius: 10px;
+    padding: 11px 16px;
+}
+
+.admin-toolbar-search svg {
+    width: 17px;
+    height: 17px;
+    color: #9A9A9A;
+    flex-shrink: 0;
+}
+
+.admin-toolbar-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+    color: #333333;
+}
+
+.admin-toolbar-select {
+    background: #FFFFFF;
+    border: 1px solid #ECEAE3;
+    border-radius: 10px;
+    padding: 11px 16px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #444444;
+    cursor: pointer;
+    min-width: 150px;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+@media (max-width: 1180px) {
+    .admin-stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 720px) {
+    .admin-content {
+        padding: 20px 16px 90px;
+    }
+    .admin-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .admin-page-title-row {
+        flex-direction: column;
+    }
+    .admin-page-title-actions {
+        align-items: flex-start;
+        width: 100%;
+    }
+    .admin-title-buttons {
+        width: 100%;
+    }
+    .admin-title-buttons a,
+    .admin-title-buttons button {
+        flex: 1;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}

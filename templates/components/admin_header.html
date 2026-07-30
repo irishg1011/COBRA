@@ -1,0 +1,31 @@
+<!--
+    admin_header.html
+    ------------------
+    Reusable top header bar for every Admin page. Include with:
+
+        {% include "components/admin_header.html" %}
+
+    Placeholder-only: the admin name/role/avatar shown here are static
+    sample data. Wire these to the real logged-in admin session later.
+-->
+<header class="admin-header">
+    <div class="admin-search-wrapper">
+        <svg class="admin-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+        <input type="text" id="adminSearchInput" class="admin-search-input" placeholder="Search modules, students, resources...">
+    </div>
+
+    <div class="admin-header-actions">
+        <button class="admin-icon-btn" aria-label="Notifications" id="adminNotifBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+
+        <div class="admin-profile">
+            <img src="../assets/images/user-avatar_2_1.png" alt="Admin avatar" class="admin-avatar" onerror="this.style.display='none'">
+            <div class="admin-profile-text">
+                <span class="admin-name">Irish Gregorio</span>
+                <span class="admin-role">Administrator</span>
+            </div>
+            <svg class="admin-profile-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+        </div>
+    </div>
+</header>

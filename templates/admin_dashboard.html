@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - Admin Dashboard</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Shared base styles (existing) -->
+    <link rel="stylesheet" href="../static/style.css">
+
+    <!-- Admin-only styles, kept separate per component -->
+    <link rel="stylesheet" href="../static/css/sidebar.css">
+    <link rel="stylesheet" href="../static/css/header.css">
+    <link rel="stylesheet" href="../static/css/admin_dashboard.css">
+    <link rel="stylesheet" href="../static/css/table.css">
+    <link rel="stylesheet" href="../static/css/modal.css">
+</head>
+<body class="admin-body">
+
+    <div class="admin-layout">
+
+        {% include "components/admin_sidebar.html" %}
+
+        <div class="admin-main">
+
+            {% include "components/admin_header.html" %}
+
+            <main class="admin-content">
+
+                <!-- Welcome / Page Title Row -->
+                <div class="admin-page-title-row">
+                    <div>
+                        <h1>Account &amp; Security</h1>
+                        <p class="admin-page-greeting">Good afternoon, Irish!</p>
+                        <p class="admin-page-subtext">Manage your account details, security settings, and login activity.</p>
+                    </div>
+
+                    <div class="admin-page-title-actions">
+                        <span class="admin-datetime" id="adminDateTime">11:00AM &middot; Monday, July 25, 2026</span>
+                        <div class="admin-title-buttons">
+                            <a href="/login-logs" class="btn-outline-green" id="loginLogsBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+                                Login Logs
+                            </a>
+                            <button type="button" class="btn-solid-green" id="openCreateAdminBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+                                Create Administrator
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary Statistic Cards -->
+                <section class="admin-stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM20 20v-1a3 3 0 0 0-2.5-3M16 4.2a3 3 0 0 1 0 5.6"/></svg>
+                        </div>
+                        <div class="stat-text">
+                            <span class="stat-label">Total Accounts</span>
+                            <span class="stat-value">10</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-green">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                        </div>
+                        <div class="stat-text">
+                            <span class="stat-label">Active Accounts</span>
+                            <span class="stat-value">7</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-gray">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/><path stroke-linecap="round" d="M3 3l18 18"/></svg>
+                        </div>
+                        <div class="stat-text">
+                            <span class="stat-label">Inactive Accounts</span>
+                            <span class="stat-value">2</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-teal">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+                        </div>
+                        <div class="stat-text">
+                            <span class="stat-label">Administrators</span>
+                            <span class="stat-value">2</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                        </div>
+                        <div class="stat-text">
+                            <span class="stat-label">Learners</span>
+                            <span class="stat-value">8</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-green">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                        </div>
+                        <div class="stat-text">
+                            <span class="stat-label">Locked Accounts</span>
+                            <span class="stat-value">1</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Search & Filters -->
+                <section class="admin-toolbar">
+                    <div class="admin-toolbar-search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+                        <input type="text" id="accountSearchInput" placeholder="Search by name, username, or email...">
+                    </div>
+
+                    <select id="filterRole" class="admin-toolbar-select">
+                        <option value="all">All Roles</option>
+                        <option value="admin">Administrator</option>
+                        <option value="learner">Learner</option>
+                    </select>
+
+                    <select id="filterStatus" class="admin-toolbar-select">
+                        <option value="all">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+
+                    <select id="filterSort" class="admin-toolbar-select">
+                        <option value="date-created">Sort: Date Created</option>
+                        <option value="name">Sort: Name</option>
+                        <option value="last-login">Sort: Last Login</option>
+                    </select>
+                </section>
+
+                <!-- Accounts Table -->
+                <section class="admin-table-card">
+                    <div class="admin-table-scroll">
+                        <table class="accounts-table" id="accountsTable">
+                            <thead>
+                                <tr>
+                                    <th>Account ID</th>
+                                    <th>Full Name</th>
+                                    <th>Email</th>
+                                    <th>Username</th>
+                                    <th>User Type</th>
+                                    <th>Status</th>
+                                    <th>Date Created</th>
+                                    <th>Last Login</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr data-role="learner" data-status="active">
+                                    <td>AD2607290007</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Gold Espa&ntilde;ola
+                                    </td>
+                                    <td>goldespanola@gmail.com</td>
+                                    <td>goldy123</td>
+                                    <td>Learner</td>
+                                    <td><span class="status-badge status-active">Active</span></td>
+                                    <td>Jul 12, 2026</td>
+                                    <td>Jul 15, 01:30 AM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                                <tr data-role="learner" data-status="inactive">
+                                    <td>AD2607290006</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Darell Bacani
+                                    </td>
+                                    <td>darellbacani@gmail.com</td>
+                                    <td>daril123</td>
+                                    <td>Learner</td>
+                                    <td><span class="status-badge status-inactive">Inactive</span></td>
+                                    <td>Jul 10, 2026</td>
+                                    <td>Jul 27, 04:00 PM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                                <tr data-role="learner" data-status="active">
+                                    <td>AD2607290005</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Nicole Mijoy
+                                    </td>
+                                    <td>nicolemijoy@gmail.com</td>
+                                    <td>nikol123</td>
+                                    <td>Learner</td>
+                                    <td><span class="status-badge status-active">Active</span></td>
+                                    <td>Jul 8, 2026</td>
+                                    <td>Jul 15, 06:05 PM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                                <tr data-role="learner" data-status="active">
+                                    <td>AD2607290004</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Emmanuel Spicer
+                                    </td>
+                                    <td>emmanuelspicer@gmail.com</td>
+                                    <td>spicy123</td>
+                                    <td>Learner</td>
+                                    <td><span class="status-badge status-active">Active</span></td>
+                                    <td>Jul 5, 2026</td>
+                                    <td>Jul 23, 09:30 PM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                                <tr data-role="learner" data-status="inactive">
+                                    <td>AD2607290003</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Markgil Gamboa
+                                    </td>
+                                    <td>markgilgamboa@gmail.com</td>
+                                    <td>gil123</td>
+                                    <td>Learner</td>
+                                    <td><span class="status-badge status-inactive">Inactive</span></td>
+                                    <td>Jul 1, 2026</td>
+                                    <td>Jul 10, 04:20 PM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                                <tr data-role="learner" data-status="inactive">
+                                    <td>AD2607290002</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Danzen Aquino
+                                    </td>
+                                    <td>danzenaquino@gmail.com</td>
+                                    <td>zenn123</td>
+                                    <td>Learner</td>
+                                    <td><span class="status-badge status-inactive">Inactive</span></td>
+                                    <td>Jun 25, 2026</td>
+                                    <td>Jul 24, 05:45 PM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                                <tr data-role="admin" data-status="active">
+                                    <td>AD2607290001</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Irish Gregorio
+                                    </td>
+                                    <td>irishgregorio@gmail.com</td>
+                                    <td>irish_admin</td>
+                                    <td>Administrator</td>
+                                    <td><span class="status-badge status-active">Active</span></td>
+                                    <td>May 24, 2026</td>
+                                    <td>Jul 30, 08:41 AM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                                <tr data-role="admin" data-status="active">
+                                    <td>AD2607290008</td>
+                                    <td class="profile-cell">
+                                        <svg class="profile-avatar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+                                        Marc Villanueva
+                                    </td>
+                                    <td>marcvillanueva@gmail.com</td>
+                                    <td>marcv_admin</td>
+                                    <td>Administrator</td>
+                                    <td><span class="status-badge status-active">Active</span></td>
+                                    <td>May 24, 2026</td>
+                                    <td>Jul 30, 08:30 AM</td>
+                                    <td><button class="row-action-btn" aria-label="Row actions">&#8942;</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="admin-table-footer">
+                        <span id="tableRowCount">Showing 8 accounts</span>
+                        <div class="admin-table-pagination">
+                            <button class="pagination-btn" disabled>&lsaquo;</button>
+                            <span>1 of 1</span>
+                            <button class="pagination-btn" disabled>&rsaquo;</button>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    {% include "components/create_admin_modal.html" %}
+
+    <script src="../static/js/sidebar.js"></script>
+    <script src="../static/js/table.js"></script>
+    <script src="../static/js/modal.js"></script>
+    <script src="../static/js/admin_dashboard.js"></script>
+</body>
+</html>

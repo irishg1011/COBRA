@@ -1,0 +1,100 @@
+<!--
+    create_admin_modal.html
+    -------------------------
+    Reusable "Create New Administrator" modal. Include with:
+
+        {% include "components/create_admin_modal.html" %}
+
+    Frontend-only: the form does not submit anywhere. modal.js wires up
+    open/close behavior (Cancel, X, outside click, ESC). When backend
+    integration is ready, hook a submit handler onto #createAdminForm
+    that POSTs these fields instead of preventing default.
+-->
+<div class="admin-modal-overlay" id="createAdminOverlay">
+    <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="createAdminTitle">
+        <button type="button" class="admin-modal-close" id="createAdminClose" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+
+        <div class="admin-modal-header">
+            <div class="admin-modal-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="3.2"/><path d="M6 19c0-3 2.7-5 6-5s6 2 6 5"/><path d="M18.5 4.5a2 2 0 1 1 2 2M20 3v1"/></svg>
+            </div>
+            <h2 id="createAdminTitle">Create New Administrator</h2>
+            <p>Fill in the details to register a new account.</p>
+        </div>
+
+        <form id="createAdminForm" onsubmit="event.preventDefault();">
+            <fieldset class="admin-modal-fieldset">
+                <legend>Account ID (auto-generated)</legend>
+                <div class="input-group">
+                    <label for="newAdminAccId">Account ID</label>
+                    <input type="text" id="newAdminAccId" value="AD26072900008" disabled>
+                </div>
+            </fieldset>
+
+            <fieldset class="admin-modal-fieldset">
+                <legend>Login Credentials</legend>
+                <div class="input-group">
+                    <label for="newAdminUsername">Username</label>
+                    <input type="text" id="newAdminUsername" placeholder="e.g. goldy123">
+                </div>
+                <div class="admin-modal-row">
+                    <div class="input-group">
+                        <label for="newAdminPassword">Password</label>
+                        <input type="password" id="newAdminPassword" placeholder="Min. 8 characters">
+                    </div>
+                    <div class="input-group">
+                        <label for="newAdminConfirmPassword">Confirm Password</label>
+                        <input type="password" id="newAdminConfirmPassword" placeholder="Re-enter password">
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="admin-modal-fieldset">
+                <legend>Personal Information</legend>
+                <div class="input-group">
+                    <label for="newAdminEmail">Email Address</label>
+                    <input type="email" id="newAdminEmail" placeholder="e.g. goldespañola@gmail.com">
+                </div>
+                <div class="input-group">
+                    <label for="newAdminMobile">Mobile Number</label>
+                    <input type="tel" id="newAdminMobile" placeholder="09XXXXXXXXX">
+                </div>
+                <div class="admin-modal-row">
+                    <div class="input-group">
+                        <label for="newAdminFirstName">First Name</label>
+                        <input type="text" id="newAdminFirstName" placeholder="Gold">
+                    </div>
+                    <div class="input-group">
+                        <label for="newAdminLastName">Last Name</label>
+                        <input type="text" id="newAdminLastName" placeholder="Española">
+                    </div>
+                </div>
+                <div class="admin-modal-row">
+                    <div class="input-group">
+                        <label for="newAdminGender">Gender</label>
+                        <select id="newAdminGender">
+                            <option value="" disabled selected hidden>Select gender</option>
+                            <option value="female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="other">Prefer not to say</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="newAdminBirthdate">Birthdate</label>
+                        <input type="date" id="newAdminBirthdate" placeholder="mm/dd/yyyy">
+                    </div>
+                </div>
+            </fieldset>
+
+            <div class="admin-modal-actions">
+                <button type="button" class="btn-modal-cancel" id="createAdminCancel">Cancel</button>
+                <button type="submit" class="btn-modal-create" id="createAdminSubmit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+                    Create Account
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

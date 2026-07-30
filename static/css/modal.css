@@ -1,0 +1,188 @@
+/* ==========================================================================
+   CREATE ADMINISTRATOR MODAL
+   ========================================================================== */
+.admin-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 17, 17, 0.45);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.admin-modal-overlay.is-open {
+    display: flex;
+}
+
+.admin-modal {
+    background: #FFFFFF;
+    border-radius: 18px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 32px 28px 28px;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.admin-modal-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #8A8A8A;
+    padding: 4px;
+}
+
+.admin-modal-close svg {
+    width: 18px;
+    height: 18px;
+}
+
+.admin-modal-close:hover {
+    color: #333333;
+}
+
+.admin-modal-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.admin-modal-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #E4F3FF;
+    color: #0B84D6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 14px;
+}
+
+.admin-modal-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.admin-modal-header h2 {
+    font-size: 19px;
+    font-weight: 800;
+    color: #111111;
+    margin-bottom: 4px;
+}
+
+.admin-modal-header p {
+    font-size: 13px;
+    color: #8A8A8A;
+}
+
+.admin-modal-fieldset {
+    border: none;
+    margin-bottom: 18px;
+    padding: 0;
+}
+
+.admin-modal-fieldset legend {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #9A9A9A;
+    margin-bottom: 10px;
+    padding: 0;
+}
+
+.admin-modal-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.admin-modal .input-group {
+    margin-bottom: 12px;
+}
+
+.admin-modal .input-group label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #444444;
+    margin-bottom: 6px;
+    display: block;
+}
+
+.admin-modal .input-group input,
+.admin-modal .input-group select {
+    width: 100%;
+    background: #F4F2EC;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: #333333;
+    outline: none;
+}
+
+.admin-modal .input-group input:disabled {
+    color: #9A9A9A;
+    cursor: not-allowed;
+}
+
+.admin-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.btn-modal-cancel,
+.btn-modal-create {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 13px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+}
+
+.btn-modal-cancel {
+    background: #F0EEE7;
+    color: #444444;
+}
+
+.btn-modal-cancel:hover {
+    background: #E6E3D9;
+}
+
+.btn-modal-create {
+    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
+    color: #FFFFFF;
+}
+
+.btn-modal-create svg {
+    width: 15px;
+    height: 15px;
+}
+
+.btn-modal-create:hover {
+    transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+@media (max-width: 480px) {
+    .admin-modal-row {
+        grid-template-columns: 1fr;
+    }
+}
