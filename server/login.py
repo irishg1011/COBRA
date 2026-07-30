@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime
 import time
 import re
+from login_logs import log_login_attempt  # NEW: reusable login attempt logger
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 CORS(app)  # Enables cross-origin requests from Live Server (http://127.0.0.1:5500)
@@ -339,7 +340,6 @@ def login():
         cursor = connection.cursor(dictionary=True)
         
         # Fetch account details
-        # --- MODIFIED: also fetch status and last_login for inactivity check ---
         cursor.execute(
             f"SELECT acc_id, password, status, last_login, failed_attempts, lockout_until, is_deleted FROM {ACCOUNT_TABLE} WHERE username = %s",
             (username,)
@@ -348,15 +348,13 @@ def login():
 
         if not account or account.get("is_deleted"):
             cursor.close()
+            # NEW: log failed attempt for unknown/deleted username (acc_id=None)
+            log_login_attempt(acc_id=None, ip_address=request.remote_addr, attempt_status="Failed")
             return jsonify({"success": False, "message": "Invalid username or password."}), 401
 
         # ------------------------------------------------------------
-        # ACCOUNT INACTIVITY CHECK (NEW)
+        # ACCOUNT INACTIVITY CHECK
         # ------------------------------------------------------------
-        # If the account has a last_login and it's older than
-        # ACCOUNT_INACTIVITY_DAYS, mark it Inactive before continuing
-        # with the normal login flow. This does not block login -
-        # a successful login will reactivate the account further below.
         last_login = account.get("last_login")
         if last_login is not None:
             inactive_days = (datetime.now() - last_login).days
@@ -384,8 +382,9 @@ def login():
         # Check if account is currently locked out
         if lockout_until and datetime.now() < lockout_until:
             cursor.close()
-            # Calculate exact remaining seconds until lockout expires
             remaining_seconds = int((lockout_until - datetime.now()).total_seconds())
+            # NEW: log failed attempt caused by active lockout
+            log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
             return jsonify({
                 "success": False, 
                 "message": f"Too many failed attempts. Please try again in 1 minute.",
@@ -404,6 +403,8 @@ def login():
                 )
                 connection.commit()
                 cursor.close()
+                # NEW: log failed attempt that triggered the lockout
+                log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
                 return jsonify({
                     "success": False, 
                     "message": "Too many failed attempts. Please try again in 1 minute.",
@@ -418,20 +419,23 @@ def login():
                 connection.commit()
                 cursor.close()
                 attempts_remaining = 5 - failed_attempts
+                # NEW: log failed attempt (wrong password)
+                log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
                 return jsonify({
                     "success": False, 
                     "message": f"Incorrect password. {attempts_remaining} attempt(s) remaining."
                 }), 401
 
-        # Successful login: reset failed attempts/lockout, update last_login,
-        # and (re)activate the account status.
-        # --- MODIFIED: added last_login = NOW() and status = 'Active' ---
+        # Successful login: reset failed attempts/lockout, update last_login, reactivate status
         cursor.execute(
             f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL, last_login = NOW(), status = 'Active' WHERE acc_id = %s",
             (account["acc_id"],)
         )
         connection.commit()
         cursor.close()
+
+        # NEW: log successful login
+        log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Success")
 
         return jsonify({"success": True, "message": "Login successful. Redirecting..."}), 200
 
