@@ -278,14 +278,22 @@ def signup():
 
         # 1. Insert into account_tbl
         cursor.execute(
-            f"INSERT INTO {ACCOUNT_TABLE} (acc_id, email, username, password, u_type, failed_attempts, lockout_until, is_deleted) VALUES (%s, %s, %s, %s, %s, 0, NULL, 0)",
+            f"""INSERT INTO {ACCOUNT_TABLE} (
+                    acc_id, email, username, password, u_type,
+                    status, created_at, last_login,
+                    failed_attempts, lockout_until, is_deleted
+                ) VALUES (
+                    %s, %s, %s, %s, %s,
+                    'Active', NOW(), NULL,
+                    0, NULL, 0
+                )""",
             (new_acc_id, email, username, hashed_password, DEFAULT_U_TYPE)
         )
 
         # 2. Insert into profile_tbl matching exact structure
         cursor.execute(
-            f"INSERT INTO {PROFILE_TABLE} (acc_id, email, username, firstname, lastname, gender, birthdate) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (new_acc_id, email, username, first_name, last_name, gender, birthdate)
+            f"INSERT INTO {PROFILE_TABLE} (acc_id, firstname, lastname, gender, birthdate) VALUES (%s, %s, %s, %s, %s)",
+            (new_acc_id, first_name, last_name, gender, birthdate)
         )
 
         connection.commit()
