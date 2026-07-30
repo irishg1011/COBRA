@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // If the user is already logged in,
+// skip the login page and go directly to Dashboard.
+if (sessionStorage.getItem("isAuthenticated") === "true") {
+    window.location.replace("dashboard.html");
+}
 
     const API_BASE_URL = "http://127.0.0.1:5000";
 
@@ -891,19 +896,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const result = await response.json();
 
-                if (result.success) {
-                    // Clear lockout for this user if they successfully logged in
-                    if (window.activeLockouts[targetUsername]) {
-                        clearInterval(window.activeLockouts[targetUsername].interval);
-                        delete window.activeLockouts[targetUsername];
-                    }
+if (result.success) {
 
-                    if (authToggleBar) authToggleBar.style.display = 'none';
-                    if (signInPanel) signInPanel.style.display = 'none';
-                    const successPanel = document.getElementById('signInSuccessPanel');
-                    if (successPanel) successPanel.style.display = 'block';
-                    setTimeout(() => { window.location.href = '../templates/dashboard.html'; }, 3000);
-                } else {
+    // Mark user as authenticated
+    sessionStorage.setItem("isAuthenticated", "true");
+
+    // Clear lockout for this user if they successfully logged in
+    if (window.activeLockouts[targetUsername]) {
+        clearInterval(window.activeLockouts[targetUsername].interval);
+        delete window.activeLockouts[targetUsername];
+    }
+
+    if (authToggleBar) authToggleBar.style.display = 'none';
+    if (signInPanel) signInPanel.style.display = 'none';
+
+    const successPanel = document.getElementById('signInSuccessPanel');
+    if (successPanel) successPanel.style.display = 'block';
+
+    setTimeout(() => {
+        window.location.replace("../templates/dashboard.html");
+    }, 3000);
+} else {
                     passwordInput.value = '';
 
                     if (response.status === 423) {

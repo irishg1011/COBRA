@@ -1,12 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Profile Dropdown Toggle Logic
+
+    // ===============================
+    // Profile Dropdown
+    // ===============================
     const profileBtn = document.getElementById('profileDropdownBtn');
     const dropdownMenu = document.getElementById('profileDropdownMenu');
 
     if (profileBtn && dropdownMenu) {
         profileBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+            dropdownMenu.style.display =
+                dropdownMenu.style.display === 'block'
+                    ? 'none'
+                    : 'block';
         });
 
         document.addEventListener('click', () => {
@@ -14,7 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. Logout Modal Control Elements
+    // ===============================
+    // Logout Modal
+    // ===============================
     const logoutTriggerBtn = document.getElementById('logoutTriggerBtn');
     const logoutModal = document.getElementById('logoutModal');
     const cancelLogoutBtn = document.getElementById('cancelLogoutBtn');
@@ -33,19 +41,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. Confirm Logout Action, Storage Clear & Cache Invalidation
+    // ===============================
+    // Logout
+    // ===============================
     if (confirmLogoutBtn) {
         confirmLogoutBtn.addEventListener('click', () => {
-            localStorage.clear();
-            sessionStorage.clear();
-            window.location.replace('login.html');
+
+            logoutModal.style.display = 'none';
+
+            // Use auth-guard logout if available
+            if (typeof window.cobraByteLogout === 'function') {
+                window.cobraByteLogout();
+            } else {
+                sessionStorage.clear();
+                localStorage.clear();
+
+                window.location.replace('login.html');
+            }
+
         });
     }
 
-    // 4. Prevent Back-Button Browser Caching Restoration
-    window.addEventListener('pageshow', (event) => {
-        if (event.persisted || performance.getEntriesByType("navigation")[0]?.type === "back_forward") {
-            window.location.replace('login.html');
-        }
-    });
+    // ===============================
+    // Prevent viewing Dashboard after logout
+    // ===============================
+    window.addEventListener("pageshow", () => {
+    // Do nothing.
+    // Authentication is handled by auth-guard.js.
+});
 });
