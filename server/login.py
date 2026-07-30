@@ -34,6 +34,13 @@ MIN_SIGNUP_AGE = 13
 MAX_SIGNUP_AGE = 60
 
 # ------------------------------------------------------------
+# ACCOUNT INACTIVITY CONFIG (NEW)
+# ------------------------------------------------------------
+# Number of days without a login before an account is auto-marked
+# "Inactive". Change this single value to adjust the policy app-wide.
+ACCOUNT_INACTIVITY_DAYS = 30
+
+# ------------------------------------------------------------
 # LEARNER ID GENERATION CONFIG
 # ------------------------------------------------------------
 # Only Learner accounts are supported for now (Admin creation is not
@@ -332,8 +339,9 @@ def login():
         cursor = connection.cursor(dictionary=True)
         
         # Fetch account details
+        # --- MODIFIED: also fetch status and last_login for inactivity check ---
         cursor.execute(
-            f"SELECT acc_id, password, failed_attempts, lockout_until, is_deleted FROM {ACCOUNT_TABLE} WHERE username = %s",
+            f"SELECT acc_id, password, status, last_login, failed_attempts, lockout_until, is_deleted FROM {ACCOUNT_TABLE} WHERE username = %s",
             (username,)
         )
         account = cursor.fetchone()
@@ -341,6 +349,24 @@ def login():
         if not account or account.get("is_deleted"):
             cursor.close()
             return jsonify({"success": False, "message": "Invalid username or password."}), 401
+
+        # ------------------------------------------------------------
+        # ACCOUNT INACTIVITY CHECK (NEW)
+        # ------------------------------------------------------------
+        # If the account has a last_login and it's older than
+        # ACCOUNT_INACTIVITY_DAYS, mark it Inactive before continuing
+        # with the normal login flow. This does not block login -
+        # a successful login will reactivate the account further below.
+        last_login = account.get("last_login")
+        if last_login is not None:
+            inactive_days = (datetime.now() - last_login).days
+            if inactive_days > ACCOUNT_INACTIVITY_DAYS and account.get("status") != "Inactive":
+                cursor.execute(
+                    f"UPDATE {ACCOUNT_TABLE} SET status = 'Inactive' WHERE acc_id = %s",
+                    (account["acc_id"],)
+                )
+                connection.commit()
+                account["status"] = "Inactive"
 
         lockout_until = account.get("lockout_until")
         
@@ -397,9 +423,11 @@ def login():
                     "message": f"Incorrect password. {attempts_remaining} attempt(s) remaining."
                 }), 401
 
-        # Successful login: Reset failed attempts and clear lockout state
+        # Successful login: reset failed attempts/lockout, update last_login,
+        # and (re)activate the account status.
+        # --- MODIFIED: added last_login = NOW() and status = 'Active' ---
         cursor.execute(
-            f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL WHERE acc_id = %s",
+            f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL, last_login = NOW(), status = 'Active' WHERE acc_id = %s",
             (account["acc_id"],)
         )
         connection.commit()
