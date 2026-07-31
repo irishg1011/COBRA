@@ -48,7 +48,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Total Accounts</span>
-                            <h2 class="metric-value">10</h2>
+                            <h2 class="metric-value">{{ metrics.total_accounts }}</h2>
                             <span class="metric-trend positive">Overall registry</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-users"></i></div>
@@ -56,7 +56,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Active Accounts</span>
-                            <h2 class="metric-value">7</h2>
+                            <h2 class="metric-value">{{ metrics.active_accounts }}</h2>
                             <span class="metric-trend positive">Currently online</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-user-check"></i></div>
@@ -64,7 +64,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Inactive Accounts</span>
-                            <h2 class="metric-value">2</h2>
+                            <h2 class="metric-value">{{ metrics.inactive_accounts }}</h2>
                             <span class="metric-trend">Needs review</span>
                         </div>
                         <div class="metric-icon-box green-bg metric-inactive"><i class="fa-solid fa-user-slash"></i></div>
@@ -72,7 +72,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Administrators</span>
-                            <h2 class="metric-value">2</h2>
+                            <h2 class="metric-value">{{ metrics.administrators }}</h2>
                             <span class="metric-trend positive">Privileged access</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-shield-halved"></i></div>
@@ -80,7 +80,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Learners</span>
-                            <h2 class="metric-value">8</h2>
+                            <h2 class="metric-value">{{ metrics.learners }}</h2>
                             <span class="metric-trend positive">Enrolled students</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-graduation-cap"></i></div>
@@ -88,7 +88,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Locked Accounts</span>
-                            <h2 class="metric-value">1</h2>
+                            <h2 class="metric-value">{{ metrics.locked_accounts }}</h2>
                             <span class="metric-trend negative">Requires security check</span>
                         </div>
                         <div class="metric-icon-box green-bg metric-locked"><i class="fa-solid fa-lock"></i></div>
@@ -138,90 +138,43 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
+                            {% for acc in accounts %}
+                            <tr data-acc-id="{{ acc.acc_id }}">
                                 <td class="profile-cell">
                                     <div class="avatar-sm">👤</div>
-                                    <strong>Gold Española</strong>
+                                    <strong>{{ acc.full_name }}</strong>
                                 </td>
-                                <td class="text-muted">Goldy123</td>
-                                <td class="text-muted">goldespañola@gmail.com</td>
-                                <td><span class="badge badge-learner">Learner</span></td>
-                                <td><span class="badge badge-active">Active</span></td>
-                                <td class="text-muted">Jul 12, 2026</td>
-                                <td class="text-muted">Jul 15, 01:30 AM</td>
+                                <td class="text-muted">{{ acc.username }}</td>
+                                <td class="text-muted">{{ acc.email }}</td>
+                                <td>
+                                    <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else 'badge-learner' }}">{{ acc.role }}</span>
+                                </td>
+                                <td>
+                                    {% if acc.is_locked %}
+                                    <span class="badge badge-locked">Locked</span>
+                                    {% elif acc.status == 'Active' %}
+                                    <span class="badge badge-active">Active</span>
+                                    {% else %}
+                                    <span class="badge badge-inactive">{{ acc.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted">{{ acc.date_created }}</td>
+                                <td class="text-muted">{{ acc.last_login }}</td>
                                 <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
                             </tr>
+                            {% else %}
                             <tr>
-                                <td class="profile-cell">
-                                    <div class="avatar-sm">👤</div>
-                                    <strong>Darell Bacani</strong>
+                                <td colspan="8" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                    No accounts found (or the database is unreachable).
                                 </td>
-                                <td class="text-muted">Daril123</td>
-                                <td class="text-muted">darellbacani@gmail.com</td>
-                                <td><span class="badge badge-learner">Learner</span></td>
-                                <td><span class="badge badge-inactive">Inactive</span></td>
-                                <td class="text-muted">Jul 10, 2026</td>
-                                <td class="text-muted">Jul 27, 04:00 PM</td>
-                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
                             </tr>
-                            <tr>
-                                <td class="profile-cell">
-                                    <div class="avatar-sm">👤</div>
-                                    <strong>Nicole Mijoy</strong>
-                                </td>
-                                <td class="text-muted">Niko123</td>
-                                <td class="text-muted">nicolemijoy@gmail.com</td>
-                                <td><span class="badge badge-learner">Learner</span></td>
-                                <td><span class="badge badge-active">Active</span></td>
-                                <td class="text-muted">Jul 8, 2026</td>
-                                <td class="text-muted">Jul 15, 08:05 PM</td>
-                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
-                            </tr>
-                            <tr>
-                                <td class="profile-cell">
-                                    <div class="avatar-sm">👤</div>
-                                    <strong>Emmanuel Spicer</strong>
-                                </td>
-                                <td class="text-muted">Spicy123</td>
-                                <td class="text-muted">emmanuelspicer@gmail.com</td>
-                                <td><span class="badge badge-learner">Learner</span></td>
-                                <td><span class="badge badge-active">Active</span></td>
-                                <td class="text-muted">Jul 5, 2026</td>
-                                <td class="text-muted">Jul 23, 09:30 PM</td>
-                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
-                            </tr>
-                            <tr>
-                                <td class="profile-cell">
-                                    <div class="avatar-sm">👤</div>
-                                    <strong>Markgil Gamboa</strong>
-                                </td>
-                                <td class="text-muted">Gil123</td>
-                                <td class="text-muted">markgilgamboa@gmail.com</td>
-                                <td><span class="badge badge-learner">Learner</span></td>
-                                <td><span class="badge badge-inactive">Inactive</span></td>
-                                <td class="text-muted">Jul 1, 2026</td>
-                                <td class="text-muted">Jul 10, 04:20 PM</td>
-                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
-                            </tr>
-                            <tr>
-                                <td class="profile-cell">
-                                    <div class="avatar-sm">👤</div>
-                                    <strong>Danzen Aquino</strong>
-                                </td>
-                                <td class="text-muted">Zennn123</td>
-                                <td class="text-muted">danzenaquino@gmail.com</td>
-                                <td><span class="badge badge-learner">Learner</span></td>
-                                <td><span class="badge badge-inactive">Inactive</span></td>
-                                <td class="text-muted">Jun 25, 2026</td>
-                                <td class="text-muted">Jul 24, 05:45 PM</td>
-                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
-                            </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
-                        <span>Showing 6 accounts</span>
+                        <span>Showing {{ accounts|length }} account{{ 's' if accounts|length != 1 else '' }}</span>
                         <span>&lt; 1 of 1 &gt;</span>
                     </div>
 
@@ -231,6 +184,7 @@
         </main>
     </div>
 
-    <script src="{{ url_for('static', filename='admin/js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
 </body>
 </html>

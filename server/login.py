@@ -38,6 +38,12 @@ MIN_SIGNUP_AGE = 13
 MAX_SIGNUP_AGE = 60
 
 # ------------------------------------------------------------
+# ROLE / USERTYPE CONFIG (matches usertype_tbl: 1 = Admin, 2 = Learner)
+# ------------------------------------------------------------
+ADMIN_U_TYPE = 1
+LEARNER_U_TYPE = 2
+
+# ------------------------------------------------------------
 # ACCOUNT INACTIVITY CONFIG (NEW)
 # ------------------------------------------------------------
 # Number of days without a login before an account is auto-marked
@@ -344,7 +350,7 @@ def login():
         
         # Fetch account details
         cursor.execute(
-            f"SELECT acc_id, password, status, last_login, failed_attempts, lockout_until, is_deleted FROM {ACCOUNT_TABLE} WHERE username = %s",
+            f"SELECT acc_id, password, status, last_login, failed_attempts, lockout_until, is_deleted, u_type FROM {ACCOUNT_TABLE} WHERE username = %s",
             (username,)
         )
         account = cursor.fetchone()
@@ -440,7 +446,21 @@ def login():
         # NEW: log successful login
         log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Success")
 
-        return jsonify({"success": True, "message": "Login successful. Redirecting..."}), 200
+        # ------------------------------------------------------------
+        # ROLE-BASED REDIRECT (u_type: 1 = Admin, 2 = Learner)
+        # ------------------------------------------------------------
+        is_admin = account.get("u_type") == ADMIN_U_TYPE
+        role = "Admin" if is_admin else "Learner"
+        redirect_url = "/admin/dashboard" if is_admin else "dashboard.html"
+
+        return jsonify({
+            "success": True,
+            "message": "Login successful. Redirecting...",
+            "acc_id": account["acc_id"],
+            "u_type": account["u_type"],
+            "role": role,
+            "redirect": redirect_url
+        }), 200
 
     except Error as e:
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
