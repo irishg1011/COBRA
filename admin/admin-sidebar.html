@@ -1,0 +1,22 @@
+<!-- admin/admin-sidebar.html -->
+<aside class="admin-sidebar">
+    <div class="sidebar-brand">
+        <h2><span class="brand-icon">C</span> CobraByte</h2>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="nav-item">📊 Dashboard</a>
+        <a href="{{ url_for('admin_bp.account_security') }}" class="nav-item">👤 Account & Security</a><a href="#" class="nav-item">📖 Manage Course</a>
+        <a href="#" class="nav-item">▶ Learning Resources</a>
+        <a href="#" class="nav-item">⚡ Learning Activities</a>
+        <a href="#" class="nav-item">&lt;/&gt; Coding Exercises</a>
+        <a href="#" class="nav-item">&gt;_ Coding Sandbox</a>
+        <a href="#" class="nav-item">📈 Learner Progress</a>
+        <a href="#" class="nav-item">📈 Analytics</a>
+        <a href="#" class="nav-item">💡 Recommendations</a>
+        <a href="#" class="nav-item">🏆 Achievements</a>
+        <a href="#" class="nav-item">📋 Reports</a>
+    </nav>
+    <div class="sidebar-footer">
+        <a href="/logout" class="logout-btn">🚪 Logout</a>
+    </div>
+</aside>

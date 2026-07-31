@@ -6,7 +6,6 @@ Flask routes for user registration, authentication, and OTP verification.
 
 from flask import Flask, jsonify, request, send_from_directory, render_template
 from api import generate_otp, send_email
-from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
@@ -15,9 +14,13 @@ from datetime import datetime
 import time
 import re
 from login_logs import log_login_attempt  # NEW: reusable login attempt logger
+from admin_routes import admin_bp  # NEW: import admin blueprint
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 CORS(app)  # Enables cross-origin requests from Live Server (http://127.0.0.1:5500)
+
+# Register the admin blueprint
+app.register_blueprint(admin_bp, url_prefix='/admin')
 
 # ============================================================
 # DATABASE CONFIG
@@ -622,8 +625,6 @@ def serve_login():
 @app.route("/<path:filename>")
 def serve_static_files(filename):
     return send_from_directory('.', filename)
-
-from flask import render_template  # Add this import at the top
 
 # ============================================================
 # ROUTE: DASHBOARD PAGE

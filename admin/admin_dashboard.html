@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+</head>
+<body>
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+        
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+            
+            <div class="dashboard-content-area">
+                <!-- Dashboard Top Bar: Clean layout without a card background -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Dashboard</h1>
+                        <p>Good afternoon, Irish! Here's what's happening today.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong>11:00 AM</strong>
+                        <small>Monday - July 25, 2026</small>
+                    </div>
+                </div>
+
+                <!-- Metric Summary Cards -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Total Modules</span>
+                            <h2 class="metric-value">12</h2>
+                            <span class="metric-trend positive">↑ +2 this week</span>
+                        </div>
+                        <div class="metric-icon-box green-bg">📖</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Total Learners</span>
+                            <h2 class="metric-value">6</h2>
+                            <span class="metric-trend positive">↑ +3 new</span>
+                        </div>
+                        <div class="metric-icon-box green-bg">👤</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Total Resources</span>
+                            <h2 class="metric-value">8</h2>
+                            <span class="metric-trend positive">↑ +1 today</span>
+                        </div>
+                        <div class="metric-icon-box green-bg">▶</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Coding Exercises</span>
+                            <h2 class="metric-value">8</h2>
+                            <span class="metric-trend positive">↑ +2 this week</span>
+                        </div>
+                        <div class="metric-icon-box green-bg">&lt;/&gt;</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Completed</span>
+                            <h2 class="metric-value">16</h2>
+                            <span class="metric-trend positive">↑ 85% rate</span>
+                        </div>
+                        <div class="metric-icon-box green-bg">✓</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Published Lessons</span>
+                            <h2 class="metric-value">8</h2>
+                            <span class="metric-trend positive">↑ 83% of total</span>
+                        </div>
+                        <div class="metric-icon-box green-bg">👁</div>
+                    </div>
+                </div>
+
+                <!-- Middle Section: Recent Activities & Student Overview -->
+                <div class="dashboard-grid-split">
+                    <div class="card-box">
+                        <div class="card-header-flex">
+                            <h3>Recent Activities</h3>
+                            <a href="#" class="view-all-link">View All</a>
+                        </div>
+                        <div class="activity-list">
+                            <div class="activity-item">
+                                <span class="activity-icon">📖</span>
+                                <div class="activity-details">
+                                    <p>New module "Error Handling with Try/Except" was published</p>
+                                    <small>by Gold Española | Jul 20, 06:30 PM</small>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <span class="activity-icon">&lt;/&gt;</span>
+                                <div class="activity-details">
+                                    <p>Darell Bacani scored 100% on Variables Quiz 1</p>
+                                    <small>by Darell Bacani | Jul 20, 05:45 PM</small>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <span class="activity-icon">&lt;/&gt;</span>
+                                <div class="activity-details">
+                                    <p>Nicole Mijoy submitted Factorial Function exercise</p>
+                                    <small>by Nicole Mijoy | Jul 20, 05:15 PM</small>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <span class="activity-icon">▶</span>
+                                <div class="activity-details">
+                                    <p>String Formatting Tutorial Video was uploaded</p>
+                                    <small>by Emmanuel Spicer | Jul 20, 04:30 PM</small>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <span class="activity-icon">🏆</span>
+                                <div class="activity-details">
+                                    <p>Markgil Gamboa earned the "Code Warrior" badge</p>
+                                    <small>by Markgil Gamboa | Jul 20, 12:00 AM</small>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <span class="activity-icon">📋</span>
+                                <div class="activity-details">
+                                    <p>Module Performance Deep Dive report generated</p>
+                                    <small>by Danzen Aquino | Jul 19, 06:00 PM</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-box">
+                        <div class="card-header-flex">
+                            <h3>Student Overview</h3>
+                            <a href="#" class="view-all-link">View All</a>
+                        </div>
+                        <div class="student-progress-list">
+                            <div class="student-progress-item">
+                                <div class="student-meta">
+                                    <span class="avatar-sm">👤</span>
+                                    <div>
+                                        <strong>Gold Española</strong>
+                                        <small>5 Lessons completed</small>
+                                    </div>
+                                </div>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 78%;"></div>
+                                    </div>
+                                    <span class="progress-pct">78%</span>
+                                </div>
+                            </div>
+                            <div class="student-progress-item">
+                                <div class="student-meta">
+                                    <span class="avatar-sm">👤</span>
+                                    <div>
+                                        <strong>Darell Bacani</strong>
+                                        <small>4 Lessons completed</small>
+                                    </div>
+                                </div>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 65%;"></div>
+                                    </div>
+                                    <span class="progress-pct">65%</span>
+                                </div>
+                            </div>
+                            <div class="student-progress-item">
+                                <div class="student-meta">
+                                    <span class="avatar-sm">👤</span>
+                                    <div>
+                                        <strong>Nicole Mijoy</strong>
+                                        <small>3 Lessons completed</small>
+                                    </div>
+                                </div>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 52%;"></div>
+                                    </div>
+                                    <span class="progress-pct">52%</span>
+                                </div>
+                            </div>
+                            <div class="student-progress-item">
+                                <div class="student-meta">
+                                    <span class="avatar-sm">👤</span>
+                                    <div>
+                                        <strong>Emmanuel Spicer</strong>
+                                        <small>3 Lessons completed</small>
+                                    </div>
+                                </div>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 35%;"></div>
+                                    </div>
+                                    <span class="progress-pct">35%</span>
+                                </div>
+                            </div>
+                            <div class="student-progress-item">
+                                <div class="student-meta">
+                                    <span class="avatar-sm">👤</span>
+                                    <div>
+                                        <strong>Markgil Gamboa</strong>
+                                        <small>2 Lessons completed</small>
+                                    </div>
+                                </div>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 22%;"></div>
+                                    </div>
+                                    <span class="progress-pct">22%</span>
+                                </div>
+                            </div>
+                            <div class="student-progress-item">
+                                <div class="student-meta">
+                                    <span class="avatar-sm">👤</span>
+                                    <div>
+                                        <strong>Danzen Aquino</strong>
+                                        <small>2 Lessons completed</small>
+                                    </div>
+                                </div>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 9%;"></div>
+                                    </div>
+                                    <span class="progress-pct">9%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Section: Quick Actions & System Health -->
+                <div class="dashboard-grid-split">
+                    <div class="card-box">
+                        <h3>Quick Actions</h3>
+                        <div class="quick-actions-grid">
+                            <button class="action-tile">
+                                <span class="tile-icon">+</span>
+                                <strong>New Module</strong>
+                                <small>Create a new module</small>
+                            </button>
+                            <button class="action-tile">
+                                <span class="tile-icon">↑</span>
+                                <strong>Upload Resource</strong>
+                                <small>Add tutorial material</small>
+                            </button>
+                            <button class="action-tile">
+                                <span class="tile-icon">📄</span>
+                                <strong>New Activity</strong>
+                                <small>Create a new activity</small>
+                            </button>
+                            <button class="action-tile">
+                                <span class="tile-icon">&gt;_</span>
+                                <strong>New Exercise</strong>
+                                <small>Add coding challenge</small>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card-box">
+                        <h3>System Health</h3>
+                        <div class="health-list">
+                            <div class="health-item">
+                                <span>Sandbox Uptime</span>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 99.8%;"></div>
+                                    </div>
+                                    <span class="progress-pct">99.8%</span>
+                                </div>
+                            </div>
+                            <div class="health-item">
+                                <span>Storage Usage</span>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 62%;"></div>
+                                    </div>
+                                    <span class="progress-pct">62%</span>
+                                </div>
+                            </div>
+                            <div class="health-item">
+                                <span>Active Students Today</span>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 66%;"></div>
+                                    </div>
+                                    <span class="progress-pct">4/6</span>
+                                </div>
+                            </div>
+                            <div class="health-item">
+                                <span>Lesson Completion Rate</span>
+                                <div class="student-progress-right">
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-fill" style="width: 78%;"></div>
+                                    </div>
+                                    <span class="progress-pct">78%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='admin/js/admin-script.js') }}"></script>
+</body>
+</html>

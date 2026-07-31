@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Account & Security</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="admin-layout">
+        <!-- Sidebar (Modularized) -->
+        {% include 'admin-sidebar.html' %}
+
+        <!-- Main Content Area -->
+        <main class="admin-main-content">
+            <!-- Header (Modularized) -->
+            {% include 'admin-header.html' %}
+
+            <!-- Account & Security Content Area -->
+            <div class="dashboard-content-area">
+                
+                <!-- Top Bar matched with Dashboard Datetime Structure -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Account & Security</h1>
+                        <p>Good afternoon, Irish! Here's what's happening today.</p>
+                    </div>
+                    <div class="header-actions-group">
+                        <div class="dashboard-datetime-badge">
+                            <strong>11:00 AM</strong>
+                            <small>Monday - July 25, 2026</small>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary-custom">
+                                <i class="fa-solid fa-clock-rotate-left"></i> Login Logs
+                            </button>
+                            <button class="btn btn-success-custom">
+                                <i class="fa-solid fa-user-plus"></i> Create Administrator
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Total Accounts</span>
+                            <h2 class="metric-value">10</h2>
+                            <span class="metric-trend positive">Overall registry</span>
+                        </div>
+                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-users"></i></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Active Accounts</span>
+                            <h2 class="metric-value">7</h2>
+                            <span class="metric-trend positive">Currently online</span>
+                        </div>
+                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-user-check"></i></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Inactive Accounts</span>
+                            <h2 class="metric-value">2</h2>
+                            <span class="metric-trend">Needs review</span>
+                        </div>
+                        <div class="metric-icon-box green-bg metric-inactive"><i class="fa-solid fa-user-slash"></i></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Administrators</span>
+                            <h2 class="metric-value">2</h2>
+                            <span class="metric-trend positive">Privileged access</span>
+                        </div>
+                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-shield-halved"></i></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Learners</span>
+                            <h2 class="metric-value">8</h2>
+                            <span class="metric-trend positive">Enrolled students</span>
+                        </div>
+                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-graduation-cap"></i></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Locked Accounts</span>
+                            <h2 class="metric-value">1</h2>
+                            <span class="metric-trend negative">Requires security check</span>
+                        </div>
+                        <div class="metric-icon-box green-bg metric-locked"><i class="fa-solid fa-lock"></i></div>
+                    </div>
+                </div>
+
+                <!-- Data Table Card Box -->
+                <div class="card-box padded-card">
+                    
+                    <!-- Table Toolbar -->
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" placeholder="Search by name, username, or email...">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select">
+                                <option>All Roles</option>
+                                <option>Administrator</option>
+                                <option>Learner</option>
+                            </select>
+                            <select class="custom-select">
+                                <option>All Status</option>
+                                <option>Active</option>
+                                <option>Inactive</option>
+                            </select>
+                            <select class="custom-select">
+                                <option>Sort: Date Created</option>
+                                <option>Name</option>
+                                <option>Last Login</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Accounts Table -->
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Profile</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Date Created</th>
+                                <th>Last Login</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="profile-cell">
+                                    <div class="avatar-sm">👤</div>
+                                    <strong>Gold Española</strong>
+                                </td>
+                                <td class="text-muted">Goldy123</td>
+                                <td class="text-muted">goldespañola@gmail.com</td>
+                                <td><span class="badge badge-learner">Learner</span></td>
+                                <td><span class="badge badge-active">Active</span></td>
+                                <td class="text-muted">Jul 12, 2026</td>
+                                <td class="text-muted">Jul 15, 01:30 AM</td>
+                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                            </tr>
+                            <tr>
+                                <td class="profile-cell">
+                                    <div class="avatar-sm">👤</div>
+                                    <strong>Darell Bacani</strong>
+                                </td>
+                                <td class="text-muted">Daril123</td>
+                                <td class="text-muted">darellbacani@gmail.com</td>
+                                <td><span class="badge badge-learner">Learner</span></td>
+                                <td><span class="badge badge-inactive">Inactive</span></td>
+                                <td class="text-muted">Jul 10, 2026</td>
+                                <td class="text-muted">Jul 27, 04:00 PM</td>
+                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                            </tr>
+                            <tr>
+                                <td class="profile-cell">
+                                    <div class="avatar-sm">👤</div>
+                                    <strong>Nicole Mijoy</strong>
+                                </td>
+                                <td class="text-muted">Niko123</td>
+                                <td class="text-muted">nicolemijoy@gmail.com</td>
+                                <td><span class="badge badge-learner">Learner</span></td>
+                                <td><span class="badge badge-active">Active</span></td>
+                                <td class="text-muted">Jul 8, 2026</td>
+                                <td class="text-muted">Jul 15, 08:05 PM</td>
+                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                            </tr>
+                            <tr>
+                                <td class="profile-cell">
+                                    <div class="avatar-sm">👤</div>
+                                    <strong>Emmanuel Spicer</strong>
+                                </td>
+                                <td class="text-muted">Spicy123</td>
+                                <td class="text-muted">emmanuelspicer@gmail.com</td>
+                                <td><span class="badge badge-learner">Learner</span></td>
+                                <td><span class="badge badge-active">Active</span></td>
+                                <td class="text-muted">Jul 5, 2026</td>
+                                <td class="text-muted">Jul 23, 09:30 PM</td>
+                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                            </tr>
+                            <tr>
+                                <td class="profile-cell">
+                                    <div class="avatar-sm">👤</div>
+                                    <strong>Markgil Gamboa</strong>
+                                </td>
+                                <td class="text-muted">Gil123</td>
+                                <td class="text-muted">markgilgamboa@gmail.com</td>
+                                <td><span class="badge badge-learner">Learner</span></td>
+                                <td><span class="badge badge-inactive">Inactive</span></td>
+                                <td class="text-muted">Jul 1, 2026</td>
+                                <td class="text-muted">Jul 10, 04:20 PM</td>
+                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                            </tr>
+                            <tr>
+                                <td class="profile-cell">
+                                    <div class="avatar-sm">👤</div>
+                                    <strong>Danzen Aquino</strong>
+                                </td>
+                                <td class="text-muted">Zennn123</td>
+                                <td class="text-muted">danzenaquino@gmail.com</td>
+                                <td><span class="badge badge-learner">Learner</span></td>
+                                <td><span class="badge badge-inactive">Inactive</span></td>
+                                <td class="text-muted">Jun 25, 2026</td>
+                                <td class="text-muted">Jul 24, 05:45 PM</td>
+                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Pagination Footer -->
+                    <div class="table-pagination">
+                        <span>Showing 6 accounts</span>
+                        <span>&lt; 1 of 1 &gt;</span>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='admin/js/admin-script.js') }}"></script>
+</body>
+</html>
