@@ -103,7 +103,7 @@
                     <div class="table-toolbar">
                         <div class="header-search search-override">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input type="text" placeholder="Search by name, username, or email...">
+                            <input type="text" id="accountSearchInput" placeholder="Search by name, username, or email...">
                         </div>
                         <div class="toolbar-filters">
                             <select class="custom-select">
@@ -138,7 +138,7 @@
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="accountsTableBody">
                             {% for acc in accounts %}
                             <tr data-acc-id="{{ acc.acc_id }}">
                                 <td class="profile-cell">
@@ -175,7 +175,7 @@
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
-                        <span>Showing {{ accounts|length }} account{{ 's' if accounts|length != 1 else '' }}</span>
+                        <span id="accountsShowingCount">Showing {{ accounts|length }} account{{ 's' if accounts|length != 1 else '' }}</span>
                         <span>&lt; 1 of 1 &gt;</span>
                     </div>
 
@@ -188,6 +188,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-account-search.js') }}"></script>
 
     <!-- Include Create New Administrator Modal -->
     {% include 'admin-create-admin-modal.html' %}

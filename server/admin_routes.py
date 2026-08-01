@@ -1,7 +1,7 @@
 import os
 from functools import wraps
 from datetime import datetime
-from flask import Blueprint, render_template, session, redirect, request
+from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for
 from mysql.connector import Error
 
 from cobradb import get_db_connection
@@ -163,13 +163,20 @@ def _fmt_datetime(dt):
     return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
 
 
-def get_accounts_overview():
+def get_accounts_overview(search_query=None):
     """
     Pulls every non-deleted account from account_tbl, joined against
     profile_tbl (for the display name) and usertype_tbl (for the role
     label), and rolls up the summary metric cards shown on the
     Account & Security page. Returns a dict ready to hand straight to
-    the template, or None if the DB connection failed.
+    the template (or to jsonify for the live-search endpoint), or None
+    if the DB connection failed.
+
+    search_query (str | None): when provided (Task #16 - Live Account
+    Search), filters rows in SQL to those whose full name, username, or
+    email contain the term - case-insensitive, partial match. Filtering
+    happens in the database, not in Python, so it scales with the
+    dataset instead of requiring every row to be loaded first.
     """
     connection = get_db_connection()
     if connection is None:
@@ -178,8 +185,8 @@ def get_accounts_overview():
     accounts = []
     try:
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(
-            """
+
+        base_query = """
             SELECT
                 a.acc_id,
                 a.username,
@@ -194,10 +201,49 @@ def get_accounts_overview():
             FROM account_tbl a
             LEFT JOIN usertype_tbl ut ON a.u_type = ut.ut_id
             LEFT JOIN profile_tbl p ON a.acc_id = p.acc_id
-            WHERE a.is_deleted = 0 OR a.is_deleted IS NULL
-            ORDER BY a.created_at DESC
+            WHERE (a.is_deleted = 0 OR a.is_deleted IS NULL)
+        """
+        params = []
+
+        term = (search_query or "").strip()
+        if term:
+            # NOTE (bug fix): every field here uses prefix ("starts with")
+            # matching, not "contains anywhere" - otherwise a term like
+            # "da" (meant for "Danzen") also matches usernames such as
+            # "aydatkam"/"aydatkam8", and a term like "ga" (meant for
+            # "Gamboa") also matches an email like
+            # "mijoynicole.cdsga@gmail.com" purely because the letters
+            # happen to sit in the middle of the string.
+            #
+            # Email is split into its local part (before "@") and domain
+            # (after "@") so each half is checked at ITS OWN start - this
+            # is what keeps a domain-wide search like "gmail" working
+            # (the domain "gmail.com" starts with "gmail") while no longer
+            # matching a term that just happens to appear mid-way through
+            # the local part.
+            base_query += """
+                AND (
+                    LOWER(p.firstname) LIKE %s
+                    OR LOWER(p.lastname) LIKE %s
+                    OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
+                    OR LOWER(a.username) LIKE %s
+                    OR LOWER(SUBSTRING_INDEX(a.email, '@', 1)) LIKE %s
+                    OR LOWER(SUBSTRING_INDEX(a.email, '@', -1)) LIKE %s
+                )
             """
-        )
+            prefix_term = f"{term.lower()}%"
+            params.extend([
+                prefix_term,  # firstname
+                prefix_term,  # lastname
+                prefix_term,  # "firstname lastname" concat
+                prefix_term,  # username
+                prefix_term,  # email local part (before @)
+                prefix_term,  # email domain (after @)
+            ])
+
+        base_query += " ORDER BY a.created_at DESC"
+
+        cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
         cursor.close()
 
@@ -222,24 +268,36 @@ def get_accounts_overview():
                 "last_login": _fmt_datetime(row.get("last_login")),
             })
 
-        total_accounts = len(accounts)
-        active_accounts = sum(1 for a in accounts if a["status"] == "Active")
-        inactive_accounts = sum(1 for a in accounts if a["status"] == "Inactive")
-        administrators = sum(1 for a in accounts if a["role"] == "Admin")
-        learners = sum(1 for a in accounts if a["role"] == "Learner")
-        locked_accounts = sum(1 for a in accounts if a["is_locked"])
-
-        return {
-            "accounts": accounts,
-            "metrics": {
+        # Metrics should always reflect the FULL registry, not the filtered
+        # search results, so compute them from an unfiltered pass whenever
+        # this call itself was filtered.
+        if term:
+            full_overview = get_accounts_overview(search_query=None)
+            metrics = full_overview["metrics"] if full_overview else {
+                "total_accounts": 0,
+                "active_accounts": 0,
+                "inactive_accounts": 0,
+                "administrators": 0,
+                "learners": 0,
+                "locked_accounts": 0,
+            }
+        else:
+            total_accounts = len(accounts)
+            active_accounts = sum(1 for a in accounts if a["status"] == "Active")
+            inactive_accounts = sum(1 for a in accounts if a["status"] == "Inactive")
+            administrators = sum(1 for a in accounts if a["role"] == "Admin")
+            learners = sum(1 for a in accounts if a["role"] == "Learner")
+            locked_accounts = sum(1 for a in accounts if a["is_locked"])
+            metrics = {
                 "total_accounts": total_accounts,
                 "active_accounts": active_accounts,
                 "inactive_accounts": inactive_accounts,
                 "administrators": administrators,
                 "learners": learners,
                 "locked_accounts": locked_accounts,
-            },
-        }
+            }
+
+        return {"accounts": accounts, "metrics": metrics}
 
     except Error as e:
         print(f"account-security: database error while loading accounts: {e}")
@@ -278,6 +336,33 @@ def account_security():
         metrics=overview["metrics"],
     )
 
+
+# ============================================================
+# ROUTE: LIVE ACCOUNT SEARCH (Task #16, JSON, called by fetch())
+# ============================================================
+@admin_bp.route('/accounts/search')
+def search_accounts():
+    """
+    Backend-driven live search for the Account & Security table.
+
+    Query param: ?q=<term>
+    - Empty/missing q -> returns the full account list (same as page load).
+    - Non-empty q -> case-insensitive partial match against full name,
+      username, and email, filtered in SQL.
+
+    Returns JSON: { "success": bool, "accounts": [...] }
+    The frontend uses this to re-render only the table body - no page
+    reload, and the search input's value is left untouched by the caller.
+    """
+    term = request.args.get('q', '')
+
+    overview = get_accounts_overview(search_query=term)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database.", "accounts": []}), 500
+
+    return jsonify({"success": True, "accounts": overview["accounts"]}), 200
+
+
 @admin_bp.route('/login-logs.html')
 def login_logs():
     """
@@ -292,14 +377,15 @@ def login_logs():
         "learners": 0,
         "locked_accounts": 0,
     }
-    
-    logs = [] 
+
+    logs = []
 
     return render_template(
         'login-logs.html',
         metrics=metrics,
         logs=logs
     )
+
 
 @admin_bp.route('/create-administrator', methods=['POST'])
 def create_administrator():
@@ -321,7 +407,7 @@ def create_administrator():
         gender = request.form.get('gender')
 
         cursor = connection.cursor()
-        
+
         # Insert your logic here to save the account and profile details securely
         # e.g., hashing password, generating account ID, etc.
 
