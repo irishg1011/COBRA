@@ -103,23 +103,29 @@
                     <div class="table-toolbar">
                         <div class="header-search search-override">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input type="text" placeholder="Search by name, username, or email...">
+                            <input type="text" id="logSearchInput" placeholder="Search by name, username, or email...">
                         </div>
                         <div class="toolbar-filters">
-                            <select class="custom-select">
-                                <option>All Roles</option>
-                                <option>Administrator</option>
-                                <option>Learner</option>
+                            <!--
+                                Task #18: values match exactly what
+                                get_login_logs_overview() in admin_routes.py
+                                expects, so admin-login-logs.js can pass
+                                select.value straight through as a query
+                                param with no extra mapping needed.
+                            -->
+                            <select class="custom-select" id="logRoleSelect">
+                                <option value="">All Roles</option>
+                                <option value="Administrator">Administrator</option>
+                                <option value="Learner">Learner</option>
                             </select>
-                            <select class="custom-select">
-                                <option>All Status</option>
-                                <option>Success</option>
-                                <option>Failed</option>
+                            <select class="custom-select" id="logStatusSelect">
+                                <option value="">All Status</option>
+                                <option value="Success">Success</option>
+                                <option value="Failed">Failed</option>
                             </select>
-                            <select class="custom-select">
-                                <option>Sort: Date Created</option>
-                                <option>Name</option>
-                                <option>Attempted At</option>
+                            <select class="custom-select" id="logSortSelect">
+                                <option value="attempted_at">Sort: Attempted At</option>
+                                <option value="name">Name</option>
                             </select>
                         </div>
                     </div>
@@ -136,7 +142,7 @@
                                 <th class="text-right">Attempted At</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="loginLogsTableBody">
                             {% for log in logs %}
                             <tr>
                                 <td class="profile-cell">
@@ -146,7 +152,13 @@
                                 <td class="text-muted">{{ log.email }}</td>
                                 <td class="text-muted">{{ log.acc_id }}</td>
                                 <td>
-                                    <span class="badge {{ 'badge-admin' if log.role == 'Admin' else 'badge-learner' }}">{{ log.role }}</span>
+                                    {% if log.role == 'Admin' %}
+                                    <span class="badge badge-admin">{{ log.role }}</span>
+                                    {% elif log.role == 'Learner' %}
+                                    <span class="badge badge-learner">{{ log.role }}</span>
+                                    {% else %}
+                                    <span class="badge badge-inactive">{{ log.role }}</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if log.status == 'Success' %}
@@ -182,6 +194,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-login-logs.js') }}"></script>
 
     <!-- Include Create New Administrator Modal -->
     {% include 'admin-create-admin-modal.html' %}

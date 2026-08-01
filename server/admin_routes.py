@@ -59,6 +59,25 @@ DEFAULT_SORT_KEY = "date_created"
 
 
 # ------------------------------------------------------------------
+# Task #18: Login Logs status filter + sort option lookup tables
+# ------------------------------------------------------------------
+# NOTE: this is a DIFFERENT status vocabulary than account_tbl.status
+# (Active/Inactive) above - here "status" means the outcome of a single
+# login attempt, stored in login_logs_tbl.attempt_status as
+# "Success"/"Failed".
+LOGIN_LOG_STATUS_FILTERS = {"success", "failed"}
+
+# login_logs_tbl has no created_at/date_created column of its own (that
+# belongs to account_tbl) - the two meaningful sorts for a log table are
+# its own timestamp and the associated person's name.
+LOGIN_LOG_SORT_CLAUSES = {
+    "attempted_at": "ll.attempted_at DESC",
+    "name": "p.firstname ASC, p.lastname ASC",
+}
+DEFAULT_LOGIN_LOG_SORT_KEY = "attempted_at"
+
+
+# ------------------------------------------------------------------
 # Task #12: Session-based admin authentication
 # ------------------------------------------------------------------
 @admin_bp.before_request
@@ -415,6 +434,122 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
             connection.close()
 
 
+def get_login_logs_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
+    """
+    Task #18: Pulls login attempt records from login_logs_tbl, joined
+    against account_tbl (email, u_type), usertype_tbl (role label), and
+    profile_tbl (display name) - ONE query, so there is no N+1 lookup per
+    row for the account/profile/role info the UI needs.
+
+    LEFT JOINs are used throughout because login_logs_tbl.acc_id can be
+    NULL (login_logs.log_login_attempt() logs a failed attempt with
+    acc_id=None whenever the typed username didn't match any account at
+    all) - an INNER JOIN would silently drop those rows instead of
+    showing them with a placeholder identity.
+
+    search_query (str | None): matches against the associated person's
+    first/last/full name, email, or acc_id (case-insensitive, prefix
+    match - same convention as get_accounts_overview's search).
+
+    role_filter (str | None): "Administrator" or "Learner", reusing the
+    exact same ROLE_FILTER_MAP as the accounts table for consistency.
+
+    status_filter (str | None): "Success" or "Failed" - the login
+    attempt's own outcome (login_logs_tbl.attempt_status), NOT the
+    account's Active/Inactive status.
+
+    sort_by (str | None): "attempted_at" (default, newest first) or
+    "name". Only ever selects one of the two hardcoded LOGIN_LOG_SORT_CLAUSES
+    entries - never built from raw input.
+
+    Returns a list of dicts (each with log_id, acc_id, full_name, email,
+    role, status, attempted_at) ready for direct use in Jinja (initial
+    page load) or jsonify (the AJAX filter endpoint) - both consume the
+    exact same shape. Returns None if the DB connection failed.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    logs = []
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        base_query = """
+            SELECT
+                ll.log_id,
+                ll.acc_id,
+                ll.attempt_status,
+                ll.attempted_at,
+                a.email,
+                ut.u_type AS role,
+                p.firstname,
+                p.lastname
+            FROM login_logs_tbl ll
+            LEFT JOIN account_tbl a ON ll.acc_id = a.acc_id
+            LEFT JOIN usertype_tbl ut ON a.u_type = ut.ut_id
+            LEFT JOIN profile_tbl p ON ll.acc_id = p.acc_id
+            WHERE 1 = 1
+        """
+        params = []
+
+        term = (search_query or "").strip()
+        if term:
+            base_query += """
+                AND (
+                    LOWER(p.firstname) LIKE %s
+                    OR LOWER(p.lastname) LIKE %s
+                    OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
+                    OR LOWER(a.email) LIKE %s
+                    OR LOWER(ll.acc_id) LIKE %s
+                )
+            """
+            prefix_term = f"{term.lower()}%"
+            params.extend([prefix_term] * 5)
+
+        mapped_role = ROLE_FILTER_MAP.get((role_filter or "").strip().lower())
+        if mapped_role:
+            base_query += " AND ut.u_type = %s"
+            params.append(mapped_role)
+
+        normalized_status = (status_filter or "").strip().lower()
+        if normalized_status in LOGIN_LOG_STATUS_FILTERS:
+            base_query += " AND ll.attempt_status = %s"
+            params.append(normalized_status.capitalize())
+
+        sort_key = (sort_by or "").strip().lower()
+        order_clause = LOGIN_LOG_SORT_CLAUSES.get(sort_key, LOGIN_LOG_SORT_CLAUSES[DEFAULT_LOGIN_LOG_SORT_KEY])
+        base_query += f" ORDER BY {order_clause}"
+
+        cursor.execute(base_query, tuple(params))
+        rows = cursor.fetchall()
+        cursor.close()
+
+        for row in rows:
+            full_name = " ".join(
+                part for part in [row.get("firstname"), row.get("lastname")] if part
+            ).strip() or "Unknown User"
+
+            logs.append({
+                "log_id": row["log_id"],
+                "acc_id": row.get("acc_id") or "—",
+                "full_name": full_name,
+                "email": row.get("email") or "—",
+                "role": row.get("role") or "Unknown",
+                "status": row.get("attempt_status"),
+                "attempted_at": _fmt_datetime(row.get("attempted_at")),
+            })
+
+        return logs
+
+    except Error as e:
+        print(f"admin_routes: database error while loading login logs: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 @admin_bp.route('/dashboard')
 def admin_dashboard():
     return render_template('admin_dashboard.html')
@@ -505,7 +640,15 @@ admin_bp.add_url_rule(
 @admin_bp.route('/login-logs.html')
 def login_logs():
     """
-    Renders the login logs page using the overview metrics and log data.
+    Renders the login logs page using the overview metrics (shared with
+    Account & Security) and real login log data (Task #18 - previously
+    this always passed a hardcoded empty list).
+
+    Calling get_login_logs_overview() with no filters here means the
+    page shows the full, newest-first log the moment it loads - the
+    same "server renders real data on load" pattern already used by
+    account_security() above. admin-login-logs.js then takes over for
+    live search/role/status/sort filtering without a page reload.
     """
     overview = get_accounts_overview()
     metrics = overview["metrics"] if overview else {
@@ -517,13 +660,52 @@ def login_logs():
         "locked_accounts": 0,
     }
 
-    logs = []
+    logs = get_login_logs_overview()
+    if logs is None:
+        # DB unreachable - render with an empty list rather than crashing;
+        # the template's {% else %} branch already shows "No login logs
+        # found." for an empty list.
+        logs = []
 
     return render_template(
         'login-logs.html',
         metrics=metrics,
         logs=logs
     )
+
+
+# ============================================================
+# ROUTE: LIVE LOGIN LOG SEARCH + FILTER + SORT (Task #18, JSON)
+# ============================================================
+@admin_bp.route('/login-logs/data')
+def login_logs_data():
+    """
+    Backend-driven live search/filter/sort for the Login Logs table,
+    mirroring /accounts/search's pattern exactly for consistency.
+
+    Query params (all optional):
+      q      - free-text search term (name / email / account ID)
+      role   - "Administrator" or "Learner"
+      status - "Success" or "Failed" (the login attempt's own outcome)
+      sort   - "attempted_at" (default, newest first) or "name"
+
+    Returns JSON: { "success": bool, "logs": [...], "total": int }
+    """
+    term = request.args.get('q', '')
+    role = request.args.get('role', '')
+    status = request.args.get('status', '')
+    sort = request.args.get('sort', '')
+
+    logs = get_login_logs_overview(
+        search_query=term,
+        role_filter=role,
+        status_filter=status,
+        sort_by=sort,
+    )
+    if logs is None:
+        return jsonify({"success": False, "message": "Could not reach the database.", "logs": []}), 500
+
+    return jsonify({"success": True, "logs": logs, "total": len(logs)}), 200
 
 
 @admin_bp.route('/create-administrator', methods=['POST'])
