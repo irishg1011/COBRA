@@ -110,7 +110,38 @@ def inject_current_admin():
 
 @admin_bp.route('/logout')
 def admin_logout():
-    """Destroys the server-side session and sends the admin back to login."""
+    """
+    Task #15: Admin logout.
+
+    1. Read the authenticated admin's acc_id from the current session
+       (before it's destroyed).
+    2. Update that admin's last_login timestamp in account_tbl using the
+       server's current date/time (NOW() - never a hardcoded value).
+    3. Destroy the session completely.
+    4. Redirect back to the Login page.
+
+    Updating last_login is best-effort: a database hiccup here should
+    never prevent the admin from actually being logged out.
+    """
+    admin_id = session.get("admin_id")
+
+    if admin_id:
+        connection = get_db_connection()
+        if connection is not None:
+            try:
+                cursor = connection.cursor()
+                cursor.execute(
+                    "UPDATE account_tbl SET last_login = NOW() WHERE acc_id = %s",
+                    (admin_id,)
+                )
+                connection.commit()
+                cursor.close()
+            except Error as e:
+                print(f"admin_routes: failed to update last_login on logout: {e}")
+            finally:
+                if connection.is_connected():
+                    connection.close()
+
     session.clear()
     return redirect(LOGIN_REDIRECT_URL)
 
