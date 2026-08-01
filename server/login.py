@@ -4,6 +4,7 @@ login.py - CobraByte Backend Server
 Flask routes for user registration, authentication, and OTP verification.
 """
 
+import os
 from flask import Flask, jsonify, request, send_from_directory, render_template
 from api import generate_otp, send_email
 from flask_cors import CORS
@@ -653,5 +654,15 @@ def serve_static_files(filename):
 def dashboard():
     return render_template('/../dashboard.html')
 
+# ============================================================
+# ROUTE: GLOBAL ASSETS HANDLER (Handles root and blueprint paths)
+# ============================================================
+@app.route('/assets/<path:filename>')
+@app.route('/admin/assets/<path:filename>')
+def serve_global_assets(filename):
+    assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../assets'))
+    return send_from_directory(assets_dir, filename)
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+

@@ -38,11 +38,19 @@ body {
     z-index: 100;
 }
 
-.sidebar-brand h2 {
-    font-size: 24px;
-    padding: 0 20px 20px 20px;
+.sidebar-brand {
+    padding: 6px 10px 6px 4px; /* Tighter top/bottom padding, shifted further to the left */
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.brand-logo {
+    height: 55px;  /* Forces a clear height */
+    max-height: none; /* Removes any old constraints cutting it down */
+    width: auto;   /* Maintains proportions */
+    object-fit: contain;
 }
 
 .sidebar-nav {
@@ -63,11 +71,27 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    transition: background 0.2s;
+    transition: background 0.2s, color 0.2s;
 }
 
-.nav-item:hover, .nav-item.active {
-    background: rgba(255, 255, 255, 0.25);
+/* Hover effect: soft translucent white */
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+.nav-item:hover .sidebar-icon {
+    filter: none;
+}
+
+/* Active/Clicked effect: solid white with dark text */
+.nav-item.active {
+    background: #ffffff !important;
+    color: #111111 !important;
+}
+
+.nav-item.active .sidebar-icon {
+    filter: brightness(0);
 }
 
 .sidebar-footer {
@@ -82,6 +106,13 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.sidebar-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    vertical-align: middle;
 }
 
 /* Main Content Area */
@@ -272,8 +303,8 @@ body {
 
 .metric-trend {
     font-size: 10px;
-    color: #002633; /* Exact Figma color */
-    font-weight: 400; /* Regular weight from Figma */
+    color: #002633;
+    font-weight: 400;
 }
 
 .metric-icon-box {
@@ -326,7 +357,7 @@ body {
     font-size: 16px;
     font-weight: 600;
     color: #111111;
-    margin-bottom: 15px; /* Adds space between the title and the boxes below it */
+    margin-bottom: 15px;
 }
 
 .view-all-link {
