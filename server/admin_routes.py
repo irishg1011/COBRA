@@ -25,6 +25,40 @@ LOGIN_REDIRECT_URL = "http://127.0.0.1:5500/templates/login.html"
 
 
 # ------------------------------------------------------------------
+# Task #17: Role / Status filter + Sort option lookup tables
+# ------------------------------------------------------------------
+# The dropdown on the frontend sends "Administrator"/"Learner", but the
+# value actually stored in usertype_tbl.u_type (and therefore returned by
+# the `ut.u_type AS role` column) is "Admin"/"Learner". This map translates
+# whatever the frontend sends into the exact value stored in the database,
+# so the SQL filter is a plain equality check - no guessing/hardcoding on
+# the frontend side.
+ROLE_FILTER_MAP = {
+    "administrator": "Admin",
+    "admin": "Admin",
+    "learner": "Learner",
+}
+
+# Valid status values a filter is allowed to request. Anything else (e.g.
+# an empty string / "All Status") is treated as "no status filter".
+VALID_STATUS_FILTERS = {"active", "inactive"}
+
+# Maps the Sort dropdown's value to a safe, hardcoded ORDER BY clause.
+# Never build ORDER BY directly from user input - only ever pick one of
+# these three pre-written clauses based on a recognized key.
+SORT_CLAUSES = {
+    "date_created": "a.created_at DESC",
+    "name": "p.firstname ASC, p.lastname ASC",
+    # NULLs (accounts that have never logged in) always sort last,
+    # regardless of DESC/ASC, thanks to the `(a.last_login IS NULL)` guard
+    # sorting ascending (0 = has a value, 1 = NULL) before the real
+    # last_login DESC ordering kicks in.
+    "last_login": "(a.last_login IS NULL) ASC, a.last_login DESC",
+}
+DEFAULT_SORT_KEY = "date_created"
+
+
+# ------------------------------------------------------------------
 # Task #12: Session-based admin authentication
 # ------------------------------------------------------------------
 @admin_bp.before_request
@@ -39,6 +73,29 @@ def _require_admin_session():
         return
     if not session.get("admin_id"):
         return redirect(LOGIN_REDIRECT_URL)
+
+
+def get_greeting():
+    """
+    Returns a time-of-day greeting ("Good morning" / "Good afternoon" /
+    "Good evening") based on the CURRENT SERVER TIME - never hardcoded,
+    never based on client-supplied data.
+
+    Rules (24-hour clock, server local time):
+        05:00 - 11:59  -> "Good morning"
+        12:00 - 17:59  -> "Good afternoon"
+        18:00 - 04:59  -> "Good evening"
+
+    Reused everywhere a greeting is shown (Dashboard, Account & Security,
+    and any future admin page) via inject_current_admin() below, so there
+    is exactly one place this logic lives.
+    """
+    hour = datetime.now().hour
+    if 5 <= hour < 12:
+        return "Good morning"
+    if 12 <= hour < 18:
+        return "Good afternoon"
+    return "Good evening"
 
 
 def get_current_admin():
@@ -100,12 +157,22 @@ def get_current_admin():
 @admin_bp.context_processor
 def inject_current_admin():
     """
-    Makes `current_admin` available automatically to every template
-    rendered by an admin_bp route (Dashboard, Account & Security, and any
-    future admin page) without each route having to fetch and pass it
-    individually.
+    Makes `current_admin` AND `greeting` available automatically to every
+    template rendered by an admin_bp route (Dashboard, Account & Security,
+    and any future admin page) without each route having to fetch/compute
+    and pass them individually.
+
+    `greeting` is recomputed on every request (not cached), so it stays
+    correct as time passes across a long-lived session, and `current_admin`
+    is re-looked-up from the server-side session on every request, so the
+    displayed name always matches whichever admin is actually logged in -
+    switching accounts automatically shows the new admin's name with no
+    extra wiring needed on any individual page.
     """
-    return {"current_admin": get_current_admin()}
+    return {
+        "current_admin": get_current_admin(),
+        "greeting": get_greeting(),
+    }
 
 
 @admin_bp.route('/logout')
@@ -163,7 +230,7 @@ def _fmt_datetime(dt):
     return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
 
 
-def get_accounts_overview(search_query=None):
+def get_accounts_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
     """
     Pulls every non-deleted account from account_tbl, joined against
     profile_tbl (for the display name) and usertype_tbl (for the role
@@ -177,6 +244,22 @@ def get_accounts_overview(search_query=None):
     email contain the term - case-insensitive, partial match. Filtering
     happens in the database, not in Python, so it scales with the
     dataset instead of requiring every row to be loaded first.
+
+    role_filter (str | None): Task #17 - "Administrator" or "Learner"
+    (case-insensitive). Maps through ROLE_FILTER_MAP to the exact value
+    stored in usertype_tbl.u_type before being used in a parameterized
+    equality check. Anything not recognized (None, "", "All Roles", a
+    typo, etc.) means "no role filter applied".
+
+    status_filter (str | None): Task #17 - "Active" or "Inactive"
+    (case-insensitive). Anything not recognized means "no status filter
+    applied".
+
+    sort_by (str | None): Task #17 - one of "date_created" (default),
+    "name", or "last_login". The value is only ever used to select one
+    of three hardcoded ORDER BY clauses (SORT_CLAUSES) - it is never
+    concatenated into the query directly, so there is no SQL injection
+    surface here even though the value ultimately affects ORDER BY.
     """
     connection = get_db_connection()
     if connection is None:
@@ -241,7 +324,31 @@ def get_accounts_overview(search_query=None):
                 prefix_term,  # email domain (after @)
             ])
 
-        base_query += " ORDER BY a.created_at DESC"
+        # ------------------------------------------------------------
+        # Task #17: Role Filter (Administrator / Learner)
+        # ------------------------------------------------------------
+        mapped_role = ROLE_FILTER_MAP.get((role_filter or "").strip().lower())
+        if mapped_role:
+            base_query += " AND ut.u_type = %s"
+            params.append(mapped_role)
+
+        # ------------------------------------------------------------
+        # Task #17: Status Filter (Active / Inactive)
+        # ------------------------------------------------------------
+        normalized_status = (status_filter or "").strip().lower()
+        status_applied = normalized_status in VALID_STATUS_FILTERS
+        if status_applied:
+            # Store the properly-cased value for the equality check, since
+            # a.status is stored as "Active"/"Inactive" in the database.
+            base_query += " AND a.status = %s"
+            params.append(normalized_status.capitalize())
+
+        # ------------------------------------------------------------
+        # Task #17: Sorting (Date Created / Name / Last Login)
+        # ------------------------------------------------------------
+        sort_key = (sort_by or "").strip().lower()
+        order_clause = SORT_CLAUSES.get(sort_key, SORT_CLAUSES[DEFAULT_SORT_KEY])
+        base_query += f" ORDER BY {order_clause}"
 
         cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
@@ -268,11 +375,12 @@ def get_accounts_overview(search_query=None):
                 "last_login": _fmt_datetime(row.get("last_login")),
             })
 
-        # Metrics should always reflect the FULL registry, not the filtered
-        # search results, so compute them from an unfiltered pass whenever
-        # this call itself was filtered.
-        if term:
-            full_overview = get_accounts_overview(search_query=None)
+        # Metrics should always reflect the FULL registry, not the
+        # search/role/status-filtered results, so compute them from an
+        # unfiltered pass whenever THIS call itself applied any filter.
+        is_filtered = bool(term) or bool(mapped_role) or status_applied
+        if is_filtered:
+            full_overview = get_accounts_overview()
             metrics = full_overview["metrics"] if full_overview else {
                 "total_accounts": 0,
                 "active_accounts": 0,
@@ -338,29 +446,60 @@ def account_security():
 
 
 # ============================================================
-# ROUTE: LIVE ACCOUNT SEARCH (Task #16, JSON, called by fetch())
+# ROUTE: LIVE ACCOUNT SEARCH + FILTER + SORT (Task #16 & #17, JSON)
 # ============================================================
 @admin_bp.route('/accounts/search')
 def search_accounts():
     """
-    Backend-driven live search for the Account & Security table.
+    Backend-driven live search/filter/sort for the Account & Security
+    table.
 
-    Query param: ?q=<term>
-    - Empty/missing q -> returns the full account list (same as page load).
-    - Non-empty q -> case-insensitive partial match against full name,
-      username, and email, filtered in SQL.
+    Query params (all optional):
+      q      - free-text search term (name / username / email)
+      role   - "Administrator" or "Learner" (case-insensitive)
+      status - "Active" or "Inactive" (case-insensitive)
+      sort   - "date_created" (default), "name", or "last_login"
 
-    Returns JSON: { "success": bool, "accounts": [...] }
+    - No params at all -> returns the full account list (same as page
+      load), sorted by newest first.
+    - Any combination of q / role / status is applied together (AND'ed
+      in SQL), and the requested sort is applied on top of that filtered
+      set - search, filters, and sorting all compose with each other.
+
+    Returns JSON: { "success": bool, "accounts": [...], "total": int }
     The frontend uses this to re-render only the table body - no page
-    reload, and the search input's value is left untouched by the caller.
+    reload, and none of the filter controls' values are touched by the
+    caller.
     """
     term = request.args.get('q', '')
+    role = request.args.get('role', '')
+    status = request.args.get('status', '')
+    sort = request.args.get('sort', '')
 
-    overview = get_accounts_overview(search_query=term)
+    overview = get_accounts_overview(
+        search_query=term,
+        role_filter=role,
+        status_filter=status,
+        sort_by=sort,
+    )
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database.", "accounts": []}), 500
 
-    return jsonify({"success": True, "accounts": overview["accounts"]}), 200
+    return jsonify({
+        "success": True,
+        "accounts": overview["accounts"],
+        "total": len(overview["accounts"]),
+    }), 200
+
+
+# Task #17 spec names the endpoint "/admin/accounts/filter" - registered
+# as an alias pointing at the exact same view function above, so both
+# URLs are supported without duplicating any query-building logic.
+admin_bp.add_url_rule(
+    '/accounts/filter',
+    endpoint='accounts_filter',
+    view_func=search_accounts,
+)
 
 
 @admin_bp.route('/login-logs.html')

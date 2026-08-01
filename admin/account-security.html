@@ -26,7 +26,7 @@
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Account & Security</h1>
-                        <p>Good afternoon, Irish! Here's what's happening today.</p>
+                        <p>{{ greeting }}, {{ current_admin.full_name if current_admin else 'Administrator' }}! Here's what's happening today.</p>
                     </div>
                     <div class="header-actions-group">
                         <div class="dashboard-datetime-badge">
@@ -106,20 +106,32 @@
                             <input type="text" id="accountSearchInput" placeholder="Search by name, username, or email...">
                         </div>
                         <div class="toolbar-filters">
-                            <select class="custom-select">
-                                <option>All Roles</option>
-                                <option>Administrator</option>
-                                <option>Learner</option>
+                            <!--
+                                Task #17: Role / Status / Sort filters.
+                                Values are intentionally the exact strings
+                                the backend expects (see ROLE_FILTER_MAP,
+                                VALID_STATUS_FILTERS, and SORT_CLAUSES in
+                                admin_routes.py) so admin-account-search.js
+                                can pass select.value straight through as a
+                                query param with no extra mapping needed.
+                                Empty value = "no filter" (All Roles / All
+                                Status); Sort always has a value since
+                                there's no "no sort" state.
+                            -->
+                            <select class="custom-select" id="roleFilterSelect">
+                                <option value="">All Roles</option>
+                                <option value="Administrator">Administrator</option>
+                                <option value="Learner">Learner</option>
                             </select>
-                            <select class="custom-select">
-                                <option>All Status</option>
-                                <option>Active</option>
-                                <option>Inactive</option>
+                            <select class="custom-select" id="statusFilterSelect">
+                                <option value="">All Status</option>
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
                             </select>
-                            <select class="custom-select">
-                                <option>Sort: Date Created</option>
-                                <option>Name</option>
-                                <option>Last Login</option>
+                            <select class="custom-select" id="sortFilterSelect">
+                                <option value="date_created">Sort: Date Created</option>
+                                <option value="name">Name</option>
+                                <option value="last_login">Last Login</option>
                             </select>
                         </div>
                     </div>

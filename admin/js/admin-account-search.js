@@ -1,9 +1,16 @@
 /**
- * admin-account-search.js - CobraByte Live Account Search (Task #16)
+ * admin-account-search.js - CobraByte Live Account Search + Filters + Sort
  * --------------------------------------------------------------------
- * Wires up the Account & Security search box to the backend search
- * endpoint (/admin/accounts/search?q=...) so the table updates as the
- * admin types, with no Search button and no page reload.
+ * Wires up the Account & Security toolbar - the search box AND the
+ * Role / Status / Sort dropdowns (Task #17) - to the backend search
+ * endpoint (/admin/accounts/search) so the table updates live as the
+ * admin types or changes any filter, with no page reload.
+ *
+ * All four controls (search, role, status, sort) are combined into a
+ * single query string on every request, so they always compose with
+ * each other - e.g. typing "irish" while Role=Administrator and
+ * Sort=Name are both selected sends q=irish&role=Administrator&sort=name
+ * in one request, matching Task #17's "Combined Filtering" requirement.
  *
  * Only present on pages that have #accountSearchInput and
  * #accountsTableBody (currently just account-security.html), so this is
@@ -16,6 +23,9 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         const searchInput = document.getElementById("accountSearchInput");
+        const roleSelect = document.getElementById("roleFilterSelect");
+        const statusSelect = document.getElementById("statusFilterSelect");
+        const sortSelect = document.getElementById("sortFilterSelect");
         const tableBody = document.getElementById("accountsTableBody");
         const showingCount = document.getElementById("accountsShowingCount");
 
@@ -47,6 +57,7 @@
 
         function renderRows(accounts) {
             if (!accounts || accounts.length === 0) {
+                // Task #17, Requirement #9: centered empty-state row.
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="8" class="text-muted" style="text-align:center; padding: 30px 0;">
@@ -81,12 +92,39 @@
             }
         }
 
-        async function runSearch(term) {
+        /**
+         * Reads the current value of every toolbar control (search text +
+         * the three dropdowns) and builds a single query string out of
+         * them. Empty/default values ("All Roles", "All Status") are
+         * simply omitted rather than sent as empty params, keeping the
+         * request minimal and matching exactly what the backend already
+         * treats as "no filter".
+         */
+        function buildQueryParams() {
+            const params = new URLSearchParams();
+
+            const term = searchInput.value.trim();
+            if (term) params.set("q", term);
+
+            if (roleSelect && roleSelect.value) params.set("role", roleSelect.value);
+            if (statusSelect && statusSelect.value) params.set("status", statusSelect.value);
+
+            // Sort always has a meaningful value (defaults to Date
+            // Created), so it's always sent - this keeps the requested
+            // sort order explicit rather than relying on the backend's
+            // own default staying in sync with the dropdown's default.
+            if (sortSelect && sortSelect.value) params.set("sort", sortSelect.value);
+
+            return params;
+        }
+
+        async function runSearch() {
             const requestId = ++activeRequestId;
+            const params = buildQueryParams();
 
             try {
                 const response = await fetch(
-                    `/admin/accounts/search?q=${encodeURIComponent(term)}`,
+                    `/admin/accounts/search?${params.toString()}`,
                     { credentials: "include" }
                 );
                 const result = await response.json();
@@ -115,13 +153,23 @@
             }
         }
 
-        searchInput.addEventListener("input", () => {
-            const term = searchInput.value; // value is never touched programmatically elsewhere
-
+        function scheduleSearch() {
             if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                runSearch(term.trim());
-            }, DEBOUNCE_MS);
+            debounceTimer = setTimeout(runSearch, DEBOUNCE_MS);
+        }
+
+        // Live search: debounced so it doesn't fire a request on every
+        // single keystroke.
+        searchInput.addEventListener("input", scheduleSearch);
+
+        // Task #17: Role / Status / Sort - each change re-runs the same
+        // combined search immediately (debounced only to coalesce rapid
+        // successive changes), preserving whatever is currently in the
+        // search box and in the other dropdowns rather than resetting
+        // anything (Requirement #11).
+        [roleSelect, statusSelect, sortSelect].forEach((select) => {
+            if (!select) return;
+            select.addEventListener("change", scheduleSearch);
         });
     });
 })();

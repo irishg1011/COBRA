@@ -19,7 +19,7 @@
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Dashboard</h1>
-                        <p>Good afternoon, Irish! Here's what's happening today.</p>
+                        <p>{{ greeting }}, {{ current_admin.full_name if current_admin else 'Administrator' }}! Here's what's happening today.</p>
                     </div>
                     <div class="dashboard-datetime-badge">
                         <strong id="current-time"></strong>
