@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.getElementById('password');
 
     // =========================================================================
-    // --- FEATURE 1: MINIMUM AGE (13+) RESTRICTION FOR SIGN UP ---
+    // --- FEATURE 1: MINIMUM AGE (13+) RESTRICTION FOR SIGN UP AND BELOW (60) ---
     // =========================================================================
     const MIN_SIGNUP_AGE = 13;
     const MAX_SIGNUP_AGE = 60;

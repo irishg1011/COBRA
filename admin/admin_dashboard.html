@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CobraByte Admin Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
 </head>
 <body data-auth-guard-mode="refresh">
     <div class="admin-layout">
@@ -21,8 +22,8 @@
                         <p>Good afternoon, Irish! Here's what's happening today.</p>
                     </div>
                     <div class="dashboard-datetime-badge">
-                        <strong>11:00 AM</strong>
-                        <small>Monday - July 25, 2026</small>
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
                     </div>
                 </div>
 
@@ -305,6 +306,7 @@
         </main>
     </div>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
 </body>
 </html>
