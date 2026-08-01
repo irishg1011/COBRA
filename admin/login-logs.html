@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CobraByte Admin - Account & Security</title>
+    <title>CobraByte Admin - Login Logs</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -19,23 +19,23 @@
             <!-- Header (Modularized) -->
             {% include 'admin-header.html' %}
 
-            <!-- Account & Security Content Area -->
+            <!-- Login Logs Content Area -->
             <div class="dashboard-content-area">
                 
-                <!-- Top Bar matched with Dashboard Datetime Structure -->
+                <!-- Top Bar -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Account & Security</h1>
-                        <p>Good afternoon, Irish! Here's what's happening today.</p>
+                        <p>Manage your account details, security settings, and login activity.</p>
                     </div>
                     <div class="header-actions-group">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                       <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.login_logs') }}" class="btn btn-primary-custom" style="text-decoration: none;">
-                                <i class="fa-solid fa-clock-rotate-left"></i> Login Logs
+                        <div class="header-actions">
+                            <a href="{{ url_for('admin_bp.account_security') }}" class="btn btn-primary-custom" style="text-decoration: none;">
+                                <i class="fa-solid fa-arrow-left"></i> Previous
                             </a>
                             <button class="btn btn-success-custom">
                                 <i class="fa-solid fa-user-plus"></i> Create Administrator
@@ -113,60 +113,54 @@
                             </select>
                             <select class="custom-select">
                                 <option>All Status</option>
-                                <option>Active</option>
-                                <option>Inactive</option>
+                                <option>Success</option>
+                                <option>Failed</option>
                             </select>
                             <select class="custom-select">
                                 <option>Sort: Date Created</option>
                                 <option>Name</option>
-                                <option>Last Login</option>
+                                <option>Attempted At</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- Accounts Table -->
+                    <!-- Login Logs Table -->
                     <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Profile</th>
-                                <th>Username</th>
                                 <th>Email</th>
+                                <th>Account ID</th>
                                 <th>Role</th>
                                 <th>Status</th>
-                                <th>Date Created</th>
-                                <th>Last Login</th>
-                                <th class="text-right">Actions</th>
+                                <th class="text-right">Attempted At</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for acc in accounts %}
-                            <tr data-acc-id="{{ acc.acc_id }}">
+                            {% for log in logs %}
+                            <tr>
                                 <td class="profile-cell">
                                     <div class="avatar-sm">👤</div>
-                                    <strong>{{ acc.full_name }}</strong>
+                                    <strong>{{ log.full_name }}</strong>
                                 </td>
-                                <td class="text-muted">{{ acc.username }}</td>
-                                <td class="text-muted">{{ acc.email }}</td>
+                                <td class="text-muted">{{ log.email }}</td>
+                                <td class="text-muted">{{ log.acc_id }}</td>
                                 <td>
-                                    <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else 'badge-learner' }}">{{ acc.role }}</span>
+                                    <span class="badge {{ 'badge-admin' if log.role == 'Admin' else 'badge-learner' }}">{{ log.role }}</span>
                                 </td>
                                 <td>
-                                    {% if acc.is_locked %}
-                                    <span class="badge badge-locked">Locked</span>
-                                    {% elif acc.status == 'Active' %}
-                                    <span class="badge badge-active">Active</span>
+                                    {% if log.status == 'Success' %}
+                                    <span class="badge badge-success-log">Success</span>
                                     {% else %}
-                                    <span class="badge badge-inactive">{{ acc.status }}</span>
+                                    <span class="badge badge-failed-log">Failed</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-muted">{{ acc.date_created }}</td>
-                                <td class="text-muted">{{ acc.last_login }}</td>
-                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                                <td class="text-right text-muted">{{ log.attempted_at }}</td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="8" class="text-muted" style="text-align:center; padding: 30px 0;">
-                                    No accounts found (or the database is unreachable).
+                                <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                    No login logs found.
                                 </td>
                             </tr>
                             {% endfor %}
@@ -175,7 +169,7 @@
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
-                        <span>Showing {{ accounts|length }} account{{ 's' if accounts|length != 1 else '' }}</span>
+                        <span>Showing logs</span>
                         <span>&lt; 1 of 1 &gt;</span>
                     </div>
 

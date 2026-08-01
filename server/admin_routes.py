@@ -277,3 +277,26 @@ def account_security():
         accounts=overview["accounts"],
         metrics=overview["metrics"],
     )
+
+@admin_bp.route('/login-logs.html')
+def login_logs():
+    """
+    Renders the login logs page using the overview metrics and log data.
+    """
+    overview = get_accounts_overview()
+    metrics = overview["metrics"] if overview else {
+        "total_accounts": 0,
+        "active_accounts": 0,
+        "inactive_accounts": 0,
+        "administrators": 0,
+        "learners": 0,
+        "locked_accounts": 0,
+    }
+    
+    logs = [] 
+
+    return render_template(
+        'login-logs.html',
+        metrics=metrics,
+        logs=logs
+    )

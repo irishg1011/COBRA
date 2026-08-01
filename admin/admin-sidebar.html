@@ -7,7 +7,7 @@
         <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.admin_dashboard' else '' }}">
             <img src="/assets/images/dashboard-1.png" class="sidebar-icon"> Dashboard
         </a>
-        <a href="{{ url_for('admin_bp.account_security') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.account_security' else '' }}">
+        <a href="{{ url_for('admin_bp.account_security') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs'] else '' }}">
             <img src="/assets/images/book-3-11.png" class="sidebar-icon"> Account & Security
         </a>
         <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">

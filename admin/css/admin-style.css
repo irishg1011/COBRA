@@ -741,3 +741,14 @@ body {
     font-size: 32px;
     color: #09B300;
 }
+
+/* Login Logs Status Badges */
+.badge-success-log {
+    background: #DCF5DC;
+    color: #09B300;
+}
+
+.badge-failed-log {
+    background: #f3f4f6;
+    color: #4b5563;
+}
