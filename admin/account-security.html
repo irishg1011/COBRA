@@ -37,7 +37,7 @@
                             <a href="{{ url_for('admin_bp.login_logs') }}" class="btn btn-primary-custom" style="text-decoration: none;">
                                 <i class="fa-solid fa-clock-rotate-left"></i> Login Logs
                             </a>
-                            <button class="btn btn-success-custom">
+                            <button id="openCreateAdminBtn" class="btn btn-success-custom">
                                 <i class="fa-solid fa-user-plus"></i> Create Administrator
                             </button>
                         </div>
@@ -188,5 +188,8 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+
+    <!-- Include Create New Administrator Modal -->
+    {% include 'admin-create-admin-modal.html' %}
 </body>
 </html>

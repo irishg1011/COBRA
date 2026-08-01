@@ -300,3 +300,37 @@ def login_logs():
         metrics=metrics,
         logs=logs
     )
+
+@admin_bp.route('/create-administrator', methods=['POST'])
+def create_administrator():
+    """
+    Handles the creation of a new administrator account from the modal form.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return redirect(url_for('admin_bp.account_security'))
+
+    try:
+        username = request.form.get('username')
+        password = request.form.get('password')
+        email = request.form.get('email')
+        mobile = request.form.get('mobile')
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        birthdate = request.form.get('birthdate')
+        gender = request.form.get('gender')
+
+        cursor = connection.cursor()
+        
+        # Insert your logic here to save the account and profile details securely
+        # e.g., hashing password, generating account ID, etc.
+
+        connection.commit()
+        cursor.close()
+    except Error as e:
+        print(f"admin_routes: failed to create administrator: {e}")
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+    return redirect(url_for('admin_bp.account_security'))

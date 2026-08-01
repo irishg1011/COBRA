@@ -34,3 +34,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+    const createAdminModal = document.getElementById("createAdminModal");
+    const openModalBtn = document.getElementById("openCreateAdminBtn"); // Using the exact ID now
+    const closeModalBtn = document.getElementById("closeCreateAdminModal");
+
+    if (openModalBtn && createAdminModal) {
+        openModalBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            createAdminModal.style.display = "flex";
+        });
+    }
+
+    if (closeModalBtn && createAdminModal) {
+        closeModalBtn.addEventListener("click", () => {
+            createAdminModal.style.display = "none";
+        });
+    }
+
+    // Close when clicking outside the modal card
+    window.addEventListener("click", (e) => {
+        if (e.target === createAdminModal) {
+            createAdminModal.style.display = "none";
+        }
+    });
+});
