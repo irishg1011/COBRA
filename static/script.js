@@ -1,9 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     // If the user is already logged in,
-// skip the login page and go directly to Dashboard.
-if (sessionStorage.getItem("isAuthenticated") === "true") {
-    window.location.replace("dashboard.html");
-}
+    // skip the login page and go directly to their dashboard.
+    if (sessionStorage.getItem("isAuthenticated") === "true") {
+        const isAdmin = sessionStorage.getItem("userRole") === "Admin";
+        window.location.replace(isAdmin ? "http://127.0.0.1:5000/admin/dashboard" : "dashboard.html");
+    }
 
     const API_BASE_URL = "http://127.0.0.1:5000";
 
@@ -900,6 +901,7 @@ if (result.success) {
 
     // Mark user as authenticated
     sessionStorage.setItem("isAuthenticated", "true");
+    sessionStorage.setItem("userRole", result.role || "Learner");
 
     // Clear lockout for this user if they successfully logged in
     if (window.activeLockouts[targetUsername]) {
@@ -913,8 +915,24 @@ if (result.success) {
     const successPanel = document.getElementById('signInSuccessPanel');
     if (successPanel) successPanel.style.display = 'block';
 
+    // --- ROLE-BASED REDIRECT (u_type: 1 = Admin, 2 = Learner) ---
+    // Admin dashboard is a Flask/Jinja page served by the backend
+    // (API_BASE_URL), while the Learner dashboard is a static page
+    // served from this same frontend origin.
+    const isAdmin = result.role === "Admin";
+    const destination = isAdmin
+        ? `${API_BASE_URL}${result.redirect || "/admin/dashboard"}`
+        : "../templates/dashboard.html";
+
+    const successText = successPanel ? successPanel.querySelector('p') : null;
+    if (successText) {
+        successText.textContent = isAdmin
+            ? "Redirecting to the admin dashboard..."
+            : "Redirecting to your dashboard...";
+    }
+
     setTimeout(() => {
-        window.location.replace("../templates/dashboard.html");
+        window.location.replace(destination);
     }, 3000);
 } else {
                     passwordInput.value = '';

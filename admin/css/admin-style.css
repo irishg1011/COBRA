@@ -684,6 +684,16 @@ body {
     color: #4b5563;
 }
 
+.badge-admin {
+    background: #ede9fe;
+    color: #7c3aed;
+}
+
+.badge-locked {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
 /* Pagination Footer */
 .table-pagination {
     display: flex;
