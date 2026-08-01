@@ -5,7 +5,7 @@ Flask routes for user registration, authentication, and OTP verification.
 """
 
 import os
-from flask import Flask, jsonify, request, send_from_directory, render_template
+from flask import Flask, jsonify, request, send_from_directory, render_template, session
 from api import generate_otp, send_email
 from flask_cors import CORS
 import mysql.connector
@@ -18,7 +18,22 @@ from login_logs import log_login_attempt  # NEW: reusable login attempt logger
 from admin_routes import admin_bp  # NEW: import admin blueprint
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
-CORS(app)  # Enables cross-origin requests from Live Server (http://127.0.0.1:5500)
+
+# ------------------------------------------------------------
+# SESSION CONFIG (Task #12: server-side admin session)
+# ------------------------------------------------------------
+# Required for Flask to sign the session cookie. Move this to an
+# environment variable before deploying anywhere real - a hardcoded
+# secret is fine for local dev only.
+app.secret_key = os.environ.get("COBRABYTE_SECRET_KEY", "dev-only-change-me")
+
+# supports_credentials lets the frontend's fetch() calls send/receive the
+# session cookie across origins (e.g. Live Server on :5500 -> Flask on :5000).
+# NOTE: browsers require an explicit origin (not "*") whenever credentials
+# are involved, so list the frontend origin(s) directly instead of allowing
+# any origin.
+FRONTEND_ORIGINS = ["http://127.0.0.1:5500", "http://localhost:5500"]
+CORS(app, supports_credentials=True, origins=FRONTEND_ORIGINS)
 
 # Register the admin blueprint
 app.register_blueprint(admin_bp, url_prefix='/admin')
@@ -454,6 +469,17 @@ def login():
         role = "Admin" if is_admin else "Learner"
         redirect_url = "/admin/dashboard" if is_admin else "dashboard.html"
 
+        # NEW (Task #12): Admin pages are authenticated via a real
+        # server-side session, not just the frontend's sessionStorage
+        # flag. Store only the acc_id here - admin_routes.py looks this
+        # up fresh from the database on every request rather than
+        # trusting any name/role passed in from the client.
+        if is_admin:
+            session.clear()
+            session["admin_id"] = account["acc_id"]
+        else:
+            session.clear()
+
         return jsonify({
             "success": True,
             "message": "Login successful. Redirecting...",
@@ -665,4 +691,3 @@ def serve_global_assets(filename):
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-

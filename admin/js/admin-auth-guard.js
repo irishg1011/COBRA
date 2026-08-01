@@ -68,10 +68,19 @@
      * same way the Learner-side guard's performLogout() works.
      */
     function performLogout() {
-    sessionStorage.removeItem(AUTH_FLAG_KEY);
-    sessionStorage.clear();
-    window.location.replace(LOGIN_PAGE_URL);   // full navigation, same as the Learner side
-}
+        sessionStorage.removeItem(AUTH_FLAG_KEY);
+        sessionStorage.clear();
+
+        // NEW (Task #12): clearing the client-side flag isn't enough on its
+        // own anymore - the real admin_id lives in a server-side session,
+        // so hit the backend logout route (with credentials so the session
+        // cookie is sent) to destroy it too, before navigating away.
+        fetch("/admin/logout", { credentials: "include" })
+            .catch(() => { /* best-effort - navigate away regardless */ })
+            .finally(() => {
+                window.location.replace(LOGIN_PAGE_URL); // full navigation, same as the Learner side
+            });
+    }
 
     // Push a sentinel history entry on top of the current one so the very
     // next Back press resolves to a 'popstate' on THIS page/URL instead of

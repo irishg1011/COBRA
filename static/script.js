@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.getElementById('password');
 
     // =========================================================================
-    // --- FEATURE 1: MINIMUM AGE (13+) RESTRICTION FOR SIGN UP AND BELOW (60) ---
+    // --- FEATURE 1: MINIMUM AGE (13+) RESTRICTION FOR SIGN UP ---
     // =========================================================================
     const MIN_SIGNUP_AGE = 13;
     const MAX_SIGNUP_AGE = 60;
@@ -890,6 +890,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 response = await fetch(`${API_BASE_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // NEW: lets the browser store the admin session cookie from a cross-origin response
                     body: JSON.stringify({
                         username: targetUsername,
                         password: passwordInput.value.trim()

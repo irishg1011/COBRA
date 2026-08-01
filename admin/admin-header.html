@@ -11,8 +11,8 @@
         <div class="admin-profile-badge">
             <img src="/assets/images/avatar.png" class="avatar-icon">
             <div class="admin-info">
-                <strong>Irish I. Gregorio</strong>
-                <small>Administrator</small>
+                <strong>{{ current_admin.full_name if current_admin else 'Administrator' }}</strong>
+                <small>{{ current_admin.role if current_admin else 'Administrator' }}</small>
             </div>
             <img src="/assets/images/d-down.png" class="dropdown-arrow-img">
         </div>

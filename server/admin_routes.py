@@ -1,6 +1,7 @@
 import os
+from functools import wraps
 from datetime import datetime
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, session, redirect, request
 from mysql.connector import Error
 
 from cobradb import get_db_connection
@@ -14,6 +15,104 @@ admin_bp = Blueprint(
     static_folder=ADMIN_DIR,           # Maps the entire admin folder as static assets
     static_url_path='/admin/assets'    # Creates a direct route for them
 )
+
+# Login page is served by the frontend (Live Server), the same URL already
+# used by admin-auth-guard.js and admin-script.js - NOT the backend's own
+# "/" route, which serves a different purpose and isn't guaranteed to
+# resolve to login.html depending on where the Flask process is launched
+# from.
+LOGIN_REDIRECT_URL = "http://127.0.0.1:5500/templates/login.html"
+
+
+# ------------------------------------------------------------------
+# Task #12: Session-based admin authentication
+# ------------------------------------------------------------------
+@admin_bp.before_request
+def _require_admin_session():
+    """
+    Runs before every admin_bp route. Static asset requests (CSS/JS/images
+    served under /admin/assets) are left alone; every actual page route
+    requires a valid admin_id in the server-side session, or the request
+    is redirected to the login page instead of rendering anything.
+    """
+    if request.endpoint == 'admin_bp.static':
+        return
+    if not session.get("admin_id"):
+        return redirect(LOGIN_REDIRECT_URL)
+
+
+def get_current_admin():
+    """
+    Looks up the currently logged-in administrator using ONLY the acc_id
+    stored server-side in session["admin_id"] - never anything supplied
+    by the client/frontend. Returns a dict with the fields the header
+    needs (full_name, role), or None if the session/account is invalid.
+    """
+    admin_id = session.get("admin_id")
+    if not admin_id:
+        return None
+
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                a.acc_id,
+                ut.u_type AS role,
+                p.firstname,
+                p.lastname
+            FROM account_tbl a
+            LEFT JOIN usertype_tbl ut ON a.u_type = ut.ut_id
+            LEFT JOIN profile_tbl p ON a.acc_id = p.acc_id
+            WHERE a.acc_id = %s
+              AND (a.is_deleted = 0 OR a.is_deleted IS NULL)
+            """,
+            (admin_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+        if not row:
+            return None
+
+        full_name = " ".join(
+            part for part in [row.get("firstname"), row.get("lastname")] if part
+        ).strip() or "Administrator"
+
+        return {
+            "acc_id": row["acc_id"],
+            "full_name": full_name,
+            "role": row.get("role") or "Administrator",
+        }
+
+    except Error as e:
+        print(f"admin_routes: database error while loading current admin: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+@admin_bp.context_processor
+def inject_current_admin():
+    """
+    Makes `current_admin` available automatically to every template
+    rendered by an admin_bp route (Dashboard, Account & Security, and any
+    future admin page) without each route having to fetch and pass it
+    individually.
+    """
+    return {"current_admin": get_current_admin()}
+
+
+@admin_bp.route('/logout')
+def admin_logout():
+    """Destroys the server-side session and sends the admin back to login."""
+    session.clear()
+    return redirect(LOGIN_REDIRECT_URL)
 
 
 # ------------------------------------------------------------------
