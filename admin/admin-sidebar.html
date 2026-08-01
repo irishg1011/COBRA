@@ -10,39 +10,39 @@
         <a href="{{ url_for('admin_bp.account_security') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.account_security' else '' }}">
             <img src="/assets/images/book-3-11.png" class="sidebar-icon"> Account & Security
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">
             <img src="/assets/images/book-1.png" class="sidebar-icon"> Manage Course
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_resources' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_resources' else '' }}">
             <img src="/assets/images/video-1.png" class="sidebar-icon"> Learning Resources
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_activities' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_activities' else '' }}">
             <img src="/assets/images/rise-1.png" class="sidebar-icon"> Learning Activities
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_exercises' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_exercises' else '' }}">
             <img src="/assets/images/code-1.png" class="sidebar-icon"> Coding Exercises
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
             <img src="/assets/images/programming-1.png" class="sidebar-icon"> Coding Sandbox
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learner_progress' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learner_progress' else '' }}">
             <img src="/assets/images/image-6.png" class="sidebar-icon"> Learner Progress
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.analytics' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.analytics' else '' }}">
             <img src="/assets/images/report-1.png" class="sidebar-icon"> Analytics
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
             <img src="/assets/images/bulb-1.png" class="sidebar-icon"> Recommendations
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
             <img src="/assets/images/ribbon-1.png" class="sidebar-icon"> Achievements
         </a>
-        <a href="#" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
+        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
             <img src="/assets/images/image-11.png" class="sidebar-icon"> Reports
         </a>
     </nav>
     <div class="sidebar-footer">
-        <a href="{{ url_for('admin_bp.admin_logout') }}" class="logout-btn">
+        <a href="{{ url_for('admin_bp.admin_logout') }}" id="adminLogoutBtn" class="logout-btn">
             <img src="/assets/images/logout-1.png" class="sidebar-icon"> Logout
         </a>
     </div>

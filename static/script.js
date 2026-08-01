@@ -1,9 +1,26 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // If the user is already logged in,
-    // skip the login page and go directly to their dashboard.
-    if (sessionStorage.getItem("isAuthenticated") === "true") {
-        const isAdmin = sessionStorage.getItem("userRole") === "Admin";
-        window.location.replace(isAdmin ? "http://127.0.0.1:5000/admin/dashboard" : "dashboard.html");
+    // If the user is already logged in, skip the login page and go
+    // directly to their dashboard.
+    //
+    // NOTE (loop fix): Admin auth now lives in a real server-side session
+    // (see admin_routes.py's before_request guard), not just this
+    // sessionStorage flag. If that flag says "Admin" but the actual server
+    // session cookie is missing/expired, blindly redirecting to
+    // /admin/dashboard just bounces straight back here (the backend
+    // redirects unauthenticated admin requests back to this page), which
+    // then bounces back to /admin/dashboard again - an infinite loop.
+    // So for Admin, treat a stale flag as untrustworthy and clear it
+    // instead of redirecting; the user simply sees the login form again.
+    // Learner access is still governed entirely client-side, so that
+    // shortcut remains unchanged and safe.
+    const storedRole = sessionStorage.getItem("userRole");
+    const isAuthenticatedFlag = sessionStorage.getItem("isAuthenticated") === "true";
+
+    if (isAuthenticatedFlag && storedRole === "Admin") {
+        sessionStorage.removeItem("isAuthenticated");
+        sessionStorage.removeItem("userRole");
+    } else if (isAuthenticatedFlag) {
+        window.location.replace("dashboard.html");
     }
 
     const API_BASE_URL = "http://127.0.0.1:5000";
