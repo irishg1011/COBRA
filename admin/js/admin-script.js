@@ -24,16 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const confirmed = window.confirm("Are you sure you want to log out?");
-            if (!confirmed) return;
 
-            // Reuse the exact same clear-everything-then-redirect logic
-            // the admin auth guard's Back-button trap uses.
-            if (typeof window.cobraByteAdminLogout === 'function') {
-                window.cobraByteAdminLogout();
-            } else {
-                sessionStorage.clear();
-                window.location.replace("http://127.0.0.1:5500/templates/login.html");
+            // Task #14: open the shared custom modal (defined once in
+            // admin-sidebar.html, wired up in admin-auth-guard.js) instead
+            // of the browser's native confirm() dialog.
+            if (typeof window.cobraByteOpenLogoutModal === 'function') {
+                window.cobraByteOpenLogoutModal();
             }
         });
     }

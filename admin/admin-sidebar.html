@@ -47,3 +47,30 @@
         </a>
     </div>
 </aside>
+
+<!--
+    Task #14: Custom Logout Confirmation Modal
+    -------------------------------------------
+    Reuses the exact design/markup already used by the Learner Dashboard's
+    logout modal (see templates/dashboard.html: #logoutModal) so both
+    modules share one consistent look. Lives here (in the shared sidebar
+    partial) so every admin page that includes the sidebar gets it for
+    free, with no duplicated HTML across Dashboard / Account & Security /
+    future pages. Hidden by default; admin-auth-guard.js toggles it and
+    wires up Cancel / Yes, Logout - no window.confirm() involved anywhere.
+-->
+<div id="adminLogoutModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div class="modal-card" style="background: white; padding: 28px 24px; border-radius: 12px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); font-family: 'Inter', sans-serif;">
+        <div style="margin-bottom: 16px; color: #e02424; display: flex; justify-content: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 44px; height: 44px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+        </div>
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #111827;">Are you sure you want to log out?</h3>
+        <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px; line-height: 1.5;">You will need to sign back in to access your dashboard.</p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button id="adminCancelLogoutBtn" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; color: #374151; font-weight: 500; border-radius: 6px; cursor: pointer; font-size: 14px;">Cancel</button>
+            <button id="adminConfirmLogoutBtn" style="padding: 10px 20px; border: none; background: #e02424; color: white; font-weight: 500; border-radius: 6px; cursor: pointer; font-size: 14px;">Yes, Logout</button>
+        </div>
+    </div>
+</div>

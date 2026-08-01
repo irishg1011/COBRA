@@ -82,6 +82,42 @@
             });
     }
 
+    // ------------------------------------------------------------
+    // Task #14: Custom logout modal (replaces window.confirm() everywhere)
+    // ------------------------------------------------------------
+    // The modal markup itself lives once in admin-sidebar.html, which is
+    // shared/included on every admin page - so there is nothing page
+    // specific here, just open/close helpers plus the two button handlers.
+    function openLogoutModal() {
+        const modal = document.getElementById('adminLogoutModal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeLogoutModal() {
+        const modal = document.getElementById('adminLogoutModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function wireLogoutModalButtons() {
+        const cancelBtn = document.getElementById('adminCancelLogoutBtn');
+        const confirmBtn = document.getElementById('adminConfirmLogoutBtn');
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                closeLogoutModal(); // stay on the current page, session untouched
+            });
+        }
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+                closeLogoutModal();
+                performLogout();
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', wireLogoutModalButtons);
+
     // Push a sentinel history entry on top of the current one so the very
     // next Back press resolves to a 'popstate' on THIS page/URL instead of
     // immediately leaving it.
@@ -102,13 +138,10 @@
             return;
         }
 
-        // Other authenticated admin pages: ask before logging out.
+        // Other authenticated admin pages: ask before logging out - via the
+        // custom modal (Task #14), never a browser confirm() popup.
         history.pushState({ cobrabyteAdminGuard: true }, "", location.href);
-
-        const confirmedLogout = window.confirm("Are you sure you want to log out?");
-        if (confirmedLogout) {
-            performLogout();
-        }
+        openLogoutModal();
     });
 
     // Belt-and-suspenders: if this exact page is later restored from
@@ -119,7 +152,9 @@
         window.location.replace(LOGIN_PAGE_URL);
     });
 
-    // Expose performLogout globally so the sidebar's Logout link can reuse
-    // this exact clear-everything-then-redirect logic.
+    // Expose performLogout and openLogoutModal globally so the sidebar's
+    // Logout link (admin-script.js) reuses this exact same logic/modal
+    // instead of duplicating it or falling back to window.confirm().
     window.cobraByteAdminLogout = performLogout;
+    window.cobraByteOpenLogoutModal = openLogoutModal;
 })();
