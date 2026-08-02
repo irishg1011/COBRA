@@ -755,3 +755,66 @@ def create_administrator():
             connection.close()
 
     return redirect(url_for('admin_bp.account_security'))
+
+# ------------------------------------------------------------------
+# Task #19: Placeholder ("Under Construction") pages
+# ------------------------------------------------------------------
+# Append this block to the END of admin_routes.py (e.g. right after the
+# existing create_administrator() route). Nothing existing in that file
+# needs to change.
+#
+# Every sidebar item that isn't built yet gets a real route + page
+# instead of a dead "javascript:void(0);" link. All 8 share the exact
+# same template/component (admin-placeholder.html ->
+# components/under-construction.html) - only the title differs - so
+# there is no duplicated markup across routes.
+def render_placeholder(title):
+    return render_template('admin-placeholder.html', title=title)
+
+@admin_bp.route('/manage-course')
+def manage_course():
+    return render_placeholder("Manage Course")
+
+
+@admin_bp.route('/learning-resources')
+def learning_resources():
+    return render_placeholder("Learning Resources")
+
+@admin_bp.route('/learning-activities')
+def learning_activities():
+    return render_placeholder("Learning Activities")
+
+
+@admin_bp.route('/coding-exercises')
+def coding_exercises():
+    return render_placeholder("Coding Exercises")
+
+
+@admin_bp.route('/coding-sandbox')
+def coding_sandbox():
+    return render_placeholder("Coding Sandbox")
+
+
+@admin_bp.route('/learner-progress')
+def learner_progress():
+    return render_placeholder("Learner Progress")
+
+
+@admin_bp.route('/analytics')
+def analytics():
+    return render_placeholder("Analytics")
+
+
+@admin_bp.route('/recommendations')
+def recommendations():
+    return render_placeholder("Recommendations")
+
+
+@admin_bp.route('/achievements')
+def achievements():
+    return render_placeholder("Achievements")
+
+
+@admin_bp.route('/reports')
+def reports():
+    return render_placeholder("Reports")

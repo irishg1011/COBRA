@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - {{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- Sidebar (Modularized) -->
+        {% include 'admin-sidebar.html' %}
+
+        <!-- Main Content Area -->
+        <main class="admin-main-content">
+            <!-- Header (Modularized) -->
+            {% include 'admin-header.html' %}
+
+            <!-- Task #19: Under Construction placeholder content -->
+            {% include 'components/under-construction.html' %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+</body>
+</html>

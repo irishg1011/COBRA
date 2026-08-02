@@ -908,3 +908,35 @@ body {
 .btn-create-account:hover {
     background: #16a34a;
 }
+
+/* ==========================================================================
+   TASK #19: UNDER CONSTRUCTION PLACEHOLDER PAGES
+   Append this block to the END of static/css/admin-style.css
+   (Nothing existing in that file needs to change.)
+   ========================================================================== */
+.under-construction-page {
+    flex-grow: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #ffffff;
+    padding: 40px;
+    box-sizing: border-box;
+}
+
+.under-construction-title {
+    font-size: 44px;
+    font-weight: 800;
+    color: #111111;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
+}
+
+.under-construction-subtitle {
+    font-size: 15px;
+    font-weight: 500;
+    color: #6b7280;
+}

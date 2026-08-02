@@ -10,34 +10,36 @@
         <a href="{{ url_for('admin_bp.account_security') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs'] else '' }}">
             <img src="/assets/images/book-3-11.png" class="sidebar-icon"> Account & Security
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">
-            <img src="/assets/images/book-1.png" class="sidebar-icon"> Manage Course
-        </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_resources' else '' }}">
-            <img src="/assets/images/video-1.png" class="sidebar-icon"> Learning Resources
-        </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_activities' else '' }}">
+<a href="{{ url_for('admin_bp.manage_course') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">
+    <img src="/assets/images/book-1.png" class="sidebar-icon"> Manage Course
+</a>
+<a href="{{ url_for('admin_bp.learning_resources') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_resources' else '' }}">
+    <img src="/assets/images/video-1.png" class="sidebar-icon"> Learning Resources
+</a>
+
+        <!-- Task #19: wired up to real routes + Under Construction pages -->
+        <a href="{{ url_for('admin_bp.learning_activities') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_activities' else '' }}">
             <img src="/assets/images/rise-1.png" class="sidebar-icon"> Learning Activities
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_exercises' else '' }}">
+        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_exercises' else '' }}">
             <img src="/assets/images/code-1.png" class="sidebar-icon"> Coding Exercises
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
+        <a href="{{ url_for('admin_bp.coding_sandbox') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
             <img src="/assets/images/programming-1.png" class="sidebar-icon"> Coding Sandbox
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learner_progress' else '' }}">
+        <a href="{{ url_for('admin_bp.learner_progress') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learner_progress' else '' }}">
             <img src="/assets/images/image-6.png" class="sidebar-icon"> Learner Progress
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.analytics' else '' }}">
+        <a href="{{ url_for('admin_bp.analytics') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.analytics' else '' }}">
             <img src="/assets/images/report-1.png" class="sidebar-icon"> Analytics
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
+        <a href="{{ url_for('admin_bp.recommendations') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
             <img src="/assets/images/bulb-1.png" class="sidebar-icon"> Recommendations
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
+        <a href="{{ url_for('admin_bp.achievements') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
             <img src="/assets/images/ribbon-1.png" class="sidebar-icon"> Achievements
         </a>
-        <a href="javascript:void(0);" data-disabled="true" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
+        <a href="{{ url_for('admin_bp.reports') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
             <img src="/assets/images/image-11.png" class="sidebar-icon"> Reports
         </a>
     </nav>

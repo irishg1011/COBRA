@@ -1,0 +1,9 @@
+<!-- components/under-construction.html
+     Task #19: Reusable "Under Construction" placeholder used by every
+     unimplemented sidebar page. Expects a single `title` variable in
+     context (passed via render_template -> admin-placeholder.html, which
+     includes this file, so the variable is already in scope). -->
+<div class="under-construction-page">
+    <h1 class="under-construction-title">{{ title }}</h1>
+    <p class="under-construction-subtitle">This page is under construction</p>
+</div>
