@@ -16,6 +16,7 @@ import time
 import re
 from login_logs import log_login_attempt  # NEW: reusable login attempt logger
 from admin_routes import admin_bp  # NEW: import admin blueprint
+from account_status import refresh_inactive_accounts, is_account_inactive  # NEW: shared, configurable Active/Inactive logic
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
@@ -60,11 +61,13 @@ ADMIN_U_TYPE = 1
 LEARNER_U_TYPE = 2
 
 # ------------------------------------------------------------
-# ACCOUNT INACTIVITY CONFIG (NEW)
+# ACCOUNT INACTIVITY CONFIG
 # ------------------------------------------------------------
-# Number of days without a login before an account is auto-marked
-# "Inactive". Change this single value to adjust the policy app-wide.
-ACCOUNT_INACTIVITY_DAYS = 30
+# The inactivity threshold itself (and the sweep logic that applies it)
+# now lives in account_status.py, controlled by the ACCOUNT_INACTIVITY_MINUTES
+# environment variable (defaults to 1 minute if unset - matches the "for
+# testing: 1 minute" requirement; set it to 43200 for a 30-day policy in
+# production). Nothing in this file hardcodes the threshold anymore.
 
 # ------------------------------------------------------------
 # LEARNER ID GENERATION CONFIG
@@ -361,6 +364,17 @@ def login():
     if connection is None:
         return jsonify({"success": False, "message": "Could not connect to database."}), 500
 
+    # ------------------------------------------------------------
+    # ACCOUNT INACTIVITY SWEEP (table-wide, not just this account)
+    # ------------------------------------------------------------
+    # Runs before we even look up the account being logged into, so every
+    # login attempt doubles as an opportunity to catch ANY account whose
+    # last_login has exceeded the configurable ACCOUNT_INACTIVITY_MINUTES
+    # threshold (see account_status.py) and flip it to 'Inactive'. This
+    # is best-effort/non-fatal by design - see refresh_inactive_accounts()'s
+    # own docstring for why it swallows its own errors.
+    refresh_inactive_accounts(connection)
+
     try:
         cursor = connection.cursor(dictionary=True)
         
@@ -380,16 +394,15 @@ def login():
         # ------------------------------------------------------------
         # ACCOUNT INACTIVITY CHECK
         # ------------------------------------------------------------
-        last_login = account.get("last_login")
-        if last_login is not None:
-            inactive_days = (datetime.now() - last_login).days
-            if inactive_days > ACCOUNT_INACTIVITY_DAYS and account.get("status") != "Inactive":
-                cursor.execute(
-                    f"UPDATE {ACCOUNT_TABLE} SET status = 'Inactive' WHERE acc_id = %s",
-                    (account["acc_id"],)
-                )
-                connection.commit()
-                account["status"] = "Inactive"
+        # The actual "has this exceeded the configurable inactivity
+        # threshold?" comparison already ran table-wide (not just for
+        # this one account) via refresh_inactive_accounts() right after
+        # the connection was opened above - see the call before the
+        # SELECT. If that sweep just flipped THIS account to 'Inactive',
+        # reflect that in the in-memory `account` dict too, since it was
+        # fetched before the sweep ran.
+        if is_account_inactive(account.get("last_login")):
+            account["status"] = "Inactive"
 
         lockout_until = account.get("lockout_until")
         
@@ -451,7 +464,12 @@ def login():
                     "message": f"Incorrect password. {attempts_remaining} attempt(s) remaining."
                 }), 401
 
-        # Successful login: reset failed attempts/lockout, update last_login, reactivate status
+        # Successful login: reset failed attempts/lockout, update last_login,
+        # and reactivate status. This UPDATE is the ONLY place in the app
+        # that ever sets status back to 'Active' - refresh_inactive_accounts()
+        # (account_status.py) only ever moves accounts TOWARD 'Inactive', so
+        # there's no risk of the two racing/undoing each other. This is what
+        # implements "Inactive account logs in again -> status = Active".
         cursor.execute(
             f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL, last_login = NOW(), status = 'Active' WHERE acc_id = %s",
             (account["acc_id"],)

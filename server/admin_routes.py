@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, session, redirect, request, jsonif
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from account_status import refresh_inactive_accounts  # NEW: shared, configurable Active/Inactive sweep
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -283,6 +284,19 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
     connection = get_db_connection()
     if connection is None:
         return None
+
+    # ------------------------------------------------------------
+    # ACCOUNT INACTIVITY SWEEP
+    # ------------------------------------------------------------
+    # The Admin > Account & Security page (and the metrics cards above
+    # the table) should always reflect the LATEST computed status - not
+    # just whatever was written the last time some account happened to
+    # log in. Sweeping here, before the SELECT below, means every page
+    # load / live-search request (this function backs both) re-evaluates
+    # every account against the configurable ACCOUNT_INACTIVITY_MINUTES
+    # threshold (see account_status.py) and flips any that have gone
+    # stale to 'Inactive' first.
+    refresh_inactive_accounts(connection)
 
     accounts = []
     try:
