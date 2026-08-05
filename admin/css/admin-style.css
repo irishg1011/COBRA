@@ -39,7 +39,7 @@ body {
 }
 
 .sidebar-brand {
-    padding: 6px 10px 6px 4px; /* Tighter top/bottom padding, shifted further to the left */
+    padding: 6px 10px 6px 4px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
@@ -47,9 +47,9 @@ body {
 }
 
 .brand-logo {
-    height: 55px;  /* Forces a clear height */
-    max-height: none; /* Removes any old constraints cutting it down */
-    width: auto;   /* Maintains proportions */
+    height: 55px;
+    max-height: none;
+    width: auto;
     object-fit: contain;
 }
 
@@ -74,7 +74,6 @@ body {
     transition: background 0.2s, color 0.2s;
 }
 
-/* Hover effect: soft translucent white */
 .nav-item:hover {
     background: rgba(255, 255, 255, 0.2);
     color: #ffffff;
@@ -84,7 +83,6 @@ body {
     filter: none;
 }
 
-/* Active/Clicked effect: solid white with dark text */
 .nav-item.active {
     background: #ffffff !important;
     color: #111111 !important;
@@ -592,10 +590,19 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    text-decoration: none !important;
 }
 
 .btn-primary-custom, .btn-success-custom {
     background: #09B300;
+    text-decoration: none !important;
+}
+
+.btn-success-custom:hover,
+.btn-success-custom:focus,
+.btn-success-custom:active {
+    text-decoration: none !important;
+    color: #ffffff !important;
 }
 
 /* Metric Box Modifiers */
@@ -911,8 +918,6 @@ body {
 
 /* ==========================================================================
    TASK #19: UNDER CONSTRUCTION PLACEHOLDER PAGES
-   Append this block to the END of static/css/admin-style.css
-   (Nothing existing in that file needs to change.)
    ========================================================================== */
 .under-construction-page {
     flex-grow: 1;
@@ -942,7 +947,7 @@ body {
 }
 
 /* ==========================================================================
-   WADE MODAL LANDSCAPE GRID STYLES
+   WIDE MODAL LANDSCAPE GRID STYLES
    ========================================================================== */
 .modal-card.create-admin-card.wide-modal-card {
     max-width: 860px !important;
@@ -959,4 +964,220 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
+}
+
+/* ==========================================================================
+   ADMIN LAYOUT FIXES FOR LEARNING RESOURCES & TABLES
+   ========================================================================== */
+.admin-container {
+    display: flex;
+    min-height: 100vh;
+    position: relative;
+    width: 100%;
+}
+
+.admin-main {
+    margin-left: 260px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - 260px);
+    box-sizing: border-box;
+    min-height: 100vh;
+    overflow-y: auto;
+}
+
+.admin-content {
+    padding: 30px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Manage Header & Actions */
+.manage-header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.header-titles h1 {
+    font-size: 26px;
+    font-weight: bold;
+    color: #111111;
+}
+
+.header-titles p {
+    color: #6b7280;
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+.header-titles .sub-text {
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.btn-upload {
+    background: #09B300;
+    color: #ffffff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    text-decoration: none !important;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+}
+
+.btn-upload:hover {
+    background: #079600;
+    text-decoration: none !important;
+    color: #ffffff;
+}
+
+/* Filter & Search Bar */
+.filter-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    gap: 15px;
+}
+
+.filter-container .search-box {
+    display: flex;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 10px 16px;
+    border-radius: 8px;
+    width: 320px;
+    gap: 10px;
+}
+
+.filter-container .search-box input {
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    font-size: 14px;
+    color: #333;
+}
+
+.filter-dropdown {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #333;
+    min-width: 140px;
+    cursor: pointer;
+}
+
+/* Resources Table Styling */
+.table-responsive {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    width: 100%;
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.admin-table th {
+    padding-bottom: 12px;
+    font-weight: 600;
+    border-bottom: 1px solid #e5e7eb;
+    color: #6b7280;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.admin-table td {
+    padding: 14px 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 13px;
+    color: #111;
+    vertical-align: middle;
+}
+
+.admin-table tr:last-child td {
+    border-bottom: none;
+}
+
+.resource-title {
+    font-weight: 600;
+    color: #111111;
+}
+
+.resource-desc {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+/* Badges inside tables */
+.badge.video {
+    background: #ede9fe;
+    color: #7c3aed;
+}
+
+.badge.pdf {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+.badge.image {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.badge.document {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+/* Action Buttons */
+.action-btn {
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 8px 10px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 5px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.action-btn:hover {
+    background: #e5e7eb;
+    color: #111;
+}
+
+.action-btn.delete:hover {
+    background: #fee2e2;
+    color: #ef4444;
 }

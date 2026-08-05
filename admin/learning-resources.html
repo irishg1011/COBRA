@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Manage Learning Resources</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="admin-layout">
+        <!-- Sidebar (Modularized) -->
+        {% include 'admin-sidebar.html' %}
+
+        <!-- Main Content Area -->
+        <main class="admin-main-content">
+            <!-- Header (Modularized) -->
+            {% include 'admin-header.html' %}
+
+            <!-- Manage Learning Resources Content Area -->
+            <div class="dashboard-content-area">
+                
+                <!-- Top Bar -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Manage Learning Resources</h1>
+                        <p>Upload and manage tutorial videos, PDFs, images, and documents.</p>
+                    </div>
+                    <div class="header-actions-group">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                        <div class="header-actions">
+                            <a href="#" id="openUploadResourceBtn" class="btn btn-success-custom">
+                                <i class="fa-solid fa-upload"></i> Upload Resource
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table Card Box -->
+                <div class="card-box padded-card">
+                    
+                    <!-- Table Toolbar -->
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="resourceSearchInput" placeholder="Search resources...">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="resourceTypeSelect">
+                                <option value="">All Types</option>
+                                <option value="Video">Video</option>
+                                <option value="PDF">PDF</option>
+                                <option value="Image">Image</option>
+                                <option value="Document">Document</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Resources Table -->
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Resource</th>
+                                <th>Type</th>
+                                <th>Size</th>
+                                <th>Uploaded</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resourcesTableBody">
+                            {% for resource in resources %}
+                            <tr>
+                                <td>
+                                    <strong style="display: block; color: #111; font-size: 13px;">{{ resource.title }}</strong>
+                                    <small class="text-muted">{{ resource.description }}</small>
+                                </td>
+                                <td>
+                                    {% if resource.type == 'Video' %}
+                                    <span class="badge badge-video">Video</span>
+                                    {% elif resource.type == 'PDF' %}
+                                    <span class="badge badge-pdf">PDF</span>
+                                    {% elif resource.type == 'Image' %}
+                                    <span class="badge badge-image">Image</span>
+                                    {% else %}
+                                    <span class="badge badge-document">Document</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted">{{ resource.size }}</td>
+                                <td class="text-muted">{{ resource.uploaded_at }}</td>
+                                <td class="text-right">
+                                    <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+                                        <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <a href="#" title="Delete" class="table-action-icon" style="color: #ef4444;"><i class="fa-solid fa-trash"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                    No resources found.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <!-- Pagination Footer -->
+                    <div class="table-pagination">
+                        <span>Showing {{ resources|length }} of {{ total_resources|default(8) }} Resources</span>
+                        <span>&lt; 1 of 1 &gt;</span>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+</body>
+</html>

@@ -793,7 +793,7 @@ def render_placeholder(title):
 
 @admin_bp.route('/learning-resources')
 def learning_resources():
-    return render_placeholder("Learning Resources")
+    return render_template('learning-resources.html')
 
 @admin_bp.route('/learning-activities')
 def learning_activities():
