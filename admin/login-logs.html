@@ -44,55 +44,55 @@
                     </div>
                 </div>
 
-                <!-- Metrics Grid -->
+                <!-- Metrics Grid (Updated to match login logs UI) -->
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-info">
-                            <span class="metric-title">Total Accounts</span>
-                            <h2 class="metric-value">{{ metrics.total_accounts }}</h2>
-                            <span class="metric-trend positive">Overall registry</span>
+                            <span class="metric-title">Total Logins Today</span>
+                            <h2 class="metric-value">{{ metrics.total_logins_today }}</h2>
+                            <span class="metric-trend positive">Activity count</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-users"></i></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
-                            <span class="metric-title">Active Accounts</span>
-                            <h2 class="metric-value">{{ metrics.active_accounts }}</h2>
-                            <span class="metric-trend positive">Currently online</span>
+                            <span class="metric-title">Successful Logins</span>
+                            <h2 class="metric-value">{{ metrics.successful_logins }}</h2>
+                            <span class="metric-trend positive">Passed auth</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-user-check"></i></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
-                            <span class="metric-title">Inactive Accounts</span>
-                            <h2 class="metric-value">{{ metrics.inactive_accounts }}</h2>
-                            <span class="metric-trend">Needs review</span>
+                            <span class="metric-title">Failed Login Attempts</span>
+                            <h2 class="metric-value">{{ metrics.failed_logins }}</h2>
+                            <span class="metric-trend negative">Invalid tries</span>
                         </div>
                         <div class="metric-icon-box green-bg metric-inactive"><i class="fa-solid fa-user-slash"></i></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
-                            <span class="metric-title">Administrators</span>
-                            <h2 class="metric-value">{{ metrics.administrators }}</h2>
-                            <span class="metric-trend positive">Privileged access</span>
+                            <span class="metric-title">Active Sessions</span>
+                            <h2 class="metric-value">{{ metrics.active_sessions }}</h2>
+                            <span class="metric-trend positive">Online now</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-shield-halved"></i></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
-                            <span class="metric-title">Learners</span>
-                            <h2 class="metric-value">{{ metrics.learners }}</h2>
-                            <span class="metric-trend positive">Enrolled students</span>
+                            <span class="metric-title">Locked Out Due to Fails</span>
+                            <h2 class="metric-value">{{ metrics.locked_out_fails }}</h2>
+                            <span class="metric-trend negative">Security block</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-graduation-cap"></i></div>
+                        <div class="metric-icon-box green-bg metric-locked"><i class="fa-solid fa-lock"></i></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
-                            <span class="metric-title">Locked Accounts</span>
-                            <h2 class="metric-value">{{ metrics.locked_accounts }}</h2>
-                            <span class="metric-trend negative">Requires security check</span>
+                            <span class="metric-title">Password Resets Today</span>
+                            <h2 class="metric-value">{{ metrics.password_resets_today }}</h2>
+                            <span class="metric-trend positive">Recent updates</span>
                         </div>
-                        <div class="metric-icon-box green-bg metric-locked"><i class="fa-solid fa-lock"></i></div>
+                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-rotate-right"></i></div>
                     </div>
                 </div>
 
@@ -106,13 +106,6 @@
                             <input type="text" id="logSearchInput" placeholder="Search by name, username, or email...">
                         </div>
                         <div class="toolbar-filters">
-                            <!--
-                                Task #18: values match exactly what
-                                get_login_logs_overview() in admin_routes.py
-                                expects, so admin-login-logs.js can pass
-                                select.value straight through as a query
-                                param with no extra mapping needed.
-                            -->
                             <select class="custom-select" id="logRoleSelect">
                                 <option value="">All Roles</option>
                                 <option value="Administrator">Administrator</option>
@@ -135,8 +128,8 @@
                         <thead>
                             <tr>
                                 <th>Profile</th>
-                                <th>Email</th>
                                 <th>Account ID</th>
+                                <th>IP Address</th>
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th class="text-right">Attempted At</th>
@@ -149,8 +142,8 @@
                                     <div class="avatar-sm">👤</div>
                                     <strong>{{ log.full_name }}</strong>
                                 </td>
-                                <td class="text-muted">{{ log.email }}</td>
                                 <td class="text-muted">{{ log.acc_id }}</td>
+                                <td class="text-muted">{{ log.ip_address }}</td>
                                 <td>
                                     {% if log.role == 'Admin' %}
                                     <span class="badge badge-admin">{{ log.role }}</span>
