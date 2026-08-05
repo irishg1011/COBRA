@@ -797,8 +797,10 @@ def learning_resources():
 
 @admin_bp.route('/learning-activities')
 def learning_activities():
-    return render_placeholder("Learning Activities")
-
+    """
+    Renders the static learning activities management page.
+    """
+    return render_template('manage-learning-activities.html')
 
 @admin_bp.route('/coding-exercises')
 def coding_exercises():

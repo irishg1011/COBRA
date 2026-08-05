@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Manage Learning Activities</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="admin-layout">
+        <!-- Sidebar (Modularized) -->
+        {% include 'admin-sidebar.html' %}
+
+        <!-- Main Content Area -->
+        <main class="admin-main-content">
+            <!-- Header (Modularized) -->
+            {% include 'admin-header.html' %}
+
+            <!-- Manage Learning Activities Content Area -->
+            <div class="dashboard-content-area">
+                
+                <!-- Top Bar -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Manage Learning Activities</h1>
+                        <p>Create and manage quizzes, flashcards, and interactive exercises.</p>
+                    </div>
+                    <div class="header-actions-group">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                        <div class="header-actions">
+                            <a href="#" id="openCreateActivityBtn" class="btn btn-success-custom">
+                                <i class="fa-solid fa-plus"></i> Create Activity
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table Card Box -->
+                <div class="card-box padded-card">
+                    
+                    <!-- Table Toolbar -->
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="activitySearchInput" placeholder="Search activities...">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="activityTypeSelect">
+                                <option value="">All Types</option>
+                                <option value="Multiple Choice">Multiple Choice</option>
+                                <option value="Flashcard">Flashcard</option>
+                                <option value="Fill in the Blank">Fill in the Blank</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Activities Table -->
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Module</th>
+                                <th>Lesson</th>
+                                <th>Activity Name</th>
+                                <th>Type</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activitiesTableBody">
+                            {% for activity in activities %}
+                            <tr>
+                                <td>{{ activity.category }}</td>
+                                <td class="text-muted">{{ activity.module }}</td>
+                                <td class="text-muted">{{ activity.lesson }}</td>
+                                <td>
+                                    <strong style="display: block; color: #111; font-size: 13px;">{{ activity.activity_name }}</strong>
+                                </td>
+                                <td>
+                                    {% if activity.activity_type == 'Multiple Choice' %}
+                                    <span class="badge badge-video">Multiple Choice</span>
+                                    {% elif activity.activity_type == 'Flashcard' %}
+                                    <span class="badge badge-pdf">Flashcard</span>
+                                    {% else %}
+                                    <span class="badge badge-document">Fill in the Blank</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-right">
+                                    <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+                                        <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <form action="{{ url_for('admin_bp.delete_activity', activity_id=activity.activity_id) }}" method="POST" style="display:inline;">
+                                            <button type="submit" title="Delete" class="table-action-icon" style="background:none; border:none; cursor:pointer; color: #ef4444;"><i class="fa-solid fa-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                    No learning activities found.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <!-- Pagination Footer -->
+                    <div class="table-pagination">
+                        <span>Showing {{ activities|length }} of {{ total_activities|default(0) }} Activities</span>
+                        <span>&lt; 1 of 1 &gt;</span>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+</body>
+</html>
