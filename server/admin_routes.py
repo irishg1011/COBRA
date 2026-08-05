@@ -756,24 +756,39 @@ def create_administrator():
 
     return redirect(url_for('admin_bp.account_security'))
 
+@admin_bp.route('/manage-course')
+def manage_course():
+    """
+    Pulls modules from the database for the Manage Course page.
+    """
+    connection = get_db_connection()
+    modules = []
+    total_modules = 0
+
+    if connection is not None:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM modules ORDER BY created_at DESC")
+            modules = cursor.fetchall()
+            total_modules = len(modules)
+            cursor.close()
+        except Error as e:
+            print(f"admin_routes: database error while loading modules: {e}")
+        finally:
+            if connection.is_connected():
+                connection.close()
+
+    return render_template(
+        'manage-course.html',
+        modules=modules,
+        total_modules=total_modules
+    )
+
 # ------------------------------------------------------------------
 # Task #19: Placeholder ("Under Construction") pages
 # ------------------------------------------------------------------
-# Append this block to the END of admin_routes.py (e.g. right after the
-# existing create_administrator() route). Nothing existing in that file
-# needs to change.
-#
-# Every sidebar item that isn't built yet gets a real route + page
-# instead of a dead "javascript:void(0);" link. All 8 share the exact
-# same template/component (admin-placeholder.html ->
-# components/under-construction.html) - only the title differs - so
-# there is no duplicated markup across routes.
 def render_placeholder(title):
     return render_template('admin-placeholder.html', title=title)
-
-@admin_bp.route('/manage-course')
-def manage_course():
-    return render_placeholder("Manage Course")
 
 
 @admin_bp.route('/learning-resources')
