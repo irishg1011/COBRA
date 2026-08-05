@@ -804,7 +804,7 @@ def learning_activities():
 
 @admin_bp.route('/coding-exercises')
 def coding_exercises():
-    return render_placeholder("Coding Exercises")
+    return render_template('coding-exercises.html')
 
 
 @admin_bp.route('/coding-sandbox')
