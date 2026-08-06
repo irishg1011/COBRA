@@ -3,11 +3,23 @@ from functools import wraps
 from datetime import datetime
 from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for
 from mysql.connector import Error
+from werkzeug.security import generate_password_hash  # NEW: reuses the exact same hashing scheme as the Learner Sign Up flow
 
 from cobradb import get_db_connection
 from account_status import refresh_inactive_accounts, get_account_status_counts  # NEW: shared, configurable Active/Inactive sweep + lean status-count aggregate
 from login_logs import get_todays_login_metrics  # NEW: today's login/success/fail counts for the Login Logs metric cards
 from password_reset_logs import get_password_resets_today_count  # NEW: today's password-reset count for the Login Logs metric cards
+from validators import (  # NEW: same validation rules used by login.py's Learner Sign Up route - never re-implemented here
+    validate_name_field,
+    validate_required,
+    validate_email_format,
+    validate_mobile_format,
+    validate_birthdate,
+    validate_password_strength,
+    validate_password_confirmation,
+    capitalize_name,
+)
+from id_generator import generate_prefixed_acc_id  # NEW: same sequential-ID generator login.py's signup uses, just with a different prefix
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -25,6 +37,23 @@ admin_bp = Blueprint(
 # resolve to login.html depending on where the Flask process is launched
 # from.
 LOGIN_REDIRECT_URL = "http://127.0.0.1:5500/templates/login.html"
+
+# ------------------------------------------------------------
+# Task: Create Administrator - table/prefix/u_type config
+# ------------------------------------------------------------
+ACCOUNT_TABLE = "account_tbl"
+PROFILE_TABLE = "profile_tbl"
+GENDER_TABLE = "gender_tbl"
+
+# Mirrors login.py's LEARNER_ID_PREFIX/LEARNER_ID_SEQ_DIGITS, just with
+# the "AD" prefix instead of "LR" - both go through the exact same
+# id_generator.generate_prefixed_acc_id() function.
+ADMIN_ID_PREFIX = "AD"
+ADMIN_ID_SEQ_DIGITS = 4
+
+# Matches usertype_tbl: 1 = Admin, 2 = Learner (see login.py's
+# ADMIN_U_TYPE/LEARNER_U_TYPE constants).
+ADMIN_U_TYPE = 1
 
 
 # ------------------------------------------------------------------
@@ -176,24 +205,85 @@ def get_current_admin():
             connection.close()
 
 
+def get_gender_options():
+    """
+    Task: Gender dropdown - "Populate the Gender dropdown dynamically
+    from the database" / "Do not hardcode gender values" / "Reuse the
+    existing lookup/reference data mechanism if available."
+
+    Reuses the SAME gender_tbl already queried by login.py's /genders
+    endpoint for the Learner Sign Up form, instead of a second lookup
+    mechanism. Returns [] (never raises) on any database error, so the
+    Create Administrator modal renders with an empty dropdown rather
+    than crashing the page.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return []
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(f"SELECT gender_id, gender FROM {GENDER_TABLE} ORDER BY gender_id ASC")
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
+    except Error as e:
+        print(f"admin_routes: failed to load gender options: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ------------------------------------------------------------
+# Task: Create Administrator - mobile number support
+# ------------------------------------------------------------
+# profile_tbl has no `mobile` column in the original schema. Rather than
+# requiring a separate manual migration step, this idempotently adds it
+# the same way password_reset_logs.py's _ensure_table() lazily creates
+# its own table - gated behind a module-level flag so it only actually
+# round-trips to the database once per running process.
+_mobile_column_ensured = False
+
+
+def _ensure_mobile_column(connection):
+    global _mobile_column_ensured
+    if _mobile_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        # MariaDB 10.4+ / MySQL 8.0.29+ support "ADD COLUMN IF NOT
+        # EXISTS" directly, avoiding the need to first inspect
+        # information_schema.
+        cursor.execute(
+            f"ALTER TABLE {PROFILE_TABLE} ADD COLUMN IF NOT EXISTS mobile VARCHAR(15) NULL"
+        )
+        connection.commit()
+        cursor.close()
+        _mobile_column_ensured = True
+    except Error as e:
+        print(f"admin_routes: failed to ensure {PROFILE_TABLE}.mobile column exists: {e}")
+
+
 @admin_bp.context_processor
 def inject_current_admin():
     """
-    Makes `current_admin` AND `greeting` available automatically to every
-    template rendered by an admin_bp route (Dashboard, Account & Security,
-    and any future admin page) without each route having to fetch/compute
-    and pass them individually.
+    Makes `current_admin`, `greeting`, AND `genders` available
+    automatically to every template rendered by an admin_bp route
+    (Dashboard, Account & Security, and any future admin page) without
+    each route having to fetch/compute and pass them individually.
 
     `greeting` is recomputed on every request (not cached), so it stays
-    correct as time passes across a long-lived session, and `current_admin`
+    correct as time passes across a long-lived session, `current_admin`
     is re-looked-up from the server-side session on every request, so the
-    displayed name always matches whichever admin is actually logged in -
-    switching accounts automatically shows the new admin's name with no
-    extra wiring needed on any individual page.
+    displayed name always matches whichever admin is actually logged in,
+    and `genders` backs the Create Administrator modal's dropdown on
+    every page that includes it (Account & Security, Login Logs) without
+    an extra AJAX round trip on modal open.
     """
     return {
         "current_admin": get_current_admin(),
         "greeting": get_greeting(),
+        "genders": get_gender_options(),
     }
 
 
@@ -819,36 +909,253 @@ def login_logs_metrics():
 @admin_bp.route('/create-administrator', methods=['POST'])
 def create_administrator():
     """
-    Handles the creation of a new administrator account from the modal form.
+    Task: Admin > Create Administrator modal backend.
+
+    Reuses the EXACT SAME validation rules as the Learner Sign Up flow
+    (see validators.py - imported by both login.py's /signup route and
+    this route) instead of re-implementing name/email/mobile/birthdate/
+    password rules a second time. The only meaningful differences from
+    Learner sign-up are:
+      - no OTP step (the Create Administrator modal has no OTP UI)
+      - the generated account ID uses the "AD" prefix instead of "LR"
+        (via the same id_generator.generate_prefixed_acc_id() function)
+      - u_type is hardcoded to ADMIN_U_TYPE (1) instead of Learner's 2
+
+    Returns JSON (not a redirect) so the modal's JS
+    (admin-create-admin.js) can show inline validation errors and
+    success feedback without a page reload, per the "display validation
+    messages dynamically" / "show success feedback" requirements.
     """
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+
+    # NOTE: acc_id is intentionally NEVER read from the request body -
+    # it is always generated server-side below (generate_prefixed_acc_id),
+    # exactly like login.py's /signup route. The modal's readonly acc_id
+    # field is a preview only; the client can never set or override it.
+    first_name = (data.get('first_name') or '').strip()
+    middle_name = (data.get('middle_name') or '').strip()  # optional - no dedicated modal field yet; validated if present
+    last_name = (data.get('last_name') or '').strip()
+    suffix = (data.get('suffix') or '').strip()             # optional - same as above
+    birthdate = (data.get('birthdate') or '').strip()
+    gender = (data.get('gender') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    mobile = (data.get('mobile') or '').strip()
+    username = (data.get('username') or '').strip().lower()
+    password = (data.get('password') or '').strip()
+    confirm_password = (data.get('confirm_password') or '').strip()
+
+    # ------------------------------------------------------------
+    # Server-side validation (Task: "Validate all user input on the
+    # server, even if client-side validation exists") - reuses
+    # validators.py exclusively, never a second copy of these rules.
+    # ------------------------------------------------------------
+    errors = {}
+
+    ok, msg = validate_name_field(first_name, "First name")
+    if not ok:
+        errors['first_name'] = msg
+
+    ok, msg = validate_name_field(middle_name, "Middle name", required=False)
+    if not ok:
+        errors['middle_name'] = msg
+
+    ok, msg = validate_name_field(last_name, "Last name")
+    if not ok:
+        errors['last_name'] = msg
+
+    ok, msg = validate_name_field(suffix, "Suffix", required=False)
+    if not ok:
+        errors['suffix'] = msg
+
+    ok, msg = validate_email_format(email)
+    if not ok:
+        errors['email'] = msg
+
+    ok, msg = validate_mobile_format(mobile)
+    if not ok:
+        errors['mobile'] = msg
+
+    ok, msg = validate_birthdate(birthdate)
+    if not ok:
+        errors['birthdate'] = msg
+
+    ok, msg = validate_required(gender, "Gender")
+    if not ok:
+        errors['gender'] = msg
+
+    ok, msg = validate_required(username, "Username")
+    if ok and len(username) > 15:
+        ok, msg = False, "Username must be 15 characters or fewer."
+    if not ok:
+        errors['username'] = msg
+
+    ok, msg = validate_password_strength(password)
+    if not ok:
+        errors['password'] = msg
+
+    ok, msg = validate_password_confirmation(password, confirm_password)
+    if not ok:
+        errors['confirm_password'] = msg
+
+    # Task: "Do not allow account creation until every validation
+    # passes successfully."
+    if errors:
+        return jsonify({
+            "success": False,
+            "errors": errors,
+            "message": "Please fix the highlighted fields.",
+        }), 400
+
     connection = get_db_connection()
     if connection is None:
-        return redirect(url_for('admin_bp.account_security'))
+        return jsonify({"success": False, "message": "Could not connect to the database."}), 500
 
     try:
-        username = request.form.get('username')
-        password = request.form.get('password')
-        email = request.form.get('email')
-        mobile = request.form.get('mobile')
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
-        birthdate = request.form.get('birthdate')
-        gender = request.form.get('gender')
-
+        _ensure_mobile_column(connection)
         cursor = connection.cursor()
 
-        # Insert your logic here to save the account and profile details securely
-        # e.g., hashing password, generating account ID, etc.
+        # ------------------------------------------------------------
+        # Task: Prevent duplicate usernames / emails / mobile numbers.
+        # Re-checked here even though admin-create-admin.js already
+        # does live checks, since client-side checks are never trusted
+        # on their own (Task: "Sanitize and validate all incoming data").
+        # ------------------------------------------------------------
+        cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE username = %s", (username,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "errors": {"username": "This username is already taken."},
+                "message": "This username is already taken.",
+            }), 409
+
+        cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE email = %s", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "errors": {"email": "An account with this email already exists."},
+                "message": "An account with this email already exists.",
+            }), 409
+
+        cursor.execute(f"SELECT acc_id FROM {PROFILE_TABLE} WHERE mobile = %s", (mobile,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "errors": {"mobile": "This mobile number is already registered."},
+                "message": "This mobile number is already registered.",
+            }), 409
+
+        # ------------------------------------------------------------
+        # Task: Account creation - reuses the SAME ID-generation
+        # (id_generator.generate_prefixed_acc_id, prefix "AD") and
+        # password-hashing (werkzeug's generate_password_hash, same
+        # call login.py's /signup route makes) as Learner Sign Up.
+        # ------------------------------------------------------------
+        hashed_password = generate_password_hash(password)
+        new_acc_id = generate_prefixed_acc_id(cursor, ADMIN_ID_PREFIX, ADMIN_ID_SEQ_DIGITS)
+
+        cursor.execute(
+            f"""INSERT INTO {ACCOUNT_TABLE} (
+                    acc_id, email, username, password, u_type,
+                    status, created_at, last_login,
+                    failed_attempts, lockout_until, is_deleted
+                ) VALUES (
+                    %s, %s, %s, %s, %s,
+                    'Active', NOW(), NULL,
+                    0, NULL, 0
+                )""",
+            (new_acc_id, email, username, hashed_password, ADMIN_U_TYPE)
+        )
+
+        # Task: "Automatically capitalize all name fields using the
+        # existing capitalization logic" - reuses
+        # validators.capitalize_name(), the same rule script.js applies
+        # live on First/Last Name while typing.
+        cursor.execute(
+            f"""INSERT INTO {PROFILE_TABLE} (acc_id, firstname, lastname, gender, birthdate, mobile)
+                VALUES (%s, %s, %s, %s, %s, %s)""",
+            (
+                new_acc_id,
+                capitalize_name(first_name),
+                capitalize_name(last_name),
+                gender,
+                birthdate,
+                mobile,
+            )
+        )
 
         connection.commit()
         cursor.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Administrator account created successfully.",
+            "acc_id": new_acc_id,
+        }), 201
+
     except Error as e:
+        connection.rollback()
         print(f"admin_routes: failed to create administrator: {e}")
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
     finally:
         if connection.is_connected():
             connection.close()
 
-    return redirect(url_for('admin_bp.account_security'))
+
+# ============================================================
+# ROUTE: LIVE FIELD AVAILABILITY CHECK (Create Administrator modal)
+# ============================================================
+@admin_bp.route('/accounts/check-availability')
+def check_account_field_availability():
+    """
+    Backs admin-create-admin.js's live duplicate checks (Task:
+    "Prevent duplicate usernames/emails/mobile numbers" + "Display
+    validation messages dynamically without refreshing the page").
+    Checks ONE field at a time so the frontend can fire this on
+    blur/debounced-input without needing the rest of the form filled
+    in yet - this is a UX convenience only; create_administrator()
+    above re-validates uniqueness itself before ever inserting a row,
+    so this endpoint being skipped or spoofed can't bypass anything.
+
+    Query params:
+      field - "username", "email", or "mobile"
+      value - the current value of that field
+
+    Returns JSON: { "success": bool, "available": bool }
+    """
+    field = (request.args.get('field') or '').strip().lower()
+    value = (request.args.get('value') or '').strip()
+
+    if field not in ("username", "email", "mobile") or not value:
+        return jsonify({"success": False, "message": "Invalid field or value."}), 400
+
+    if field == "email":
+        value = value.lower()
+    if field == "username":
+        value = value.lower()
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to the database."}), 500
+
+    try:
+        cursor = connection.cursor()
+        if field == "mobile":
+            _ensure_mobile_column(connection)
+            cursor.execute(f"SELECT acc_id FROM {PROFILE_TABLE} WHERE mobile = %s", (value,))
+        else:
+            cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE {field} = %s", (value,))
+        taken = cursor.fetchone() is not None
+        cursor.close()
+        return jsonify({"success": True, "available": not taken}), 200
+    except Error as e:
+        print(f"admin_routes: availability check failed: {e}")
+        return jsonify({"success": False, "message": "Could not check availability."}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
 
 @admin_bp.route('/manage-course')
 def manage_course():

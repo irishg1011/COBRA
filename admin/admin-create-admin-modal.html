@@ -21,7 +21,11 @@
                         <span class="form-section-label">Account ID (Auto-Generated)</span>
                         <div class="form-group">
                             <label for="admin_acc_id">Account ID</label>
-                            <input type="text" id="admin_acc_id" name="acc_id" value="AD2607290001" readonly class="input-readonly">
+                            <!-- Preview only - the backend always generates the
+                                 real, authoritative ID server-side (see
+                                 admin_routes.py: create_administrator());
+                                 whatever is typed/left here is never read. -->
+                            <input type="text" id="admin_acc_id" name="acc_id" value="Auto-generated on submit" readonly class="input-readonly">
                         </div>
                     </div>
 
@@ -70,11 +74,16 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="admin_gender">Gender</label>
+                                <!-- Task: Gender dropdown populated dynamically from
+                                     gender_tbl (see admin_routes.py:
+                                     get_gender_options(), injected into every admin
+                                     template via inject_current_admin()) - never
+                                     hardcoded. -->
                                 <select id="admin_gender" name="gender" class="custom-select" required>
                                     <option value="" disabled selected>Enter gender</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
+                                    {% for g in genders %}
+                                    <option value="{{ g.gender }}">{{ g.gender }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="form-group">
@@ -94,5 +103,35 @@
             </div>
 
         </form>
+    </div>
+</div>
+
+<!--
+    Reusable Create Administrator status modal (Task: "Create Administrator -
+    Modal UI States"). ONE modal, four visual states depending on what
+    admin-create-admin-modal.js fills in at runtime:
+
+        1. Email Already In Use
+        2. Username Already Taken
+        3. Mobile Number Already Registered
+        4. Administrator Created Successfully
+
+    Design notes (mirrors the Logout Confirmation modal's markup/size/
+    spacing exactly, per spec):
+      - Sits ABOVE the Create Administrator modal (see admin-style.css:
+        .status-modal-overlay's z-index).
+      - No outside-click / ESC close - the OK/Done button
+        (#statusModalBtn) is the ONLY way to dismiss it.
+      - Icon, title, message, and button color/label are all set
+        dynamically in JS via showStatusModal() - nothing hardcoded here.
+-->
+<div id="createAdminStatusModal" class="modal-overlay modal-hidden status-modal-overlay">
+    <div class="modal-card modal-card-confirm">
+        <div class="modal-confirm-icon" id="statusModalIconWrapper"></div>
+        <h3 class="modal-confirm-title" id="statusModalTitle"></h3>
+        <p class="modal-confirm-text" id="statusModalText"></p>
+        <div class="modal-confirm-actions">
+            <button id="statusModalBtn" class="modal-btn-danger">OK</button>
+        </div>
     </div>
 </div>

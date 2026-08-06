@@ -1314,3 +1314,38 @@ body {
     cursor: pointer;
     font-size: 14px;
 }
+/* ==========================================================================
+   CREATE ADMINISTRATOR - STATUS MODAL (duplicate errors + success)
+   Backs #createAdminStatusModal in admin-create-admin-modal.html, driven
+   dynamically by admin-create-admin-modal.js's showStatusModal(). Reuses
+   the exact same .modal-card-confirm / .modal-confirm-* classes already
+   defined above for the Logout Confirmation modal, so size, spacing, and
+   animation stay identical - only the icon color and button color/label
+   change between the error states and the success state.
+   ========================================================================== */
+
+/* Sits ABOVE the Create Administrator modal (that one is z-index 2000) */
+.status-modal-overlay {
+    z-index: 2100;
+}
+
+/* Success state: green icon instead of the default red error icon */
+.modal-confirm-icon.icon-success {
+    color: #16a34a;
+}
+
+/* Success state: green "Done" button instead of the red "OK" button */
+.modal-btn-success {
+    padding: 10px 20px;
+    border: none;
+    background: #16a34a;
+    color: white;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.modal-btn-success:hover {
+    background: #15803d;
+}

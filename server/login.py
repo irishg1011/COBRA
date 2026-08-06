@@ -18,6 +18,8 @@ from login_logs import log_login_attempt  # NEW: reusable login attempt logger
 from password_reset_logs import log_password_reset  # NEW: reusable password-reset activity logger
 from admin_routes import admin_bp  # NEW: import admin blueprint
 from account_status import refresh_inactive_accounts, is_account_inactive  # NEW: shared, configurable Active/Inactive logic
+from validators import PASSWORD_REGEX, calculate_age, MIN_SIGNUP_AGE, MAX_SIGNUP_AGE  # NEW: shared validation rules (also reused by admin_routes.py's Create Administrator flow)
+from id_generator import generate_prefixed_acc_id  # NEW: shared account-ID generator (also reused by admin_routes.py)
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
@@ -52,8 +54,8 @@ ACCOUNT_TABLE = "account_tbl"
 PROFILE_TABLE = "profile_tbl"
 GENDER_TABLE = "gender_tbl"
 DEFAULT_U_TYPE = 2  # 2 = Learner
-MIN_SIGNUP_AGE = 13
-MAX_SIGNUP_AGE = 60
+# MIN_SIGNUP_AGE / MAX_SIGNUP_AGE now live in validators.py (imported
+# above) so this file and admin_routes.py can never drift out of sync.
 
 # ------------------------------------------------------------
 # ROLE / USERTYPE CONFIG (matches usertype_tbl: 1 = Admin, 2 = Learner)
@@ -81,8 +83,9 @@ LEARNER_ID_SEQ_DIGITS = 4  # 0001, 0002, ... 9999 per day
 # Temporary in-memory OTP storage with timestamp expiration: { "key": {"otp": "123456", "expires_at": 1234567890.0} }
 otp_storage = {}
 
-# Reusable robust password strength regex validator
-PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_,.?\":{}|<>]).{8,}$")
+# PASSWORD_REGEX now lives in validators.py (imported above) - shared
+# with admin_routes.py's Create Administrator flow instead of being
+# redefined here.
 
 
 def get_db_connection():
@@ -129,48 +132,19 @@ def generate_acc_id(cursor):
         reserved for it is never actually consumed - the next successful
         signup will generate that same sequence number instead of
         skipping it.
+
+    NOTE: the actual sequential-ID logic now lives in id_generator.py's
+    generate_prefixed_acc_id() (imported above), shared with
+    admin_routes.py's Create Administrator flow (which calls the same
+    function with prefix "AD" instead of "LR"). This wrapper is kept so
+    every existing call site in this file doesn't need to change.
     """
-    today_prefix = f"{LEARNER_ID_PREFIX}{datetime.now().strftime('%y%m%d')}"
-
-    # Lock the most recent ID for today's prefix (if any) so no other
-    # concurrent transaction can read/generate against it until we're done.
-    cursor.execute(
-        f"""SELECT acc_id FROM {ACCOUNT_TABLE}
-            WHERE acc_id LIKE %s
-            ORDER BY acc_id DESC
-            LIMIT 1
-            FOR UPDATE""",
-        (f"{today_prefix}%",)
-    )
-    row = cursor.fetchone()
-
-    if row:
-        last_seq = int(row[0][-LEARNER_ID_SEQ_DIGITS:])
-        next_seq = last_seq + 1
-    else:
-        next_seq = 1
-
-    return f"{today_prefix}{next_seq:0{LEARNER_ID_SEQ_DIGITS}d}"
+    return generate_prefixed_acc_id(cursor, LEARNER_ID_PREFIX, LEARNER_ID_SEQ_DIGITS)
 
 
-def calculate_age(birthdate_str):
-    """
-    Parses a birthdate string (expected format: YYYY-MM-DD, which is what
-    HTML <input type="date"> sends) and returns the user's current age
-    in whole years. Returns None if the date is missing or malformed.
-    """
-    if not birthdate_str:
-        return None
-    try:
-        birth_date = datetime.strptime(birthdate_str, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-    today = datetime.now().date()
-    age = today.year - birth_date.year - (
-        (today.month, today.day) < (birth_date.month, birth_date.day)
-    )
-    return age
+# calculate_age() now lives in validators.py (imported above) - shared
+# with admin_routes.py's Create Administrator flow instead of being
+# redefined here.
 
 # ============================================================
 # ROUTE: SEND SIGNUP OTP

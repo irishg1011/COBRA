@@ -40,6 +40,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const openModalBtn = document.getElementById("openCreateAdminBtn"); // Using the exact ID now
     const closeModalBtn = document.getElementById("closeCreateAdminModal");
 
+    // ------------------------------------------------------------
+    // Task: "If click outside the panel there's a notice if you want to
+    // close, else the data that have been input will erase."
+    // ------------------------------------------------------------
+    // admin-create-admin.js defines window.cobraByteAttemptCloseCreateAdminModal,
+    // which checks whether any field has been filled in and, if so, asks
+    // for confirmation before resetting the form and hiding the modal -
+    // exactly like the Sign Up page's confirmViewSwitch()/
+    // activePanelHasInputs() pattern. Both close triggers below (the X
+    // button and clicking the overlay) go through that SAME function so
+    // there's only one place this "unsaved changes" check lives. If that
+    // script hasn't loaded for some reason, fall back to closing the
+    // modal directly rather than leaving the button dead.
+    function closeCreateAdminModal() {
+        if (typeof window.cobraByteAttemptCloseCreateAdminModal === "function") {
+            window.cobraByteAttemptCloseCreateAdminModal();
+        } else if (createAdminModal) {
+            createAdminModal.style.display = "none";
+        }
+    }
+
     if (openModalBtn && createAdminModal) {
         openModalBtn.addEventListener("click", (e) => {
             e.preventDefault();
@@ -49,14 +70,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (closeModalBtn && createAdminModal) {
         closeModalBtn.addEventListener("click", () => {
-            createAdminModal.style.display = "none";
+            closeCreateAdminModal();
         });
     }
 
     // Close when clicking outside the modal card
     window.addEventListener("click", (e) => {
         if (e.target === createAdminModal) {
-            createAdminModal.style.display = "none";
+            closeCreateAdminModal();
         }
     });
 });
