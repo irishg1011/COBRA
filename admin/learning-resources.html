@@ -76,7 +76,7 @@
                             {% for resource in resources %}
                             <tr>
                                 <td>
-                                    <strong style="display: block; color: #111; font-size: 13px;">{{ resource.title }}</strong>
+                                    <strong class="table-item-title">{{ resource.title }}</strong>
                                     <small class="text-muted">{{ resource.description }}</small>
                                 </td>
                                 <td>
@@ -93,15 +93,15 @@
                                 <td class="text-muted">{{ resource.size }}</td>
                                 <td class="text-muted">{{ resource.uploaded_at }}</td>
                                 <td class="text-right">
-                                    <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+                                    <div class="table-actions-group">
                                         <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <a href="#" title="Delete" class="table-action-icon" style="color: #ef4444;"><i class="fa-solid fa-trash"></i></a>
+                                        <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
                                     </div>
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                <td colspan="5" class="text-muted table-empty-message">
                                     No resources found.
                                 </td>
                             </tr>

@@ -76,7 +76,7 @@
                             {% for module in modules %}
                             <tr>
                                 <td>
-                                    <strong style="display: block; color: #111; font-size: 13px;">{{ module.title }}</strong>
+                                    <strong class="table-item-title">{{ module.title }}</strong>
                                     <small class="text-muted">{{ module.description }}</small>
                                 </td>
                                 <td class="text-muted">{{ module.category }}</td>
@@ -84,7 +84,7 @@
                                     {% if module.status == 'Published' %}
                                     <span class="badge badge-success-log">Published</span>
                                     {% elif module.status == 'Draft' %}
-                                    <span class="badge badge-inactive" style="background: #fef3c7; color: #d97706;">Draft</span>
+                                    <span class="badge badge-draft">Draft</span>
                                     {% else %}
                                     <span class="badge badge-inactive">Archived</span>
                                     {% endif %}
@@ -92,16 +92,16 @@
                                 <td class="text-muted">{{ module.created_at }}</td>
                                 <td class="text-muted">{{ module.updated_at }}</td>
                                 <td class="text-right">
-                                    <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+                                    <div class="table-actions-group">
                                         <a href="#" title="View" class="table-action-icon"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                                         <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <a href="#" title="Delete" class="table-action-icon" style="color: #ef4444;"><i class="fa-solid fa-trash"></i></a>
+                                        <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
                                     </div>
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                <td colspan="6" class="text-muted table-empty-message">
                                     No modules found.
                                 </td>
                             </tr>

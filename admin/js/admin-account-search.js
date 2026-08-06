@@ -60,7 +60,7 @@
                 // Task #17, Requirement #9: centered empty-state row.
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-muted" style="text-align:center; padding: 30px 0;">
+                        <td colspan="8" class="text-muted table-empty-message">
                             No accounts found.
                         </td>
                     </tr>`;
@@ -137,7 +137,7 @@
                 } else {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="8" class="text-muted" style="text-align:center; padding: 30px 0;">
+                            <td colspan="8" class="text-muted table-empty-message">
                                 Could not load accounts. Please try again.
                             </td>
                         </tr>`;
@@ -146,7 +146,7 @@
                 if (requestId !== activeRequestId) return;
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-muted" style="text-align:center; padding: 30px 0;">
+                        <td colspan="8" class="text-muted table-empty-message">
                             Could not reach the server.
                         </td>
                     </tr>`;

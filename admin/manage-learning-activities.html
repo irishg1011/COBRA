@@ -79,7 +79,7 @@
                                 <td class="text-muted">{{ activity.module }}</td>
                                 <td class="text-muted">{{ activity.lesson }}</td>
                                 <td>
-                                    <strong style="display: block; color: #111; font-size: 13px;">{{ activity.activity_name }}</strong>
+                                    <strong class="table-item-title">{{ activity.activity_name }}</strong>
                                 </td>
                                 <td>
                                     {% if activity.activity_type == 'Multiple Choice' %}
@@ -91,17 +91,17 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-right">
-                                    <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+                                    <div class="table-actions-group">
                                         <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <form action="{{ url_for('admin_bp.delete_activity', activity_id=activity.activity_id) }}" method="POST" style="display:inline;">
-                                            <button type="submit" title="Delete" class="table-action-icon" style="background:none; border:none; cursor:pointer; color: #ef4444;"><i class="fa-solid fa-trash"></i></button>
+                                        <form action="{{ url_for('admin_bp.delete_activity', activity_id=activity.activity_id) }}" method="POST" class="inline-form">
+                                            <button type="submit" title="Delete" class="table-action-icon delete-action icon-button-reset"><i class="fa-solid fa-trash"></i></button>
                                         </form>
                                     </div>
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                <td colspan="6" class="text-muted table-empty-message">
                                     No learning activities found.
                                 </td>
                             </tr>

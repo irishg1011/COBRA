@@ -34,7 +34,7 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.account_security') }}" class="btn btn-primary-custom" style="text-decoration: none;">
+                            <a href="{{ url_for('admin_bp.account_security') }}" class="btn btn-primary-custom">
                                 <i class="fa-solid fa-arrow-left"></i> Previous
                             </a>
                             <button id="openCreateAdminBtn" class="btn btn-success-custom">
@@ -164,7 +164,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                <td colspan="6" class="text-muted table-empty-message">
                                     No login logs found.
                                 </td>
                             </tr>

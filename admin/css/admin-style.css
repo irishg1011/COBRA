@@ -1181,3 +1181,136 @@ body {
     background: #fee2e2;
     color: #ef4444;
 }
+
+/* ==========================================================================
+   REFACTORED INLINE STYLES -> REUSABLE CLASSES
+   (Consolidates every style="" attribute previously scattered across the
+   Admin HTML/JS files into named, reusable classes.)
+   ========================================================================== */
+
+/* Generic helpers */
+.modal-hidden {
+    display: none;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.icon-button-reset {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+/* Table empty-state row message (used by initial Jinja render AND the
+   live-search JS renderers in admin-account-search.js / admin-login-logs.js) */
+.table-empty-message {
+    text-align: center;
+    padding: 30px 0;
+}
+
+/* Table row primary title (resource / module / activity name) */
+.table-item-title {
+    display: block;
+    color: #111;
+    font-size: 13px;
+}
+
+/* Right-aligned row action icon group (Edit/Delete icons) */
+.table-actions-group {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+/* Destructive action color modifier for table-action-icon links/buttons */
+.delete-action {
+    color: #ef4444;
+}
+
+/* Draft status badge (Manage Course table) */
+.badge-draft {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+/* Dashboard progress-bar percentage modifiers (admin_dashboard.html) */
+.progress-fill.pct-9 { width: 9%; }
+.progress-fill.pct-22 { width: 22%; }
+.progress-fill.pct-35 { width: 35%; }
+.progress-fill.pct-52 { width: 52%; }
+.progress-fill.pct-62 { width: 62%; }
+.progress-fill.pct-65 { width: 65%; }
+.progress-fill.pct-66 { width: 66%; }
+.progress-fill.pct-78 { width: 78%; }
+.progress-fill.pct-99-8 { width: 99.8%; }
+
+/* ==========================================================================
+   LOGOUT CONFIRMATION MODAL (admin-sidebar.html: #adminLogoutModal)
+   ========================================================================== */
+.modal-card-confirm {
+    background: white;
+    padding: 28px 24px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    font-family: 'Inter', sans-serif;
+}
+
+.modal-confirm-icon {
+    margin-bottom: 16px;
+    color: #e02424;
+    display: flex;
+    justify-content: center;
+}
+
+.modal-confirm-icon-svg {
+    width: 44px;
+    height: 44px;
+}
+
+.modal-confirm-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #111827;
+}
+
+.modal-confirm-text {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.modal-confirm-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.modal-btn-cancel {
+    padding: 10px 20px;
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #374151;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.modal-btn-danger {
+    padding: 10px 20px;
+    border: none;
+    background: #e02424;
+    color: white;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}

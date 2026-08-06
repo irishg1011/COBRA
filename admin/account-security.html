@@ -34,7 +34,7 @@
                             <small id="current-date"></small>
                         </div>
                        <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.login_logs') }}" class="btn btn-primary-custom" style="text-decoration: none;">
+                            <a href="{{ url_for('admin_bp.login_logs') }}" class="btn btn-primary-custom">
                                 <i class="fa-solid fa-clock-rotate-left"></i> Login Logs
                             </a>
                             <button id="openCreateAdminBtn" class="btn btn-success-custom">
@@ -177,7 +177,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="8" class="text-muted" style="text-align:center; padding: 30px 0;">
+                                <td colspan="8" class="text-muted table-empty-message">
                                     No accounts found (or the database is unreachable).
                                 </td>
                             </tr>

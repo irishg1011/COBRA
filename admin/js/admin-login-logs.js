@@ -69,7 +69,7 @@
                 // centered, no placeholder rows.
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                        <td colspan="6" class="text-muted table-empty-message">
                             No login logs found.
                         </td>
                     </tr>`;
@@ -133,7 +133,7 @@
                     console.error("admin-login-logs: backend reported failure:", result.message);
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                            <td colspan="6" class="text-muted table-empty-message">
                                 Could not load login logs. Please try again.
                             </td>
                         </tr>`;
@@ -143,7 +143,7 @@
                 console.error("admin-login-logs: request failed:", err);
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                        <td colspan="6" class="text-muted table-empty-message">
                             Could not reach the server.
                         </td>
                     </tr>`;
