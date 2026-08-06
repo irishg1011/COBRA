@@ -19,31 +19,6 @@
  * Included on every admin page that also includes the modal
  * (account-security.html, login-logs.html). Safe to include everywhere
  * else too - it no-ops if #createAdminForm isn't present on the page.
- *
- * UPDATE: "Create Administrator - Modal UI States"
- * ---------------------------------------------------------------------
- * The backend's 409 duplicate responses (email/username/mobile already
- * taken) and the 201 success response now ALSO pop up the dedicated
- * #createAdminStatusModal (see admin-create-admin-modal.html) instead of
- * only showing the inline field error + top banner. That status modal is
- * a single reusable component with four visual states:
- *
- *      1. Email Already In Use
- *      2. Username Already Taken
- *      3. Mobile Number Already Registered
- *      4. Administrator Created Successfully
- *
- * Behavior, per spec:
- *   - Error states: OK button just closes the status modal - the Create
- *     Administrator modal stays open underneath with the form data intact
- *     (nothing submitted successfully yet).
- *   - Success state: Done button closes the status modal AND the Create
- *     Administrator modal, resets the form, and refreshes the
- *     administrator/account list (Account & Security table) if present
- *     on the current page.
- *   - No outside-click / ESC dismissal on the status modal - the
- *     OK/Done button is the only way out, matching the Logout
- *     Confirmation modal's existing behavior.
  */
 (function () {
     "use strict";
@@ -76,6 +51,34 @@
         const submitBtn = form.querySelector('button[type="submit"]');
         const createAdminModal = document.getElementById("createAdminModal");
         const modalHeaderSection = document.querySelector("#createAdminModal .modal-header-section");
+
+        // ------------------------------------------------------------
+        // Live "next Account ID" preview - replaces the static
+        // "Auto-generated on submit" placeholder with what the real ID
+        // will actually look like (e.g. "AD2608060004"), fetched from
+        // admin_routes.py's read-only /admin/accounts/next-id endpoint.
+        // Purely cosmetic: the real ID is still only ever generated
+        // server-side, inside create_administrator()'s own transaction.
+        // ------------------------------------------------------------
+        const accIdPreviewInput = document.getElementById("admin_acc_id");
+        const ACC_ID_PLACEHOLDER = "Auto-generated on submit";
+
+        async function loadNextAdminId() {
+            if (!accIdPreviewInput) return;
+            accIdPreviewInput.value = "Loading...";
+            try {
+                const response = await fetch("/admin/accounts/next-id", { credentials: "include" });
+                const result = await response.json();
+                accIdPreviewInput.value = result.success ? result.next_id : ACC_ID_PLACEHOLDER;
+            } catch (err) {
+                accIdPreviewInput.value = ACC_ID_PLACEHOLDER;
+            }
+        }
+
+        // Exposed globally so admin-script.js's "open modal" click handler
+        // can trigger a fresh preview every time the modal is opened,
+        // instead of duplicating the fetch logic there.
+        window.cobraByteLoadNextAdminId = loadNextAdminId;
 
         // ------------------------------------------------------------
         // Top-of-panel banner - same purpose as the Sign Up page's
@@ -268,84 +271,6 @@
         }
 
         // ------------------------------------------------------------
-        // Task: "Create Administrator - Modal UI States"
-        // ------------------------------------------------------------
-        // Single reusable status modal (#createAdminStatusModal in
-        // admin-create-admin-modal.html), driven entirely by
-        // showStatusModal() below. Sits ABOVE the Create Administrator
-        // modal (see admin-style.css: .status-modal-overlay z-index), and
-        // - like the Logout Confirmation modal it mirrors - has no
-        // outside-click / ESC dismissal; the OK/Done button is the only
-        // way out.
-        const ERROR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="modal-confirm-icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>`;
-
-        const SUCCESS_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="modal-confirm-icon-svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-
-        const statusModal = document.getElementById("createAdminStatusModal");
-        const statusModalIconWrapper = document.getElementById("statusModalIconWrapper");
-        const statusModalTitle = document.getElementById("statusModalTitle");
-        const statusModalText = document.getElementById("statusModalText");
-        const statusModalBtn = document.getElementById("statusModalBtn");
-
-        // Refreshes the Account & Security table after a successful
-        // creation, by reusing admin-account-search.js's existing live
-        // search listener (dispatching an "input" event on its search
-        // box) instead of duplicating its fetch/render logic here.
-        // No-ops on pages without that table (e.g. login-logs.html).
-        function refreshAdminList() {
-            const searchInput = document.getElementById("accountSearchInput");
-            if (searchInput) searchInput.dispatchEvent(new Event("input"));
-        }
-
-        function showStatusModal({ title, message, isSuccess }) {
-            if (!statusModal) return;
-
-            statusModalTitle.textContent = title;
-            statusModalText.textContent = message;
-
-            if (isSuccess) {
-                statusModalIconWrapper.classList.add("icon-success");
-                statusModalIconWrapper.innerHTML = SUCCESS_ICON_SVG;
-                statusModalBtn.textContent = "Done";
-                statusModalBtn.classList.remove("modal-btn-danger");
-                statusModalBtn.classList.add("modal-btn-success");
-                statusModalBtn.dataset.mode = "success";
-            } else {
-                statusModalIconWrapper.classList.remove("icon-success");
-                statusModalIconWrapper.innerHTML = ERROR_ICON_SVG;
-                statusModalBtn.textContent = "OK";
-                statusModalBtn.classList.remove("modal-btn-success");
-                statusModalBtn.classList.add("modal-btn-danger");
-                statusModalBtn.dataset.mode = "error";
-            }
-
-            statusModal.style.display = "flex";
-        }
-
-        if (statusModalBtn) {
-            statusModalBtn.addEventListener("click", () => {
-                if (statusModal) statusModal.style.display = "none";
-
-                if (statusModalBtn.dataset.mode === "success") {
-                    // Success: close everything, reset the form, and
-                    // refresh the table - matches Requirement:
-                    // "Success modal closes the Create Administrator
-                    // modal and refreshes the administrator list."
-                    form.reset();
-                    clearAllErrors();
-                    clearFormMessage();
-                    if (createAdminModal) createAdminModal.style.display = "none";
-                    refreshAdminList();
-                }
-                // Error mode: just close the status modal - the Create
-                // Administrator modal stays open underneath with the
-                // form data intact, per Requirement: "Error modals
-                // prevent form submission and keep the Create
-                // Administrator modal open."
-            });
-        }
-
-        // ------------------------------------------------------------
         // Submission
         // ------------------------------------------------------------
         let submitting = false; // Task: "Prevent duplicate submissions"
@@ -387,11 +312,21 @@
                 hasError = true;
             }
 
-            // Task: "Prevent form submission while any validation error exists"
-            if (hasError) {
-                showFormMessage("Please fix the highlighted fields.");
-                return;
-            }
+            // NOTE: this used to `return` here on any client-side error
+            // (password strength, password match, required fields,
+            // mobile/email format) - which meant the backend was never
+            // even called, so the admin had to fix those, resubmit, and
+            // only THEN find out separately that the username/email/
+            // mobile were duplicates.
+            //
+            // The backend now re-validates format AND checks duplicates
+            // together in one pass, returning every error at once (see
+            // admin_routes.py: create_administrator()). So instead of
+            // stopping here, submission always proceeds: the client-side
+            // errors already shown above stay visible, and the merge
+            // below (result.errors) adds anything else the server finds
+            // - duplicates, or anything client-side missed - onto the
+            // same fields. `hasError` itself no longer gates submission.
 
             submitting = true;
             if (submitBtn) {
@@ -411,15 +346,15 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // Task: "Administrator Created Successfully" state.
-                    // Form reset/close + list refresh happens on Done
-                    // click (see statusModalBtn handler above), not here -
-                    // per spec, the success modal is what closes things.
-                    showStatusModal({
-                        title: "Administrator Created",
-                        message: "The administrator account has been created successfully.",
-                        isSuccess: true,
-                    });
+                    // Task: "Show success feedback after a successful account creation"
+                    showFormMessage(result.message || "Administrator account created successfully.", false);
+                    // Task: "Clear the form only after the account has been successfully saved"
+                    setTimeout(() => {
+                        form.reset();
+                        clearAllErrors();
+                        clearFormMessage();
+                        if (createAdminModal) createAdminModal.style.display = "none";
+                    }, 1200);
                 } else if (result.errors && Object.keys(result.errors).length) {
                     // Task: "Display validation messages dynamically without
                     // refreshing the page" - every error (including a 409
@@ -439,35 +374,7 @@
                     Object.entries(result.errors).forEach(([key, msg]) => {
                         if (inputMap[key]) showFieldError(inputMap[key], msg);
                     });
-
-                    // admin_routes.py's create_administrator() only ever
-                    // returns ONE of these three keys on a 409 duplicate
-                    // response - show the matching popup state instead of
-                    // just the inline field error + banner.
-                    if (result.errors.email && /already/i.test(result.errors.email)) {
-                        showStatusModal({
-                            title: "Email Already In Use",
-                            message: "The email address you entered is already registered. Please use a different email address.",
-                            isSuccess: false,
-                        });
-                    } else if (result.errors.username && /already/i.test(result.errors.username)) {
-                        showStatusModal({
-                            title: "Username Already Taken",
-                            message: "The username you entered is already in use. Please choose another username.",
-                            isSuccess: false,
-                        });
-                    } else if (result.errors.mobile && /already/i.test(result.errors.mobile)) {
-                        showStatusModal({
-                            title: "Mobile Number Already Registered",
-                            message: "The mobile number you entered is already associated with another account.",
-                            isSuccess: false,
-                        });
-                    } else {
-                        // Plain format/required-field validation errors
-                        // (HTTP 400) - keep the existing inline banner only,
-                        // no popup needed for these.
-                        showFormMessage(result.message || "Please fix the highlighted fields.");
-                    }
+                    showFormMessage(result.message || "Please fix the highlighted fields.");
                 } else {
                     showFormMessage(result.message || "Could not create the account.");
                 }

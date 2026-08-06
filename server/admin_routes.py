@@ -997,14 +997,14 @@ def create_administrator():
     if not ok:
         errors['confirm_password'] = msg
 
-    # Task: "Do not allow account creation until every validation
-    # passes successfully."
-    if errors:
-        return jsonify({
-            "success": False,
-            "errors": errors,
-            "message": "Please fix the highlighted fields.",
-        }), 400
+    # NOTE: format validation above (name/email/mobile/birthdate/gender/
+    # username/password/confirm) intentionally does NOT return here.
+    # Format errors and duplicate-username/email/mobile errors are
+    # merged into ONE `errors` dict and returned together in a single
+    # response below - so a single submission surfaces every problem
+    # at once, instead of the admin fixing a password error, resubmitting,
+    # and only THEN discovering the username/email/mobile were also
+    # taken.
 
     connection = get_db_connection()
     if connection is None:
@@ -1019,33 +1019,44 @@ def create_administrator():
         # Re-checked here even though admin-create-admin.js already
         # does live checks, since client-side checks are never trusted
         # on their own (Task: "Sanitize and validate all incoming data").
+        #
+        # Runs regardless of whether the format-validation pass above
+        # already found errors on OTHER fields, and checks all three of
+        # username/email/mobile before responding - never stops at the
+        # first duplicate found. Skips a field's own duplicate check
+        # only if that exact field already failed its own format/required
+        # validation above (an empty or malformed value can't usefully
+        # be duplicate-checked), so a bad username doesn't block finding
+        # out the email/mobile are duplicates too.
         # ------------------------------------------------------------
-        cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE username = %s", (username,))
-        if cursor.fetchone():
-            cursor.close()
-            return jsonify({
-                "success": False,
-                "errors": {"username": "This username is already taken."},
-                "message": "This username is already taken.",
-            }), 409
+        if username and 'username' not in errors:
+            cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE username = %s", (username,))
+            if cursor.fetchone():
+                errors["username"] = "This username is already taken."
 
-        cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE email = %s", (email,))
-        if cursor.fetchone():
-            cursor.close()
-            return jsonify({
-                "success": False,
-                "errors": {"email": "An account with this email already exists."},
-                "message": "An account with this email already exists.",
-            }), 409
+        if email and 'email' not in errors:
+            cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE email = %s", (email,))
+            if cursor.fetchone():
+                errors["email"] = "An account with this email already exists."
 
-        cursor.execute(f"SELECT acc_id FROM {PROFILE_TABLE} WHERE mobile = %s", (mobile,))
-        if cursor.fetchone():
+        if mobile and 'mobile' not in errors:
+            cursor.execute(f"SELECT acc_id FROM {PROFILE_TABLE} WHERE mobile = %s", (mobile,))
+            if cursor.fetchone():
+                errors["mobile"] = "This mobile number is already registered."
+
+        # Task: "Do not allow account creation until every validation
+        # passes successfully." Only stop here (and skip account
+        # creation entirely) if format validation OR the duplicate
+        # checks above found anything wrong - and when they did, every
+        # error found (format AND duplicate, across every field) is
+        # returned together in this one response.
+        if errors:
             cursor.close()
             return jsonify({
                 "success": False,
-                "errors": {"mobile": "This mobile number is already registered."},
-                "message": "This mobile number is already registered.",
-            }), 409
+                "errors": errors,
+                "message": "Please fix the highlighted fields.",
+            }), 400
 
         # ------------------------------------------------------------
         # Task: Account creation - reuses the SAME ID-generation
@@ -1099,6 +1110,63 @@ def create_administrator():
         connection.rollback()
         print(f"admin_routes: failed to create administrator: {e}")
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
+# ROUTE: PREVIEW NEXT ADMIN ACCOUNT ID (Create Administrator modal)
+# ============================================================
+@admin_bp.route('/accounts/next-id')
+def preview_next_admin_id():
+    """
+    Preview-only: computes what the NEXT Admin acc_id would look like
+    (e.g. "AD2608060004") WITHOUT reserving or inserting it - purely for
+    display in the Create Administrator modal's readonly Account ID
+    field, replacing the static "Auto-generated on submit" placeholder
+    text.
+
+    IMPORTANT: this is read-only and takes no lock. The real,
+    authoritative ID is still only ever generated inside
+    create_administrator()'s own transaction via
+    generate_prefixed_acc_id() (which DOES take a row lock via
+    SELECT ... FOR UPDATE) - this endpoint never writes anything and
+    never reserves the number it shows. If two admins open the modal at
+    the same moment, both may briefly preview the same next ID; whichever
+    one actually submits first gets it for real, and the other's
+    create_administrator() call will simply generate the number after
+    that once its own transaction runs. This is expected and harmless -
+    the preview is a UX nicety, not a reservation.
+
+    Returns JSON: { "success": bool, "next_id": str }
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to the database."}), 500
+    try:
+        cursor = connection.cursor()
+        today_prefix = f"{ADMIN_ID_PREFIX}{datetime.now().strftime('%y%m%d')}"
+        cursor.execute(
+            f"""SELECT acc_id FROM {ACCOUNT_TABLE}
+                WHERE acc_id LIKE %s
+                ORDER BY acc_id DESC
+                LIMIT 1""",
+            (f"{today_prefix}%",)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+        if row:
+            next_seq = int(row[0][-ADMIN_ID_SEQ_DIGITS:]) + 1
+        else:
+            next_seq = 1
+
+        next_id = f"{today_prefix}{next_seq:0{ADMIN_ID_SEQ_DIGITS}d}"
+        return jsonify({"success": True, "next_id": next_id}), 200
+    except Error as e:
+        print(f"admin_routes: failed to preview next admin id: {e}")
+        return jsonify({"success": False, "message": "Could not compute next ID."}), 500
     finally:
         if connection.is_connected():
             connection.close()

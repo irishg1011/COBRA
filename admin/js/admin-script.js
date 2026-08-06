@@ -65,6 +65,15 @@ document.addEventListener("DOMContentLoaded", () => {
         openModalBtn.addEventListener("click", (e) => {
             e.preventDefault();
             createAdminModal.style.display = "flex";
+
+            // Fetch and display what the next Account ID will actually
+            // be (e.g. "AD2608060004") instead of leaving the static
+            // "Auto-generated on submit" placeholder showing. Defined in
+            // admin-create-admin.js - guarded in case that script hasn't
+            // loaded for some reason.
+            if (typeof window.cobraByteLoadNextAdminId === "function") {
+                window.cobraByteLoadNextAdminId();
+            }
         });
     }
 
