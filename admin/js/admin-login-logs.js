@@ -38,6 +38,60 @@
         let debounceTimer = null;
         let activeRequestId = 0; // guards against out-of-order responses
 
+        // ------------------------------------------------------------
+        // Task: Dynamic Login Logs metric cards
+        // ------------------------------------------------------------
+        // The 6 metric cards are already rendered server-side on page
+        // load (see admin_routes.py: login_logs() -> get_login_logs_metrics()),
+        // so this doesn't need to fetch anything just to show a first
+        // value. It refreshes them afterward (and periodically) so the
+        // cards stay in sync with login attempts, account status
+        // changes, lockouts, and password resets that happen while the
+        // page is open - without requiring a manual page reload.
+        const METRICS_ENDPOINT = "/admin/login-logs/metrics";
+        const METRICS_REFRESH_MS = 15000; // periodic auto-refresh interval
+
+        const metricElements = {
+            total_logins_today: document.getElementById("metric-total-logins-today"),
+            successful_logins: document.getElementById("metric-successful-logins"),
+            failed_logins: document.getElementById("metric-failed-logins"),
+            active_sessions: document.getElementById("metric-active-sessions"),
+            locked_out_fails: document.getElementById("metric-locked-out-fails"),
+            password_resets_today: document.getElementById("metric-password-resets-today"),
+        };
+
+        async function loadMetrics() {
+            try {
+                const response = await fetch(METRICS_ENDPOINT, { credentials: "include" });
+                const result = await response.json();
+
+                if (!result.success || !result.metrics) {
+                    console.error("admin-login-logs: metrics endpoint reported failure:", result.message);
+                    return;
+                }
+
+                Object.keys(metricElements).forEach((key) => {
+                    const el = metricElements[key];
+                    if (!el) return;
+                    const value = result.metrics[key];
+                    // Gracefully fall back to 0 rather than showing
+                    // "undefined"/blank if a key is ever missing.
+                    el.textContent = (value === null || value === undefined) ? "0" : value;
+                });
+            } catch (err) {
+                // Best-effort: leave whatever values are currently on
+                // screen (server-rendered on page load, or the last
+                // successful refresh) rather than blanking the cards.
+                console.error("admin-login-logs: failed to refresh metrics:", err);
+            }
+        }
+
+        // Refresh once immediately (covers activity that happened
+        // between the server render and the page finishing load), then
+        // keep polling so the cards stay live without a manual reload.
+        loadMetrics();
+        setInterval(loadMetrics, METRICS_REFRESH_MS);
+
         function escapeHtml(str) {
             const div = document.createElement("div");
             div.textContent = str == null ? "" : String(str);
@@ -69,7 +123,7 @@
                 // centered, no placeholder rows.
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-muted table-empty-message">
+                        <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
                             No login logs found.
                         </td>
                     </tr>`;
@@ -129,11 +183,14 @@
 
                 if (result.success) {
                     renderRows(result.logs);
+                    // Cheap extra freshness: a search/filter round-trip is
+                    // a natural moment to also re-sync the metric cards.
+                    loadMetrics();
                 } else {
                     console.error("admin-login-logs: backend reported failure:", result.message);
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="6" class="text-muted table-empty-message">
+                            <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
                                 Could not load login logs. Please try again.
                             </td>
                         </tr>`;
@@ -143,7 +200,7 @@
                 console.error("admin-login-logs: request failed:", err);
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-muted table-empty-message">
+                        <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
                             Could not reach the server.
                         </td>
                     </tr>`;

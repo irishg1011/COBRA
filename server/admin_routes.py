@@ -5,7 +5,9 @@ from flask import Blueprint, render_template, session, redirect, request, jsonif
 from mysql.connector import Error
 
 from cobradb import get_db_connection
-from account_status import refresh_inactive_accounts  # NEW: shared, configurable Active/Inactive sweep
+from account_status import refresh_inactive_accounts, get_account_status_counts  # NEW: shared, configurable Active/Inactive sweep + lean status-count aggregate
+from login_logs import get_todays_login_metrics  # NEW: today's login/success/fail counts for the Login Logs metric cards
+from password_reset_logs import get_password_resets_today_count  # NEW: today's password-reset count for the Login Logs metric cards
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -448,6 +450,74 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
             connection.close()
 
 
+# ------------------------------------------------------------------
+# Task: Dynamic Login Logs metric cards
+# ------------------------------------------------------------------
+def get_login_logs_metrics():
+    """
+    Computes all 6 Admin > Login Logs metric cards from LIVE data, in a
+    small, fixed number of aggregate queries (no per-row Python loops,
+    no building/formatting a full account or log list just to count
+    it) - one connection, then:
+
+        1 sweep          - refresh_inactive_accounts (keeps Active/
+                            Inactive current before counting)
+        1 aggregate query - get_account_status_counts
+                            (Active Sessions + Locked Out Due to Fails)
+        1 aggregate query - get_todays_login_metrics
+                            (Total Logins Today + Successful + Failed)
+        1 count query     - get_password_resets_today_count
+
+    Returns a dict whose keys line up 1:1 with what login-logs.html's
+    Jinja template - and the /admin/login-logs/metrics JSON endpoint
+    below, used for the page's live auto-refresh - both expect:
+
+        total_logins_today, successful_logins, failed_logins,
+        active_sessions, locked_out_fails, password_resets_today
+
+    Returns an all-zero dict (never raises) if the database is
+    unreachable, so the page/endpoint renders cleanly with 0s instead of
+    crashing or showing blank cards.
+    """
+    zero_metrics = {
+        "total_logins_today": 0,
+        "successful_logins": 0,
+        "failed_logins": 0,
+        "active_sessions": 0,
+        "locked_out_fails": 0,
+        "password_resets_today": 0,
+    }
+
+    connection = get_db_connection()
+    if connection is None:
+        return zero_metrics
+
+    try:
+        # Must run before counting Active/Locked accounts so "Active
+        # Sessions" and "Locked Out Due to Fails" reflect the latest
+        # sweep rather than whatever was last written on a previous
+        # login/page load.
+        refresh_inactive_accounts(connection)
+        account_counts = get_account_status_counts(connection)
+        login_counts = get_todays_login_metrics(connection)
+        resets_today = get_password_resets_today_count(connection)
+
+        return {
+            "total_logins_today": login_counts["total_logins_today"],
+            "successful_logins": login_counts["successful_logins"],
+            "failed_logins": login_counts["failed_logins"],
+            "active_sessions": account_counts["active_accounts"],
+            "locked_out_fails": account_counts["locked_accounts"],
+            "password_resets_today": resets_today,
+        }
+    except Error as e:
+        print(f"admin_routes: database error while loading login logs metrics: {e}")
+        return zero_metrics
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def get_login_logs_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
     """
     Task #18: Pulls login attempt records from login_logs_tbl, joined
@@ -654,25 +724,27 @@ admin_bp.add_url_rule(
 @admin_bp.route('/login-logs.html')
 def login_logs():
     """
-    Renders the login logs page using the overview metrics (shared with
-    Account & Security) and real login log data (Task #18 - previously
-    this always passed a hardcoded empty list).
+    Renders the login logs page using LIVE metric cards (Total Logins
+    Today / Successful / Failed / Active Sessions / Locked Out Due to
+    Fails / Password Resets Today - see get_login_logs_metrics() above)
+    and real login log data (Task #18).
+
+    NOTE: this used to reuse get_accounts_overview()'s metrics dict
+    (total_accounts, active_accounts, etc.) - those keys never matched
+    what this template actually renders (metrics.total_logins_today and
+    friends), so every card silently rendered blank. get_login_logs_metrics()
+    replaces that with the correct keys, computed directly against
+    login_logs_tbl / account_tbl / password_reset_logs_tbl instead of
+    piggybacking on a differently-shaped metrics dict.
 
     Calling get_login_logs_overview() with no filters here means the
     page shows the full, newest-first log the moment it loads - the
     same "server renders real data on load" pattern already used by
     account_security() above. admin-login-logs.js then takes over for
-    live search/role/status/sort filtering without a page reload.
+    live search/role/status/sort filtering AND for periodically
+    refreshing the metric cards, without a page reload.
     """
-    overview = get_accounts_overview()
-    metrics = overview["metrics"] if overview else {
-        "total_accounts": 0,
-        "active_accounts": 0,
-        "inactive_accounts": 0,
-        "administrators": 0,
-        "learners": 0,
-        "locked_accounts": 0,
-    }
+    metrics = get_login_logs_metrics()
 
     logs = get_login_logs_overview()
     if logs is None:
@@ -720,6 +792,28 @@ def login_logs_data():
         return jsonify({"success": False, "message": "Could not reach the database.", "logs": []}), 500
 
     return jsonify({"success": True, "logs": logs, "total": len(logs)}), 200
+
+
+# ============================================================
+# ROUTE: LIVE LOGIN LOGS METRIC CARDS (JSON)
+# ============================================================
+@admin_bp.route('/login-logs/metrics')
+def login_logs_metrics():
+    """
+    JSON endpoint backing the Login Logs page's live metric-card refresh
+    (see admin-login-logs.js: loadMetrics()). Computed via
+    get_login_logs_metrics() - the exact same function that renders the
+    page's initial server-side values - so the frontend can overwrite
+    each card's text with result.metrics.<key> and it will always match
+    what a fresh page load would show.
+
+    Returns JSON: { "success": true, "metrics": {...} }. Always 200 -
+    get_login_logs_metrics() itself falls back to all zeros on a
+    database error rather than raising, so there is no failure mode here
+    that needs its own 500 branch.
+    """
+    metrics = get_login_logs_metrics()
+    return jsonify({"success": True, "metrics": metrics}), 200
 
 
 @admin_bp.route('/create-administrator', methods=['POST'])

@@ -15,6 +15,7 @@ from datetime import datetime
 import time
 import re
 from login_logs import log_login_attempt  # NEW: reusable login attempt logger
+from password_reset_logs import log_password_reset  # NEW: reusable password-reset activity logger
 from admin_routes import admin_bp  # NEW: import admin blueprint
 from account_status import refresh_inactive_accounts, is_account_inactive  # NEW: shared, configurable Active/Inactive logic
 
@@ -617,8 +618,10 @@ def forgot_password_reset():
     try:
         cursor = connection.cursor(dictionary=True) # Ginawang dictionary=True para makuha sa key name
         
-        # 1. Kunin muna ang kasalukuyang password hash ng user
-        cursor.execute(f"SELECT password FROM {ACCOUNT_TABLE} WHERE email = %s AND is_deleted = 0", (email,))
+        # 1. Kunin muna ang kasalukuyang password hash ng user (acc_id also
+        #    pulled here so the reset event below can be attributed to the
+        #    right account without a second lookup).
+        cursor.execute(f"SELECT acc_id, password FROM {ACCOUNT_TABLE} WHERE email = %s AND is_deleted = 0", (email,))
         account = cursor.fetchone()
 
         if not account:
@@ -647,6 +650,12 @@ def forgot_password_reset():
 
         # Clean up stored OTP after successful reset
         otp_storage.pop(f"forgot_{email}", None)
+
+        # NEW: log this reset so Admin > Login Logs' "Password Resets
+        # Today" metric card can count it. Best-effort/non-fatal (see
+        # password_reset_logs.py) - a logging hiccup here must never
+        # undo a password reset that already succeeded.
+        log_password_reset(acc_id=account["acc_id"])
 
         return jsonify({"success": True, "message": "Password updated successfully."}), 200
 

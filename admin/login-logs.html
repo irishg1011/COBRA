@@ -34,7 +34,7 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.account_security') }}" class="btn btn-primary-custom">
+                            <a href="{{ url_for('admin_bp.account_security') }}" class="btn btn-primary-custom" style="text-decoration: none;">
                                 <i class="fa-solid fa-arrow-left"></i> Previous
                             </a>
                             <button id="openCreateAdminBtn" class="btn btn-success-custom">
@@ -49,7 +49,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Total Logins Today</span>
-                            <h2 class="metric-value">{{ metrics.total_logins_today }}</h2>
+                            <h2 class="metric-value" id="metric-total-logins-today">{{ metrics.total_logins_today }}</h2>
                             <span class="metric-trend positive">Activity count</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-users"></i></div>
@@ -57,7 +57,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Successful Logins</span>
-                            <h2 class="metric-value">{{ metrics.successful_logins }}</h2>
+                            <h2 class="metric-value" id="metric-successful-logins">{{ metrics.successful_logins }}</h2>
                             <span class="metric-trend positive">Passed auth</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-user-check"></i></div>
@@ -65,7 +65,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Failed Login Attempts</span>
-                            <h2 class="metric-value">{{ metrics.failed_logins }}</h2>
+                            <h2 class="metric-value" id="metric-failed-logins">{{ metrics.failed_logins }}</h2>
                             <span class="metric-trend negative">Invalid tries</span>
                         </div>
                         <div class="metric-icon-box green-bg metric-inactive"><i class="fa-solid fa-user-slash"></i></div>
@@ -73,7 +73,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Active Sessions</span>
-                            <h2 class="metric-value">{{ metrics.active_sessions }}</h2>
+                            <h2 class="metric-value" id="metric-active-sessions">{{ metrics.active_sessions }}</h2>
                             <span class="metric-trend positive">Online now</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-shield-halved"></i></div>
@@ -81,7 +81,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Locked Out Due to Fails</span>
-                            <h2 class="metric-value">{{ metrics.locked_out_fails }}</h2>
+                            <h2 class="metric-value" id="metric-locked-out-fails">{{ metrics.locked_out_fails }}</h2>
                             <span class="metric-trend negative">Security block</span>
                         </div>
                         <div class="metric-icon-box green-bg metric-locked"><i class="fa-solid fa-lock"></i></div>
@@ -89,7 +89,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Password Resets Today</span>
-                            <h2 class="metric-value">{{ metrics.password_resets_today }}</h2>
+                            <h2 class="metric-value" id="metric-password-resets-today">{{ metrics.password_resets_today }}</h2>
                             <span class="metric-trend positive">Recent updates</span>
                         </div>
                         <div class="metric-icon-box green-bg"><i class="fa-solid fa-rotate-right"></i></div>
@@ -164,7 +164,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted table-empty-message">
+                                <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
                                     No login logs found.
                                 </td>
                             </tr>

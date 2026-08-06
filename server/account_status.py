@@ -178,3 +178,55 @@ def refresh_inactive_accounts(connection):
     except Error as e:
         print(f"account_status: failed to refresh inactive accounts: {e}")
         return None
+
+
+def get_account_status_counts(connection):
+    """
+    Lightweight aggregate query backing the Admin > Login Logs metric
+    cards ("Active Sessions" / "Locked Out Due to Fails").
+
+    Deliberately NOT the same code path as admin_routes.get_accounts_overview() -
+    that function builds the full, formatted account list (names, badges,
+    pagination) for the Account & Security table, which is far more work
+    than the Login Logs page needs. This does the whole thing in ONE
+    aggregate query instead of fetching every row and counting in Python.
+
+    IMPORTANT: assumes refresh_inactive_accounts(connection) has already
+    run earlier in the same request/connection, so `status` reflects the
+    latest Active/Inactive sweep rather than a stale value. Callers that
+    need both should do:
+
+        refresh_inactive_accounts(connection)
+        counts = get_account_status_counts(connection)
+
+    "Locked Out Due to Fails" mirrors the exact same is_locked definition
+    used elsewhere in this project (see admin_routes.get_accounts_overview):
+    a non-NULL lockout_until that is still in the future relative to NOW().
+
+    Uses COALESCE(SUM(...), 0) so an empty/all-excluded table cleanly
+    returns zeros instead of NULLs.
+
+    Returns {"active_accounts": int, "locked_accounts": int}. Never
+    raises - returns all zeros on any database error, so a metrics page
+    calling this can render 0s instead of crashing.
+    """
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"""
+            SELECT
+                COALESCE(SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END), 0) AS active_accounts,
+                COALESCE(SUM(CASE WHEN lockout_until IS NOT NULL AND lockout_until > NOW() THEN 1 ELSE 0 END), 0) AS locked_accounts
+            FROM {ACCOUNT_TABLE}
+            WHERE (is_deleted = 0 OR is_deleted IS NULL)
+            """
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return {
+            "active_accounts": int(row[0] or 0),
+            "locked_accounts": int(row[1] or 0),
+        }
+    except Error as e:
+        print(f"account_status: failed to compute account status counts: {e}")
+        return {"active_accounts": 0, "locked_accounts": 0}
