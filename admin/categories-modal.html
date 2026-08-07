@@ -6,80 +6,136 @@
             <button type="button" class="categories-close-btn" id="closeCategoriesModal">&times;</button>
         </div>
         
-        <div class="custom-modal-body">
-            <!-- Category Item 1: Expanded -->
-            <div class="category-accordion-item active">
-                <div class="category-accordion-toggle">
-                    <i class="fa-solid fa-chevron-down toggle-arrow"></i>
-                    <span class="category-name">Basics</span>
-                </div>
-                <div class="category-modules-list">
-                    <!-- Module Row 1 -->
-                    <div class="category-module-row">
-                        <div class="module-badge-num bg-success-log">1</div>
-                        <div class="module-info-text">
-                            <strong>Introduction to Python</strong>
-                            <small>Python is a high-level, interpreted programming language...</small>
+        <!-- Relative Wrapper to contain the scrollable list AND the absolute sliding drawers -->
+        <div class="modal-body-relative" style="position: relative; overflow: hidden; flex: 1; display: flex; flex-direction: column;">
+            
+            <!-- Scrollable Body containing ONLY the categories list -->
+            <div class="custom-modal-body" style="overflow-y: auto; max-height: 50vh; flex: 1;">
+                <div id="categoriesListView">
+                    <!-- Category Item 1: Expanded -->
+                    <div class="category-accordion-item active">
+                        <div class="category-accordion-toggle">
+                            <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+                            <span class="category-name">Basics</span>
                         </div>
-                        <span class="badge badge-success-log">Published</span>
-                        <div class="module-row-actions">
-                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        <div class="category-modules-list">
+                            <!-- Module Row 1 -->
+                            <div class="category-module-row">
+                                <div class="module-badge-num bg-success-log">1</div>
+                                <div class="module-info-text">
+                                    <strong>Introduction to Python</strong>
+                                    <small>Python is a high-level, interpreted programming language...</small>
+                                </div>
+                                <span class="badge badge-success-log">Published</span>
+                                <div class="module-row-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
+                            <!-- Module Row 2 -->
+                            <div class="category-module-row">
+                                <div class="module-badge-num bg-success-log">2</div>
+                                <div class="module-info-text">
+                                    <strong>Variables and Data Types</strong>
+                                    <small>Learn about strings, integers, floats, booleans...</small>
+                                </div>
+                                <span class="badge badge-success-log">Published</span>
+                                <div class="module-row-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
+                            <!-- Module Row 3 -->
+                            <div class="category-module-row">
+                                <div class="module-badge-num bg-success-log">3</div>
+                                <div class="module-info-text">
+                                    <strong>File Handling</strong>
+                                    <small>Read and write files with Python...</small>
+                                </div>
+                                <span class="badge badge-success-log">Published</span>
+                                <div class="module-row-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <!-- Module Row 2 -->
-                    <div class="category-module-row">
-                        <div class="module-badge-num bg-success-log">2</div>
-                        <div class="module-info-text">
-                            <strong>Variables and Data Types</strong>
-                            <small>Learn about strings, integers, floats, booleans...</small>
-                        </div>
-                        <span class="badge badge-success-log">Published</span>
-                        <div class="module-row-actions">
-                            <i class="fa-solid fa-ellipsis-vertical"></i>
+
+                    <!-- Category Item 2: Collapsed -->
+                    <div class="category-accordion-item">
+                        <div class="category-accordion-toggle">
+                            <i class="fa-solid fa-chevron-right toggle-arrow"></i>
+                            <span class="category-name">Control Flow</span>
                         </div>
                     </div>
-                    <!-- Module Row 3 -->
-                    <div class="category-module-row">
-                        <div class="module-badge-num bg-success-log">3</div>
-                        <div class="module-info-text">
-                            <strong>File Handling</strong>
-                            <small>Read and write files with Python...</small>
+
+                    <!-- Category Item 3: Collapsed -->
+                    <div class="category-accordion-item">
+                        <div class="category-accordion-toggle">
+                            <i class="fa-solid fa-chevron-right toggle-arrow"></i>
+                            <span class="category-name">Functions</span>
                         </div>
-                        <span class="badge badge-success-log">Published</span>
-                        <div class="module-row-actions">
-                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </div>
+
+                    <!-- Category Item 4: Collapsed -->
+                    <div class="category-accordion-item">
+                        <div class="category-accordion-toggle">
+                            <i class="fa-solid fa-chevron-right toggle-arrow"></i>
+                            <span class="category-name">Strings</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Category Item 2: Collapsed -->
-            <div class="category-accordion-item">
-                <div class="category-accordion-toggle">
-                    <i class="fa-solid fa-chevron-right toggle-arrow"></i>
-                    <span class="category-name">Control Flow</span>
+            <!-- SLIDING BOTTOM DRAWER: Add Category Form (Absolute inside wrapper, solid bg) -->
+            <div id="addCategoryDrawer" class="slide-up-drawer" style="display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: #ffffff; border-top-left-radius: 16px; border-top-right-radius: 16px; box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.15); z-index: 10;">
+                <div class="drawer-header close-drawer-btn">
+                    <i class="fa-solid fa-chevron-down"></i>
+                    <span class="drawer-title">Add Category</span>
+                </div>
+                <div class="drawer-body">
+                    <div class="form-group-custom">
+                        <label class="form-label-custom">ADD NEW CATEGORY</label>
+                        <input type="text" id="newCategoryNameInput" class="form-control-custom" placeholder="New Category Name">
+                    </div>
+                    <div class="drawer-actions">
+                        <button type="button" class="btn btn-success-custom" id="submitCreateCategoryBtn">Create Category</button>
+                        <button type="button" class="btn-cancel-custom cancel-drawer-btn">Cancel</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Category Item 3: Collapsed -->
-            <div class="category-accordion-item">
-                <div class="category-accordion-toggle">
-                    <i class="fa-solid fa-chevron-right toggle-arrow"></i>
-                    <span class="category-name">Functions</span>
+            <!-- SLIDING BOTTOM DRAWER: Add Module Form (Absolute inside wrapper, solid bg) -->
+            <div id="addModuleDrawer" class="slide-up-drawer" style="display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: #ffffff; border-top-left-radius: 16px; border-top-right-radius: 16px; box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.15); z-index: 10;">
+                <div class="drawer-header close-drawer-btn">
+                    <i class="fa-solid fa-chevron-down"></i>
+                    <span class="drawer-title">Add Module</span>
+                </div>
+                <div class="drawer-body">
+                    <div class="form-group-custom">
+                        <label class="form-label-custom">ADD NEW MODULE</label>
+                        <input type="text" id="newModuleNameInput" class="form-control-custom" placeholder="Enter Module Name" style="margin-bottom: 8px;">
+                        <textarea id="newModuleDescInput" class="form-control-custom" placeholder="Description..." rows="2" style="resize: none;"></textarea>
+                    </div>
+                    <div class="form-group-custom" style="margin-top: 6px;">
+                        <label class="form-label-custom">CATEGORY</label>
+                        <div style="position: relative;">
+                            <select id="newModuleCategorySelect" class="form-control-custom" style="appearance: none; -webkit-appearance: none; padding-right: 40px; cursor: pointer; width: 100%;">
+                                <option value="" disabled selected>Select Category</option>
+                                <option value="basics">Basics</option>
+                                <option value="control-flow">Control Flow</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down" style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: #4b5563; pointer-events: none;"></i>
+                        </div>
+                    </div>
+                    <div class="drawer-actions" style="margin-top: 10px;">
+                        <button type="button" class="btn btn-success-custom" id="submitCreateModuleBtn">Create Module</button>
+                        <button type="button" class="btn-cancel-custom cancel-drawer-btn">Cancel</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Category Item 4: Collapsed -->
-            <div class="category-accordion-item">
-                <div class="category-accordion-toggle">
-                    <i class="fa-solid fa-chevron-right toggle-arrow"></i>
-                    <span class="category-name">Strings</span>
-                </div>
-            </div>
         </div>
 
         <!-- Modal Footer Actions (Centered) -->
-        <div class="custom-modal-footer centered-footer">
+        <div class="custom-modal-footer centered-footer" id="mainModalFooter">
             <button type="button" class="btn btn-success-custom" id="modalAddCategoryBtn">
                 <i class="fa-solid fa-plus"></i> Add Category
             </button>

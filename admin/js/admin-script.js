@@ -92,42 +92,85 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    const openModalBtn = document.getElementById('openCreateModuleBtn');
     const categoriesModal = document.getElementById('categoriesModal');
+    const openModalBtn = document.getElementById('openCreateModuleBtn');
     const closeModalBtn = document.getElementById('closeCategoriesModal');
-    const closeModalBtnHeader = document.getElementById('closeCategoriesModalHeader');
+    
+    const mainModalFooter = document.getElementById('mainModalFooter');
+    const modalBodyRel = document.querySelector('.modal-body-relative');
+    const modalDialog = document.querySelector('.custom-modal-dialog');
 
-    // Open Modal
+    const addCategoryDrawer = document.getElementById('addCategoryDrawer');
+    const addModuleDrawer = document.getElementById('addModuleDrawer');
+
+    const modalAddCategoryBtn = document.getElementById('modalAddCategoryBtn');
+    const modalAddModuleBtn = document.getElementById('modalAddModuleBtn');
+
+    function openDrawer(drawer, isTall = false) {
+        // Hide all drawers first
+        addCategoryDrawer.style.display = 'none';
+        addModuleDrawer.style.display = 'none';
+
+        // Open target drawer, hide footer, and dim background list
+        drawer.style.display = 'block';
+        if (mainModalFooter) mainModalFooter.style.display = 'none';
+        if (modalBodyRel) modalBodyRel.classList.add('drawer-open');
+
+        // Dynamically adjust modal height
+        if (modalDialog) {
+            if (isTall) {
+                modalDialog.classList.add('modal-expanded');
+            } else {
+                modalDialog.classList.remove('modal-expanded');
+            }
+        }
+    }
+
+    function closeAllDrawers() {
+        addCategoryDrawer.style.display = 'none';
+        addModuleDrawer.style.display = 'none';
+        if (mainModalFooter) mainModalFooter.style.display = 'flex';
+        if (modalBodyRel) modalBodyRel.classList.remove('drawer-open');
+        if (modalDialog) modalDialog.classList.remove('modal-expanded');
+    }
+
+    // Open Main Modal
     if (openModalBtn && categoriesModal) {
         openModalBtn.addEventListener('click', function() {
             categoriesModal.style.display = 'flex';
+            closeAllDrawers();
         });
     }
 
-    // Close Modal via main footer/corner 'X' button
+    // Close Main Modal via 'X'
     if (closeModalBtn && categoriesModal) {
         closeModalBtn.addEventListener('click', function() {
             categoriesModal.style.display = 'none';
         });
     }
 
-    // Close Modal via header title 'X' button
-    if (closeModalBtnHeader && categoriesModal) {
-        closeModalBtnHeader.addEventListener('click', function() {
-            categoriesModal.style.display = 'none';
-        });
+    // Trigger buttons for slide-up drawers
+    if (modalAddCategoryBtn) {
+        modalAddCategoryBtn.addEventListener('click', () => openDrawer(addCategoryDrawer, false));
+    }
+    if (modalAddModuleBtn) {
+        modalAddModuleBtn.addEventListener('click', () => openDrawer(addModuleDrawer, true)); // true expands the modal
     }
 
-    // Close Modal when clicking outside content area
+    // Bind close actions to all elements sharing cancel/header arrow classes
+    document.querySelectorAll('.cancel-drawer-btn, .close-drawer-btn').forEach(el => {
+        el.addEventListener('click', closeAllDrawers);
+    });
+
+    // Close Modal when clicking outside the dialog content area
     window.addEventListener('click', function(event) {
         if (event.target === categoriesModal) {
             categoriesModal.style.display = 'none';
         }
     });
 
-    // Accordion Toggle for Categories
-    const categoryToggles = document.querySelectorAll('.category-accordion-toggle');
-    categoryToggles.forEach(toggle => {
+    // Accordion Toggle for Categories List
+    document.querySelectorAll('.category-accordion-toggle').forEach(toggle => {
         toggle.addEventListener('click', function() {
             const parentItem = this.parentElement;
             parentItem.classList.toggle('active');
