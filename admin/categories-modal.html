@@ -6,11 +6,11 @@
             <button type="button" class="categories-close-btn" id="closeCategoriesModal">&times;</button>
         </div>
         
-        <!-- Relative Wrapper to contain the scrollable list AND the absolute sliding drawers -->
-        <div class="modal-body-relative" style="position: relative; overflow: hidden; flex: 1; display: flex; flex-direction: column;">
+        <!-- Relative container to trap the drawers inside the body bounds -->
+        <div class="modal-body-relative">
             
-            <!-- Scrollable Body containing ONLY the categories list -->
-            <div class="custom-modal-body" style="overflow-y: auto; max-height: 50vh; flex: 1;">
+            <!-- 1. Scrollable Categories List -->
+            <div class="custom-modal-body categories-scroll-body">
                 <div id="categoriesListView">
                     <!-- Category Item 1: Expanded -->
                     <div class="category-accordion-item active">
@@ -84,10 +84,10 @@
                 </div>
             </div>
 
-            <!-- SLIDING BOTTOM DRAWER: Add Category Form (Absolute inside wrapper, solid bg) -->
-            <div id="addCategoryDrawer" class="slide-up-drawer" style="display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: #ffffff; border-top-left-radius: 16px; border-top-right-radius: 16px; box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.15); z-index: 10;">
+            <!-- 2. SLIDING BOTTOM DRAWER: Add Category Form -->
+            <div id="addCategoryDrawer" class="slide-up-drawer" style="display: none;">
                 <div class="drawer-header close-drawer-btn">
-                    <i class="fa-solid fa-chevron-down"></i>
+                    <i class="fa-solid fa-chevron-up"></i>
                     <span class="drawer-title">Add Category</span>
                 </div>
                 <div class="drawer-body">
@@ -102,30 +102,30 @@
                 </div>
             </div>
 
-            <!-- SLIDING BOTTOM DRAWER: Add Module Form (Absolute inside wrapper, solid bg) -->
-            <div id="addModuleDrawer" class="slide-up-drawer" style="display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: #ffffff; border-top-left-radius: 16px; border-top-right-radius: 16px; box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.15); z-index: 10;">
+            <!-- 3. SLIDING BOTTOM DRAWER: Add Module Form -->
+            <div id="addModuleDrawer" class="slide-up-drawer" style="display: none;">
                 <div class="drawer-header close-drawer-btn">
-                    <i class="fa-solid fa-chevron-down"></i>
+                    <i class="fa-solid fa-chevron-up"></i>
                     <span class="drawer-title">Add Module</span>
                 </div>
                 <div class="drawer-body">
                     <div class="form-group-custom">
                         <label class="form-label-custom">ADD NEW MODULE</label>
-                        <input type="text" id="newModuleNameInput" class="form-control-custom" placeholder="Enter Module Name" style="margin-bottom: 8px;">
-                        <textarea id="newModuleDescInput" class="form-control-custom" placeholder="Description..." rows="2" style="resize: none;"></textarea>
+                        <input type="text" id="newModuleNameInput" class="form-control-custom module-name-input" placeholder="Enter Module Name">
+                        <textarea id="newModuleDescInput" class="form-control-custom module-desc-input" placeholder="Description..." rows="2"></textarea>
                     </div>
-                    <div class="form-group-custom" style="margin-top: 6px;">
+                    <div class="form-group-custom module-category-group">
                         <label class="form-label-custom">CATEGORY</label>
-                        <div style="position: relative;">
-                            <select id="newModuleCategorySelect" class="form-control-custom" style="appearance: none; -webkit-appearance: none; padding-right: 40px; cursor: pointer; width: 100%;">
+                        <div class="select-wrapper-custom">
+                            <select id="newModuleCategorySelect" class="form-control-custom module-select-custom">
                                 <option value="" disabled selected>Select Category</option>
                                 <option value="basics">Basics</option>
                                 <option value="control-flow">Control Flow</option>
                             </select>
-                            <i class="fa-solid fa-chevron-down" style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: #4b5563; pointer-events: none;"></i>
                         </div>
                     </div>
-                    <div class="drawer-actions" style="margin-top: 10px;">
+                    <!-- Stray icon removed from here -->
+                    <div class="drawer-actions">
                         <button type="button" class="btn btn-success-custom" id="submitCreateModuleBtn">Create Module</button>
                         <button type="button" class="btn-cancel-custom cancel-drawer-btn">Cancel</button>
                     </div>
