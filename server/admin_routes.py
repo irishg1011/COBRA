@@ -680,10 +680,11 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
     "name". Only ever selects one of the two hardcoded LOGIN_LOG_SORT_CLAUSES
     entries - never built from raw input.
 
-    Returns a list of dicts (each with log_id, acc_id, full_name, email,
-    role, status, attempted_at) ready for direct use in Jinja (initial
-    page load) or jsonify (the AJAX filter endpoint) - both consume the
-    exact same shape. Returns None if the DB connection failed.
+    Returns a list of dicts (each with log_id, acc_id, ip_address,
+    full_name, email, role, status, attempted_at) ready for direct use
+    in Jinja (initial page load) or jsonify (the AJAX filter endpoint) -
+    both consume the exact same shape. Returns None if the DB connection
+    failed.
     """
     connection = get_db_connection()
     if connection is None:
@@ -697,6 +698,7 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
             SELECT
                 ll.log_id,
                 ll.acc_id,
+                ll.ip_address,
                 ll.attempt_status,
                 ll.attempted_at,
                 a.email,
@@ -719,11 +721,12 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
                     OR LOWER(p.lastname) LIKE %s
                     OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
                     OR LOWER(a.email) LIKE %s
+                    OR LOWER(a.username) LIKE %s
                     OR LOWER(ll.acc_id) LIKE %s
                 )
             """
             prefix_term = f"{term.lower()}%"
-            params.extend([prefix_term] * 5)
+            params.extend([prefix_term] * 6)
 
         mapped_role = ROLE_FILTER_MAP.get((role_filter or "").strip().lower())
         if mapped_role:
@@ -753,6 +756,7 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
                 "acc_id": row.get("acc_id") or "—",
                 "full_name": full_name,
                 "email": row.get("email") or "—",
+                "ip_address": row.get("ip_address") or "—",
                 "role": row.get("role") or "Unknown",
                 "status": row.get("attempt_status"),
                 "attempted_at": _fmt_datetime(row.get("attempted_at")),

@@ -136,8 +136,8 @@
                         <div class="avatar-sm">👤</div>
                         <strong>${escapeHtml(log.full_name)}</strong>
                     </td>
-                    <td class="text-muted">${escapeHtml(log.email)}</td>
                     <td class="text-muted">${escapeHtml(log.acc_id)}</td>
+                    <td class="text-muted">${escapeHtml(log.ip_address)}</td>
                     <td>${roleBadgeHtml(log)}</td>
                     <td>${statusBadgeHtml(log)}</td>
                     <td class="text-right text-muted">${escapeHtml(log.attempted_at)}</td>
