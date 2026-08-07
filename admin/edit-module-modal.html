@@ -1,0 +1,54 @@
+<!-- admin/edit-module-modal.html
+     Task: "When you edit the module make it in modal not in alert" -
+     replaces admin-manage-course.js's old chained prompt()/alert() edit
+     flow with a proper modal, styled to match the existing Create
+     Administrator modal. Included on manage-course.html only, right
+     after categories-modal.html. -->
+<div id="editModuleModal" class="modal-overlay modal-hidden">
+    <div class="modal-card create-admin-card edit-module-card">
+        <button type="button" class="modal-close-btn" id="closeEditModuleModal">&times;</button>
+
+        <div class="modal-header-section">
+            <div class="modal-icon-glow">
+                <i class="fa-solid fa-pen-to-square"></i>
+            </div>
+            <h2>Edit Module</h2>
+            <p>Update this module's details.</p>
+        </div>
+
+        <form id="editModuleForm">
+            <input type="hidden" id="editModuleId">
+
+            <div class="form-group">
+                <label for="editModuleName">Module Name</label>
+                <input type="text" id="editModuleName" placeholder="Enter module name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="editModuleDesc">Description</label>
+                <textarea id="editModuleDesc" rows="3" placeholder="Description..." required></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="editModuleCategory">Category</label>
+                    <select id="editModuleCategory" class="custom-select" required>
+                        <option value="" disabled selected>Select Category</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editModuleStatus">Status</label>
+                    <select id="editModuleStatus" class="custom-select" required>
+                        <option value="" disabled selected>Select Status</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer-actions">
+                <button type="submit" class="btn btn-create-account">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

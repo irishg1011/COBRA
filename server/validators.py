@@ -21,10 +21,21 @@ from datetime import datetime
 
 # ------------------------------------------------------------
 # Age policy (mirrors the constants login.py's /signup route already
-# enforces)
+# enforces) - Learner Sign Up.
 # ------------------------------------------------------------
 MIN_SIGNUP_AGE = 13
 MAX_SIGNUP_AGE = 60
+
+# ------------------------------------------------------------
+# NEW: Age policy for Admin account creation (Admin > Create
+# Administrator modal). Administrators must be older than the Learner
+# minimum - 20 years old at minimum, still capped at 60 like Learner
+# sign-up. Kept as its own pair of constants (rather than overwriting
+# MIN_SIGNUP_AGE/MAX_SIGNUP_AGE above) so Learner sign-up's 13-60 rule
+# is completely unaffected.
+# ------------------------------------------------------------
+ADMIN_MIN_SIGNUP_AGE = 20
+ADMIN_MAX_SIGNUP_AGE = 60
 
 # ------------------------------------------------------------
 # Password strength - 8+ chars, at least one uppercase, one lowercase,
@@ -55,14 +66,28 @@ NAME_CHARS_REGEX = re.compile(r"^[A-Za-z\s'\-.]+$")
 
 def capitalize_name(value):
     """
-    Title-cases a name field exactly like script.js's live input
-    formatter (`val.replace(/\\b\\w/g, c => c.toUpperCase())`), so a
-    server-side save always matches what the user saw client-side, even
-    if the client-side formatter was somehow bypassed.
+    Standardizes a name field so ONLY the first letter of each word is
+    uppercase and every other letter is forced to lowercase, e.g.:
+
+        "gOLD"        -> "Gold"
+        "DE LA CRUZ"  -> "De La Cruz"
+        "o'brien"     -> "O'brien"
+
+    This matches script.js's live input formatter on the client side
+    (admin-create-admin.js / script.js), so a server-side save always
+    matches what the user saw while typing, even if the client-side
+    formatter was somehow bypassed. Previous behavior only ever
+    UPPERCASED the first letter of each word without touching the rest
+    of the word - that let stray uppercase letters slip through (e.g.
+    "gOLD" stayed "gOLD" instead of becoming "Gold").
     """
     if not value:
         return ""
-    return re.sub(r"\b\w", lambda m: m.group(0).upper(), value.strip())
+    return re.sub(
+        r"\b\w+",
+        lambda m: m.group(0)[:1].upper() + m.group(0)[1:].lower(),
+        value.strip(),
+    )
 
 
 def validate_required(value, label):
@@ -125,14 +150,27 @@ def calculate_age(birthdate_str):
     return age
 
 
-def validate_birthdate(birthdate_str):
+def validate_birthdate(birthdate_str, min_age=MIN_SIGNUP_AGE, max_age=MAX_SIGNUP_AGE):
+    """
+    Validates a birthdate string against a min/max age range.
+
+    Defaults to the Learner Sign Up range (MIN_SIGNUP_AGE=13,
+    MAX_SIGNUP_AGE=60) so every existing call site (login.py's /signup
+    route) keeps behaving exactly as before with no changes needed.
+
+    Admin account creation (admin_routes.py's create_administrator())
+    passes min_age=ADMIN_MIN_SIGNUP_AGE (20), max_age=ADMIN_MAX_SIGNUP_AGE
+    (60) explicitly, so this ONE function backs both age policies -
+    there is still only a single place the "is this birthdate old
+    enough / not too old" comparison lives.
+    """
     age = calculate_age(birthdate_str)
     if age is None:
         return False, "Please enter a valid birthdate."
-    if age < MIN_SIGNUP_AGE:
-        return False, f"Must be at least {MIN_SIGNUP_AGE} years old to create an account."
-    if age > MAX_SIGNUP_AGE:
-        return False, f"Must be {MAX_SIGNUP_AGE} years old or younger to create an account."
+    if age < min_age:
+        return False, f"Must be at least {min_age} years old to create an account."
+    if age > max_age:
+        return False, f"Must be {max_age} years old or younger to create an account."
     return True, ""
 
 

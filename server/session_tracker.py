@@ -164,12 +164,30 @@ def end_session(token):
             connection.close()
 
 
-def touch_session(token):
+def touch_session(token, acc_id=None):
     """
     Bumps last_seen_at for an in-use session, so an admin actively
     browsing the dashboard doesn't get swept as "stale" by
     sweep_expired_sessions() mid-use. Call this on every authenticated
     request (see admin_routes.py's before_request guard).
+
+    SELF-HEALING (bug fix): previously this only ran an UPDATE, which
+    silently touched 0 rows if the session's row had already been swept
+    (e.g. the admin left a page open that doesn't poll anything - not
+    every admin page hits the backend every few seconds - past
+    SESSION_TIMEOUT_MINUTES). Once that row was gone, the admin was
+    STILL logged in (their Flask session cookie/session_token were
+    untouched) but get_active_session_count() would never count them
+    again until a full logout+login - so "Active Sessions" quietly
+    undercounted logged-in admins.
+
+    Now, when acc_id is provided, this does an upsert: if a row for this
+    exact session_token still exists, it's just refreshed (unchanged
+    behavior); if it's missing, it's recreated with the SAME token the
+    browser already holds, so the very next request after a stale sweep
+    makes the admin visible in the active count again - no re-login
+    needed. acc_id is optional (defaults to update-only) so any other
+    caller that doesn't have it handy keeps the original behavior.
     """
     if not token:
         return
@@ -180,10 +198,18 @@ def touch_session(token):
             return
         _ensure_table(connection)
         cursor = connection.cursor()
-        cursor.execute(
-            f"UPDATE {ACTIVE_SESSIONS_TABLE} SET last_seen_at = NOW() WHERE session_token = %s",
-            (token,)
-        )
+        if acc_id:
+            cursor.execute(
+                f"""INSERT INTO {ACTIVE_SESSIONS_TABLE} (acc_id, session_token)
+                    VALUES (%s, %s)
+                    ON DUPLICATE KEY UPDATE last_seen_at = NOW()""",
+                (acc_id, token)
+            )
+        else:
+            cursor.execute(
+                f"UPDATE {ACTIVE_SESSIONS_TABLE} SET last_seen_at = NOW() WHERE session_token = %s",
+                (token,)
+            )
         connection.commit()
         cursor.close()
     except Error as e:

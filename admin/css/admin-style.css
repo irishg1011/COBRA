@@ -858,7 +858,7 @@ body {
     margin-bottom: 6px;
 }
 
-.form-group input, .form-group select {
+.form-group input, .form-group select, .form-group textarea {
     width: 100%;
     padding: 10px 14px;
     border: 1px solid #d1d5db;
@@ -868,11 +868,26 @@ body {
     background: #fff;
     color: #111827;
     box-sizing: border-box;
+    font-family: inherit;
 }
 
-.form-group input:focus, .form-group select:focus {
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
     border-color: #00bcd4;
     box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.15);
+}
+
+.form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+/* ==========================================================================
+   EDIT MODULE MODAL (admin/edit-module-modal.html: #editModuleModal)
+   Reuses the same "create-admin-card" look as the Create Administrator
+   modal, but at a fixed, smaller size appropriate for a 4-field form.
+   ========================================================================== */
+.modal-card.create-admin-card.edit-module-card {
+    max-width: 480px !important;
 }
 
 .input-readonly {
@@ -1333,13 +1348,14 @@ body {
     background: #ffffff;
     width: 100%;
     max-width: 650px;
+    height: 640px; /* fixed size - never resizes between list/drawer views */
+    max-height: 85vh;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     font-family: inherit;
-    transition: all 0.3s ease-in-out;
 }
 
 .custom-modal-header {
@@ -1348,6 +1364,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .custom-modal-header h3 {
@@ -1379,24 +1396,17 @@ body {
 
 .custom-modal-body {
     padding: 20px 24px;
-    max-height: 50vh;
-    overflow-y: auto; /* Ensures the content area becomes scrollable when it overflows */
-    transition: max-height 0.3s ease-in-out;
-}
-
-/* Expands the modal body when taller forms (like Add Module) are open */
-.custom-modal-dialog.modal-expanded {
-    max-height: 85vh;
-}
-
-.custom-modal-dialog.modal-expanded .custom-modal-body {
-    max-height: 72vh;
+    overflow-y: auto; /* content scrolls inside the fixed-size box instead of the modal growing */
+    flex: 1;
 }
 
 /* --- Slide-Up Drawer & Dimming Effect --- */
 .modal-body-relative {
     position: relative;
     overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-body-relative.drawer-open::after {
@@ -1552,6 +1562,7 @@ body {
     display: flex;
     gap: 12px;
     background: #f9fafb;
+    flex-shrink: 0;
 }
 
 .custom-modal-footer.centered-footer {
@@ -1610,4 +1621,38 @@ textarea.form-control-custom {
 .btn-cancel-custom:hover {
     color: #111827;
     text-decoration: underline;
+}
+
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.password-wrapper input {
+    padding-right: 40px;
+}
+
+.toggle-password-visibility {
+    position: absolute;
+    right: 12px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+}
+
+.eye-icon {
+    width: 100%;
+    height: 100%;
+    color: #6b7280;
+    transition: color 0.2s ease;
+}
+
+.eye-icon:hover {
+    color: #09B300;
 }

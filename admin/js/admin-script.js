@@ -98,7 +98,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const mainModalFooter = document.getElementById('mainModalFooter');
     const modalBodyRel = document.querySelector('.modal-body-relative');
-    const modalDialog = document.querySelector('.custom-modal-dialog');
 
     const addCategoryDrawer = document.getElementById('addCategoryDrawer');
     const addModuleDrawer = document.getElementById('addModuleDrawer');
@@ -106,7 +105,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalAddCategoryBtn = document.getElementById('modalAddCategoryBtn');
     const modalAddModuleBtn = document.getElementById('modalAddModuleBtn');
 
-    function openDrawer(drawer, isTall = false) {
+    // NOTE: the Categories modal (.custom-modal-dialog) is now a FIXED
+    // size (see admin-style.css) regardless of which drawer - if any -
+    // is open, so this no longer toggles a "modal-expanded" class or
+    // tracks a "tall" flag per drawer. Taller content (e.g. Add Module's
+    // extra fields) just scrolls within the same fixed box instead of
+    // resizing/repositioning the whole modal.
+    function openDrawer(drawer) {
         // Hide all drawers first
         addCategoryDrawer.style.display = 'none';
         addModuleDrawer.style.display = 'none';
@@ -115,15 +120,6 @@ document.addEventListener('DOMContentLoaded', function() {
         drawer.style.display = 'block';
         if (mainModalFooter) mainModalFooter.style.display = 'none';
         if (modalBodyRel) modalBodyRel.classList.add('drawer-open');
-
-        // Dynamically adjust modal height
-        if (modalDialog) {
-            if (isTall) {
-                modalDialog.classList.add('modal-expanded');
-            } else {
-                modalDialog.classList.remove('modal-expanded');
-            }
-        }
     }
 
     function closeAllDrawers() {
@@ -131,7 +127,6 @@ document.addEventListener('DOMContentLoaded', function() {
         addModuleDrawer.style.display = 'none';
         if (mainModalFooter) mainModalFooter.style.display = 'flex';
         if (modalBodyRel) modalBodyRel.classList.remove('drawer-open');
-        if (modalDialog) modalDialog.classList.remove('modal-expanded');
     }
 
     // Open Main Modal
@@ -151,10 +146,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Trigger buttons for slide-up drawers
     if (modalAddCategoryBtn) {
-        modalAddCategoryBtn.addEventListener('click', () => openDrawer(addCategoryDrawer, false));
+        modalAddCategoryBtn.addEventListener('click', () => openDrawer(addCategoryDrawer));
     }
     if (modalAddModuleBtn) {
-        modalAddModuleBtn.addEventListener('click', () => openDrawer(addModuleDrawer, true)); // true expands the modal
+        modalAddModuleBtn.addEventListener('click', () => openDrawer(addModuleDrawer));
     }
 
     // Bind close actions to all elements sharing cancel/header arrow classes

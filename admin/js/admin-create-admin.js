@@ -32,6 +32,12 @@
     const EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
     const MOBILE_REGEX = /^09\d{9}$/;
 
+    // NEW: Admin accounts require an older minimum age than Learner
+    // sign-up (which allows 13-60). Kept in sync with
+    // validators.py's ADMIN_MIN_SIGNUP_AGE / ADMIN_MAX_SIGNUP_AGE.
+    const ADMIN_MIN_SIGNUP_AGE = 20;
+    const ADMIN_MAX_SIGNUP_AGE = 60;
+
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("createAdminForm");
         if (!form) return; // modal not included on this page
@@ -51,6 +57,27 @@
         const submitBtn = form.querySelector('button[type="submit"]');
         const createAdminModal = document.getElementById("createAdminModal");
         const modalHeaderSection = document.querySelector("#createAdminModal .modal-header-section");
+
+        // ------------------------------------------------------------
+        // NEW: Eye toggle for Password / Confirm Password - mirrors the
+        // exact same open/closed eye SVG paths and behavior already used
+        // on the Learner Sign Up form (script.js), just scoped to this
+        // modal's own form instead of the whole document.
+        // ------------------------------------------------------------
+        const openEyePath = `<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />`;
+        const closedEyePath = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 1-4.243-4.243m4.242 4.242L9.88 9.88" />`;
+
+        form.addEventListener("click", (event) => {
+            const toggleBtn = event.target.closest(".toggle-password-visibility");
+            if (!toggleBtn) return;
+            event.preventDefault();
+            const passwordInput = toggleBtn.parentElement.querySelector("input");
+            if (!passwordInput) return;
+            const isPassword = passwordInput.getAttribute("type") === "password";
+            passwordInput.setAttribute("type", isPassword ? "text" : "password");
+            const svgElement = toggleBtn.querySelector("svg");
+            if (svgElement) svgElement.innerHTML = isPassword ? closedEyePath : openEyePath;
+        });
 
         // ------------------------------------------------------------
         // Live "next Account ID" preview - replaces the static
@@ -146,15 +173,18 @@
         // ------------------------------------------------------------
         // Live name capitalization (Task: "Automatically capitalize all
         // name fields using the existing capitalization logic") -
-        // identical formatter to script.js's firstName/lastName input
-        // handler.
+        // NEW standard: first letter of each word UPPERCASE, every
+        // other letter forced to lowercase (e.g. "gOLD" -> "Gold"),
+        // instead of only ever upper-casing without touching the rest.
         // ------------------------------------------------------------
         [fields.firstName, fields.lastName].forEach((input) => {
             if (!input) return;
             input.addEventListener("input", () => {
                 const start = input.selectionStart, end = input.selectionEnd;
                 let val = input.value.replace(/[^a-zA-Z\s]/g, "");
-                if (val.length > 0) val = val.replace(/\b\w/g, (c) => c.toUpperCase());
+                if (val.length > 0) {
+                    val = val.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+                }
                 input.value = val;
                 if (start !== null && end !== null) input.setSelectionRange(start, end);
                 clearFieldError(input);
@@ -223,6 +253,62 @@
             });
         }
         if (fields.confirmPassword) fields.confirmPassword.addEventListener("input", checkPasswordMatch);
+
+        // ------------------------------------------------------------
+        // NEW: Admin birthdate age rule - 20+ and 60 or younger.
+        // Different range than Learner Sign Up (13-60, see script.js's
+        // MIN_SIGNUP_AGE/MAX_SIGNUP_AGE), kept in sync with
+        // ADMIN_MIN_SIGNUP_AGE/ADMIN_MAX_SIGNUP_AGE at the top of this
+        // file and validators.py's ADMIN_MIN_SIGNUP_AGE/ADMIN_MAX_SIGNUP_AGE
+        // on the server side.
+        // ------------------------------------------------------------
+        function calculateAge(birthdateStr) {
+            if (!birthdateStr) return null;
+            const birthDate = new Date(birthdateStr + "T00:00:00");
+            if (isNaN(birthDate.getTime())) return null;
+
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const hasHadBirthdayThisYear =
+                (today.getMonth() > birthDate.getMonth()) ||
+                (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+            if (!hasHadBirthdayThisYear) age--;
+            return age;
+        }
+
+        function setAdminBirthdateBounds() {
+            if (!fields.birthdate) return;
+            const today = new Date();
+            const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            // max = the latest birthdate that is still >= ADMIN_MIN_SIGNUP_AGE years old today
+            const maxDate = new Date(today.getFullYear() - ADMIN_MIN_SIGNUP_AGE, today.getMonth(), today.getDate());
+            // min = the earliest birthdate that is still <= ADMIN_MAX_SIGNUP_AGE years old today
+            const minDate = new Date(today.getFullYear() - ADMIN_MAX_SIGNUP_AGE, today.getMonth(), today.getDate());
+            fields.birthdate.setAttribute("max", fmt(maxDate));
+            fields.birthdate.setAttribute("min", fmt(minDate));
+        }
+        setAdminBirthdateBounds();
+
+        function checkAdminBirthdateAge() {
+            if (!fields.birthdate || !fields.birthdate.value) { clearFieldError(fields.birthdate); return false; }
+            const age = calculateAge(fields.birthdate.value);
+            if (age === null) {
+                showFieldError(fields.birthdate, "Please enter a valid birthdate.");
+                return false;
+            }
+            if (age < ADMIN_MIN_SIGNUP_AGE) {
+                showFieldError(fields.birthdate, `Administrator must be at least ${ADMIN_MIN_SIGNUP_AGE} years old.`);
+                return false;
+            }
+            if (age > ADMIN_MAX_SIGNUP_AGE) {
+                showFieldError(fields.birthdate, `Administrator must be ${ADMIN_MAX_SIGNUP_AGE} years old or younger.`);
+                return false;
+            }
+            clearFieldError(fields.birthdate);
+            return true;
+        }
+
+        if (fields.birthdate) fields.birthdate.addEventListener("change", checkAdminBirthdateAge);
 
         // ------------------------------------------------------------
         // Live duplicate checks (username / email / mobile) - debounced
@@ -309,6 +395,13 @@
 
             if (fields.email && fields.email.value && !EMAIL_REGEX.test(fields.email.value)) {
                 showFieldError(fields.email, "Please enter a valid email address (e.g., name@example.com).");
+                hasError = true;
+            }
+
+            // NEW: Admin age rule (20-60) - only checked when a birthdate
+            // was actually provided, so the "required" message above stays
+            // the one shown for a blank field.
+            if (fields.birthdate && fields.birthdate.value && !checkAdminBirthdateAge()) {
                 hasError = true;
             }
 

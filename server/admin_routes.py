@@ -20,8 +20,16 @@ from validators import (  # NEW: same validation rules used by login.py's Learne
     validate_password_strength,
     validate_password_confirmation,
     capitalize_name,
+    ADMIN_MIN_SIGNUP_AGE,  # NEW: Admin accounts require 20-60, not Learner's 13-60
+    ADMIN_MAX_SIGNUP_AGE,  # NEW
 )
 from id_generator import generate_prefixed_acc_id  # NEW: same sequential-ID generator login.py's signup uses, just with a different prefix
+from manage_course import (
+    get_module_stats_options, get_categories, get_categories_with_modules,
+    create_category, update_category, delete_category,
+    create_module, update_module, delete_module, get_modules_overview,
+)
+
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -128,8 +136,12 @@ def _require_admin_session():
         return redirect(LOGIN_REDIRECT_URL)
     # NEW: bump active_sessions_tbl.last_seen_at so an admin actively
     # browsing isn't swept as a stale/expired session mid-use (see
-    # session_tracker.sweep_expired_sessions()).
-    touch_session(session.get("session_token"))
+    # session_tracker.sweep_expired_sessions()). Passing admin_id lets
+    # touch_session() SELF-HEAL: if this session's row was already
+    # swept while the admin was still logged in, it gets recreated with
+    # the same token instead of the admin silently disappearing from
+    # the "Active Sessions" count until they log out and back in.
+    touch_session(session.get("session_token"), session.get("admin_id"))
 
 
 def get_greeting():
@@ -1023,7 +1035,7 @@ def create_administrator():
     if not ok:
         errors['mobile'] = msg
 
-    ok, msg = validate_birthdate(birthdate)
+    ok, msg = validate_birthdate(birthdate, min_age=ADMIN_MIN_SIGNUP_AGE, max_age=ADMIN_MAX_SIGNUP_AGE)
     if not ok:
         errors['birthdate'] = msg
 
@@ -1275,31 +1287,89 @@ def check_account_field_availability():
 
 @admin_bp.route('/manage-course')
 def manage_course():
-    """
-    Pulls modules from the database for the Manage Course page.
-    """
-    connection = get_db_connection()
-    modules = []
-    total_modules = 0
-
-    if connection is not None:
-        try:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM modules ORDER BY created_at DESC")
-            modules = cursor.fetchall()
-            total_modules = len(modules)
-            cursor.close()
-        except Error as e:
-            print(f"admin_routes: database error while loading modules: {e}")
-        finally:
-            if connection.is_connected():
-                connection.close()
-
+    search = request.args.get('q', '')
+    status = request.args.get('status', '')
+    page = request.args.get('page', 1, type=int)
+ 
+    overview = get_modules_overview(search_query=search, status_filter=status, page=page)
+    if overview is None:
+        overview = {"modules": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
+ 
     return render_template(
         'manage-course.html',
-        modules=modules,
-        total_modules=total_modules
+        modules=overview["modules"],
+        total_modules=overview["total"],
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        statuses=get_module_stats_options(),
+        categories=get_categories(),
     )
+ 
+ 
+@admin_bp.route('/manage-course/data')
+def manage_course_data():
+    """Live search/filter/pagination for the module table - JSON."""
+    search = request.args.get('q', '')
+    status = request.args.get('status', '')
+    page = request.args.get('page', 1, type=int)
+ 
+    overview = get_modules_overview(search_query=search, status_filter=status, page=page)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
+ 
+ 
+@admin_bp.route('/manage-course/categories')
+def manage_course_categories():
+    """Backs the Categories modal - categories + their nested modules."""
+    return jsonify({"success": True, "categories": get_categories_with_modules()}), 200
+ 
+ 
+@admin_bp.route('/manage-course/categories/create', methods=['POST'])
+def manage_course_create_category():
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+    success, message, cat_id = create_category(data.get('category_name'))
+    status_code = 201 if success else 400
+    return jsonify({"success": success, "message": message, "cat_id": cat_id}), status_code
+ 
+ 
+@admin_bp.route('/manage-course/categories/<int:cat_id>/update', methods=['POST'])
+def manage_course_update_category(cat_id):
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+    success, message = update_category(cat_id, data.get('category_name'))
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+ 
+ 
+@admin_bp.route('/manage-course/categories/<int:cat_id>/delete', methods=['POST'])
+def manage_course_delete_category(cat_id):
+    success, message = delete_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+ 
+ 
+@admin_bp.route('/manage-course/modules/create', methods=['POST'])
+def manage_course_create_module():
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+    success, message, module_id = create_module(
+        data.get('module_name'), data.get('description'),
+        data.get('cat_id'), data.get('module_stats_id')
+    )
+    return jsonify({"success": success, "message": message, "module_id": module_id}), (201 if success else 400)
+ 
+ 
+@admin_bp.route('/manage-course/modules/<int:module_id>/update', methods=['POST'])
+def manage_course_update_module(module_id):
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+    success, message = update_module(
+        module_id, data.get('module_name'), data.get('description'),
+        data.get('cat_id'), data.get('module_stats_id')
+    )
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+ 
+ 
+@admin_bp.route('/manage-course/modules/<int:module_id>/delete', methods=['POST'])
+def manage_course_delete_module(module_id):
+    success, message = delete_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 # ------------------------------------------------------------------
 # Task #19: Placeholder ("Under Construction") pages
