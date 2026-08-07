@@ -29,8 +29,18 @@ configurable-via-env values (see login.py's app.secret_key). To change
 the policy app-wide, set the env var - nothing in this file or its
 callers needs to change:
 
-    ACCOUNT_INACTIVITY_MINUTES=1        # development / testing (spec's example)
-    ACCOUNT_INACTIVITY_MINUTES=43200    # production: 30 days (30 * 24 * 60)
+    ACCOUNT_INACTIVITY_MINUTES=43200    # default / production: 30 days (30 * 24 * 60)
+    ACCOUNT_INACTIVITY_MINUTES=1        # development / testing only
+
+NOTE - this is deliberately a DIFFERENT clock than "Active Sessions".
+"Active Accounts" (this file) answers "has this account logged in
+within the last 30 days?" - a slow, account-level status shown on the
+Account & Security table. "Active Sessions" (see session_tracker.py)
+answers "is someone using this account RIGHT NOW?" - a fast,
+session-level count that goes stale after just 30 MINUTES of no
+activity (SESSION_TIMEOUT_MINUTES, default 30). The two are
+intentionally on very different timescales and must not be confused
+with each other or merged into one threshold.
 
 SCOPE
 Only account_tbl.status and account_tbl.last_login are read/written
@@ -46,10 +56,11 @@ ACCOUNT_TABLE = "account_tbl"
 # ------------------------------------------------------------
 # CONFIGURABLE THRESHOLD (minutes)
 # ------------------------------------------------------------
-# Kept small by default so a fresh checkout "just works" for testing per
-# the spec's own example ("For testing: 1 minute"). Override via env var
-# in production, e.g. ACCOUNT_INACTIVITY_MINUTES=43200 for 30 days.
-ACCOUNT_INACTIVITY_MINUTES_DEFAULT = 1
+# Defaults to 30 DAYS (30 * 24 * 60 = 43200 minutes) - an account only
+# flips to "Inactive" once it hasn't logged in for a full 30 days. For
+# local development/testing, override with a small value via env var,
+# e.g. ACCOUNT_INACTIVITY_MINUTES=1, without touching this file.
+ACCOUNT_INACTIVITY_MINUTES_DEFAULT = 30 * 24 * 60  # 43200 minutes = 30 days
 
 
 def _get_inactivity_minutes():

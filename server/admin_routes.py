@@ -9,6 +9,8 @@ from cobradb import get_db_connection
 from account_status import refresh_inactive_accounts, get_account_status_counts  # NEW: shared, configurable Active/Inactive sweep + lean status-count aggregate
 from login_logs import get_todays_login_metrics  # NEW: today's login/success/fail counts for the Login Logs metric cards
 from password_reset_logs import get_password_resets_today_count  # NEW: today's password-reset count for the Login Logs metric cards
+from session_tracker import get_active_session_count, touch_session, end_session as end_active_session  # NEW: live "Active Sessions" tracking
+from lockout_logs import get_lockouts_today_count  # NEW: distinct-per-day "Locked Out Due to Fails" count
 from validators import (  # NEW: same validation rules used by login.py's Learner Sign Up route - never re-implemented here
     validate_name_field,
     validate_required,
@@ -124,6 +126,10 @@ def _require_admin_session():
         return
     if not session.get("admin_id"):
         return redirect(LOGIN_REDIRECT_URL)
+    # NEW: bump active_sessions_tbl.last_seen_at so an admin actively
+    # browsing isn't swept as a stale/expired session mid-use (see
+    # session_tracker.sweep_expired_sessions()).
+    touch_session(session.get("session_token"))
 
 
 def get_greeting():
@@ -304,6 +310,11 @@ def admin_logout():
     """
     admin_id = session.get("admin_id")
 
+    # NEW: remove this admin's active_sessions_tbl row - this is what
+    # makes "Active Sessions" decrease immediately on logout, rather
+    # than only after SESSION_TIMEOUT_MINUTES of inactivity.
+    end_active_session(session.get("session_token"))
+
     if admin_id:
         connection = get_db_connection()
         if connection is not None:
@@ -323,6 +334,29 @@ def admin_logout():
 
     session.clear()
     return redirect(LOGIN_REDIRECT_URL)
+
+
+# ============================================================
+# ROUTE: BEACON - END ADMIN SESSION ON TAB CLOSE (no explicit Logout click)
+# ============================================================
+@admin_bp.route('/session/end', methods=['POST'])
+def admin_session_end_beacon():
+    """
+    Task: "Active Sessions" should drop the instant an admin closes the
+    tab/browser, not sit stale for up to SESSION_TIMEOUT_MINUTES until
+    the next lazy sweep. admin-auth-guard.js fires this via
+    navigator.sendBeacon() on 'pagehide' - sendBeacon requests are
+    fire-and-forget (the browser doesn't wait for or care about the
+    response), so this route is intentionally trivial: end the session
+    row and return immediately.
+
+    Deliberately does NOT run through _require_admin_session's normal
+    before_request redirect flow in any way that matters here - it
+    simply ends whatever session_token this request's cookie carries,
+    which is a no-op (not an error) if it's already gone.
+    """
+    end_active_session(session.get("session_token"))
+    return ("", 204)
 
 
 # ------------------------------------------------------------------
@@ -583,12 +617,14 @@ def get_login_logs_metrics():
         return zero_metrics
 
     try:
-        # Must run before counting Active/Locked accounts so "Active
-        # Sessions" and "Locked Out Due to Fails" reflect the latest
-        # sweep rather than whatever was last written on a previous
-        # login/page load.
+        # Kept for other callers of get_account_status_counts (e.g. any
+        # future use of active_accounts/locked_accounts as-of-now), but
+        # "Active Sessions" and "Locked Out Due to Fails" below now come
+        # from real event tables (session_tracker / lockout_logs)
+        # instead of this account_tbl snapshot - see the docstring above
+        # for why account_tbl state can't answer either question
+        # correctly.
         refresh_inactive_accounts(connection)
-        account_counts = get_account_status_counts(connection)
         login_counts = get_todays_login_metrics(connection)
         resets_today = get_password_resets_today_count(connection)
 
@@ -596,8 +632,16 @@ def get_login_logs_metrics():
             "total_logins_today": login_counts["total_logins_today"],
             "successful_logins": login_counts["successful_logins"],
             "failed_logins": login_counts["failed_logins"],
-            "active_sessions": account_counts["active_accounts"],
-            "locked_out_fails": account_counts["locked_accounts"],
+            # NEW: live COUNT(*) of open active_sessions_tbl rows -
+            # incremented at login, decremented at logout, and swept
+            # after SESSION_TIMEOUT_MINUTES of inactivity. Never derived
+            # from login/logout history.
+            "active_sessions": get_active_session_count(connection),
+            # NEW: COUNT(DISTINCT acc_id) of lockout_logs_tbl events
+            # today - counts each account once per day even if locked
+            # multiple times, and still counts accounts already
+            # unlocked again, per the task's requirements.
+            "locked_out_fails": get_lockouts_today_count(connection),
             "password_resets_today": resets_today,
         }
     except Error as e:

@@ -86,30 +86,40 @@
      * it, so a subsequent Back press from the landing page won't hop back
      * into this page either.
      */
+    // Same origin convention already used by script.js's API_BASE_URL.
+    const API_BASE_URL = "http://127.0.0.1:5000";
+
     function performLogout() {
-        // 1. Clear the auth flag (and anything else stashed in
-        //    sessionStorage for this tab/session).
-        sessionStorage.removeItem(AUTH_FLAG_KEY);
-        sessionStorage.clear();
+        // NEW: tell the backend to end this account's active_sessions_tbl
+        // row (see login.py: /logout) - this is what makes the Admin >
+        // Login Logs "Active Sessions" metric decrease immediately,
+        // instead of only after the session times out. Best-effort: a
+        // network hiccup here must never block the user from actually
+        // being logged out client-side.
+        fetch(`${API_BASE_URL}/logout`, { method: "POST", credentials: "include" })
+            .catch(function () { /* best-effort - proceed with client-side logout regardless */ })
+            .finally(function () {
+                // 1. Clear the auth flag (and anything else stashed in
+                //    sessionStorage for this tab/session).
+                sessionStorage.removeItem(AUTH_FLAG_KEY);
+                sessionStorage.clear();
 
-        // 2. Clear any token-based auth that might be added later
-        //    (e.g. if this project moves to JWT-in-localStorage).
-        localStorage.removeItem("authToken");
+                // 2. Clear any token-based auth that might be added later
+                //    (e.g. if this project moves to JWT-in-localStorage).
+                localStorage.removeItem("authToken");
 
-        // 3. Clear any non-HttpOnly cookies this page can see. (Real
-        //    HttpOnly session cookies, if introduced later, must be
-        //    invalidated server-side via a /logout endpoint instead -
-        //    client JS cannot delete those.)
-        document.cookie.split(";").forEach(function (cookie) {
-            const name = cookie.split("=")[0].trim();
-            if (!name) return;
-            document.cookie = name + "=;expires=" + new Date(0).toUTCString() + ";path=/";
-        });
+                // 3. Clear any non-HttpOnly cookies this page can see.
+                document.cookie.split(";").forEach(function (cookie) {
+                    const name = cookie.split("=")[0].trim();
+                    if (!name) return;
+                    document.cookie = name + "=;expires=" + new Date(0).toUTCString() + ";path=/";
+                });
 
-        // 4. Real, full navigation - not an SPA route change - so the
-        //    landing page's own script.js runs fresh and its Sign In view
-        //    initializes cleanly.
-        window.location.replace(LANDING_PAGE_URL);
+                // 4. Real, full navigation - not an SPA route change - so
+                //    the landing page's own script.js runs fresh and its
+                //    Sign In view initializes cleanly.
+                window.location.replace(LANDING_PAGE_URL);
+            });
     }
 
     // If this page is loaded/restored (including via bfcache) without a
@@ -187,4 +197,29 @@
     // reuse the exact same clear-everything-then-redirect logic instead
     // of duplicating it.
     window.cobraByteLogout = performLogout;
+
+    // ------------------------------------------------------------
+    // NEW: end the active_sessions_tbl row the INSTANT this tab closes
+    // or navigates away - not up to SESSION_TIMEOUT_MINUTES later.
+    // ------------------------------------------------------------
+    // performLogout() (above) already ends the session via a normal
+    // fetch() when the person explicitly logs out - but if they just
+    // close the tab/browser instead, no JS has a chance to run a normal
+    // fetch(). 'pagehide' fires reliably in that case, and
+    // navigator.sendBeacon() is purpose-built for exactly this: a tiny,
+    // fire-and-forget POST that the browser guarantees gets sent even
+    // while the page is mid-unload, without blocking navigation.
+    //
+    // This is a background safety net only - it never blocks the
+    // person from actually leaving, and if the beacon somehow fails to
+    // reach the server, session_tracker.py's 30-minute sweep still
+    // catches it eventually. Guarded by isAuthenticated() so this never
+    // fires for someone who was never logged in to begin with (e.g. a
+    // page load that immediately redirects to the landing page above).
+    window.addEventListener("pagehide", function () {
+        if (!isAuthenticated()) return;
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon("http://127.0.0.1:5000/session/end");
+        }
+    });
 })();

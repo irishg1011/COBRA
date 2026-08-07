@@ -18,6 +18,8 @@ from login_logs import log_login_attempt  # NEW: reusable login attempt logger
 from password_reset_logs import log_password_reset  # NEW: reusable password-reset activity logger
 from admin_routes import admin_bp  # NEW: import admin blueprint
 from account_status import refresh_inactive_accounts, is_account_inactive  # NEW: shared, configurable Active/Inactive logic
+from session_tracker import create_session, end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
+from lockout_logs import log_lockout_event  # NEW: distinct-per-day lockout event logging
 from validators import PASSWORD_REGEX, calculate_age, MIN_SIGNUP_AGE, MAX_SIGNUP_AGE  # NEW: shared validation rules (also reused by admin_routes.py's Create Administrator flow)
 from id_generator import generate_prefixed_acc_id  # NEW: shared account-ID generator (also reused by admin_routes.py)
 
@@ -416,6 +418,10 @@ def login():
                 )
                 connection.commit()
                 cursor.close()
+                # NEW: one lockout EVENT record - this is what "Locked Out
+                # Due to Fails" counts (DISTINCT acc_id, scoped to today),
+                # never account_tbl's current lockout_until state.
+                log_lockout_event(acc_id=account["acc_id"])
                 # NEW: log failed attempt that triggered the lockout
                 log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
                 return jsonify({
@@ -467,11 +473,21 @@ def login():
         # flag. Store only the acc_id here - admin_routes.py looks this
         # up fresh from the database on every request rather than
         # trusting any name/role passed in from the client.
+        session.clear()
+
+        # NEW: open a real active_sessions_tbl row for THIS login - for
+        # both Admin and Learner accounts. This (not login_logs_tbl
+        # history) is what the "Active Sessions" metric counts: the row
+        # is removed on logout (see admin_logout()/learner_logout()
+        # below) or swept automatically after SESSION_TIMEOUT_MINUTES of
+        # inactivity (see session_tracker.sweep_expired_sessions()). A
+        # None return (DB hiccup) must never block the login itself.
+        session_token = create_session(account["acc_id"])
+        if session_token:
+            session["session_token"] = session_token
+
         if is_admin:
-            session.clear()
             session["admin_id"] = account["acc_id"]
-        else:
-            session.clear()
 
         return jsonify({
             "success": True,
@@ -662,6 +678,54 @@ def get_genders():
     finally:
         if connection.is_connected():
             connection.close()
+
+# ============================================================
+# ROUTE: LEARNER LOGOUT
+# ============================================================
+@app.route("/logout", methods=["POST"])
+def learner_logout():
+    """
+    Task: "Active Sessions" must decrease on logout, not just on
+    session expiry. Mirrors admin_routes.py's admin_logout() but for
+    Learner accounts (which have no server-side session guard of their
+    own - see auth-guard.js's docstring - so this route's only job is
+    to end the active_sessions_tbl row that create_session() opened at
+    login).
+
+    Best-effort: end_session() never raises, so this always returns
+    success even if the underlying delete failed - a logout must never
+    appear to fail to the frontend.
+    """
+    token = session.get("session_token")
+    end_session(token)
+    session.clear()
+    return jsonify({"success": True, "message": "Logged out."}), 200
+
+
+# ============================================================
+# ROUTE: BEACON - END SESSION ON TAB CLOSE (no explicit Logout click)
+# ============================================================
+@app.route("/session/end", methods=["POST"])
+def learner_session_end_beacon():
+    """
+    Task: "Active Sessions" should drop the instant a person closes the
+    tab/browser, not sit stale for up to SESSION_TIMEOUT_MINUTES until
+    the next sweep. auth-guard.js fires this via navigator.sendBeacon()
+    on 'pagehide' - sendBeacon requests are fire-and-forget (the
+    browser doesn't wait for or care about the response, and may still
+    be mid-unload when this fires), so this route is intentionally
+    trivial: end the session row and return immediately. It does NOT
+    clear the full Flask session or attempt anything else, since the
+    tab is already closing and there's no page left to react to a
+    richer response.
+
+    Safe to call redundantly - end_session() is a no-op if the token is
+    already gone (e.g. the person used the real Logout button first).
+    """
+    token = session.get("session_token")
+    end_session(token)
+    return ("", 204)
+
 
 # ============================================================
 # ROUTE: SERVE FRONTEND PAGES
