@@ -1,0 +1,91 @@
+<!-- Categories & Modules Management Modal -->
+<div id="categoriesModal" class="custom-modal-overlay" style="display: none;">
+    <div class="custom-modal-dialog">
+        <div class="custom-modal-header">
+            <h3>Categories</h3>
+            <button type="button" class="categories-close-btn" id="closeCategoriesModal">&times;</button>
+        </div>
+        
+        <div class="custom-modal-body">
+            <!-- Category Item 1: Expanded -->
+            <div class="category-accordion-item active">
+                <div class="category-accordion-toggle">
+                    <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+                    <span class="category-name">Basics</span>
+                </div>
+                <div class="category-modules-list">
+                    <!-- Module Row 1 -->
+                    <div class="category-module-row">
+                        <div class="module-badge-num bg-success-log">1</div>
+                        <div class="module-info-text">
+                            <strong>Introduction to Python</strong>
+                            <small>Python is a high-level, interpreted programming language...</small>
+                        </div>
+                        <span class="badge badge-success-log">Published</span>
+                        <div class="module-row-actions">
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        </div>
+                    </div>
+                    <!-- Module Row 2 -->
+                    <div class="category-module-row">
+                        <div class="module-badge-num bg-success-log">2</div>
+                        <div class="module-info-text">
+                            <strong>Variables and Data Types</strong>
+                            <small>Learn about strings, integers, floats, booleans...</small>
+                        </div>
+                        <span class="badge badge-success-log">Published</span>
+                        <div class="module-row-actions">
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        </div>
+                    </div>
+                    <!-- Module Row 3 -->
+                    <div class="category-module-row">
+                        <div class="module-badge-num bg-success-log">3</div>
+                        <div class="module-info-text">
+                            <strong>File Handling</strong>
+                            <small>Read and write files with Python...</small>
+                        </div>
+                        <span class="badge badge-success-log">Published</span>
+                        <div class="module-row-actions">
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category Item 2: Collapsed -->
+            <div class="category-accordion-item">
+                <div class="category-accordion-toggle">
+                    <i class="fa-solid fa-chevron-right toggle-arrow"></i>
+                    <span class="category-name">Control Flow</span>
+                </div>
+            </div>
+
+            <!-- Category Item 3: Collapsed -->
+            <div class="category-accordion-item">
+                <div class="category-accordion-toggle">
+                    <i class="fa-solid fa-chevron-right toggle-arrow"></i>
+                    <span class="category-name">Functions</span>
+                </div>
+            </div>
+
+            <!-- Category Item 4: Collapsed -->
+            <div class="category-accordion-item">
+                <div class="category-accordion-toggle">
+                    <i class="fa-solid fa-chevron-right toggle-arrow"></i>
+                    <span class="category-name">Strings</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Footer Actions (Centered) -->
+        <div class="custom-modal-footer centered-footer">
+            <button type="button" class="btn btn-success-custom" id="modalAddCategoryBtn">
+                <i class="fa-solid fa-plus"></i> Add Category
+            </button>
+            <button type="button" class="btn btn-success-custom" id="modalAddModuleBtn">
+                <i class="fa-solid fa-plus"></i> Add Module
+            </button>
+        </div>
+    </div>
+</div>

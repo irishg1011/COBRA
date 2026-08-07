@@ -1314,3 +1314,212 @@ body {
     cursor: pointer;
     font-size: 14px;
 }
+
+/* --- Categories Modal Custom Styles --- */
+.custom-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.custom-modal-dialog {
+    background: #ffffff;
+    width: 100%;
+    max-width: 650px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: inherit;
+}
+
+.custom-modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.custom-modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #333;
+}
+
+.categories-close-btn {
+    background: #f3f4f6;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #4b5563;
+    transition: background 0.2s, color 0.2s;
+    line-height: 1;
+}
+
+.categories-close-btn:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+/* Header Title Wrapper & Inline Close Button */
+.modal-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.modal-header-close-btn {
+    background: #f3f4f6;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: #4b5563;
+    transition: background 0.2s;
+}
+
+.modal-header-close-btn:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.modal-close-btn {
+    background: #f3f4f6;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #4b5563;
+    transition: background 0.2s, color 0.2s;
+    line-height: 1;
+}
+
+.modal-close-btn:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.custom-modal-body {
+    padding: 20px 24px;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.category-accordion-item {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 12px 0;
+}
+
+.category-accordion-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #111827;
+}
+
+.category-accordion-toggle .toggle-arrow {
+    margin-right: 10px;
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.category-modules-list {
+    margin-top: 12px;
+    padding-left: 20px;
+    display: none;
+}
+
+.category-accordion-item.active .category-modules-list {
+    display: block;
+}
+
+.category-module-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.category-module-row:last-child {
+    border-bottom: none;
+}
+
+.module-badge-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-right: 14px;
+    flex-shrink: 0;
+}
+
+.bg-success-log {
+    background-color: #10b981 !important;
+}
+
+.module-info-text {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.module-info-text strong {
+    font-size: 0.95rem;
+    color: #1f2937;
+}
+
+.module-info-text small {
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
+.module-row-actions {
+    margin-left: 15px;
+    color: #4b5563;
+    cursor: pointer;
+}
+
+.custom-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 12px;
+    background: #f9fafb;
+}
+
+/* Centered footer button variant */
+.custom-modal-footer.centered-footer {
+    justify-content: center;
+}

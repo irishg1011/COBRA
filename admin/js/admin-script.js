@@ -90,3 +90,56 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+    const openModalBtn = document.getElementById('openCreateModuleBtn');
+    const categoriesModal = document.getElementById('categoriesModal');
+    const closeModalBtn = document.getElementById('closeCategoriesModal');
+    const closeModalBtnHeader = document.getElementById('closeCategoriesModalHeader');
+
+    // Open Modal
+    if (openModalBtn && categoriesModal) {
+        openModalBtn.addEventListener('click', function() {
+            categoriesModal.style.display = 'flex';
+        });
+    }
+
+    // Close Modal via main footer/corner 'X' button
+    if (closeModalBtn && categoriesModal) {
+        closeModalBtn.addEventListener('click', function() {
+            categoriesModal.style.display = 'none';
+        });
+    }
+
+    // Close Modal via header title 'X' button
+    if (closeModalBtnHeader && categoriesModal) {
+        closeModalBtnHeader.addEventListener('click', function() {
+            categoriesModal.style.display = 'none';
+        });
+    }
+
+    // Close Modal when clicking outside content area
+    window.addEventListener('click', function(event) {
+        if (event.target === categoriesModal) {
+            categoriesModal.style.display = 'none';
+        }
+    });
+
+    // Accordion Toggle for Categories
+    const categoryToggles = document.querySelectorAll('.category-accordion-toggle');
+    categoryToggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const parentItem = this.parentElement;
+            parentItem.classList.toggle('active');
+            
+            const arrow = this.querySelector('.toggle-arrow');
+            if (parentItem.classList.contains('active')) {
+                arrow.classList.remove('fa-chevron-right');
+                arrow.classList.add('fa-chevron-down');
+            } else {
+                arrow.classList.remove('fa-chevron-down');
+                arrow.classList.add('fa-chevron-right');
+            }
+        });
+    });
+});

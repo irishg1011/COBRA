@@ -35,7 +35,7 @@
                         </div>
                         <div class="header-actions">
                             <button id="openCreateModuleBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-plus"></i> Create Modules
+                                View Categories
                             </button>
                         </div>
                     </div>
@@ -120,7 +120,8 @@
             </div>
         </main>
     </div>
-
+    {% include 'categories-modal.html' %}
+    
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
