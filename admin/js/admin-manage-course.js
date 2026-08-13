@@ -24,10 +24,59 @@
         const prevBtn = document.getElementById("modulesPrevBtn");
         const nextBtn = document.getElementById("modulesNextBtn");
 
+        // Task #30: Created At / Updated At date filter controls.
+        const createdFromInput = document.getElementById("createdFromInput");
+        const createdToInput = document.getElementById("createdToInput");
+        const clearCreatedDateBtn = document.getElementById("clearCreatedDateBtn");
+        const updatedFromInput = document.getElementById("updatedFromInput");
+        const updatedToInput = document.getElementById("updatedToInput");
+        const clearUpdatedDateBtn = document.getElementById("clearUpdatedDateBtn");
+        const dateFilterError = document.getElementById("dateFilterError");
+
         let currentPage = 1;
         let totalPages = 1;
         let debounceTimer = null;
         let activeRequestId = 0;
+
+        function showDateFilterError(message) {
+            if (!dateFilterError) { alert(message); return; }
+            dateFilterError.textContent = message;
+            dateFilterError.style.display = "block";
+        }
+
+        function clearDateFilterError() {
+            if (!dateFilterError) return;
+            dateFilterError.textContent = "";
+            dateFilterError.style.display = "none";
+        }
+
+        /**
+         * Task #30, Requirement #17: reject an invalid date range
+         * (End before Start) client-side, before ever calling the
+         * backend, so the admin gets instant feedback. The backend's
+         * /manage-course/data endpoint re-validates the exact same rule
+         * server-side (never trusting only this check) in case this
+         * script is bypassed.
+         */
+        function validateDateRanges() {
+            clearDateFilterError();
+
+            const cFrom = createdFromInput ? createdFromInput.value : "";
+            const cTo = createdToInput ? createdToInput.value : "";
+            if (cFrom && cTo && cFrom > cTo) {
+                showDateFilterError("Created At: end date must be on or after the start date.");
+                return false;
+            }
+
+            const uFrom = updatedFromInput ? updatedFromInput.value : "";
+            const uTo = updatedToInput ? updatedToInput.value : "";
+            if (uFrom && uTo && uFrom > uTo) {
+                showDateFilterError("Updated At: end date must be on or after the start date.");
+                return false;
+            }
+
+            return true;
+        }
 
         function escapeHtml(str) {
             const div = document.createElement("div");
@@ -72,11 +121,24 @@
             const term = searchInput ? searchInput.value.trim() : "";
             if (term) params.set("q", term);
             if (statusSelect && statusSelect.value) params.set("status", statusSelect.value);
+            // Task #30: only ever sent when the admin actually picked a
+            // value - an empty/untouched date input adds no restriction,
+            // matching get_modules_overview()'s "absent bound = no
+            // restriction" behavior on the backend.
+            if (createdFromInput && createdFromInput.value) params.set("created_from", createdFromInput.value);
+            if (createdToInput && createdToInput.value) params.set("created_to", createdToInput.value);
+            if (updatedFromInput && updatedFromInput.value) params.set("updated_from", updatedFromInput.value);
+            if (updatedToInput && updatedToInput.value) params.set("updated_to", updatedToInput.value);
             params.set("page", currentPage);
             return params;
         }
 
         async function loadModules() {
+            // Task #30: don't even call the backend with a known-bad
+            // range - keep the current table/pagination as-is and just
+            // surface the validation message.
+            if (!validateDateRanges()) return;
+
             const requestId = ++activeRequestId;
             try {
                 const response = await fetch(`/admin/manage-course/data?${buildParams().toString()}`, { credentials: "include" });
@@ -84,10 +146,19 @@
                 if (requestId !== activeRequestId) return;
 
                 if (!result.success) {
+                    // Task #30: the backend's own range check (400) lands
+                    // here too (e.g. if this script's client-side check
+                    // was somehow bypassed) - show it as a filter error,
+                    // not a generic "could not load" message.
+                    if (response.status === 400 && result.message) {
+                        showDateFilterError(result.message);
+                        return;
+                    }
                     tableBody.innerHTML = `<tr><td colspan="6" class="text-muted table-empty-message">Could not load modules.</td></tr>`;
                     return;
                 }
 
+                clearDateFilterError();
                 renderModules(result.modules);
                 currentPage = result.page;
                 totalPages = result.total_pages;
@@ -112,6 +183,38 @@
         if (statusSelect) statusSelect.addEventListener("change", () => scheduleLoad(true));
         if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; loadModules(); } });
         if (nextBtn) nextBtn.addEventListener("click", () => { if (currentPage < totalPages) { currentPage++; loadModules(); } });
+
+        // ------------------------------------------------------------
+        // Task #30: Created At / Updated At date filters
+        // ------------------------------------------------------------
+        // Each date input reruns the same combined load (debounced, and
+        // resets to page 1 - Requirement #12), preserving whatever is
+        // currently in search/status/the other date fields, exactly like
+        // status/search already do above.
+        [createdFromInput, createdToInput, updatedFromInput, updatedToInput].forEach((input) => {
+            if (!input) return;
+            input.addEventListener("change", () => scheduleLoad(true));
+        });
+
+        // Requirement #9/#10: Clear only removes ITS OWN date
+        // restriction (Created At or Updated At) - search, status, and
+        // the other date filter are left completely untouched.
+        if (clearCreatedDateBtn) {
+            clearCreatedDateBtn.addEventListener("click", () => {
+                if (createdFromInput) createdFromInput.value = "";
+                if (createdToInput) createdToInput.value = "";
+                clearDateFilterError();
+                scheduleLoad(true);
+            });
+        }
+        if (clearUpdatedDateBtn) {
+            clearUpdatedDateBtn.addEventListener("click", () => {
+                if (updatedFromInput) updatedFromInput.value = "";
+                if (updatedToInput) updatedToInput.value = "";
+                clearDateFilterError();
+                scheduleLoad(true);
+            });
+        }
 
         // ------------------------------------------------------------
         // Edit / Delete module (event delegation - rows are re-rendered)

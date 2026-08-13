@@ -1291,8 +1291,21 @@ def manage_course():
     search = request.args.get('q', '')
     status = request.args.get('status', '')
     page = request.args.get('page', 1, type=int)
- 
-    overview = get_modules_overview(search_query=search, status_filter=status, page=page)
+
+    # Task #30: Created At / Updated At date filters. All four are
+    # optional 'YYYY-MM-DD' strings coming straight from the query
+    # string (never hardcoded) - an absent param means "no restriction"
+    # for that bound, handled by get_modules_overview() itself.
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
+    overview = get_modules_overview(
+        search_query=search, status_filter=status, page=page,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
     if overview is None:
         overview = {"modules": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
  
@@ -1304,6 +1317,15 @@ def manage_course():
         total_pages=overview["total_pages"],
         statuses=get_module_stats_options(),
         categories=get_categories(),
+        # NEW: reflected back into the date inputs' `value` attributes so a
+        # direct/refreshed load with a query string (e.g. a bookmarked or
+        # shared filtered URL) shows the same filter state instead of
+        # silently resetting it - admin-manage-course.js takes over for
+        # every subsequent live filter change.
+        created_from=created_from or '',
+        created_to=created_to or '',
+        updated_from=updated_from or '',
+        updated_to=updated_to or '',
     )
  
  
@@ -1313,8 +1335,37 @@ def manage_course_data():
     search = request.args.get('q', '')
     status = request.args.get('status', '')
     page = request.args.get('page', 1, type=int)
- 
-    overview = get_modules_overview(search_query=search, status_filter=status, page=page)
+
+    # Task #30: same four optional date-filter params as manage_course()
+    # above, for the live AJAX endpoint admin-manage-course.js calls on
+    # every search/status/date/page change.
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
+    # Server-side range validation - never trust only the frontend's own
+    # check (admin-manage-course.js validates the same thing for instant
+    # feedback, but a request can always arrive here directly). Plain
+    # string comparison is safe here because both bounds are always
+    # 'YYYY-MM-DD' (ISO 8601 sorts lexicographically the same as
+    # chronologically).
+    if created_from and created_to and created_from > created_to:
+        return jsonify({
+            "success": False,
+            "message": "Created At: end date must be on or after the start date.",
+        }), 400
+    if updated_from and updated_to and updated_from > updated_to:
+        return jsonify({
+            "success": False,
+            "message": "Updated At: end date must be on or after the start date.",
+        }), 400
+
+    overview = get_modules_overview(
+        search_query=search, status_filter=status, page=page,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500
     return jsonify({"success": True, **overview}), 200

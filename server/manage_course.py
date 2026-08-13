@@ -515,7 +515,8 @@ def restore_module(module_id):
             connection.close()
 
 
-def get_modules_overview(search_query=None, status_filter=None, page=1, per_page=8, archived=False):
+def get_modules_overview(search_query=None, status_filter=None, page=1, per_page=8, archived=False,
+                          created_from=None, created_to=None, updated_from=None, updated_to=None):
     """
     Pulls a page of modules_tbl, JOINed against category_tbl and
     module_stats_tbl so Category Name / Status Name are returned
@@ -531,6 +532,25 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
     (is_archived = 1) are returned - this backs the separate Archived
     Modules view. The two lists never mix: search/filter/pagination are
     always scoped to whichever dataset was requested.
+
+    Task #30 - Date filtering (created_from/created_to/updated_from/
+    updated_to, each an optional 'YYYY-MM-DD' string):
+        - Filters against the REAL modules_tbl.created_at /
+          modules_tbl.updated_at columns - never hardcoded/static dates.
+        - Compares by DATE ONLY (via SQL DATE(...)), so a timestamp like
+          '2026-08-07 18:21:43' still matches a filter of '2026-08-07' -
+          the time-of-day portion never excludes an otherwise-matching
+          row, and an end date is naturally inclusive through 23:59:59
+          of that day since we compare the DATE(), not the full
+          timestamp, against the end date.
+        - Each of the four bounds is only ever added to the query when
+          it was actually supplied - an absent bound adds no
+          restriction, and created_at / updated_at filtering are
+          independent of each other (both may be active together, per
+          Task #30 requirement #8).
+        - Composes with search_query/status_filter/pagination exactly
+          like every other condition already in this query - all are
+          AND'ed together.
 
     Returns {"modules": [...], "total": int, "page": int,
     "per_page": int, "total_pages": int}, or None on DB failure.
@@ -568,6 +588,27 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
         if status_term and status_term.lower() != "all status":
             base_query += " AND ms.module_stats_name = %s"
             params.append(status_term)
+
+        # ------------------------------------------------------------
+        # Task #30: Created At / Updated At date filters
+        # ------------------------------------------------------------
+        created_from = (created_from or "").strip() or None
+        created_to = (created_to or "").strip() or None
+        updated_from = (updated_from or "").strip() or None
+        updated_to = (updated_to or "").strip() or None
+
+        if created_from:
+            base_query += " AND DATE(m.created_at) >= %s"
+            params.append(created_from)
+        if created_to:
+            base_query += " AND DATE(m.created_at) <= %s"
+            params.append(created_to)
+        if updated_from:
+            base_query += " AND DATE(m.updated_at) >= %s"
+            params.append(updated_from)
+        if updated_to:
+            base_query += " AND DATE(m.updated_at) <= %s"
+            params.append(updated_to)
 
         # Total count (for pagination), before LIMIT/OFFSET.
         cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))

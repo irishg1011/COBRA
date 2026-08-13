@@ -71,8 +71,37 @@
                                 <option value="{{ s.module_stats_name }}">{{ s.module_stats_name }}</option>
                                 {% endfor %}
                             </select>
+
+                            <!--
+                                Task #30: Created At / Updated At date
+                                filters. Smallest necessary controls added
+                                to the existing toolbar - no redesign.
+                                Values filter against the real
+                                modules_tbl.created_at / updated_at columns
+                                (see admin-manage-course.js + manage_course.py's
+                                get_modules_overview()), never hardcoded
+                                dates. Prefilled from the query string (if
+                                any) so a direct/shared filtered URL shows
+                                the same state on load.
+                            -->
+                            <span class="text-muted" style="font-size: 12px; align-self: center; margin-left: 4px;">Created:</span>
+                            <input type="date" class="custom-select" id="createdFromInput" title="Created From" value="{{ created_from|default('') }}">
+                            <input type="date" class="custom-select" id="createdToInput" title="Created To" value="{{ created_to|default('') }}">
+                            <button type="button" class="icon-button-reset table-action-icon" id="clearCreatedDateBtn" title="Clear Created At filter">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+
+                            <span class="text-muted" style="font-size: 12px; align-self: center; margin-left: 4px;">Updated:</span>
+                            <input type="date" class="custom-select" id="updatedFromInput" title="Updated From" value="{{ updated_from|default('') }}">
+                            <input type="date" class="custom-select" id="updatedToInput" title="Updated To" value="{{ updated_to|default('') }}">
+                            <button type="button" class="icon-button-reset table-action-icon" id="clearUpdatedDateBtn" title="Clear Updated At filter">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
                         </div>
                     </div>
+
+                    <!-- Task #30: inline validation message (e.g. invalid date range) -->
+                    <p id="dateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
 
                     <!-- Courses / Modules Table -->
                     <table class="data-table">
