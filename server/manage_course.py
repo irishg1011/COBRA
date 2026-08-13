@@ -301,6 +301,23 @@ def create_module(module_name, description, cat_id, module_stats_id):
     try:
         ensure_module_stats(connection)
         cursor = connection.cursor()
+
+        # Task #29: prevent duplicate modules WITHIN THE SAME CATEGORY.
+        # Uniqueness rule = module_name + cat_id (case-insensitive,
+        # already-trimmed `name` above) - mirrors create_category()'s own
+        # LOWER(...) = LOWER(%s) duplicate check above, just additionally
+        # scoped by cat_id so the exact same module_name remains valid
+        # under a DIFFERENT category (existing Category -> Module
+        # relationship is respected, never made globally unique).
+        cursor.execute(
+            f"""SELECT module_id FROM {MODULES_TABLE}
+                WHERE LOWER(module_name) = LOWER(%s) AND cat_id = %s""",
+            (name, cat_id)
+        )
+        if cursor.fetchone():
+            cursor.close()
+            return False, "This module already exists in the selected category.", None
+
         cursor.execute(
             f"""INSERT INTO {MODULES_TABLE}
                 (module_name, description, cat_id, module_stats_id, created_at, updated_at)
