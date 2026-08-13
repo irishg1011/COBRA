@@ -373,10 +373,22 @@
         // ------------------------------------------------------------
         const submitCreateCategoryBtn = document.getElementById("submitCreateCategoryBtn");
         const newCategoryNameInput = document.getElementById("newCategoryNameInput");
-        if (submitCreateCategoryBtn) {
-            submitCreateCategoryBtn.addEventListener("click", async () => {
-                const name = newCategoryNameInput ? newCategoryNameInput.value.trim() : "";
-                if (!name) { alert("Category name is required."); return; }
+
+        // Task #28: single source of truth for "create this category" -
+        // both the button's click handler AND the Enter-key handler below
+        // call this exact function, so there is only ever one place that
+        // builds the request (no separate/duplicated Enter-key logic).
+        // `submittingCategory` guards against a double-fire if the user
+        // holds Enter down or otherwise triggers this twice before the
+        // first request resolves.
+        let submittingCategory = false;
+        async function submitCreateCategory() {
+            if (submittingCategory) return;
+            const name = newCategoryNameInput ? newCategoryNameInput.value.trim() : "";
+            if (!name) { alert("Category name is required."); return; }
+
+            submittingCategory = true;
+            try {
                 const resp = await fetch("/admin/manage-course/categories/create", {
                     method: "POST", credentials: "include",
                     body: new URLSearchParams({ category_name: name })
@@ -385,6 +397,24 @@
                 if (!result.success) { alert(result.message); return; }
                 if (newCategoryNameInput) newCategoryNameInput.value = "";
                 refreshCategoriesModal();
+            } finally {
+                submittingCategory = false;
+            }
+        }
+
+        if (submitCreateCategoryBtn) {
+            submitCreateCategoryBtn.addEventListener("click", submitCreateCategory);
+        }
+
+        // Task #28: Enter key in the Add Category input acts like clicking
+        // "Create Category" - scoped to just this one input (not a page-
+        // wide keydown listener), so it can never fire from any other
+        // field/modal on the page.
+        if (newCategoryNameInput) {
+            newCategoryNameInput.addEventListener("keydown", (e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault(); // no surrounding <form>, but keeps this consistent/defensive
+                submitCreateCategory();
             });
         }
 
@@ -396,17 +426,24 @@
         const newModuleDescInput = document.getElementById("newModuleDescInput");
         const newModuleCategorySelect = document.getElementById("newModuleCategorySelect");
 
-        if (submitCreateModuleBtn) {
-            submitCreateModuleBtn.addEventListener("click", async () => {
-                const name = newModuleNameInput ? newModuleNameInput.value.trim() : "";
-                const desc = newModuleDescInput ? newModuleDescInput.value.trim() : "";
-                const catId = newModuleCategorySelect ? newModuleCategorySelect.value : "";
+        // Task #28: same pattern as submitCreateCategory() above - one
+        // function, reused by both the button click and the Enter-key
+        // handling on the final field, guarded against duplicate
+        // in-flight submissions.
+        let submittingModule = false;
+        async function submitCreateModule() {
+            if (submittingModule) return;
+            const name = newModuleNameInput ? newModuleNameInput.value.trim() : "";
+            const desc = newModuleDescInput ? newModuleDescInput.value.trim() : "";
+            const catId = newModuleCategorySelect ? newModuleCategorySelect.value : "";
 
-                if (!name || !desc || !catId) {
-                    alert("Module name, description, and category are all required.");
-                    return;
-                }
+            if (!name || !desc || !catId) {
+                alert("Module name, description, and category are all required.");
+                return;
+            }
 
+            submittingModule = true;
+            try {
                 // Default new modules to "Draft" status - looked up by
                 // name from the same source of truth as the filter dropdown,
                 // never a hardcoded id.
@@ -427,6 +464,47 @@
                 if (newModuleDescInput) newModuleDescInput.value = "";
                 refreshCategoriesModal();
                 loadModules();
+            } finally {
+                submittingModule = false;
+            }
+        }
+
+        if (submitCreateModuleBtn) {
+            submitCreateModuleBtn.addEventListener("click", submitCreateModule);
+        }
+
+        // Task #28: Enter-key navigation across the Add Module drawer's
+        // fields, in their actual on-screen order (Name -> Description ->
+        // Category -> submit). Each handler is bound to exactly one field
+        // inside #addModuleDrawer, so Enter here can never reach the Add
+        // Category drawer or any other form on the page.
+        if (newModuleNameInput && newModuleDescInput) {
+            newModuleNameInput.addEventListener("keydown", (e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                newModuleDescInput.focus();
+            });
+        }
+        if (newModuleDescInput && newModuleCategorySelect) {
+            newModuleDescInput.addEventListener("keydown", (e) => {
+                if (e.key !== "Enter") return;
+                // The description field is a <textarea> - plain Enter
+                // still needs to insert a newline for a multi-line
+                // description, so only a plain (non-Shift) Enter advances
+                // to the next field; Shift+Enter behaves like a normal
+                // textarea and adds a line break instead.
+                if (e.shiftKey) return;
+                e.preventDefault();
+                newModuleCategorySelect.focus();
+            });
+        }
+        if (newModuleCategorySelect) {
+            newModuleCategorySelect.addEventListener("keydown", (e) => {
+                if (e.key !== "Enter") return;
+                // Final field in the drawer - Enter triggers the same
+                // "Create Module" action the button uses.
+                e.preventDefault();
+                submitCreateModule();
             });
         }
 
