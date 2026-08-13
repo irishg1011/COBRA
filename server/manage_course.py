@@ -21,6 +21,46 @@ DEFAULT_STATUSES = ["Published", "Draft", "Archived"]
 
 _module_stats_ensured = False
 
+# ------------------------------------------------------------------
+# Task #27: Soft Delete / Archive - lazy migration flag
+# ------------------------------------------------------------------
+# Mirrors admin_routes.py's _ensure_mobile_column() pattern: idempotent,
+# gated behind a module-level flag so "ADD COLUMN IF NOT EXISTS" only
+# actually round-trips to the database once per running process, not on
+# every single request.
+_is_archived_column_ensured = False
+
+
+def ensure_is_archived_column(connection):
+    """
+    Task #27 - adds modules_tbl.is_archived (TINYINT(1) NOT NULL DEFAULT 0)
+    if it doesn't already exist yet. This is intentionally a SEPARATE
+    column from module_stats_id/status_name (Published/Draft/Archived) -
+    publication status and archive state are different concepts (see
+    Task #27 spec, Requirement 12): a module can be Published AND
+    archived at the same time. DEFAULT 0 means every existing module
+    automatically stays active/non-archived the moment this column is
+    added - nothing needs to be backfilled.
+
+    "ADD COLUMN IF NOT EXISTS" (MariaDB 10.4+ / MySQL 8.0.29+) is the
+    same idempotent-migration convention already used elsewhere in this
+    project (see admin_routes.py's _ensure_mobile_column()).
+    """
+    global _is_archived_column_ensured
+    if _is_archived_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {MODULES_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"is_archived TINYINT(1) NOT NULL DEFAULT 0"
+        )
+        connection.commit()
+        cursor.close()
+        _is_archived_column_ensured = True
+    except Error as e:
+        print(f"manage_course: failed to ensure {MODULES_TABLE}.is_archived column exists: {e}")
+
 
 def ensure_module_stats(connection):
     """
@@ -320,6 +360,18 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id):
 
 
 def delete_module(module_id):
+    """
+    DEPRECATED (Task #27): this used to permanently DELETE a module row.
+    The Manage Course "Delete" action now performs a soft delete/archive
+    instead (see archive_module() below) - modules are never permanently
+    removed from modules_tbl anymore, so admins can always restore one
+    later and nothing that references a module_id (e.g. future
+    activities/exercises tied to a module) ever dangles.
+
+    Kept here, unused by admin_routes.py, purely for reference/history -
+    per this project's convention of preserving deprecated functions
+    with documentation instead of deleting them outright.
+    """
     connection = get_db_connection()
     if connection is None:
         return False, "Could not connect to the database."
@@ -339,7 +391,114 @@ def delete_module(module_id):
             connection.close()
 
 
-def get_modules_overview(search_query=None, status_filter=None, page=1, per_page=8):
+# ================================================================
+# Task #27: SOFT DELETE / ARCHIVE
+# ================================================================
+def archive_module(module_id):
+    """
+    Marks a module as archived (is_archived = 1) instead of deleting its
+    row. This is what the existing "Delete" action in Manage Course now
+    calls (see admin_routes.py: manage_course_delete_module()).
+
+    - Never runs DELETE FROM modules_tbl.
+    - Only flips is_archived; module_name, description, cat_id,
+      module_stats_id (publication status), created_at are all left
+      untouched. updated_at is bumped, same convention update_module()
+      already uses for any other edit to the row.
+    - The WHERE clause requires is_archived = 0, so archiving an
+      already-archived module is a no-op UPDATE (rowcount 0) rather than
+      silently "succeeding" twice - the caller is told exactly why.
+
+    Returns (bool, str).
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT is_archived FROM {MODULES_TABLE} WHERE module_id = %s", (module_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, "Module not found."
+        if row[0]:
+            cursor.close()
+            return False, "This module is already archived."
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET is_archived = 1, updated_at = NOW()
+                WHERE module_id = %s AND is_archived = 0""",
+            (module_id,)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Module archived successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to archive module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def restore_module(module_id):
+    """
+    Reverses archive_module(): flips is_archived back to 0 so the module
+    reappears in the normal active Manage Course list. Same guarantees
+    as archive_module() - only is_archived and updated_at change; the
+    module_id, name, description, category, publication status, and
+    created_at are all completely unaffected, and no new row is ever
+    created.
+
+    Returns (bool, str).
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT is_archived FROM {MODULES_TABLE} WHERE module_id = %s", (module_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, "Module not found."
+        if not row[0]:
+            cursor.close()
+            return False, "This module is not archived."
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET is_archived = 0, updated_at = NOW()
+                WHERE module_id = %s AND is_archived = 1""",
+            (module_id,)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Module restored successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to restore module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_modules_overview(search_query=None, status_filter=None, page=1, per_page=8, archived=False):
     """
     Pulls a page of modules_tbl, JOINed against category_tbl and
     module_stats_tbl so Category Name / Status Name are returned
@@ -348,6 +507,13 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
     search_query matches module_name, description, OR category_name
     (case-insensitive, "contains"). status_filter matches the status's
     display NAME (e.g. "Published"), never a numeric id.
+
+    archived (bool) - Task #27: when False (default), only ACTIVE
+    modules (is_archived = 0) are returned - this is what the normal
+    Manage Course page shows. When True, only ARCHIVED modules
+    (is_archived = 1) are returned - this backs the separate Archived
+    Modules view. The two lists never mix: search/filter/pagination are
+    always scoped to whichever dataset was requested.
 
     Returns {"modules": [...], "total": int, "page": int,
     "per_page": int, "total_pages": int}, or None on DB failure.
@@ -358,15 +524,16 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
 
     try:
         ensure_module_stats(connection)
+        ensure_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
 
         base_query = """
             FROM {modules} m
             LEFT JOIN {categories} c ON m.cat_id = c.cat_id
             LEFT JOIN {statuses} ms ON m.module_stats_id = ms.module_stats_id
-            WHERE 1 = 1
+            WHERE m.is_archived = %s
         """.format(modules=MODULES_TABLE, categories=CATEGORY_TABLE, statuses=MODULE_STATS_TABLE)
-        params = []
+        params = [1 if archived else 0]
 
         term = (search_query or "").strip()
         if term:
@@ -421,6 +588,7 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
                 "status": row["status_name"],
                 "created_at": _fmt_date(row.get("created_at")),
                 "updated_at": _fmt_date(row.get("updated_at")),
+                "is_archived": bool(archived),
             })
 
         return {

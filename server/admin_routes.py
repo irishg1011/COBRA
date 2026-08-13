@@ -28,6 +28,7 @@ from manage_course import (
     get_module_stats_options, get_categories, get_categories_with_modules,
     create_category, update_category, delete_category,
     create_module, update_module, delete_module, get_modules_overview,
+    archive_module, restore_module,  # NEW - Task #27: soft delete/archive
 )
 
 
@@ -1368,7 +1369,49 @@ def manage_course_update_module(module_id):
  
 @admin_bp.route('/manage-course/modules/<int:module_id>/delete', methods=['POST'])
 def manage_course_delete_module(module_id):
-    success, message = delete_module(module_id)
+    """
+    Task #27: this used to permanently DELETE the module row
+    (delete_module()). It now performs a soft delete/archive instead
+    (archive_module()) - the route/endpoint URL is left unchanged
+    (still "/delete") on purpose, since admin-manage-course.js's
+    existing Delete/trash icon already points here and the request/
+    response shape is identical; only the underlying database operation
+    changed from DELETE to UPDATE ... SET is_archived = 1.
+    """
+    success, message = archive_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# Task #27: ARCHIVED MODULES - list + restore
+# ============================================================
+@admin_bp.route('/manage-course/modules/archived')
+def manage_course_archived_modules():
+    """
+    Live search/pagination for the Archived Modules view - mirrors
+    manage_course_data() exactly, just scoped to is_archived = 1
+    (via get_modules_overview(archived=True)) instead of the active
+    (is_archived = 0) list. No status filter param here since the
+    Archived Modules view doesn't expose a status dropdown of its own.
+    """
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    overview = get_modules_overview(search_query=search, page=page, archived=True)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/restore', methods=['POST'])
+def manage_course_restore_module(module_id):
+    """
+    Task #27: flips a module's is_archived flag back to 0 so it
+    reappears in the normal active Manage Course list. Never creates a
+    new module row - the exact same module_id, name, description,
+    category, and publication status are preserved.
+    """
+    success, message = restore_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 # ------------------------------------------------------------------

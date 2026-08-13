@@ -133,12 +133,20 @@
                 if (delBtn) {
                     e.preventDefault();
                     const id = delBtn.dataset.id;
-                    if (!confirm("Delete this module? This cannot be undone.")) return;
+                    // Task #27: this used to permanently delete the module.
+                    // It now archives it instead (soft delete) - the module
+                    // row is preserved and can be restored later from the
+                    // Archived Modules modal.
+                    if (!confirm("Are you sure you want to archive this module?")) return;
                     const resp = await fetch(`/admin/manage-course/modules/${id}/delete`, {
                         method: "POST", credentials: "include"
                     });
                     const result = await resp.json();
-                    if (!result.success) alert(result.message);
+                    if (!result.success) {
+                        alert(result.message);
+                    } else {
+                        alert("Module archived successfully.");
+                    }
                     loadModules();
                 }
             });
@@ -425,5 +433,131 @@
         // Initial population of the Add Module category dropdown, since
         // it's no longer hardcoded to "basics"/"control-flow".
         populateModuleCategorySelect();
+
+        // ------------------------------------------------------------
+        // Task #27: Archived Modules modal - view + Restore
+        // ------------------------------------------------------------
+        const archivedModal = document.getElementById("archivedModulesModal");
+        const openArchivedBtn = document.getElementById("openArchivedModulesBtn");
+        const closeArchivedBtn = document.getElementById("closeArchivedModulesModal");
+        const archivedSearchInput = document.getElementById("archivedModuleSearchInput");
+        const archivedTableBody = document.getElementById("archivedModulesTableBody");
+        const archivedShowingCount = document.getElementById("archivedModulesShowingCount");
+        const archivedPageLabel = document.getElementById("archivedModulesPageLabel");
+        const archivedPrevBtn = document.getElementById("archivedModulesPrevBtn");
+        const archivedNextBtn = document.getElementById("archivedModulesNextBtn");
+
+        let archivedCurrentPage = 1;
+        let archivedTotalPages = 1;
+        let archivedDebounceTimer = null;
+        let archivedActiveRequestId = 0;
+
+        function archivedBuildParams() {
+            const params = new URLSearchParams();
+            const term = archivedSearchInput ? archivedSearchInput.value.trim() : "";
+            if (term) params.set("q", term);
+            params.set("page", archivedCurrentPage);
+            return params;
+        }
+
+        function renderArchivedModules(modules) {
+            if (!archivedTableBody) return;
+            if (!modules || modules.length === 0) {
+                archivedTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">No archived modules found.</td></tr>`;
+                return;
+            }
+            archivedTableBody.innerHTML = modules.map(m => `
+                <tr data-module-id="${m.module_id}">
+                    <td>
+                        <strong class="table-item-title">${escapeHtml(m.module_name)}</strong>
+                        <small class="text-muted">${escapeHtml(m.description)}</small>
+                    </td>
+                    <td class="text-muted">${escapeHtml(m.category)}</td>
+                    <td>${statusBadgeHtml(m.status)}</td>
+                    <td class="text-muted">${escapeHtml(m.updated_at)}</td>
+                    <td class="text-right">
+                        <div class="table-actions-group">
+                            <a href="#" title="Restore" class="table-action-icon js-restore-module" data-id="${m.module_id}"><i class="fa-solid fa-rotate-left"></i></a>
+                        </div>
+                    </td>
+                </tr>
+            `).join("");
+        }
+
+        async function loadArchivedModules() {
+            if (!archivedTableBody) return;
+            const requestId = ++archivedActiveRequestId;
+            try {
+                const response = await fetch(`/admin/manage-course/modules/archived?${archivedBuildParams().toString()}`, { credentials: "include" });
+                const result = await response.json();
+                if (requestId !== archivedActiveRequestId) return;
+
+                if (!result.success) {
+                    archivedTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">Could not load archived modules.</td></tr>`;
+                    return;
+                }
+
+                renderArchivedModules(result.modules);
+                archivedCurrentPage = result.page;
+                archivedTotalPages = result.total_pages;
+
+                if (archivedShowingCount) archivedShowingCount.textContent = `Showing ${result.modules.length} of ${result.total} Archived Modules`;
+                if (archivedPageLabel) archivedPageLabel.textContent = `${result.page} of ${result.total_pages}`;
+                if (archivedPrevBtn) archivedPrevBtn.disabled = result.page <= 1;
+                if (archivedNextBtn) archivedNextBtn.disabled = result.page >= result.total_pages;
+            } catch (err) {
+                if (requestId !== archivedActiveRequestId) return;
+                archivedTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
+            }
+        }
+
+        function scheduleArchivedLoad(resetPage = true) {
+            if (resetPage) archivedCurrentPage = 1;
+            if (archivedDebounceTimer) clearTimeout(archivedDebounceTimer);
+            archivedDebounceTimer = setTimeout(loadArchivedModules, DEBOUNCE_MS);
+        }
+
+        if (openArchivedBtn && archivedModal) {
+            openArchivedBtn.addEventListener("click", () => {
+                archivedModal.style.display = "flex";
+                if (archivedSearchInput) archivedSearchInput.value = "";
+                archivedCurrentPage = 1;
+                loadArchivedModules();
+            });
+        }
+        if (closeArchivedBtn && archivedModal) {
+            closeArchivedBtn.addEventListener("click", () => { archivedModal.style.display = "none"; });
+        }
+        if (archivedModal) {
+            archivedModal.addEventListener("click", (e) => {
+                if (e.target === archivedModal) archivedModal.style.display = "none";
+            });
+        }
+        if (archivedSearchInput) archivedSearchInput.addEventListener("input", () => scheduleArchivedLoad(true));
+        if (archivedPrevBtn) archivedPrevBtn.addEventListener("click", () => { if (archivedCurrentPage > 1) { archivedCurrentPage--; loadArchivedModules(); } });
+        if (archivedNextBtn) archivedNextBtn.addEventListener("click", () => { if (archivedCurrentPage < archivedTotalPages) { archivedCurrentPage++; loadArchivedModules(); } });
+
+        if (archivedTableBody) {
+            archivedTableBody.addEventListener("click", async (e) => {
+                const restoreBtn = e.target.closest(".js-restore-module");
+                if (!restoreBtn) return;
+                e.preventDefault();
+                const id = restoreBtn.dataset.id;
+                if (!confirm("Are you sure you want to restore this module?")) return;
+                const resp = await fetch(`/admin/manage-course/modules/${id}/restore`, {
+                    method: "POST", credentials: "include"
+                });
+                const result = await resp.json();
+                if (!result.success) {
+                    alert(result.message);
+                } else {
+                    alert("Module restored successfully.");
+                }
+                // Restored module leaves the archived list and reappears
+                // in the active Manage Course table - refresh both.
+                loadArchivedModules();
+                loadModules();
+            });
+        }
     });
 })();

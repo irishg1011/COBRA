@@ -1,0 +1,50 @@
+<!-- admin/archived-modules-modal.html
+     Task #27: Soft Delete / Archive - lets the Admin view every
+     archived Module and Restore it back to the active Manage Course
+     list. Styled after categories-modal.html's overlay/dialog shell and
+     the existing .data-table look already used on manage-course.html,
+     so it fits the current design instead of introducing a new modal
+     style. Populated entirely from GET /admin/manage-course/modules/archived
+     and POST .../restore via admin-manage-course.js - no static/demo
+     rows live here. -->
+<div id="archivedModulesModal" class="custom-modal-overlay" style="display: none;">
+    <div class="custom-modal-dialog" style="height: auto; max-height: 85vh;">
+        <div class="custom-modal-header">
+            <h3>Archived Modules</h3>
+            <button type="button" class="categories-close-btn" id="closeArchivedModulesModal">&times;</button>
+        </div>
+
+        <div class="custom-modal-body">
+            <div class="header-search search-override" style="width: 100%; margin-bottom: 16px;">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="archivedModuleSearchInput" placeholder="Search archived modules...">
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Module</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Updated</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="archivedModulesTableBody">
+                    <tr>
+                        <td colspan="5" class="text-muted table-empty-message">Loading archived modules&hellip;</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="table-pagination">
+                <span id="archivedModulesShowingCount">Showing 0 of 0 Archived Modules</span>
+                <span>
+                    <button id="archivedModulesPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                    <span id="archivedModulesPageLabel">1 of 1</span>
+                    <button id="archivedModulesNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>

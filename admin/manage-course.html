@@ -34,6 +34,13 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="header-actions">
+                            <!-- Task #27: Soft Delete / Archive - lets the
+                                 admin view and restore archived modules
+                                 without touching the existing "View
+                                 Categories" control or overall layout. -->
+                            <button id="openArchivedModulesBtn" class="btn btn-primary-custom">
+                                <i class="fa-solid fa-box-archive"></i> Archived Modules
+                            </button>
                             <button id="openCreateModuleBtn" class="btn btn-success-custom">
                                 View Categories
                             </button>
@@ -101,7 +108,7 @@
                                 <td class="text-right">
                                     <div class="table-actions-group">
                                         <a href="#" title="Edit" class="table-action-icon js-edit-module" data-id="{{ module.module_id }}"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <a href="#" title="Delete" class="table-action-icon delete-action js-delete-module" data-id="{{ module.module_id }}"><i class="fa-solid fa-trash"></i></a>
+                                        <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="{{ module.module_id }}"><i class="fa-solid fa-trash"></i></a>
                                     </div>
                                 </td>
                             </tr>
@@ -132,6 +139,7 @@
     </div>
     {% include 'categories-modal.html' %}
     {% include 'edit-module-modal.html' %}
+    {% include 'archived-modules-modal.html' %}
     
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
