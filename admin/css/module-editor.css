@@ -1,0 +1,274 @@
+/* =================================================
+   Module Rich Text Editor Specific Styles
+   ================================================= */
+
+.lesson-editor-form, #uploadModuleForm {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.editor-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px !important;
+    margin-bottom: 6px !important;
+}
+
+.editor-section-title h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.2;
+}
+
+.editor-section-title i {
+    font-size: 1.1rem;
+    color: #4b5563;
+}
+
+.lesson-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    width: 100%;
+    margin-top: 0 !important;
+    margin-bottom: 14px !important;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    margin: 0 !important;
+}
+
+.category-group-override {
+    margin-top: 0px !important;
+}
+
+.form-group label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 !important;
+}
+
+.form-control {
+    width: 100%;
+    height: 42px;
+    padding: 0 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background-color: #ffffff;
+    font-size: 0.95rem;
+    color: #111827;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control:focus {
+    border-color: #028090;
+    box-shadow: 0 0 0 3px rgba(2, 128, 144, 0.1);
+}
+
+select.form-control {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 36px;
+}
+
+.module-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    margin-top: 0 !important;
+}
+
+.editor-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 18px;
+    background-color: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.toolbar-group button {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    padding: 6px 10px;
+    border-radius: 6px;
+    color: #374151;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.toolbar-group button:hover {
+    background-color: #f3f4f6;
+    border-color: #9ca3af;
+    color: #028090;
+}
+
+.headings-group button {
+    color: #028090;
+    font-weight: 700;
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background-color: #d1d5db;
+    margin: 0 4px;
+}
+
+.editor-body {
+    padding: 18px;
+    background-color: #ffffff;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-textarea {
+    display: block;
+    width: 100%;
+    min-height: 500px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    outline: none;
+    overflow-y: auto;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 1rem;
+    color: #374151;
+    line-height: 1.6;
+    background: #ffffff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.form-textarea:empty:before {
+    content: attr(data-placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+    display: block;
+}
+
+/* Heading Sizes and Layout Constraints inside Editor */
+.form-textarea h1 {
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+    margin: 12px 0 8px 0 !important;
+    line-height: 1.3 !important;
+}
+
+.form-textarea h2 {
+    font-size: 1.4rem !important;
+    font-weight: 600 !important;
+    color: #1f2937 !important;
+    margin: 10px 0 6px 0 !important;
+    line-height: 1.3 !important;
+}
+
+.form-textarea h3 {
+    font-size: 1.15rem !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+    margin: 8px 0 4px 0 !important;
+    line-height: 1.3 !important;
+}
+
+.form-textarea p {
+    margin: 0 0 10px 0 !important;
+}
+
+/* List Indentations & Behaviors */
+.form-textarea ul {
+    display: block !important;
+    list-style-type: disc !important;
+    margin-block-start: 1em !important;
+    margin-block-end: 1em !important;
+    padding-inline-start: 40px !important;
+}
+
+.form-textarea ol {
+    display: block !important;
+    list-style-type: decimal !important;
+    margin-block-start: 1em !important;
+    margin-block-end: 1em !important;
+    padding-inline-start: 40px !important;
+}
+
+.form-textarea li {
+    display: list-item !important;
+    text-align: match-parent !important;
+    margin-bottom: 4px !important;
+}
+
+/* Text Formatting Elements */
+.form-textarea u, .form-textarea ins {
+    text-decoration: underline !important;
+}
+
+.form-textarea s, .form-textarea strike, .form-textarea del {
+    text-decoration: line-through !important;
+}
+
+/* Quote Styling */
+.form-textarea blockquote {
+    border-left: 4px solid #d1d5db;
+    padding-left: 12px;
+    color: #4b5563;
+    margin: 10px 0;
+    font-style: italic;
+}
+
+.btn-light-custom {
+    background-color: #ffffff !important;
+    color: #374151 !important;
+    border: 1px solid #d1d5db !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-light-custom:hover {
+    background-color: #f3f4f6 !important;
+    border-color: #9ca3af !important;
+    color: #111827 !important;
+}
+
+/* Editor Toolbar Button Active / Lively State */
+.editor-toolbar button.active,
+.editor-toolbar .tool-btn.active {
+  background: #0ea5e9; /* Matches your accent theme */
+  color: #ffffff;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
+}

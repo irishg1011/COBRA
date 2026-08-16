@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Upload Learning Resource</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/module-editor.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="admin-layout">
+        <!-- Sidebar (Modularized) -->
+        {% include 'admin-sidebar.html' %}
+
+        <!-- Main Content Area -->
+        <main class="admin-main-content">
+            <!-- Header (Modularized) -->
+            {% include 'admin-header.html' %}
+
+            <!-- Upload Resource Content Area -->
+            <div class="dashboard-content-area">
+                
+                <!-- Top Bar -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Manage Learning Resources</h1>
+                        <p>Good afternoon, Irish!</p>
+                        <small class="text-muted">Upload and manage tutorial videos and lessons.</small>
+                    </div>
+                    <div class="header-actions-group">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                        <div class="header-actions">
+                            <button type="button" class="btn btn-light-custom">
+                                <i class="fa-regular fa-floppy-disk"></i> Save Draft
+                            </button>
+                            <button type="submit" form="uploadModuleForm" class="btn btn-success-custom">
+                                <i class="fa-solid fa-paper-plane"></i> Publish
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="uploadModuleForm" method="POST" action="{{ url_for('admin_bp.upload_resource') }}">
+                    
+                    <!-- Section Title Inside the Form Wrapper -->
+                    <div class="editor-section-title">
+                        <i class="fa-solid fa-book-open"></i>
+                        <h2>New Lesson</h2>
+                    </div>
+
+                    <!-- 3-Column Horizontal Fields with Dedicated Category Wrapper Class -->
+                    <div class="lesson-meta-grid">
+                        <div class="form-group category-group-override">
+                            <label for="categorySelect">Category</label>
+                            <select id="categorySelect" name="category_id" class="form-control" required>
+                                <option value="" disabled selected>Select category...</option>
+                                <option value="programming">Programming</option>
+                                <option value="database">Database Management</option>
+                                <option value="networking">Networking</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="moduleSelect">Module</label>
+                            <select id="moduleSelect" name="module_id" class="form-control" required>
+                                <option value="" disabled selected>Select module...</option>
+                                <option value="mod1">Module 1: Introduction</option>
+                                <option value="mod2">Module 2: Core Concepts</option>
+                                <option value="mod3">Module 3: Advanced Architecture</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="lessonName">Lesson Name</label>
+                            <input type="text" id="lessonName" name="lesson_name" class="form-control" placeholder="Enter lesson name..." required>
+                        </div>
+                    </div>
+
+                    <!-- Form Card Box Container for Toolbar & Editor -->
+                    <div class="module-card">
+                        
+                        <!-- Formatting Toolbar -->
+                        <div class="editor-toolbar">
+                            <div class="toolbar-group">
+                                <button type="button" data-action="undo" title="Undo"><i class="fa-solid fa-rotate-left"></i></button>
+                                <button type="button" data-action="redo" title="Redo"><i class="fa-solid fa-rotate-right"></i></button>
+                            </div>
+                            <div class="toolbar-divider"></div>
+                            <div class="toolbar-group">
+                                <button type="button" data-action="bold" title="Bold">B</button>
+                                <button type="button" data-action="italic" title="Italic">I</button>
+                                <button type="button" data-action="underline" title="Underline">U</button>
+                                <button type="button" data-action="strikethrough" title="Strikethrough">S</button>
+                            </div>
+                            <div class="toolbar-divider"></div>
+                            <div class="toolbar-group headings-group">
+                                <button type="button" data-action="normal" title="Normal Text"><i class="fa-solid fa-font"></i></button>
+                                <button type="button" data-action="h1">H1</button>
+                                <button type="button" data-action="h2">H2</button>
+                                <button type="button" data-action="h3">H3</button>
+                            </div>
+                            <div class="toolbar-divider"></div>
+                            <div class="toolbar-group">
+                                <button type="button" data-action="alignLeft" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
+                                <button type="button" data-action="alignCenter" title="Align Center"><i class="fa-solid fa-align-center"></i></button>
+                                <button type="button" data-action="alignRight" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
+                            </div>
+                            <div class="toolbar-divider"></div>
+                            <div class="toolbar-group">
+                                <button type="button" data-action="ul" title="Bullet List"><i class="fa-solid fa-list-ul"></i></button>
+                                <button type="button" data-action="ol" title="Numbered List"><i class="fa-solid fa-list-ol"></i></button>
+                                <button type="button" data-action="quote" title="Quote"><i class="fa-solid fa-quote-right"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Visual ContentEditable Editor Body -->
+                        <div class="editor-body">
+                            <div id="editorContent" class="form-textarea" contenteditable="true" data-placeholder="Write your lesson content here... You can format text, headings, alignments, lists, quotes, and more."></div>
+                            <input type="hidden" name="module_content" id="hiddenModuleContent">
+                        </div>
+
+                    </div>
+
+                </form>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
+</body>
+</html>

@@ -13,7 +13,7 @@
         <a href="{{ url_for('admin_bp.manage_course') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">
             <img src="/assets/images/book-1.png" class="sidebar-icon"> Manage Course
         </a>
-        <a href="{{ url_for('admin_bp.learning_resources') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learning_resources' else '' }}">
+        <a href="{{ url_for('admin_bp.learning_resources') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learning_resources', 'admin_bp.upload_resource'] else '' }}">
             <img src="/assets/images/video-1.png" class="sidebar-icon"> Learning Resources
         </a>
 

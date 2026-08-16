@@ -1516,3 +1516,11 @@ def achievements():
 @admin_bp.route('/reports')
 def reports():
     return render_placeholder("Reports")
+
+@admin_bp.route('/upload-resource', methods=['GET', 'POST'])
+def upload_resource():
+    if request.method == 'POST':
+        # Handle form submission logic here (saving module content)
+        return redirect(url_for('admin_bp.upload_resource')) # or redirect back to your resources list
+        
+    return render_template('upload-resource.html')
