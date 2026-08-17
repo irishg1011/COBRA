@@ -1524,3 +1524,24 @@ def upload_resource():
         return redirect(url_for('admin_bp.upload_resource')) # or redirect back to your resources list
         
     return render_template('upload-resource.html')
+
+@admin_bp.route('/create-learning-activity', methods=['GET'])
+def create_learning_activity_page():
+    greeting = "Welcome back"
+    return render_template('create-learning-activity.html', greeting=greeting)
+
+@admin_bp.route('/create-learning-activity/submit', methods=['POST'])
+def create_activity_submit():
+    # Extract submitted form data and dynamic questions
+    activity_title = request.form.get('activity_title')
+    course_id = request.form.get('course_id')
+    module_id = request.form.get('module_id')
+    lesson_id = request.form.get('lesson_id')
+    activity_type = request.form.get('activity_type')
+    points = request.form.get('points')
+    status = request.form.get('status')
+    
+    # TODO: Insert activity and question sets into your database here
+    
+    flash('Learning activity created and published successfully!', 'success')
+    return redirect(url_for('admin_bp.learning_activities'))

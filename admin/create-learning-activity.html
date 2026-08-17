@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Create Learning Activity</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-learning-activity.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+                
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <div class="header-nav-inline">
+                            <a href="{{ url_for('admin_bp.learning_activities') }}" class="btn-back-custom">
+                                <i class="fa-solid fa-arrow-left"></i> Back
+                            </a>
+                            <h1>Create Learning Activity</h1>
+                        </div>
+                        <p>Create interactive activities for your learners.</p>
+                    </div>
+                    <div class="header-actions-group">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                        <div class="header-actions">
+                            <button type="button" class="btn btn-secondary-custom" id="previewActivityBtn">
+                                <i class="fa-regular fa-eye"></i> Preview Activity
+                            </button>
+                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn">
+                                <i class="fa-regular fa-floppy-disk"></i> Save Draft
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST">
+                    
+                    <!-- Section 1: Activity Information -->
+                    <div class="card-box padded-card mb-24">
+                        <div class="form-section-header">
+                            <div class="step-badge">1</div>
+                            <h3>Activity Information</h3>
+                        </div>
+
+                        <div class="form-group mb-20">
+                            <label class="form-label" for="activityTitle">Activity Title *</label>
+                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." required>
+                        </div>
+
+                        <div class="form-grid-3">
+                            <div class="form-group">
+                                <label class="form-label" for="courseSelect">Category *</label>
+                                <select id="courseSelect" name="course_id" class="custom-select form-control-select" required>
+                                    <option value="" disabled selected>Select category</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="moduleSelect">Module *</label>
+                                <select id="moduleSelect" name="module_id" class="custom-select form-control-select" required>
+                                    <option value="" disabled selected>Select module</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="lessonSelect">Lesson *</label>
+                                <select id="lessonSelect" name="lesson_id" class="custom-select form-control-select" required>
+                                    <option value="" disabled selected>Select lesson</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid-3 mt-20">
+                            <div class="form-group">
+                                <label class="form-label" for="activityType">Activity Type *</label>
+                                <select id="activityType" name="activity_type" class="custom-select form-control-select" required>
+                                    <option value="Multiple Choice" selected>Multiple Choice</option>
+                                    <option value="Fill in the Blanks">Fill in the Blanks</option>
+                                    <option value="Flashcards">Flashcards</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="activityPoints">Points *</label>
+                                <input type="number" id="activityPoints" name="points" class="form-control" value="0" min="1" readonly required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="activityStatus">Status *</label>
+                                <input type="text" id="activityStatus" name="status" class="form-control" value="Draft" readonly required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Activity Content -->
+                    <div class="card-box padded-card">
+                        <div class="form-section-header">
+                            <div class="step-badge">2</div>
+                            <h3>Activity Content</h3>
+                        </div>
+
+                        <div class="tab-content-container">
+                            <div class="sub-instruction mb-20">
+                                <strong>MULTIPLE CHOICE</strong>
+                                <p>Create questions with multiple answer options. Add feedback for each option.</p>
+                            </div>
+
+                            <!-- Multiple Choice Section (Active by default) -->
+                            <div id="multipleChoiceSection">
+                                <div id="questionsContainer">
+                                    <div class="text-muted text-center placeholder-box" id="noQuestionsMessage">
+                                        No questions added yet. Click the button below to add your first question.
+                                    </div>
+                                </div>
+
+                                <button type="button" id="addQuestionMainBtn" class="btn btn-success-custom w-100">
+                                    <i class="fa-solid fa-plus"></i> Add Question
+                                </button>
+                            </div>
+
+                            <!-- Fill in the Blanks Space Holder (Hidden by default) -->
+                            <div id="fillBlanksSection" class="d-none">
+                                <div class="text-muted text-center placeholder-box-lg">
+                                    <i class="fa-solid fa-pen-to-square fa-2x mb-2 icon-muted"></i>
+                                    <p class="mb-0">Fill in the Blanks creator space (Coming soon)</p>
+                                </div>
+                            </div>
+
+                            <!-- Flashcards Space Holder (Hidden by default) -->
+                            <div id="flashcardsSection" class="d-none">
+                                <div class="text-muted text-center placeholder-box-lg">
+                                    <i class="fa-solid fa-clone fa-2x mb-2 icon-muted"></i>
+                                    <p class="mb-0">Flashcards creator space (Coming soon)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Form Actions Footer -->
+                    <div class="form-actions-footer mt-24">
+                        <a href="{{ url_for('admin_bp.learning_activities') }}" class="btn btn-secondary-custom">Cancel</a>
+                        <button type="submit" class="btn btn-success-custom">
+                            <i class="fa-solid fa-paper-plane"></i> Publish Activity
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity.js') }}"></script>
+</body>
+</html>

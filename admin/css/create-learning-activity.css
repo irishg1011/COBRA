@@ -1,0 +1,399 @@
+/* ==========================================
+   Create Learning Activity Styles
+   ========================================== */
+
+.card-box {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.padded-card {
+    padding: 24px;
+}
+
+.mb-24 { margin-bottom: 24px; }
+.mt-20 { margin-top: 20px; }
+.mt-24 { margin-top: 24px; }
+.mb-20 { margin-bottom: 20px; }
+
+/* Form Section Header & Step Badge */
+.form-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 12px;
+}
+
+.step-badge {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    max-width: 28px !important;
+    max-height: 28px !important;
+    flex: 0 0 28px !important;
+    background: linear-gradient(180deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    border-radius: 50% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+}
+
+.form-section-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+}
+
+/* Form Grids & Inputs */
+.form-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #475569;
+    margin-bottom: 8px;
+}
+
+.form-control, .form-control-select {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #1e293b;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-control-select:focus {
+    outline: none;
+    border-color: #24C7B7;
+    box-shadow: 0 0 0 3px rgba(36, 199, 183, 0.15);
+}
+
+/* Sub Instructions */
+.sub-instruction {
+    background: #f8fafc;
+    border-left: 4px solid #24C7B7;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+}
+
+.sub-instruction strong {
+    display: block;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: #24C7B7;
+    margin-bottom: 4px;
+}
+
+.sub-instruction p {
+    font-size: 13px;
+    color: #475569;
+    margin: 0;
+}
+
+/* Question Cards */
+.question-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.question-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.question-number {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.question-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Question Action Buttons & Icons (Transparent/No Background & Styled Actions Column) */
+.question-card-header .icon-control-btn,
+.question-card-header button,
+.question-card-header .btn {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #64748b !important;
+    border-radius: 6px !important;
+    padding: 8px 10px !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    transition: all 0.2s ease !important;
+}
+
+.question-card-header .icon-control-btn:hover,
+.question-card-header button:hover,
+.question-card-header .btn:hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+}
+
+.question-card-header .icon-control-btn *,
+.question-card-header button *,
+.question-card-header .btn * {
+    color: inherit !important;
+}
+
+/* Answer Options Grid & Action Column Clean Styling */
+.answer-options-header, .answer-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 70px 1fr 45px;
+    gap: 10px;
+    align-items: center;
+}
+
+.answer-options-header {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.answer-options-header span:nth-child(3) {
+    text-align: center;
+}
+
+.answer-row {
+    margin-bottom: 10px;
+}
+
+.answer-row .btn, 
+.answer-row button, 
+.answer-row .icon-control-btn {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #64748b !important;
+    padding: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    border-radius: 6px !important;
+}
+
+.answer-row .btn:hover, 
+.answer-row button:hover, 
+.answer-row .icon-control-btn:hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+}
+
+.option-badge {
+    width: 36px;
+    height: 36px;
+    background: #ffffff !important;
+    color: #333333 !important;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #d1d5db !important;
+    justify-self: center;
+}
+
+.custom-radio {
+    width: 18px;
+    height: 18px;
+    accent-color: #24C7B7;
+    cursor: pointer;
+}
+
+.text-center {
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.add-sub-question-btn {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    color: #24C7B7;
+    font-weight: 500;
+    font-size: 13px;
+    padding: 10px;
+    width: 100%;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 14px;
+    transition: all 0.2s ease;
+}
+
+.add-sub-question-btn:hover {
+    background: #f1f5f9;
+    border-color: #24C7B7;
+}
+
+.form-actions-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Placeholder Utility Classes */
+.placeholder-box {
+    padding: 30px;
+    background: #f8fafc;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.placeholder-box-lg {
+    padding: 40px;
+    background: #f8fafc;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+}
+
+.icon-muted {
+    color: #cbd5e1;
+}
+
+.d-none {
+    display: none !important;
+}
+
+/* ==========================================
+   Global Button Theme Overrides
+   ========================================== */
+
+/* Primary / Success Buttons */
+.btn-success, .btn-success-custom, button[type="submit"], .add-question-btn {
+    background-color: #09B300 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.btn-success:hover, .btn-success-custom:hover, button[type="submit"]:hover, .add-question-btn:hover {
+    background-color: #08a100 !important;
+}
+
+/* Secondary / Light / Outline Buttons */
+.btn-outline-secondary, .btn-light, .btn-secondary, .btn-secondary-custom, .btn-light-custom {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #1f2937 !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 8px 16px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-outline-secondary *, .btn-light *, .btn-secondary *, .btn-secondary-custom *, .btn-light-custom * {
+    color: #1f2937 !important;
+    fill: #1f2937 !important;
+    stroke: #1f2937 !important;
+}
+
+.btn-outline-secondary:hover, .btn-light:hover, .btn-secondary:hover, .btn-secondary-custom:hover, .btn-light-custom:hover {
+    background-color: #f3f4f6 !important;
+    border-color: #9ca3af !important;
+    color: #111827 !important;
+}
+
+.btn-outline-secondary:hover *, .btn-light:hover *, .btn-secondary:hover *, .btn-secondary-custom:hover *, .btn-light-custom:hover * {
+    color: #111827 !important;
+    fill: #111827 !important;
+    stroke: #111827 !important;
+}
+
+.btn-back-custom {
+    color: #475569 !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-weight: 500 !important;
+    font-size: 14px !important;
+    transition: color 0.2s ease !important;
+}
+
+.btn-back-custom:hover {
+    color: #1e293b !important;
+}
+
+.btn-back-custom * {
+    color: inherit !important;
+}
+
+/* Container or wrapper for the textarea if needed, or target the counter directly */
+.question-textarea-wrapper, 
+.question-card {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Character counter right alignment style */
+.char-counter, 
+.character-count,
+.question-card textarea + div,
+.question-textarea + span,
+.question-textarea ~ small {
+    display: block;
+    text-align: right;
+    width: 100%;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 6px;
+}
