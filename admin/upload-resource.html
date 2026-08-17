@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/module-editor.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-learning-activity.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -26,6 +27,9 @@
                 <!-- Top Bar -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
+                        <a href="{{ url_for('admin_bp.learning_resources') }}" class="btn-back-custom">
+                                <i class="fa-solid fa-arrow-left"></i> Back
+                            </a>
                         <h1>Manage Learning Resources</h1>
                         <p>Good afternoon, Irish!</p>
                         <small class="text-muted">Upload and manage tutorial videos and lessons.</small>
