@@ -506,6 +506,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
+            if (action === "codeBlock") {
+                insertCodeBlockTemplate();
+                updateToolbarStates();
+                return;
+            }
+
+            if (action === "terminalBlock") {
+                insertTerminalBlockTemplate();
+                updateToolbarStates();
+                return;
+            }
+
             switch (action) {
                 case "bold":
                     document.execCommand("bold", false, null);
@@ -581,6 +593,144 @@ document.addEventListener("DOMContentLoaded", function () {
         placeCaretAtStart(newBlock);
         updateToolbarStates();
     });
+
+   function insertCodeBlockTemplate() {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+        const range = selection.getRangeAt(0);
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "editor-code-container";
+        wrapper.contentEditable = "false";
+
+        wrapper.innerHTML = `
+            <div class="editor-code-top-bar">
+                <div class="editor-code-filename-group">
+                    <i class="fa-regular fa-file-code" style="color: #6b7280; font-size: 1.1rem;"></i>
+                    <input type="text" class="editor-code-filename" placeholder="File name (e.g. main.py)">
+                </div>
+                <select class="editor-code-mode-select">
+                    <option value="exercise">Interactive Exercise (Console + Output)</option>
+                    <option value="snippet">Code Example Only (Console)</option>
+                </select>
+                <button type="button" class="editor-delete-block-btn" title="Delete Block"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+            <div class="editor-code-card console-card-pane">
+                <div class="editor-code-card-header" style="background: #06b6d4 !important;"></div>
+                <div class="editor-code-card-body">
+                    <div class="editor-code-title-row">
+                        <div class="editor-code-title"><i class="fa-solid fa-code"></i> Console</div>
+                        <button type="button" class="console-action-btn run-btn" title="Run Code"><i class="fa-solid fa-play"></i> Run</button>
+                    </div>
+                    <p class="editor-code-desc">Provide example code for students.</p>
+                    <div class="editor-console-box" contenteditable="true" spellcheck="false" placeholder="# Write your code here..."></div>
+                </div>
+            </div>
+            <div class="editor-code-card output-card-pane">
+                <div class="editor-code-card-header" style="background: #06b6d4 !important;"></div>
+                <div class="editor-code-card-body">
+                    <div class="editor-code-title-row">
+                        <div class="editor-code-title"><i class="fa-solid fa-terminal"></i> Expected Output</div>
+                        <select class="editor-output-mode-select">
+                            <option value="manual">Manual Input</option>
+                            <option value="auto">Auto-Evaluate from Code</option>
+                        </select>
+                    </div>
+                    <p class="editor-code-desc output-desc-text">Set the expected output manually.</p>
+                    <div class="editor-output-box" contenteditable="true" placeholder="Enter expected output..."></div>
+                </div>
+            </div>
+        `;
+
+        // Delete Block Event Listener
+        wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
+            wrapper.remove();
+            pushHistory();
+        });
+
+        const modeSelect = wrapper.querySelector(".editor-code-mode-select");
+        const outputPane = wrapper.querySelector(".output-card-pane");
+        const consolePane = wrapper.querySelector(".console-card-pane");
+        const runBtn = wrapper.querySelector(".run-btn");
+        const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
+        const outputBox = wrapper.querySelector(".editor-output-box");
+        const outputDesc = wrapper.querySelector(".output-desc-text");
+
+        modeSelect.addEventListener("change", function () {
+            if (this.value === "snippet") {
+                outputPane.style.display = "none";
+                runBtn.style.display = "none";
+                consolePane.style.gridColumn = "1 / -1";
+            } else {
+                outputPane.style.display = "flex";
+                runBtn.style.display = "flex";
+                consolePane.style.gridColumn = "auto";
+            }
+        });
+
+        outputModeSelect.addEventListener("change", function () {
+            if (this.value === "auto") {
+                outputBox.contentEditable = "false";
+                outputBox.style.background = "#f3f4f6";
+                outputBox.style.color = "#6b7280";
+                outputBox.textContent = "// Output will be automatically evaluated from code execution...";
+                outputDesc.textContent = "Output is dynamically generated based on code execution.";
+            } else {
+                outputBox.contentEditable = "true";
+                outputBox.style.background = "#ffffff";
+                outputBox.style.color = "#374151";
+                outputBox.textContent = "";
+                outputDesc.textContent = "Set the expected output manually.";
+            }
+        });
+
+        range.deleteContents();
+        range.insertNode(wrapper);
+
+        const spacer = document.createElement("div");
+        spacer.appendChild(document.createElement("br"));
+        wrapper.parentNode.insertBefore(spacer, wrapper.nextSibling);
+        
+        placeCaretAtStart(spacer);
+        pushHistory();
+    }
+
+    function insertTerminalBlockTemplate() {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+        const range = selection.getRangeAt(0);
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "editor-terminal-container";
+        wrapper.contentEditable = "false";
+
+        wrapper.innerHTML = `
+            <div class="editor-terminal-card-header"></div>
+            <div class="editor-terminal-card-body">
+                <div class="editor-code-title-row" style="margin-bottom: 4px;">
+                    <div class="editor-code-title"><i class="fa-solid fa-terminal"></i> Terminal / Command Prompt</div>
+                    <button type="button" class="editor-delete-block-btn" title="Delete Block"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+                <p class="editor-code-desc">Provide command line or REPL shell example for students.</p>
+                <div class="editor-terminal-box" contenteditable="true" spellcheck="false" placeholder="Type command prompt or shell example here..."></div>
+            </div>
+        `;
+
+        wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
+            wrapper.remove();
+            pushHistory();
+        });
+
+        range.deleteContents();
+        range.insertNode(wrapper);
+
+        const spacer = document.createElement("div");
+        spacer.appendChild(document.createElement("br"));
+        wrapper.parentNode.insertBefore(spacer, wrapper.nextSibling);
+        
+        placeCaretAtStart(spacer);
+        pushHistory();
+    }
 
     // --- State sync ---------------------------------------------------------
 
@@ -674,3 +824,4 @@ document.addEventListener("DOMContentLoaded", function () {
         hiddenInput.value = editor.innerHTML;
     });
 });
+

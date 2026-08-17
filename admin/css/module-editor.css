@@ -272,3 +272,297 @@ select.form-control {
   border-color: #0ea5e9;
   box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
 }
+
+/* =================================================
+   Interactive Code & Expected Output Component Styles
+   ================================================= */
+
+.editor-code-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+    .editor-code-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.editor-code-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-code-card-header {
+    height: 4px;
+    width: 100%;
+    background: #06b6d4 !important;
+}
+
+.editor-code-card-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-grow: 1;
+}
+
+.editor-code-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+}
+
+.editor-code-title i {
+    font-size: 1rem;
+    color: #111827;
+}
+
+.editor-code-desc {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 0 0 10px 0;
+}
+
+/* Console Code Window Box */
+.editor-console-box {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #374151;
+    min-height: 120px;
+    outline: none;
+    resize: vertical;
+    white-space: pre-wrap;
+}
+
+.editor-console-box:focus {
+    border-color: #028090;
+    box-shadow: 0 0 0 3px rgba(2, 128, 144, 0.1);
+}
+
+/* Expected Output Textarea */
+.editor-output-box {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.9rem;
+    color: #374151;
+    min-height: 120px;
+    outline: none;
+    resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.editor-console-box:empty:before {
+    content: attr(placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+    display: block; /* Ensures it stays as a placeholder line */
+}
+
+.editor-output-box:focus {
+    border-color: #028090;
+    box-shadow: 0 0 0 3px rgba(2, 128, 144, 0.1);
+}
+
+.editor-output-box:empty:before {
+    content: attr(placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+    display: block;
+}
+
+.editor-code-header-row {
+    grid-column: 1 / -1; /* Spans across both grid columns */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 4px;
+}
+
+.editor-code-header-row i {
+    color: #6b7280;
+    font-size: 1.1rem;
+}
+
+.editor-code-filename {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: #374151;
+    width: 100%;
+    max-width: 250px;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: monospace;
+}
+
+.editor-code-filename:focus {
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}
+
+.editor-code-top-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.editor-code-filename-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-grow: 1;
+}
+
+.editor-code-filename {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: #374151;
+    width: 100%;
+    max-width: 250px;
+    outline: none;
+    font-family: monospace;
+}
+
+.editor-code-filename:focus {
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}
+
+.editor-code-mode-select {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    background: #ffffff;
+    color: #374151;
+    outline: none;
+    cursor: pointer;
+}
+
+.editor-code-mode-select:focus {
+    border-color: #06b6d4;
+}
+
+/* Console Run Button Styling */
+.console-action-btn {
+    background: #06b6d4;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.2s;
+}
+
+.console-action-btn:hover {
+    background: #0891b2;
+}
+
+.editor-code-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.editor-output-mode-select {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    background: #ffffff;
+    color: #374151;
+    outline: none;
+    cursor: pointer;
+}
+
+.editor-output-mode-select:focus {
+    border-color: #06b6d4;
+}
+
+.editor-terminal-container {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    margin: 16px 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.editor-terminal-card-header {
+    background: #06b6d4 !important; /* Matches your console/output headers */
+    height: 8px;
+    width: 100%;
+}
+
+.editor-terminal-card-body {
+    padding: 16px;
+}
+
+.editor-terminal-box {
+    background: #1e1e1e; /* Dark theme terminal box for realism */
+    color: #d4d4d4;
+    font-family: monospace;
+    font-size: 0.9rem;
+    padding: 12px;
+    border-radius: 6px;
+    min-height: 80px;
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.editor-terminal-box:focus {
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+}
+
+.editor-delete-block-btn {
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    margin-left: auto;
+}
+
+.editor-delete-block-btn:hover {
+    background: #fee2e2;
+    color: #ef4444;
+}
