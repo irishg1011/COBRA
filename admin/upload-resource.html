@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/module-editor.css') }}">
+     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-exercise.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -36,6 +37,9 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="header-actions">
+                            <button type="button" class="btn btn-light-custom">
+                                <i class="fa-regular fa-eye"></i> Preview Lesson
+                            </button>
                             <button type="button" class="btn btn-light-custom">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>

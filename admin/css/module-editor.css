@@ -566,3 +566,60 @@ select.form-control {
     background: #fee2e2;
     color: #ef4444;
 }
+
+/* Force left alignment on all text inside code and terminal cards */
+.editor-code-card-body,
+.editor-terminal-card-body {
+    text-align: left !important;
+}
+
+.editor-code-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    text-align: left !important;
+}
+
+.editor-code-desc, 
+.output-desc-text {
+    text-align: left !important;
+    margin-bottom: 8px;
+}
+
+.editor-code-title {
+    text-align: left !important;
+}
+
+/* Ensure the code and terminal input boxes are strictly left-aligned */
+.editor-console-box,
+.editor-output-box,
+.editor-terminal-box {
+    text-align: left !important;
+    direction: ltr;
+}
+
+/* Prevent ugly blue background highlighting on the interactive boxes when clicked/focused */
+.editor-console-box:focus,
+.editor-output-box:focus,
+.editor-terminal-box:focus {
+    outline: none !important;
+    background-color: #ffffff; /* Or keep #1e1e1e for terminal */
+}
+
+/* For the dark terminal box specifically */
+.editor-terminal-box:focus {
+    background-color: #1e1e1e !important;
+}
+
+/* Prevent accidental text selection highlighting on container elements */
+.editor-code-container *,
+.editor-terminal-container * {
+    user-select: text; /* Ensures only normal text selection works, no full-block flashes */
+}
+
+.editor-code-top-bar,
+.editor-code-card-header,
+.editor-terminal-card-header {
+    user-select: none; /* Keeps headers unselectable so they don't highlight when clicking around */
+}

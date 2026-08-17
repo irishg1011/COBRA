@@ -2,7 +2,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const editor = document.getElementById("editorContent");
     const form = document.getElementById("uploadModuleForm");
     const hiddenInput = document.getElementById("hiddenModuleContent");
-
+    
     if (!editor || !form) return;
 
     editor.addEventListener("focus", function () {
@@ -823,5 +823,36 @@ document.addEventListener("DOMContentLoaded", function () {
     form.addEventListener("submit", function () {
         hiddenInput.value = editor.innerHTML;
     });
+});
+
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Tab") {
+        const activeEl = document.activeElement;
+        
+        // Check if the focused element is the main lesson editor, console, output, or terminal
+        const isEditableArea = activeEl.id === "editorContent" ||
+                               activeEl.classList.contains("editor-console-box") ||
+                               activeEl.classList.contains("editor-output-box") ||
+                               activeEl.classList.contains("editor-terminal-box");
+
+        if (isEditableArea) {
+            e.preventDefault(); // Stop focus from jumping out of the box
+
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+            const range = selection.getRangeAt(0);
+
+            // Insert 4 non-breaking spaces for tab indentation
+            const tabNode = document.createTextNode("\u00a0\u00a0\u00a0\u00a0");
+            range.deleteContents();
+            range.insertNode(tabNode);
+
+            // Move the cursor right after the inserted spaces
+            range.setStartAfter(tabNode);
+            range.setEndAfter(tabNode);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    }
 });
 
