@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Create Coding Exercise</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-learning-activity.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-exercise.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+                
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <div class="header-nav-inline">
+                            <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn-back-custom">
+                                <i class="fa-solid fa-arrow-left"></i> Back
+                            </a>
+                            <h1>Create Coding Exercise</h1>
+                        </div>
+                        <p>Create coding exercises with test cases and detailed instructions.</p>
+                    </div>
+                    <div class="header-actions-group">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                        <div class="header-actions">
+                            <button type="button" class="btn btn-secondary-custom" id="previewExerciseBtn">
+                                <i class="fa-regular fa-eye"></i> Preview Exercise
+                            </button>
+                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn">
+                                <i class="fa-regular fa-floppy-disk"></i> Save Draft
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST">
+                    
+                    <!-- Section 1: Exercise Information -->
+                    <div class="card-box padded-card mb-24">
+                        <div class="card-box padded-card mb-24 accent-top">
+                            <div class="form-section-header">
+                                <div class="step-badge">1</div>
+                                <h3>Exercise Information</h3>
+                            </div>
+
+                            <!-- Row 1: Exercise Title -->
+                            <div class="mb-20 accent-top">
+                                <label class="form-label" for="exerciseTitle">Exercise Title *</label>
+                                <input type="text" id="exerciseTitle" name="title" class="form-control" placeholder="Enter exercise title..." required>
+                            </div>
+
+                            <!-- Row 2: Category, Module, and Lesson in the same line -->
+                            <div class="form-grid-3 mb-20 accent-top">
+                                <div>
+                                    <label class="form-label" for="exerciseCategory">Category *</label>
+                                    <select id="exerciseCategory" name="category" class="form-control-select" required>
+                                        <option value="" disabled selected>Select category</option>
+                                        <!-- Add category options here -->
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="exerciseModule">Module *</label>
+                                    <select id="exerciseModule" name="module_id" class="form-control-select" required>
+                                        <option value="" disabled selected>Select module</option>
+                                        <!-- Add module options here -->
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="exerciseLesson">Lesson *</label>
+                                    <select id="exerciseLesson" name="lesson_id" class="form-control-select" required>
+                                        <option value="" disabled selected>Select lesson</option>
+                                        <!-- Add lesson options here -->
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Row 3: Points & Status -->
+                            <div class="form-grid-2">
+                                <div>
+                                    <label class="form-label" for="exercisePoints">Points *</label>
+                                    <input type="number" id="exercisePoints" name="points" class="form-control" placeholder="e.g., 10" min="1" required>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="exerciseStatus">Status *</label>
+                                    <input type="text" id="exerciseStatus" name="status" class="form-control" value="Draft" readonly style="background-color: #f8fafc !important; cursor: not-allowed;">
+                                </div>
+                            </div>
+                        </div>
+
+                    <!-- Section 2: Instruction -->
+                    <div class="card-box padded-card mb-24 accent-top">
+                        <div class="form-section-header">
+                            <div class="step-badge">2</div>
+                            <h3>Instruction</h3>
+                        </div>
+                        <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Provide clear instructions on what the learner needs to do.</p>
+
+                        <div class="form-group mb-0" style="position: relative;">
+                            <textarea id="exerciseInstruction" name="instruction" class="form-control question-textarea" rows="3" placeholder="Write instructions here..." required></textarea>
+                            <span class="char-counter">0 / 1000</span>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Problem Statement -->
+                    <div class="card-box padded-card mb-24 accent-top">
+                        <div class="form-section-header">
+                            <div class="step-badge">3</div>
+                            <h3>Problem Statement</h3>
+                        </div>
+                        <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Define the problem using the three components below.</p>
+
+                        <div class="form-grid-3">
+                            <div class="form-group" style="position: relative;">
+                                <label class="form-label" for="problemSituation">Situation *</label>
+                                <textarea id="problemSituation" name="situation" class="form-control question-textarea" rows="3" placeholder="Describe the situation..." required></textarea>
+                                <span class="char-counter">0 / 500</span>
+                            </div>
+                            <div class="form-group" style="position: relative;">
+                                <label class="form-label" for="problemQuestion">Question *</label>
+                                <textarea id="problemQuestion" name="problem_question" class="form-control question-textarea" rows="3" placeholder="State the question..." required></textarea>
+                                <span class="char-counter">0 / 500</span>
+                            </div>
+                            <div class="form-group" style="position: relative;">
+                                <label class="form-label" for="problemClue">Clue (hint) *</label>
+                                <textarea id="problemClue" name="clue" class="form-control question-textarea" rows="3" placeholder="Provide a helpful hint..." required></textarea>
+                                <span class="char-counter">0 / 500</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 4 & 5: Answer (Expected) & Correct Feedback -->
+                    <div class="form-grid-2 mb-24">
+                        <div class="card-box padded-card mb-0 accent-top">
+                            <div class="form-section-header">
+                                <div class="step-badge">4</div>
+                                <h3>Answer (Expected)</h3>
+                            </div>
+                            <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">The correct output / behavior expected from the learner's code.</p>
+                            
+                            <div class="form-group mb-0" style="position: relative;">
+                                <textarea name="expected_answer" class="form-control question-textarea" rows="3" placeholder="Expected output..." required></textarea>
+                                <span class="char-counter">0 / 1000</span>
+                            </div>
+                        </div>
+
+                        <div class="card-box padded-card mb-0 accent-top">
+                            <div class="form-section-header">
+                                <div class="step-badge">5</div>
+                                <h3>Correct Feedback</h3>
+                            </div>
+                            <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Feedback shown when the solution is correct.</p>
+                            
+                            <div class="form-group mb-0" style="position: relative;">
+                                <textarea name="correct_feedback" class="form-control question-textarea" rows="3" placeholder="Feedback message..." required></textarea>
+                                <span class="char-counter">0 / 500</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 6: Test Cases -->
+                    <div class="card-box padded-card mb-24 accent-top">
+                        <div class="form-section-header">
+                            <div class="step-badge">6</div>
+                            <h3>Test Cases</h3>
+                        </div>
+                        <p class="form-label mb-20" style="color: #64748b;">Add test cases to evaluate the solution.</p>
+
+                        <!-- Test Cases Container -->
+                        <div id="testCasesContainer" class="test-cases-list-wrapper mb-20">
+                            <!-- Dynamic Test Case Rows Will Be Appended Here -->
+                        </div>
+
+                        <!-- Add Test Case Button with explicit inline fallback handler -->
+                        <button type="button" id="addTestCaseBtn" class="add-sub-question-btn">
+                            <i class="fa-solid fa-plus"></i> Add Test Case
+                        </button>
+                    </div>
+
+                    <!-- Section 7: Options
+                   <div class="card-box padded-card accent-top">
+                        <div class="form-section-header">
+                            <div class="step-badge">7</div>
+                            <h3>Options</h3>
+                        </div>
+
+                        <div class="options-checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="visible_to_students"> Visible to students
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="allow_multiple_attempts"> Allow multiple attempts
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="show_hints"> Show hints to students
+                            </label>
+                        </div>
+                    </div> 
+                     -->
+
+                    <!-- Bottom Form Actions Footer -->
+                    <div class="form-actions-footer mt-24 accent-top">
+                        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn btn-secondary-custom">Cancel</a>
+                        <button type="submit" class="btn btn-success-custom">
+                            <i class="fa-solid fa-paper-plane"></i> Publish Exercise
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/create-exercise.js') }}"></script>
+</body>
+</html>
