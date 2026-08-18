@@ -141,10 +141,17 @@
 
                             <!-- Flashcards Space Holder (Hidden by default) -->
                             <div id="flashcardsSection" class="d-none">
-                                <div class="text-muted text-center placeholder-box-lg">
-                                    <i class="fa-solid fa-clone fa-2x mb-2 icon-muted"></i>
-                                    <p class="mb-0">Flashcards creator space (Coming soon)</p>
+                                <div id="flashcardsContainer">
+                                    <div class="text-muted text-center placeholder-box" id="noFlashcardsMessage">
+                                        No flashcards added yet. Click the button below to add your first flashcard.
+                                    </div>
                                 </div>
+
+                                <!-- OUTSIDE BUTTON: Add Flashcard Main Button -->
+                                <button type="button" class="add-question-btn" id="addFlashcardMainBtn">
+                                    <i class="fa-solid fa-plus"></i> Add Flashcard
+                                </button>
+
                             </div>
                         </div>
                     </div>

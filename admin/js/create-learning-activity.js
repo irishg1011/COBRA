@@ -582,3 +582,201 @@ function reindexAllFillBlanks() {
         if (inputs[2]) inputs[2].name = `fill_blanks[${idx}][incorrect_feedback]`;
     });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    // OUTSIDE BUTTON: Add a brand new Flashcard Item
+    const addFlashcardMainBtn = document.getElementById('addFlashcardMainBtn');
+    if (addFlashcardMainBtn) {
+        addFlashcardMainBtn.addEventListener('click', function() {
+            addNewFlashcardCard();
+        });
+    }
+
+    // Update Activity Type change listener to support flashcards view
+    const activityTypeSelect = document.getElementById('activityType');
+    const flashcardsSection = document.getElementById('flashcardsSection');
+    const multipleChoiceSection = document.getElementById('multipleChoiceSection');
+    const fillBlanksSection = document.getElementById('fillBlanksSection');
+    const instructionLabel = document.querySelector('.sub-instruction strong');
+    const instructionDesc = document.querySelector('.sub-instruction p');
+
+    if (activityTypeSelect) {
+        activityTypeSelect.addEventListener('change', function() {
+            const selectedType = this.value;
+
+            if (multipleChoiceSection) multipleChoiceSection.style.display = 'none';
+            if (fillBlanksSection) fillBlanksSection.style.display = 'none';
+            if (flashcardsSection) flashcardsSection.style.display = 'none';
+
+            if (selectedType === 'Multiple Choice') {
+                if (multipleChoiceSection) multipleChoiceSection.style.display = 'block';
+                if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
+                if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
+            } else if (selectedType === 'Fill in the Blanks') {
+                if (fillBlanksSection) fillBlanksSection.style.display = 'block';
+                if (instructionLabel) instructionLabel.textContent = 'FILL IN THE BLANKS';
+                if (instructionDesc) instructionDesc.textContent = 'Create sentences or statements with missing words. Add the correct answers and feedback for each response.';
+            } else if (selectedType === 'Flashcards') {
+                if (flashcardsSection) flashcardsSection.style.display = 'block';
+                if (instructionLabel) instructionLabel.textContent = 'FLASHCARDS';
+                if (instructionDesc) instructionDesc.textContent = 'Create front and back flashcard terms for studying.';
+            }
+            updatePointsTotal();
+        });
+    }
+});
+
+// Update dynamic points calculation to include Flashcards
+function updatePointsTotal() {
+    const activityType = document.getElementById('activityType').value;
+    let totalItems = 0;
+
+    if (activityType === 'Multiple Choice') {
+        const container = document.getElementById('questionsContainer');
+        totalItems = container.querySelectorAll('.question-card').length;
+    } else if (activityType === 'Fill in the Blanks') {
+        const container = document.getElementById('fillBlanksContainer');
+        totalItems = container.querySelectorAll('.fill-blank-card').length;
+    } else if (activityType === 'Flashcards') {
+        const container = document.getElementById('flashcardsContainer');
+        totalItems = container.querySelectorAll('.flashcard-card').length;
+    }
+
+    const pointsInput = document.getElementById('activityPoints');
+    if (pointsInput) {
+        pointsInput.value = totalItems;
+    }
+}
+
+// Add a brand new Flashcard Card
+function addNewFlashcardCard(prefilledData = null) {
+    const container = document.getElementById('flashcardsContainer');
+    const emptyMsg = document.getElementById('noFlashcardsMessage');
+    if (emptyMsg) emptyMsg.remove();
+
+    const count = container.querySelectorAll('.flashcard-card').length;
+    const index = count;
+    const num = index + 1;
+
+    const card = document.createElement('div');
+    card.className = 'flashcard-card';
+    card.dataset.index = index;
+
+    let frontVal = prefilledData ? prefilledData.front : '';
+    let backVal = prefilledData ? prefilledData.back : '';
+    let correctFeedbackVal = prefilledData ? prefilledData.correctFeedback : '';
+    let incorrectFeedbackVal = prefilledData ? prefilledData.incorrectFeedback : '';
+
+    card.innerHTML = `
+        <div class="flashcard-card-header">
+            <span class="flashcard-title">Flashcard ${num}</span>
+            <div class="flashcard-controls" style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="icon-control-btn" title="Move Up" onclick="moveFlashcardUp(this)"><i class="fa-solid fa-arrow-up"></i></button>
+                <button type="button" class="icon-control-btn" title="Move Down" onclick="moveFlashcardDown(this)"><i class="fa-solid fa-arrow-down"></i></button>
+                <button type="button" class="icon-control-btn" title="Duplicate Flashcard" onclick="duplicateFlashcardCard(this)"><i class="fa-regular fa-copy"></i></button>
+                <button type="button" class="icon-control-btn text-danger" title="Delete Flashcard" onclick="removeFlashcardCard(this)"><i class="fa-regular fa-trash-can"></i></button>
+            </div>
+        </div>
+
+        <div class="flashcard-grid-2">
+            <div class="form-group" style="position: relative;">
+                <label class="form-label">Front Card *</label>
+                <textarea name="flashcards[${index}][front]" class="form-control question-textarea" rows="3" placeholder="Prompt, term, or question on the front" required>${frontVal}</textarea>
+                <span class="char-counter">${frontVal.length} / 500</span>
+            </div>
+            <div class="form-group" style="position: relative;">
+                <label class="form-label">Back Card *</label>
+                <textarea name="flashcards[${index}][back]" class="form-control question-textarea" rows="3" placeholder="Answer or definition revealed on the back" required>${backVal}</textarea>
+                <span class="char-counter">${backVal.length} / 500</span>
+            </div>
+        </div>
+
+        <div class="flashcard-grid-2 mt-16">
+            <div class="form-group">
+                <label class="form-label">Correct Feedback</label>
+                <input type="text" name="flashcards[${index}][correct_feedback]" class="form-control" value="${correctFeedbackVal}" placeholder="Feedback shown when the learner answer correctly">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Incorrect Feedback</label>
+                <input type="text" name="flashcards[${index}][incorrect_feedback]" class="form-control" value="${incorrectFeedbackVal}" placeholder="Feedback shown when the learner answer incorrectly">
+            </div>
+        </div>
+    `;
+
+    container.appendChild(card);
+    setupTextareaCounters(card);
+    updatePointsTotal();
+}
+
+// Remove Flashcard Card
+function removeFlashcardCard(btn) {
+    const card = btn.closest('.flashcard-card');
+    card.remove();
+
+    const container = document.getElementById('flashcardsContainer');
+    const remainingCards = container.querySelectorAll('.flashcard-card');
+
+    if (remainingCards.length === 0) {
+        container.innerHTML = `
+            <div class="text-muted text-center placeholder-box" id="noFlashcardsMessage">
+                No flashcards added yet. Click the button below to add your first flashcard.
+            </div>
+        `;
+    } else {
+        reindexAllFlashcards();
+    }
+    updatePointsTotal();
+}
+
+// Re-sequence Flashcard items and fields
+function reindexAllFlashcards() {
+    const container = document.getElementById('flashcardsContainer');
+    const cards = container.querySelectorAll('.flashcard-card');
+
+    cards.forEach((card, idx) => {
+        card.dataset.index = idx;
+        card.querySelector('.flashcard-title').textContent = `Flashcard ${idx + 1}`;
+
+        const textareas = card.querySelectorAll('textarea');
+        if (textareas[0]) textareas[0].name = `flashcards[${idx}][front]`;
+        if (textareas[1]) textareas[1].name = `flashcards[${idx}][back]`;
+
+        const inputs = card.querySelectorAll('input[type="text"]');
+        if (inputs[0]) inputs[0].name = `flashcards[${idx}][correct_feedback]`;
+        if (inputs[1]) inputs[1].name = `flashcards[${idx}][incorrect_feedback]`;
+    });
+}
+
+// Duplicate Flashcard Card
+function duplicateFlashcardCard(btn) {
+    const card = btn.closest('.flashcard-card');
+    const textareas = card.querySelectorAll('textarea');
+    const inputs = card.querySelectorAll('input[type="text"]');
+
+    addNewFlashcardCard({
+        front: textareas[0] ? textareas[0].value : '',
+        back: textareas[1] ? textareas[1].value : '',
+        correctFeedback: inputs[0] ? inputs[0].value : '',
+        incorrectFeedback: inputs[1] ? inputs[1].value : ''
+    });
+}
+
+// Move Flashcard Up
+function moveFlashcardUp(btn) {
+    const card = btn.closest('.flashcard-card');
+    const prevCard = card.previousElementSibling;
+    if (prevCard && prevCard.classList.contains('flashcard-card')) {
+        card.parentNode.insertBefore(card, prevCard);
+        reindexAllFlashcards();
+    }
+}
+
+// Move Flashcard Down
+function moveFlashcardDown(btn) {
+    const card = btn.closest('.flashcard-card');
+    const nextCard = card.nextElementSibling;
+    if (nextCard && nextCard.classList.contains('flashcard-card')) {
+        card.parentNode.insertBefore(nextCard, card);
+        reindexAllFlashcards();
+    }
+}

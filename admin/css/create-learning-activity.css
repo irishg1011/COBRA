@@ -441,3 +441,78 @@
     margin-top: 16px;
 }
 
+/* ==========================================
+   Flashcards Styles
+   ========================================== */
+.flashcard-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.flashcard-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 10px;
+}
+
+.flashcard-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.flashcard-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.mt-16 {
+    margin-top: 16px;
+}
+
+/* Flashcard Header Action Buttons Transparent Sync */
+.flashcard-card-header .icon-control-btn,
+.flashcard-card-header button,
+.flashcard-card-header .btn {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #64748b !important;
+    border-radius: 6px !important;
+    padding: 8px 10px !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    transition: all 0.2s ease !important;
+}
+
+.flashcard-card-header .icon-control-btn:hover,
+.flashcard-card-header button:hover,
+.flashcard-card-header .btn:hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+}
+
+.flashcard-card-header .icon-control-btn *,
+.flashcard-card-header button *,
+.flashcard-card-header .btn * {
+    color: inherit !important;
+}
+
+/* Align the Flashcard add button to the left side */
+#flashcardsSection .add-question-btn {
+    width: auto !important;
+    justify-content: center !important;
+    margin-top: 14px;
+}
