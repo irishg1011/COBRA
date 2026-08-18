@@ -128,10 +128,15 @@
 
                             <!-- Fill in the Blanks Space Holder (Hidden by default) -->
                             <div id="fillBlanksSection" class="d-none">
-                                <div class="text-muted text-center placeholder-box-lg">
-                                    <i class="fa-solid fa-pen-to-square fa-2x mb-2 icon-muted"></i>
-                                    <p class="mb-0">Fill in the Blanks creator space (Coming soon)</p>
+                                <div id="fillBlanksContainer">
+                                    <div class="text-muted text-center placeholder-box" id="noFillBlanksMessage">
+                                        No fill-in-the-blank items added yet. Click the button below to add your first item.
+                                    </div>
                                 </div>
+
+                                <button type="button" id="addFillBlankMainBtn" class="btn btn-success-custom w-100 mt-14">
+                                    <i class="fa-solid fa-plus"></i> Add Blank Item
+                                </button>
                             </div>
 
                             <!-- Flashcards Space Holder (Hidden by default) -->

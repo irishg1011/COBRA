@@ -136,10 +136,13 @@
     min-height: 80px;
 }
 
-/* Question Action Buttons & Icons (Transparent/No Background & Styled Actions Column) */
+/* Question and Fill in the Blank Action Buttons & Icons */
 .question-card-header .icon-control-btn,
 .question-card-header button,
-.question-card-header .btn {
+.question-card-header .btn,
+.fill-blank-card-header .icon-control-btn,
+.fill-blank-card-header button,
+.fill-blank-card-header .btn {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -157,14 +160,20 @@
 
 .question-card-header .icon-control-btn:hover,
 .question-card-header button:hover,
-.question-card-header .btn:hover {
+.question-card-header .btn:hover,
+.fill-blank-card-header .icon-control-btn:hover,
+.fill-blank-card-header button:hover,
+.fill-blank-card-header .btn:hover {
     background: #f1f5f9 !important;
     color: #1e293b !important;
 }
 
 .question-card-header .icon-control-btn *,
 .question-card-header button *,
-.question-card-header .btn * {
+.question-card-header .btn *,
+.fill-blank-card-header .icon-control-btn *,
+.fill-blank-card-header button *,
+.fill-blank-card-header .btn * {
     color: inherit !important;
 }
 
@@ -397,3 +406,38 @@
     color: #94a3b8;
     margin-top: 6px;
 }
+
+/* ==========================================
+   Fill in the Blanks Styles
+   ========================================== */
+.fill-blank-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.fill-blank-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 10px;
+}
+
+.fill-blank-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.fill-blank-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+}
+

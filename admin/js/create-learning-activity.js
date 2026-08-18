@@ -14,25 +14,26 @@ document.addEventListener('DOMContentLoaded', function() {
         activityTypeSelect.addEventListener('change', function() {
             const selectedType = this.value;
 
-            // Hide all sections first
-            if (multipleChoiceSection) multipleChoiceSection.style.display = 'none';
-            if (fillBlanksSection) fillBlanksSection.style.display = 'none';
-            if (flashcardsSection) flashcardsSection.style.display = 'none';
+            // Hide all sections using d-none
+            if (multipleChoiceSection) multipleChoiceSection.classList.add('d-none');
+            if (fillBlanksSection) fillBlanksSection.classList.add('d-none');
+            if (flashcardsSection) flashcardsSection.classList.add('d-none');
 
             // Show selected section and update instructions
             if (selectedType === 'Multiple Choice') {
-                if (multipleChoiceSection) multipleChoiceSection.style.display = 'block';
+                if (multipleChoiceSection) multipleChoiceSection.classList.remove('d-none');
                 if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
                 if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
             } else if (selectedType === 'Fill in the Blanks') {
-                if (fillBlanksSection) fillBlanksSection.style.display = 'block';
+                if (fillBlanksSection) fillBlanksSection.classList.remove('d-none');
                 if (instructionLabel) instructionLabel.textContent = 'FILL IN THE BLANKS';
-                if (instructionDesc) instructionDesc.textContent = 'Create sentences with missing words for learners to fill in.';
+                if (instructionDesc) instructionDesc.textContent = 'Create sentences with missing words. Use [_____] to indicate where the blank space goes in the sentence.';
             } else if (selectedType === 'Flashcards') {
-                if (flashcardsSection) flashcardsSection.style.display = 'block';
+                if (flashcardsSection) flashcardsSection.classList.remove('d-none');
                 if (instructionLabel) instructionLabel.textContent = 'FLASHCARDS';
                 if (instructionDesc) instructionDesc.textContent = 'Create front and back flashcard terms for studying.';
             }
+            updatePointsTotal();
         });
     }
 
@@ -372,5 +373,212 @@ function duplicateQuestionCard(btn) {
             </div>
         `;
         newOptionsWrapper.appendChild(clonedRow);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // ... existing initialization code ...
+
+    // OUTSIDE BUTTON: Add a brand new Fill in the Blank Item
+    const addFillBlankMainBtn = document.getElementById('addFillBlankMainBtn');
+    if (addFillBlankMainBtn) {
+        addFillBlankMainBtn.addEventListener('click', function() {
+            addNewFillBlankCard();
+        });
+    }
+
+    // Update Activity Type change listener to calculate points based on active section
+    if (activityTypeSelect) {
+        activityTypeSelect.addEventListener('change', function() {
+            const selectedType = this.value;
+
+            if (multipleChoiceSection) multipleChoiceSection.style.display = 'none';
+            if (fillBlanksSection) fillBlanksSection.style.display = 'none';
+            if (flashcardsSection) flashcardsSection.style.display = 'none';
+
+            if (selectedType === 'Multiple Choice') {
+                if (multipleChoiceSection) multipleChoiceSection.style.display = 'block';
+                if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
+                if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
+            } else if (selectedType === 'Fill in the Blanks') {
+                if (fillBlanksSection) fillBlanksSection.style.display = 'block';
+                if (instructionLabel) instructionLabel.textContent = 'FILL IN THE BLANKS';
+                if (instructionDesc) instructionDesc.textContent = 'Create sentences or statements with missing words. Add the correct answers and feedback for each response.';
+            } else if (selectedType === 'Flashcards') {
+                if (flashcardsSection) flashcardsSection.style.display = 'block';
+                if (instructionLabel) instructionLabel.textContent = 'FLASHCARDS';
+                if (instructionDesc) instructionDesc.textContent = 'Create front and back flashcard terms for studying.';
+            }
+            updatePointsTotal();
+        });
+    }
+});
+
+// Update dynamic points calculation to support multiple activity types
+function updatePointsTotal() {
+    const activityType = document.getElementById('activityType').value;
+    let totalItems = 0;
+
+    if (activityType === 'Multiple Choice') {
+        const container = document.getElementById('questionsContainer');
+        totalItems = container.querySelectorAll('.question-card').length;
+    } else if (activityType === 'Fill in the Blanks') {
+        const container = document.getElementById('fillBlanksContainer');
+        totalItems = container.querySelectorAll('.fill-blank-card').length;
+    }
+
+    const pointsInput = document.getElementById('activityPoints');
+    if (pointsInput) {
+        pointsInput.value = totalItems;
+    }
+}
+
+// Add a brand new Fill in the Blank Card
+function addNewFillBlankCard(prefilledData = null) {
+    const container = document.getElementById('fillBlanksContainer');
+    const emptyMsg = document.getElementById('noFillBlanksMessage');
+    if (emptyMsg) emptyMsg.remove();
+
+    const count = container.querySelectorAll('.fill-blank-card').length;
+    const index = count;
+    const num = index + 1;
+
+    const card = document.createElement('div');
+    card.className = 'fill-blank-card';
+    card.dataset.index = index;
+
+    let textVal = prefilledData ? prefilledData.text : '';
+    let answerVal = prefilledData ? prefilledData.answer : '';
+    let correctFeedbackVal = prefilledData ? prefilledData.correctFeedback : '';
+    let incorrectFeedbackVal = prefilledData ? prefilledData.incorrectFeedback : '';
+
+    card.innerHTML = `
+        <div class="fill-blank-card-header">
+            <span class="fill-blank-title">Item ${num}</span>
+            <div class="fill-blank-controls" style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="icon-control-btn" title="Move Up" onclick="moveFillBlankUp(this)"><i class="fa-solid fa-arrow-up"></i></button>
+                <button type="button" class="icon-control-btn" title="Move Down" onclick="moveFillBlankDown(this)"><i class="fa-solid fa-arrow-down"></i></button>
+                <button type="button" class="icon-control-btn" title="Duplicate Item" onclick="duplicateFillBlankCard(this)"><i class="fa-regular fa-copy"></i></button>
+                <button type="button" class="icon-control-btn text-danger" title="Delete Item" onclick="removeFillBlankCard(this)"><i class="fa-regular fa-trash-can"></i></button>
+            </div>
+        </div>
+
+        <div class="form-group mb-20" style="position: relative;">
+            <label class="form-label">Question / Content (Include the blank) *</label>
+            <textarea name="fill_blanks[${index}][content]" class="form-control question-textarea" rows="3" placeholder="e.g. To define a function in Python, we use the [_____] keyword." required>${textVal}</textarea>
+            <span class="char-counter">${textVal.length} / 500</span>
+        </div>
+
+        <div class="form-group mb-20">
+            <label class="form-label">Correct Answer (word, value, or code to fill in) *</label>
+            <input type="text" name="fill_blanks[${index}][correct_answer]" class="form-control" value="${answerVal}" placeholder="e.g. def" required>
+        </div>
+
+        <div class="fill-blank-grid-2">
+            <div class="form-group">
+                <label class="form-label">Correct Feedback</label>
+                <input type="text" name="fill_blanks[${index}][correct_feedback]" class="form-control" value="${correctFeedbackVal}" placeholder="Feedback shown when the learner answers correctly">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Incorrect Feedback</label>
+                <input type="text" name="fill_blanks[${index}][incorrect_feedback]" class="form-control" value="${incorrectFeedbackVal}" placeholder="Feedback shown when the learner answers incorrectly">
+            </div>
+        </div>
+    `;
+
+    container.appendChild(card);
+    setupTextareaCounters(card);
+    updatePointsTotal();
+}
+
+// Remove Fill in the Blank Card
+function removeFillBlankCard(btn) {
+    const card = btn.closest('.fill-blank-card');
+    card.remove();
+
+    const container = document.getElementById('fillBlanksContainer');
+    const remainingCards = container.querySelectorAll('.fill-blank-card');
+
+    if (remainingCards.length === 0) {
+        container.innerHTML = `
+            <div class="text-muted text-center placeholder-box" id="noFillBlanksMessage">
+                No fill-in-the-blank items added yet. Click the button below to add your first item.
+            </div>
+        `;
+    } else {
+        reindexAllFillBlanks();
+    }
+    updatePointsTotal();
+}
+
+// Re-sequence Fill in the Blank items
+function reindexAllFillBlanks() {
+    const container = document.getElementById('fillBlanksContainer');
+    const cards = container.querySelectorAll('.fill-blank-card');
+
+    cards.forEach((card, idx) => {
+        card.dataset.index = idx;
+        card.querySelector('.fill-blank-title').textContent = `Item ${idx + 1}`;
+
+        const textarea = card.querySelector('textarea');
+        if (textarea) textarea.name = `fill_blanks[${idx}][content]`;
+
+        const inputs = card.querySelectorAll('input[type="text"]');
+        if (inputs[0]) inputs[0].name = `fill_blanks[${idx}][correct_answer]`;
+        if (inputs[1]) inputs[1].name = `fill_blanks[${idx}][correct_feedback]`;
+        if (inputs[2]) inputs[2].name = `fill_blanks[${idx}][incorrect_feedback]`;
+    });
+}
+
+// Duplicate Fill in the Blank Card
+function duplicateFillBlankCard(btn) {
+    const card = btn.closest('.fill-blank-card');
+    const textarea = card.querySelector('textarea');
+    const inputs = card.querySelectorAll('input[type="text"]');
+
+    addNewFillBlankCard({
+        text: textarea ? textarea.value : '',
+        answer: inputs[0] ? inputs[0].value : '',
+        correctFeedback: inputs[1] ? inputs[1].value : '',
+        incorrectFeedback: inputs[2] ? inputs[2].value : ''
+    });
+}
+
+// Move Fill in the Blank Item Up
+function moveFillBlankUp(btn) {
+    const card = btn.closest('.fill-blank-card');
+    const prevCard = card.previousElementSibling;
+    if (prevCard && prevCard.classList.contains('fill-blank-card')) {
+        card.parentNode.insertBefore(card, prevCard);
+        reindexAllFillBlanks();
+    }
+}
+
+// Move Fill in the Blank Item Down
+function moveFillBlankDown(btn) {
+    const card = btn.closest('.fill-blank-card');
+    const nextCard = card.nextElementSibling;
+    if (nextCard && nextCard.classList.contains('fill-blank-card')) {
+        card.parentNode.insertBefore(nextCard, card);
+        reindexAllFillBlanks();
+    }
+}
+
+// Updated reindex function to keep inputs and names fully synced when moved/deleted
+function reindexAllFillBlanks() {
+    const container = document.getElementById('fillBlanksContainer');
+    const cards = container.querySelectorAll('.fill-blank-card');
+
+    cards.forEach((card, idx) => {
+        card.dataset.index = idx;
+        card.querySelector('.fill-blank-title').textContent = `Item ${idx + 1}`;
+
+        const textarea = card.querySelector('textarea');
+        if (textarea) textarea.name = `fill_blanks[${idx}][content]`;
+
+        const inputs = card.querySelectorAll('input[type="text"]');
+        if (inputs[0]) inputs[0].name = `fill_blanks[${idx}][correct_answer]`;
+        if (inputs[1]) inputs[1].name = `fill_blanks[${idx}][correct_feedback]`;
+        if (inputs[2]) inputs[2].name = `fill_blanks[${idx}][incorrect_feedback]`;
     });
 }
