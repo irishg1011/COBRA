@@ -1,7 +1,7 @@
 import os
 from functools import wraps
 from datetime import datetime
-from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for
+from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for, flash
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash  # NEW: reuses the exact same hashing scheme as the Learner Sign Up flow
 
@@ -29,6 +29,9 @@ from manage_course import (
     create_category, update_category, delete_category,
     create_module, update_module, delete_module, get_modules_overview,
     archive_module, restore_module,  # NEW - Task #27: soft delete/archive
+)
+from learning_resources import (  # NEW - Task #37 & #38: Learning Resources DB integration
+    get_resource_types, get_learning_resources_overview,
 )
 
 
@@ -1474,7 +1477,66 @@ def render_placeholder(title):
 
 @admin_bp.route('/learning-resources')
 def learning_resources():
-    return render_template('learning-resources.html')
+    """
+    Task #37 & #38: renders the Learning Resources page with LIVE data -
+    real rows from learning_resources_tbl (Category / Uploaded By /
+    Status / Created At / Updated At all resolved to display names via
+    JOINs - see learning_resources.py) and a resource-type dropdown
+    populated straight from resource_types_tbl, instead of the previous
+    static/empty placeholder page.
+ 
+    admin-learning-resources.js takes over afterward for live
+    search/type-filter/pagination without a page reload, the same
+    "server renders real data on load, JS takes over for live updates"
+    pattern already used by manage_course() / account_security().
+    """
+    overview = get_learning_resources_overview()
+    if overview is None:
+        # DB unreachable - render with an empty list rather than
+        # crashing; the template's {% else %} branch already shows
+        # "No resources found." for a genuinely empty list. This is
+        # NOT the same as get_learning_resources_overview() returning
+        # zero rows for a successful query - see Requirement #7.
+        overview = {"resources": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
+ 
+    return render_template(
+        'learning-resources.html',
+        resources=overview["resources"],
+        total_resources=overview["total"],
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        resource_types=get_resource_types(),
+    )
+ 
+ 
+@admin_bp.route('/learning-resources/data')
+def learning_resources_data():
+    """
+    Task #37 & #38: backend-driven live search/type-filter/pagination
+    for the Learning Resources table - JSON, mirroring
+    manage_course_data()'s pattern exactly for consistency.
+ 
+    Query params (all optional):
+      q     - free-text search term (resource title / category /
+              resource type / uploader name)
+      type  - the real resource_type_id from resource_types_tbl
+              (never a hardcoded id or a name string - Task #38,
+              Requirement #4)
+      page  - page number
+ 
+    Returns JSON: { "success": bool, "resources": [...], "total": int,
+    "page": int, "total_pages": int }
+    """
+    search = request.args.get('q', '')
+    type_filter = request.args.get('type', '')
+    page = request.args.get('page', 1, type=int)
+ 
+    overview = get_learning_resources_overview(
+        search_query=search, type_filter=type_filter, page=page,
+    )
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
 
 @admin_bp.route('/learning-activities')
 def learning_activities():

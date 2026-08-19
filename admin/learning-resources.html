@@ -51,12 +51,21 @@
                             <input type="text" id="resourceSearchInput" placeholder="Search resources...">
                         </div>
                         <div class="toolbar-filters">
+                            <!--
+                                Task #38: options are no longer hardcoded -
+                                they come from resource_types_tbl via
+                                admin_routes.py's learning_resources()
+                                route (see learning_resources.py's
+                                get_resource_types()). "All Types" is the
+                                only static option; its empty value is what
+                                admin-learning-resources.js / the backend
+                                treat as "no type filter".
+                            -->
                             <select class="custom-select" id="resourceTypeSelect">
                                 <option value="">All Types</option>
-                                <option value="Video">Video</option>
-                                <option value="PDF">PDF</option>
-                                <option value="Image">Image</option>
-                                <option value="Document">Document</option>
+                                {% for t in resource_types %}
+                                <option value="{{ t.resource_type_id }}">{{ t.resource_type_name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
@@ -67,41 +76,39 @@
                             <tr>
                                 <th>Resource</th>
                                 <th>Type</th>
-                                <th>Size</th>
-                                <th>Uploaded</th>
-                                <th class="text-right">Actions</th>
+                                <th>Category</th>
+                                <th>Uploaded By</th>
+                                <th>Status</th>
+                                <th>Created At</th>
+                                <th>Updated At</th>
                             </tr>
                         </thead>
                         <tbody id="resourcesTableBody">
                             {% for resource in resources %}
-                            <tr>
+                            <tr data-resource-id="{{ resource.resource_id }}">
                                 <td>
-                                    <strong class="table-item-title">{{ resource.title }}</strong>
-                                    <small class="text-muted">{{ resource.description }}</small>
+                                    <strong class="table-item-title">{{ resource.resource_title }}</strong>
                                 </td>
                                 <td>
-                                    {% if resource.type == 'Video' %}
-                                    <span class="badge badge-video">Video</span>
-                                    {% elif resource.type == 'PDF' %}
-                                    <span class="badge badge-pdf">PDF</span>
-                                    {% elif resource.type == 'Image' %}
-                                    <span class="badge badge-image">Image</span>
+                                    {% if 'video' in resource.type|lower %}
+                                    <span class="badge badge-video">{{ resource.type }}</span>
+                                    {% elif 'pdf' in resource.type|lower %}
+                                    <span class="badge badge-pdf">{{ resource.type }}</span>
+                                    {% elif 'image' in resource.type|lower %}
+                                    <span class="badge badge-image">{{ resource.type }}</span>
                                     {% else %}
-                                    <span class="badge badge-document">Document</span>
+                                    <span class="badge badge-document">{{ resource.type }}</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-muted">{{ resource.size }}</td>
-                                <td class="text-muted">{{ resource.uploaded_at }}</td>
-                                <td class="text-right">
-                                    <div class="table-actions-group">
-                                        <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
-                                    </div>
-                                </td>
+                                <td class="text-muted">{{ resource.category }}</td>
+                                <td class="text-muted">{{ resource.uploaded_by }}</td>
+                                <td class="text-muted">{{ resource.status }}</td>
+                                <td class="text-muted">{{ resource.created_at }}</td>
+                                <td class="text-muted">{{ resource.updated_at }}</td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-muted table-empty-message">
+                                <td colspan="7" class="text-muted table-empty-message">
                                     No resources found.
                                 </td>
                             </tr>
@@ -111,8 +118,12 @@
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
-                        <span>Showing {{ resources|length }} of {{ total_resources|default(8) }} Resources</span>
-                        <span>&lt; 1 of 1 &gt;</span>
+                        <span id="resourcesShowingCount">Showing {{ resources|length }} of {{ total_resources|default(0) }} Resources</span>
+                        <span>
+                            <button id="resourcesPrevBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
+                            <span id="resourcesPageLabel">{{ page|default(1) }} of {{ total_pages|default(1) }}</span>
+                            <button id="resourcesNextBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
+                        </span>
                     </div>
 
                 </div>
@@ -124,5 +135,6 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-learning-resources.js') }}"></script>
 </body>
 </html>
