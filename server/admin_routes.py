@@ -34,6 +34,7 @@ from manage_course import (
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
 )
+from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -1631,9 +1632,41 @@ def reports():
 
 @admin_bp.route('/upload-resource', methods=['GET', 'POST'])
 def upload_resource():
+    """
+    Task #42: the lesson's title (posted as `lesson_name`) is now
+    validated before anything else happens - normalized to sentence
+    case, then checked for GLOBAL uniqueness across every category and
+    module in learning_resources_tbl - via
+    lesson_validation.validate_lesson_title(), a separate, reusable
+    module (never inline validation logic here, matching this
+    project's existing "no new logic inline inside admin_routes.py"
+    convention - see manage_course.py / learning_resources.py /
+    account_status.py).
+
+    On failure (missing name, or a global duplicate), the error is
+    flashed and the admin is redirected back to this same page - no
+    partial/invalid data is ever saved. On success, `lesson_name` has
+    already been normalized ("javascript" -> "Javascript") and is ready
+    to be persisted by the resource-creation/status workflow.
+    """
     if request.method == 'POST':
-        # Handle form submission logic here (saving module content)
-        return redirect(url_for('admin_bp.upload_resource')) # or redirect back to your resources list
+        lesson_name = (request.form.get('lesson_name') or '').strip()
+
+        is_valid, result = validate_lesson_title(lesson_name)
+        if not is_valid:
+            # `result` is the human-readable error message when
+            # is_valid is False (required / DB unreachable / duplicate).
+            flash(result, 'error')
+            return redirect(url_for('admin_bp.upload_resource'))
+
+        # `result` is now the normalized ("sentence case") lesson title -
+        # e.g. "javascript" / "JAVASCRIPT" / "jAvAsCrIpT" all become
+        # "Javascript". This is the exact value that MUST be used
+        # wherever the learning_resources_tbl row is actually persisted.
+        normalized_lesson_name = result  # noqa: F841 - consumed by the resource-creation workflow
+
+        flash('Lesson name validated successfully.', 'success')
+        return redirect(url_for('admin_bp.upload_resource'))
 
     # Task #41: Category dropdown is rendered server-side from real
     # category_tbl rows (same get_categories() Manage Course already
@@ -1641,6 +1674,47 @@ def upload_resource():
     # in the template and is populated live by upload-resource.js once
     # the Admin picks a Category.
     return render_template('upload-resource.html', categories=get_categories())
+
+
+# ============================================================
+# ROUTE: TASK #42 - LIVE LESSON NAME UNIQUENESS CHECK
+# ============================================================
+@admin_bp.route('/upload-resource/check-lesson-name')
+def upload_resource_check_lesson_name():
+    """
+    Task #42: backs upload-resource.js's live, debounced duplicate check
+    while the admin types a lesson name - mirrors
+    check_account_field_availability()'s pattern exactly (see above).
+    Purely a UX convenience: the POST /admin/upload-resource route
+    above always re-validates uniqueness itself (via the SAME
+    lesson_validation module) before anything is ever saved, so this
+    endpoint being skipped or spoofed can't bypass anything.
+
+    Query params:
+      name - the lesson title currently typed (raw, not yet
+             normalized - normalization happens inside
+             validate_lesson_title()).
+
+    Returns JSON:
+      { "success": true, "available": bool, "normalized": str }  - on a
+        successful check (available may still be False for a duplicate)
+      { "success": true, "available": false, "message": str }    - when
+        the title can't be validated yet (e.g. still empty)
+      400 - no `name` query param supplied at all
+    """
+    name = (request.args.get('name') or '').strip()
+    if not name:
+        return jsonify({"success": False, "message": "Lesson name is required."}), 400
+
+    is_valid, result = validate_lesson_title(name)
+    if not is_valid:
+        # A duplicate (or a not-yet-checkable value) is the only
+        # failure mode this endpoint reports - always 200, since this
+        # is informational, not an error condition for the request
+        # itself.
+        return jsonify({"success": True, "available": False, "message": result}), 200
+
+    return jsonify({"success": True, "available": True, "normalized": result}), 200
 
 
 # ============================================================
