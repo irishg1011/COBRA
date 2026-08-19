@@ -127,7 +127,7 @@
                     <td class="text-right">
                         <div class="table-actions-group">
                             <a href="#" title="Edit" class="table-action-icon js-edit-module" data-id="${m.module_id}"><i class="fa-solid fa-pen-to-square"></i></a>
-                            <a href="#" title="Delete" class="table-action-icon delete-action js-delete-module" data-id="${m.module_id}"><i class="fa-solid fa-trash"></i></a>
+                            <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="${m.module_id}"><i class="fa-solid fa-box-archive"></i></a>
                         </div>
                     </td>
                 </tr>
