@@ -72,9 +72,11 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
     label) instead of silently disappearing from the table.
 
     search_query (str | None): case-insensitive "contains" match
-    against resource_title, category_name, OR the uploader's full
-    name/username - same convention as
-    admin_routes.get_accounts_overview()'s search.
+    against resource_title, resource type name, category name, the
+    uploader's full name/username, status name, AND the created_at /
+    updated_at dates (matched against the same display format
+    _fmt_date() renders below, e.g. "Jul 2, 2026") - not just the
+    title. All fields are OR'ed together as one group.
 
     type_filter (str | int | None): the resource type's real key -
     learning_resources_tbl.resource_type_id, which is what
@@ -109,16 +111,37 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
 
         term = (search_query or "").strip()
         if term:
+            # Task: search must match across resource_title, resource
+            # type, category, uploader (name or username), status, AND
+            # the created_at / updated_at dates - not just the title.
+            #
+            # created_at/updated_at are matched via DATE_FORMAT(...) using
+            # the SAME '%b %e, %Y' pattern _fmt_date() below renders for
+            # display (e.g. "Jul 2, 2026") - '%e' (not '%d') is what
+            # gives the day without a leading zero, matching dt.day's
+            # un-padded output exactly, so a user can search using
+            # whatever date text they actually see in the table.
+            #
+            # This whole block is one OR-grouped condition, ANDed with
+            # the type filter below (and with the empty WHERE 1=1
+            # anchor above it) - matching the task's required
+            # "(title OR type OR category OR uploader OR status OR
+            # created_at OR updated_at) AND active_type_filter"
+            # structure exactly.
             base_query += """
                 AND (
                     LOWER(lr.resource_title) LIKE %s
+                    OR LOWER(rt.resource_type_name) LIKE %s
                     OR LOWER(c.category_name) LIKE %s
                     OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
                     OR LOWER(a.username) LIKE %s
+                    OR LOWER(lrs.lr_stats_name) LIKE %s
+                    OR LOWER(DATE_FORMAT(lr.created_at, '%%b %%e, %%Y')) LIKE %s
+                    OR LOWER(DATE_FORMAT(lr.updated_at, '%%b %%e, %%Y')) LIKE %s
                 )
             """
             like_term = f"%{term.lower()}%"
-            params.extend([like_term, like_term, like_term, like_term])
+            params.extend([like_term] * 8)
 
         # Filter by the real FK (resource_type_id), never by string-
         # matching resource_type_name - a display name is not a stable
