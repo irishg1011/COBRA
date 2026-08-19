@@ -24,12 +24,17 @@
         const prevBtn = document.getElementById("modulesPrevBtn");
         const nextBtn = document.getElementById("modulesNextBtn");
 
-        // Task #30: Created At / Updated At date filter controls.
+        // Task #30 (simplified): Created At / Updated At date filter
+        // controls. Each field is a single date picker by default; the
+        // matching "Range" toggle checkbox reveals its second (end) date
+        // input only when the admin wants to filter a span of dates.
         const createdFromInput = document.getElementById("createdFromInput");
         const createdToInput = document.getElementById("createdToInput");
+        const createdRangeToggle = document.getElementById("createdRangeToggle");
         const clearCreatedDateBtn = document.getElementById("clearCreatedDateBtn");
         const updatedFromInput = document.getElementById("updatedFromInput");
         const updatedToInput = document.getElementById("updatedToInput");
+        const updatedRangeToggle = document.getElementById("updatedRangeToggle");
         const clearUpdatedDateBtn = document.getElementById("clearUpdatedDateBtn");
         const dateFilterError = document.getElementById("dateFilterError");
 
@@ -51,6 +56,21 @@
         }
 
         /**
+         * Resolves a date filter field's effective {from, to} pair based
+         * on its own Range toggle: with the toggle off, the field acts as
+         * a single-date filter ("on this date") and `to` mirrors `from`;
+         * with it on, `to` comes from the field's own end-date input.
+         * An empty `from` means the filter isn't in use at all.
+         */
+        function getEffectiveDateRange(fromInput, toInput, rangeToggle) {
+            const from = fromInput ? fromInput.value : "";
+            if (!from) return { from: "", to: "" };
+            const isRange = !!(rangeToggle && rangeToggle.checked);
+            const to = (isRange && toInput) ? toInput.value : from;
+            return { from, to };
+        }
+
+        /**
          * Task #30, Requirement #17: reject an invalid date range
          * (End before Start) client-side, before ever calling the
          * backend, so the admin gets instant feedback. The backend's
@@ -61,16 +81,14 @@
         function validateDateRanges() {
             clearDateFilterError();
 
-            const cFrom = createdFromInput ? createdFromInput.value : "";
-            const cTo = createdToInput ? createdToInput.value : "";
-            if (cFrom && cTo && cFrom > cTo) {
+            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            if (created.from && created.to && created.from > created.to) {
                 showDateFilterError("Created At: end date must be on or after the start date.");
                 return false;
             }
 
-            const uFrom = updatedFromInput ? updatedFromInput.value : "";
-            const uTo = updatedToInput ? updatedToInput.value : "";
-            if (uFrom && uTo && uFrom > uTo) {
+            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            if (updated.from && updated.to && updated.from > updated.to) {
                 showDateFilterError("Updated At: end date must be on or after the start date.");
                 return false;
             }
@@ -121,14 +139,21 @@
             const term = searchInput ? searchInput.value.trim() : "";
             if (term) params.set("q", term);
             if (statusSelect && statusSelect.value) params.set("status", statusSelect.value);
-            // Task #30: only ever sent when the admin actually picked a
-            // value - an empty/untouched date input adds no restriction,
-            // matching get_modules_overview()'s "absent bound = no
-            // restriction" behavior on the backend.
-            if (createdFromInput && createdFromInput.value) params.set("created_from", createdFromInput.value);
-            if (createdToInput && createdToInput.value) params.set("created_to", createdToInput.value);
-            if (updatedFromInput && updatedFromInput.value) params.set("updated_from", updatedFromInput.value);
-            if (updatedToInput && updatedToInput.value) params.set("updated_to", updatedToInput.value);
+            // Task #30 (simplified): only ever sent when the admin
+            // actually picked a "from" value - an empty/untouched date
+            // field adds no restriction, matching get_modules_overview()'s
+            // "absent bound = no restriction" behavior on the backend.
+            // With the Range toggle off, "to" mirrors "from" (a single-day
+            // filter); with it on, "to" comes from the field's own end
+            // date input - see getEffectiveDateRange() above.
+            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            if (created.from) params.set("created_from", created.from);
+            if (created.to) params.set("created_to", created.to);
+
+            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            if (updated.from) params.set("updated_from", updated.from);
+            if (updated.to) params.set("updated_to", updated.to);
+
             params.set("page", currentPage);
             return params;
         }
@@ -196,6 +221,36 @@
             input.addEventListener("change", () => scheduleLoad(true));
         });
 
+        // ------------------------------------------------------------
+        // Simplified date filters: each field's "Range" toggle shows/
+        // hides its own end-date input, instead of both always being
+        // visible. Restores the toggle's checked state from whatever
+        // values were already rendered server-side (e.g. a bookmarked/
+        // shared filtered URL) BEFORE the first sync, so loading a page
+        // with an active range doesn't wipe out its own end date.
+        // ------------------------------------------------------------
+        function initDateRangeToggle(fromInput, toInput, rangeToggle) {
+            if (!rangeToggle || !toInput) return;
+
+            const fromVal = fromInput ? fromInput.value : "";
+            if (toInput.value && toInput.value !== fromVal) {
+                rangeToggle.checked = true;
+            }
+
+            const sync = () => {
+                toInput.style.display = rangeToggle.checked ? "" : "none";
+                if (!rangeToggle.checked) toInput.value = "";
+            };
+            sync();
+
+            rangeToggle.addEventListener("change", () => {
+                sync();
+                scheduleLoad(true);
+            });
+        }
+        initDateRangeToggle(createdFromInput, createdToInput, createdRangeToggle);
+        initDateRangeToggle(updatedFromInput, updatedToInput, updatedRangeToggle);
+
         // Requirement #9/#10: Clear only removes ITS OWN date
         // restriction (Created At or Updated At) - search, status, and
         // the other date filter are left completely untouched.
@@ -203,6 +258,8 @@
             clearCreatedDateBtn.addEventListener("click", () => {
                 if (createdFromInput) createdFromInput.value = "";
                 if (createdToInput) createdToInput.value = "";
+                if (createdRangeToggle) createdRangeToggle.checked = false;
+                if (createdToInput) createdToInput.style.display = "none";
                 clearDateFilterError();
                 scheduleLoad(true);
             });
@@ -211,6 +268,8 @@
             clearUpdatedDateBtn.addEventListener("click", () => {
                 if (updatedFromInput) updatedFromInput.value = "";
                 if (updatedToInput) updatedToInput.value = "";
+                if (updatedRangeToggle) updatedRangeToggle.checked = false;
+                if (updatedToInput) updatedToInput.style.display = "none";
                 clearDateFilterError();
                 scheduleLoad(true);
             });

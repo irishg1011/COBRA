@@ -73,30 +73,42 @@
                             </select>
 
                             <!--
-                                Task #30: Created At / Updated At date
-                                filters. Smallest necessary controls added
-                                to the existing toolbar - no redesign.
-                                Values filter against the real
-                                modules_tbl.created_at / updated_at columns
-                                (see admin-manage-course.js + manage_course.py's
-                                get_modules_overview()), never hardcoded
-                                dates. Prefilled from the query string (if
-                                any) so a direct/shared filtered URL shows
-                                the same state on load.
+                                Task #30 (simplified): Created At / Updated At
+                                date filters. Each is a single date picker by
+                                default - the "Range" toggle reveals a second
+                                (end) date input only when the admin actually
+                                wants a range, instead of always showing four
+                                date inputs side by side. Values still filter
+                                against the real modules_tbl.created_at /
+                                updated_at columns (see admin-manage-course.js
+                                + manage_course.py's get_modules_overview()),
+                                never hardcoded dates. Prefilled from the
+                                query string (if any) so a direct/shared
+                                filtered URL shows the same state on load.
                             -->
-                            <span class="text-muted" style="font-size: 12px; align-self: center; margin-left: 4px;">Created:</span>
-                            <input type="date" class="custom-select" id="createdFromInput" title="Created From" value="{{ created_from|default('') }}">
-                            <input type="date" class="custom-select" id="createdToInput" title="Created To" value="{{ created_to|default('') }}">
-                            <button type="button" class="icon-button-reset table-action-icon" id="clearCreatedDateBtn" title="Clear Created At filter">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
+                            <div class="date-filter-group" id="createdDateGroup">
+                                <span class="date-filter-label">Created At</span>
+                                <input type="date" class="custom-select" id="createdFromInput" title="Created At" value="{{ created_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="createdToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="createdRangeToggle"> Range
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearCreatedDateBtn" title="Clear Created At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
 
-                            <span class="text-muted" style="font-size: 12px; align-self: center; margin-left: 4px;">Updated:</span>
-                            <input type="date" class="custom-select" id="updatedFromInput" title="Updated From" value="{{ updated_from|default('') }}">
-                            <input type="date" class="custom-select" id="updatedToInput" title="Updated To" value="{{ updated_to|default('') }}">
-                            <button type="button" class="icon-button-reset table-action-icon" id="clearUpdatedDateBtn" title="Clear Updated At filter">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
+                            <div class="date-filter-group" id="updatedDateGroup">
+                                <span class="date-filter-label">Updated At</span>
+                                <input type="date" class="custom-select" id="updatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="updatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="updatedRangeToggle"> Range
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearUpdatedDateBtn" title="Clear Updated At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
 

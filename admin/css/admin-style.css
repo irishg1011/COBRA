@@ -650,6 +650,51 @@ body {
     outline: none;
 }
 
+/* ==========================================================================
+   MANAGE COURSE - SIMPLIFIED CREATED AT / UPDATED AT DATE FILTERS
+   Each filter is a single date picker by default; checking "Range"
+   reveals a second (end) date input. Keeps the toolbar from being
+   crowded with four always-visible date inputs.
+   ========================================================================== */
+.date-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.date-filter-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    white-space: nowrap;
+}
+
+.date-range-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #6b7280;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.date-range-toggle input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* Hidden until the "Range" checkbox is checked - JS toggles this via
+   inline style, but this class-based default prevents a flash of the
+   end-date input before admin-manage-course.js runs on page load. */
+.date-range-end {
+    display: none;
+}
+
 /* Table Styles */
 .data-table {
     width: 100%;
