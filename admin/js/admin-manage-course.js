@@ -350,6 +350,7 @@
                         <i class="fa-solid ${idx === 0 ? 'fa-chevron-down' : 'fa-chevron-right'} toggle-arrow"></i>
                         <span class="category-name">${cat.category_name}</span>
                         <span class="module-row-actions js-cat-actions" style="margin-left:auto; display:flex; gap:10px;">
+                            <i class="fa-solid fa-square-plus js-add-module-to-category" title="Add Module"></i>
                             <i class="fa-solid fa-pen-to-square js-edit-category" title="Rename"></i>
                             <i class="fa-solid fa-trash js-delete-category" title="Delete"></i>
                         </span>
@@ -414,6 +415,40 @@
                     const result = await resp.json();
                     if (!result.success) alert(result.message);
                     refreshCategoriesModal();
+                });
+            });
+
+            // ------------------------------------------------------------
+            // Task: "Add Module" icon per Category - opens the existing
+            // Add Module drawer with this Category already selected, so
+            // the admin is never required to pick it again manually.
+            // ------------------------------------------------------------
+            categoriesListView.querySelectorAll(".js-add-module-to-category").forEach(icon => {
+                icon.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    const item = icon.closest(".category-accordion-item");
+                    const catId = item.dataset.catId;
+
+                    // Reuses admin-script.js's own "Add Module" button
+                    // click handler (openDrawer(addModuleDrawer), hides
+                    // the other drawer/footer) instead of a second,
+                    // divergent copy of that drawer-opening logic here -
+                    // the Add Module form/layout itself is left untouched.
+                    const modalAddModuleBtn = document.getElementById("modalAddModuleBtn");
+                    if (modalAddModuleBtn) modalAddModuleBtn.click();
+
+                    // The Category dropdown is already populated whenever
+                    // the Categories modal opens (see refreshCategoriesModal()
+                    // below), but re-populate here too so the pre-select
+                    // below always has a matching <option> even if this is
+                    // somehow triggered before that first population lands.
+                    await populateModuleCategorySelect();
+
+                    const categorySelect = document.getElementById("newModuleCategorySelect");
+                    if (categorySelect) categorySelect.value = String(catId);
+
+                    const nameInput = document.getElementById("newModuleNameInput");
+                    if (nameInput) nameInput.focus();
                 });
             });
         }

@@ -9,6 +9,7 @@ responses, so this file never touches Flask/session state directly.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from text_formatting import format_display_name  # NEW: sentence-case normalization for Category/Module names
 
 CATEGORY_TABLE = "category_tbl"
 MODULES_TABLE = "modules_tbl"
@@ -180,7 +181,10 @@ def get_categories_with_modules():
 
 
 def create_category(category_name):
-    name = (category_name or "").strip()
+    # Task: Category names are auto-formatted to sentence case
+    # ("pYtHoN bAsIcS" -> "Python basics") before any validation,
+    # duplicate check, or save - see text_formatting.format_display_name().
+    name = format_display_name(category_name)
     if not name:
         return False, "Category name is required.", None
 
@@ -211,7 +215,9 @@ def create_category(category_name):
 
 
 def update_category(cat_id, category_name):
-    name = (category_name or "").strip()
+    # Task: same sentence-case formatting as create_category() above,
+    # so a rename always ends up in the same normalized form.
+    name = format_display_name(category_name)
     if not name:
         return False, "Category name is required."
 
@@ -282,7 +288,10 @@ def delete_category(cat_id):
 # MODULES
 # ================================================================
 def create_module(module_name, description, cat_id, module_stats_id):
-    name = (module_name or "").strip()
+    # Task: Module names are auto-formatted to sentence case the same
+    # way Category names are (see create_category() above) - only the
+    # name, never the free-form description.
+    name = format_display_name(module_name)
     desc = (description or "").strip()
 
     if not name:
@@ -338,7 +347,9 @@ def create_module(module_name, description, cat_id, module_stats_id):
 
 
 def update_module(module_id, module_name, description, cat_id, module_stats_id):
-    name = (module_name or "").strip()
+    # Task: same sentence-case formatting as create_module() above, so
+    # an edit always ends up in the same normalized form.
+    name = format_display_name(module_name)
     desc = (description or "").strip()
 
     if not name:
