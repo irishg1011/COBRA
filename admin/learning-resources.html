@@ -67,8 +67,49 @@
                                 <option value="{{ t.resource_type_id }}">{{ t.resource_type_name }}</option>
                                 {% endfor %}
                             </select>
+
+                            <!--
+                                Task #40: Created At / Updated At date
+                                filters. Each is a single date picker by
+                                default - the "Range" toggle reveals a
+                                second (end) date input only when the admin
+                                wants to filter a span of dates. Reuses the
+                                exact same .date-filter-group markup/CSS
+                                already used by Manage Course's own date
+                                filters (see admin-style.css), so no new
+                                styling is introduced. Values are prefilled
+                                from the query string (if any) so a direct/
+                                shared filtered URL shows the same state on
+                                load.
+                            -->
+                            <div class="date-filter-group" id="resourceCreatedDateGroup">
+                                <span class="date-filter-label">Created At</span>
+                                <input type="date" class="custom-select" id="resourceCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="resourceCreatedToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="resourceCreatedRangeToggle"> Range
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearResourceCreatedDateBtn" title="Clear Created At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+
+                            <div class="date-filter-group" id="resourceUpdatedDateGroup">
+                                <span class="date-filter-label">Updated At</span>
+                                <input type="date" class="custom-select" id="resourceUpdatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="resourceUpdatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="resourceUpdatedRangeToggle"> Range
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearResourceUpdatedDateBtn" title="Clear Updated At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Task #40: inline validation message (e.g. invalid date range) -->
+                    <p id="resourceDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
 
                     <!-- Resources Table -->
                     <table class="data-table">

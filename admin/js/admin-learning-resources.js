@@ -1,25 +1,25 @@
 /**
- * admin-learning-resources.js - Task #37 & #38: Learning Resources
- * Live Search + Dynamic Type Filter
+ * admin-learning-resources.js - Task #37, #38, #39 & #40: Learning
+ * Resources Live Search + Dynamic Type Filter + Created/Updated Date
+ * Filters
  * --------------------------------------------------------------------
- * Wires up the Learning Resources toolbar (search box + the
- * database-driven "All Types" dropdown, see admin_routes.py's
- * learning_resources() route and learning_resources.py's
- * get_resource_types()) to the backend endpoint
- * (/admin/learning-resources/data) so the table updates live as the
- * admin types or changes the type filter, with no page reload.
+ * Wires up the Learning Resources toolbar - the search box, the
+ * database-driven "All Types" dropdown (Task #38), and the Created At /
+ * Updated At date filters (Task #40) - to the backend endpoint
+ * (/admin/learning-resources/data) so the table updates live with no
+ * page reload.
  *
- * Mirrors admin-manage-course.js's search/filter/pagination pattern
- * intentionally, for consistency across the admin tables:
+ * Mirrors admin-manage-course.js's search/filter/date-filter/pagination
+ * pattern intentionally, for consistency across the admin tables:
  *   - The initial rows are already rendered server-side by Flask/Jinja
  *     when the page loads (see admin_routes.py: learning_resources()
  *     calling get_learning_resources_overview()), so this script does
  *     NOT fire a redundant fetch on DOMContentLoaded - it only reacts
  *     to the admin actually typing/changing something.
- *   - Search + type filter are combined into a single query string on
- *     every request, so they always compose with each other (Task #38,
- *     Requirement #7: "Search + type filter -> applies both criteria
- *     together").
+ *   - Search, type filter, and both date filters are combined into a
+ *     single query string on every request, so they always compose
+ *     with each other (Task #39 Requirement #5, Task #40 Requirements
+ *     #5 & #6).
  *
  * Only present on pages that have #resourceSearchInput and
  * #resourcesTableBody (currently just learning-resources.html), so
@@ -42,10 +42,77 @@
 
         if (!searchInput || !tableBody) return;
 
+        // ------------------------------------------------------------
+        // Task #40: Created At / Updated At date filter controls.
+        // Each field is a single date picker by default; the matching
+        // "Range" toggle checkbox reveals its second (end) date input
+        // only when the admin wants to filter a span of dates - same
+        // UI convention already used by Manage Course's own date
+        // filters (see admin-manage-course.js).
+        // ------------------------------------------------------------
+        const createdFromInput = document.getElementById("resourceCreatedFromInput");
+        const createdToInput = document.getElementById("resourceCreatedToInput");
+        const createdRangeToggle = document.getElementById("resourceCreatedRangeToggle");
+        const clearCreatedDateBtn = document.getElementById("clearResourceCreatedDateBtn");
+        const updatedFromInput = document.getElementById("resourceUpdatedFromInput");
+        const updatedToInput = document.getElementById("resourceUpdatedToInput");
+        const updatedRangeToggle = document.getElementById("resourceUpdatedRangeToggle");
+        const clearUpdatedDateBtn = document.getElementById("clearResourceUpdatedDateBtn");
+        const dateFilterError = document.getElementById("resourceDateFilterError");
+
         let currentPage = 1;
         let totalPages = 1;
         let debounceTimer = null;
         let activeRequestId = 0;
+
+        function showDateFilterError(message) {
+            if (!dateFilterError) { alert(message); return; }
+            dateFilterError.textContent = message;
+            dateFilterError.style.display = "block";
+        }
+
+        function clearDateFilterError() {
+            if (!dateFilterError) return;
+            dateFilterError.textContent = "";
+            dateFilterError.style.display = "none";
+        }
+
+        /**
+         * Resolves a date filter field's effective {from, to} pair based
+         * on its own Range toggle - identical logic to
+         * admin-manage-course.js's getEffectiveDateRange().
+         */
+        function getEffectiveDateRange(fromInput, toInput, rangeToggle) {
+            const from = fromInput ? fromInput.value : "";
+            if (!from) return { from: "", to: "" };
+            const isRange = !!(rangeToggle && rangeToggle.checked);
+            const to = (isRange && toInput) ? toInput.value : from;
+            return { from, to };
+        }
+
+        /**
+         * Task #40: reject an invalid date range (End before Start)
+         * client-side, before ever calling the backend. The backend's
+         * /learning-resources/data endpoint re-validates the exact same
+         * rule server-side (never trusting only this check).
+         */
+        function validateDateRanges() {
+            clearDateFilterError();
+
+            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            if (created.from && created.to && created.from > created.to) {
+                showDateFilterError("Created At: end date must be on or after the start date.");
+                return false;
+            }
+
+            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            if (updated.from && updated.to && updated.from > updated.to) {
+                showDateFilterError("Updated At: end date must be on or after the start date.");
+                return false;
+            }
+
+            return true;
+        }
 
         function escapeHtml(str) {
             const div = document.createElement("div");
@@ -105,11 +172,26 @@
             // type filter".
             if (typeSelect && typeSelect.value) params.set("type", typeSelect.value);
 
+            // Task #40: only ever sent when the admin actually picked a
+            // "from" value - see getEffectiveDateRange() above.
+            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            if (created.from) params.set("created_from", created.from);
+            if (created.to) params.set("created_to", created.to);
+
+            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            if (updated.from) params.set("updated_from", updated.from);
+            if (updated.to) params.set("updated_to", updated.to);
+
             params.set("page", currentPage);
             return params;
         }
 
         async function loadResources() {
+            // Task #40: don't even call the backend with a known-bad
+            // range - keep the current table/pagination as-is and just
+            // surface the validation message.
+            if (!validateDateRanges()) return;
+
             const requestId = ++activeRequestId;
             const params = buildParams();
 
@@ -123,6 +205,14 @@
                 if (requestId !== activeRequestId) return;
 
                 if (!result.success) {
+                    // Task #40: the backend's own range check (400)
+                    // lands here too (e.g. if this script's client-side
+                    // check was somehow bypassed) - show it as a filter
+                    // error, not a generic "could not load" message.
+                    if (response.status === 400 && result.message) {
+                        showDateFilterError(result.message);
+                        return;
+                    }
                     tableBody.innerHTML = `
                         <tr>
                             <td colspan="7" class="text-muted table-empty-message">
@@ -132,6 +222,7 @@
                     return;
                 }
 
+                clearDateFilterError();
                 renderRows(result.resources);
                 currentPage = result.page;
                 totalPages = result.total_pages;
@@ -163,10 +254,68 @@
 
         // Task #38: type filter re-runs the same combined search
         // immediately (debounced only to coalesce rapid changes),
-        // preserving whatever is currently in the search box.
+        // preserving whatever is currently in the search box and the
+        // date filters.
         if (typeSelect) typeSelect.addEventListener("change", () => scheduleLoad(true));
 
         if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; loadResources(); } });
         if (nextBtn) nextBtn.addEventListener("click", () => { if (currentPage < totalPages) { currentPage++; loadResources(); } });
+
+        // ------------------------------------------------------------
+        // Task #40: Created At / Updated At date filters
+        // ------------------------------------------------------------
+        [createdFromInput, createdToInput, updatedFromInput, updatedToInput].forEach((input) => {
+            if (!input) return;
+            input.addEventListener("change", () => scheduleLoad(true));
+        });
+
+        // Each field's "Range" toggle shows/hides its own end-date
+        // input, and restores its checked state from whatever values
+        // were already rendered server-side (e.g. a bookmarked/shared
+        // filtered URL) before the first sync.
+        function initDateRangeToggle(fromInput, toInput, rangeToggle) {
+            if (!rangeToggle || !toInput) return;
+
+            const fromVal = fromInput ? fromInput.value : "";
+            if (toInput.value && toInput.value !== fromVal) {
+                rangeToggle.checked = true;
+            }
+
+            const sync = () => {
+                toInput.style.display = rangeToggle.checked ? "" : "none";
+                if (!rangeToggle.checked) toInput.value = "";
+            };
+            sync();
+
+            rangeToggle.addEventListener("change", () => {
+                sync();
+                scheduleLoad(true);
+            });
+        }
+        initDateRangeToggle(createdFromInput, createdToInput, createdRangeToggle);
+        initDateRangeToggle(updatedFromInput, updatedToInput, updatedRangeToggle);
+
+        // Clear buttons only remove THEIR OWN date restriction - search,
+        // type filter, and the other date filter are left untouched.
+        if (clearCreatedDateBtn) {
+            clearCreatedDateBtn.addEventListener("click", () => {
+                if (createdFromInput) createdFromInput.value = "";
+                if (createdToInput) createdToInput.value = "";
+                if (createdRangeToggle) createdRangeToggle.checked = false;
+                if (createdToInput) createdToInput.style.display = "none";
+                clearDateFilterError();
+                scheduleLoad(true);
+            });
+        }
+        if (clearUpdatedDateBtn) {
+            clearUpdatedDateBtn.addEventListener("click", () => {
+                if (updatedFromInput) updatedFromInput.value = "";
+                if (updatedToInput) updatedToInput.value = "";
+                if (updatedRangeToggle) updatedRangeToggle.checked = false;
+                if (updatedToInput) updatedToInput.style.display = "none";
+                clearDateFilterError();
+                scheduleLoad(true);
+            });
+        }
     });
 })();

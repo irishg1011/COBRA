@@ -30,7 +30,7 @@ from manage_course import (
     create_module, update_module, delete_module, get_modules_overview,
     archive_module, restore_module,  # NEW - Task #27: soft delete/archive
 )
-from learning_resources import (  # NEW - Task #37 & #38: Learning Resources DB integration
+from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
 )
 
@@ -1478,27 +1478,41 @@ def render_placeholder(title):
 @admin_bp.route('/learning-resources')
 def learning_resources():
     """
-    Task #37 & #38: renders the Learning Resources page with LIVE data -
-    real rows from learning_resources_tbl (Category / Uploaded By /
-    Status / Created At / Updated At all resolved to display names via
-    JOINs - see learning_resources.py) and a resource-type dropdown
-    populated straight from resource_types_tbl, instead of the previous
-    static/empty placeholder page.
- 
+    Task #37, #38 & #40: renders the Learning Resources page with LIVE
+    data - real rows from learning_resources_tbl (Category / Uploaded
+    By / Status / Created At / Updated At all resolved to display names
+    via JOINs - see learning_resources.py), a resource-type dropdown
+    populated straight from resource_types_tbl, and Created At /
+    Updated At date filters prefilled from the query string (if any) -
+    instead of the previous static/empty placeholder page.
+
     admin-learning-resources.js takes over afterward for live
-    search/type-filter/pagination without a page reload, the same
-    "server renders real data on load, JS takes over for live updates"
-    pattern already used by manage_course() / account_security().
+    search/type-filter/date-filter/pagination without a page reload,
+    the same "server renders real data on load, JS takes over for live
+    updates" pattern already used by manage_course() / account_security().
     """
-    overview = get_learning_resources_overview()
+    # Task #40: same four optional 'YYYY-MM-DD' query params as
+    # manage_course()'s own Created At / Updated At filters - reflected
+    # back into the date inputs' `value` attributes so a direct/shared
+    # filtered URL shows the same filter state instead of silently
+    # resetting it.
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
+    overview = get_learning_resources_overview(
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
     if overview is None:
         # DB unreachable - render with an empty list rather than
         # crashing; the template's {% else %} branch already shows
         # "No resources found." for a genuinely empty list. This is
         # NOT the same as get_learning_resources_overview() returning
-        # zero rows for a successful query - see Requirement #7.
+        # zero rows for a successful query - see Task #37, Requirement #7.
         overview = {"resources": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
- 
+
     return render_template(
         'learning-resources.html',
         resources=overview["resources"],
@@ -1506,33 +1520,68 @@ def learning_resources():
         page=overview["page"],
         total_pages=overview["total_pages"],
         resource_types=get_resource_types(),
+        created_from=created_from or '',
+        created_to=created_to or '',
+        updated_from=updated_from or '',
+        updated_to=updated_to or '',
     )
- 
- 
+
+
 @admin_bp.route('/learning-resources/data')
 def learning_resources_data():
     """
-    Task #37 & #38: backend-driven live search/type-filter/pagination
-    for the Learning Resources table - JSON, mirroring
-    manage_course_data()'s pattern exactly for consistency.
- 
+    Task #37, #38, #39 & #40: backend-driven live search/type-filter/
+    date-filter/pagination for the Learning Resources table - JSON,
+    mirroring manage_course_data()'s pattern exactly for consistency.
+
     Query params (all optional):
-      q     - free-text search term (resource title / category /
-              resource type / uploader name)
-      type  - the real resource_type_id from resource_types_tbl
-              (never a hardcoded id or a name string - Task #38,
-              Requirement #4)
-      page  - page number
- 
+      q             - free-text search term (Task #39: matches title,
+                      resource type, category, uploader, status, AND
+                      created/updated date - see learning_resources.py)
+      type          - the real resource_type_id from resource_types_tbl
+                      (never a hardcoded id or a name string - Task #38)
+      page          - page number
+      created_from  - Task #40: 'YYYY-MM-DD', inclusive lower bound on
+                      learning_resources_tbl.created_at
+      created_to    - Task #40: 'YYYY-MM-DD', inclusive upper bound
+      updated_from  - Task #40: 'YYYY-MM-DD', inclusive lower bound on
+                      learning_resources_tbl.updated_at
+      updated_to    - Task #40: 'YYYY-MM-DD', inclusive upper bound
+
     Returns JSON: { "success": bool, "resources": [...], "total": int,
     "page": int, "total_pages": int }
     """
     search = request.args.get('q', '')
     type_filter = request.args.get('type', '')
     page = request.args.get('page', 1, type=int)
- 
+
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
+    # Task #40: server-side range validation - never trust only the
+    # frontend's own check (admin-learning-resources.js validates the
+    # same thing for instant feedback, but a request can always arrive
+    # here directly). Plain string comparison is safe here because both
+    # bounds are always 'YYYY-MM-DD' (ISO 8601 sorts lexicographically
+    # the same as chronologically) - identical convention to
+    # manage_course_data()'s own validation.
+    if created_from and created_to and created_from > created_to:
+        return jsonify({
+            "success": False,
+            "message": "Created At: end date must be on or after the start date.",
+        }), 400
+    if updated_from and updated_to and updated_from > updated_to:
+        return jsonify({
+            "success": False,
+            "message": "Updated At: end date must be on or after the start date.",
+        }), 400
+
     overview = get_learning_resources_overview(
         search_query=search, type_filter=type_filter, page=page,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
     )
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500

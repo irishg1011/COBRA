@@ -1,6 +1,6 @@
 """
-learning_resources.py - Task #37 & #38: Learning Resources DB Integration
----------------------------------------------------------------------------
+learning_resources.py - Task #37, #38, #39 & #40: Learning Resources DB Integration
+--------------------------------------------------------------------------------------
 Pure DB-access helpers backing the Admin > Learning Resources page,
 mirroring manage_course.py's style exactly: this file never touches
 Flask/session state directly - admin_routes.py is the only place these
@@ -47,6 +47,27 @@ Task #38 requirements this file satisfies:
     - get_learning_resources_overview()'s type_filter param is always
       compared against the real resource_type_id column, never a
       hardcoded/assumed numeric id or a name string.
+
+Task #39 requirements this file satisfies:
+    - The search term is checked, in one query, against every column
+      actually shown in the table: resource title, resource type name,
+      category name, uploader's display name, status name, AND a
+      formatted rendering of created_at / updated_at - not just the
+      resource's own title.
+    - All of this is combined with OR inside a single parameterized
+      WHERE clause (never string-concatenated raw input).
+
+Task #40 requirements this file satisfies:
+    - created_from/created_to and updated_from/updated_to add DATE(...)
+      range conditions against learning_resources_tbl.created_at /
+      updated_at, mirroring get_modules_overview()'s own Created At /
+      Updated At filtering exactly (same "absent bound = no
+      restriction", same DATE()-only comparison so a timestamp's
+      time-of-day never excludes an otherwise-matching row, same
+      inclusive end-date behavior).
+    - Composes with search_query/type_filter/pagination exactly like
+      every other condition already in this query - all AND'ed
+      together.
 """
 
 from datetime import datetime
@@ -113,9 +134,11 @@ def get_resource_types():
 
 
 # ================================================================
-# Task #37: LEARNING RESOURCES OVERVIEW (table data)
+# Task #37, #39 & #40: LEARNING RESOURCES OVERVIEW (table data)
 # ================================================================
-def get_learning_resources_overview(search_query=None, type_filter=None, page=1, per_page=8):
+def get_learning_resources_overview(search_query=None, type_filter=None, page=1, per_page=8,
+                                     created_from=None, created_to=None,
+                                     updated_from=None, updated_to=None):
     """
     Pulls a page of learning_resources_tbl, LEFT JOINed against
     category_tbl, resource_types_tbl, profile_tbl (uploader), and
@@ -129,16 +152,33 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
     nullable) - an INNER JOIN would silently drop those resources
     instead of showing them with a graceful placeholder.
 
-    search_query (str | None): matches resource_title, category name,
-    resource type name, or the uploader's name - case-insensitive,
-    "contains" match - so the existing search box keeps working across
-    every column now shown in the table, not just the resource's own
-    title.
+    search_query (str | None): Task #39 - matches, case-insensitively,
+    against EVERY column actually shown in the table in one combined OR
+    clause:
+        - resource_title
+        - resource_types_tbl.resource_type_name
+        - category_tbl.category_name
+        - the uploader's "firstname lastname" (profile_tbl)
+        - learning_resources_stats_tbl.lr_stats_name
+        - created_at, formatted the same way it's displayed ('Aug 7, 2026')
+        - updated_at, formatted the same way it's displayed ('Aug 7, 01:30 PM')
+    All seven are parameterized (%s placeholders) - the raw search term
+    is never concatenated into the SQL string itself.
 
     type_filter (str | int | None): Task #38 - the actual
     resource_type_id from resource_types_tbl (never a hardcoded id or
     a name string). Falsy/empty means "no type filter" (the "All
     Types" option).
+
+    created_from / created_to / updated_from / updated_to (str | None):
+    Task #40 - optional 'YYYY-MM-DD' strings. Each is only ever added
+    to the query when actually supplied - an absent bound adds no
+    restriction. Compared via DATE(...) so a timestamp's time-of-day
+    component never excludes an otherwise-matching row, and an end
+    date is naturally inclusive through 23:59:59 of that day since we
+    compare DATE(), not the full timestamp, against the end date.
+    created_at/updated_at filtering are independent of each other and
+    both may be active together, exactly like get_modules_overview().
 
     Returns {"resources": [...], "total": int, "page": int,
     "per_page": int, "total_pages": int}, or None on DB failure -
@@ -163,18 +203,27 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
         """
         params = []
 
+        # ------------------------------------------------------------
+        # Task #39: multi-column search - title, type, category,
+        # uploader, status, AND formatted created_at/updated_at, all
+        # OR'ed together in one parameterized clause.
+        # ------------------------------------------------------------
         term = (search_query or "").strip()
         if term:
             base_query += """
                 AND (
                     LOWER(lr.resource_title) LIKE %s
-                    OR LOWER(c.category_name) LIKE %s
                     OR LOWER(rt.resource_type_name) LIKE %s
+                    OR LOWER(c.category_name) LIKE %s
                     OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
+                    OR LOWER(lrs.lr_stats_name) LIKE %s
+                    OR LOWER(DATE_FORMAT(lr.created_at, '%%b %%e, %%Y')) LIKE %s
+                    OR LOWER(DATE_FORMAT(lr.updated_at, '%%b %%e, %%Y')) LIKE %s
+                    OR LOWER(DATE_FORMAT(lr.updated_at, '%%b %%e, %%h:%%i %%p')) LIKE %s
                 )
             """
             like_term = f"%{term.lower()}%"
-            params.extend([like_term, like_term, like_term, like_term])
+            params.extend([like_term] * 8)
 
         # Task #38: filter by the REAL resource_type_id key, never a
         # hardcoded/assumed numeric id or a display-name comparison.
@@ -182,6 +231,27 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
         if type_id:
             base_query += " AND lr.resource_type_id = %s"
             params.append(type_id)
+
+        # ------------------------------------------------------------
+        # Task #40: Created At / Updated At date filters
+        # ------------------------------------------------------------
+        created_from = (created_from or "").strip() or None
+        created_to = (created_to or "").strip() or None
+        updated_from = (updated_from or "").strip() or None
+        updated_to = (updated_to or "").strip() or None
+
+        if created_from:
+            base_query += " AND DATE(lr.created_at) >= %s"
+            params.append(created_from)
+        if created_to:
+            base_query += " AND DATE(lr.created_at) <= %s"
+            params.append(created_to)
+        if updated_from:
+            base_query += " AND DATE(lr.updated_at) >= %s"
+            params.append(updated_from)
+        if updated_to:
+            base_query += " AND DATE(lr.updated_at) <= %s"
+            params.append(updated_to)
 
         # Total count (for pagination), before LIMIT/OFFSET.
         cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
