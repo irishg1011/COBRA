@@ -29,6 +29,7 @@ from manage_course import (
     create_category, update_category, delete_category,
     create_module, update_module, delete_module, get_modules_overview,
     archive_module, restore_module,  # NEW - Task #27: soft delete/archive
+    get_modules_by_category,  # NEW - Task #41: dependent Module dropdown lookup
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -1633,8 +1634,39 @@ def upload_resource():
     if request.method == 'POST':
         # Handle form submission logic here (saving module content)
         return redirect(url_for('admin_bp.upload_resource')) # or redirect back to your resources list
-        
-    return render_template('upload-resource.html')
+
+    # Task #41: Category dropdown is rendered server-side from real
+    # category_tbl rows (same get_categories() Manage Course already
+    # uses) - never hardcoded. The Module dropdown starts empty/disabled
+    # in the template and is populated live by upload-resource.js once
+    # the Admin picks a Category.
+    return render_template('upload-resource.html', categories=get_categories())
+
+
+# ============================================================
+# ROUTE: TASK #41 - MODULES DEPENDENT ON SELECTED CATEGORY
+# ============================================================
+@admin_bp.route('/upload-resource/modules-by-category')
+def upload_resource_modules_by_category():
+    """
+    Task #41: backs the New Lesson form's dependent Module dropdown.
+    Takes a single query param, `cat_id`, and returns ONLY the modules
+    whose modules_tbl.cat_id matches it - via
+    manage_course.get_modules_by_category()'s parameterized query, so
+    the selected category id is never concatenated into SQL.
+
+    A missing/invalid cat_id returns an empty module list rather than
+    a 400, since the frontend calls this defensively on every Category
+    change (including back to "Select category...").
+
+    Returns JSON: { "success": true, "modules": [{module_id, module_name}, ...] }
+    """
+    cat_id = request.args.get('cat_id', '', type=int)
+    if not cat_id:
+        return jsonify({"success": True, "modules": []}), 200
+
+    modules = get_modules_by_category(cat_id)
+    return jsonify({"success": True, "modules": modules}), 200
 
 @admin_bp.route('/create-learning-activity', methods=['GET'])
 def create_learning_activity_page():

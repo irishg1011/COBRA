@@ -682,3 +682,44 @@ def _fmt_date(dt):
     if not dt:
         return "—"
     return f"{dt.strftime('%b')} {dt.day}, {dt.year}"
+
+def get_modules_by_category(cat_id):
+    """
+    Task #41: returns the active (non-archived) modules belonging to a
+    single category, for dependent-dropdown use (e.g. Admin > Learning
+    Resources > New Lesson). Only module_id and module_name are needed
+    by that dropdown, so this stays a lean, parameterized SELECT rather
+    than reusing get_modules_overview()'s full paginated/joined shape.
+
+    cat_id (int | str): the category_tbl.cat_id to filter modules_tbl by.
+    Always used as a parameterized value - never concatenated into SQL.
+
+    Returns [] (never raises) if cat_id is falsy, the category has no
+    modules, or on any database error - callers should treat an empty
+    list as "no modules available for this category" and never fall
+    back to hardcoded/mock data.
+    """
+    if not cat_id:
+        return []
+
+    connection = get_db_connection()
+    if connection is None:
+        return []
+    try:
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""SELECT module_id, module_name FROM {MODULES_TABLE}
+                WHERE cat_id = %s AND is_archived = 0
+                ORDER BY module_name ASC""",
+            (cat_id,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
+    except Error as e:
+        print(f"manage_course: failed to load modules for category {cat_id}: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            connection.close()

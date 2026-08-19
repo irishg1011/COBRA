@@ -66,32 +66,30 @@
                     <div class="lesson-meta-grid">
                         <div class="form-group category-group-override">
                             <label for="categorySelect">Category</label>
+                            <!--
+                                Task #41: options come straight from category_tbl (categories=
+                                get_categories(), passed by admin_routes.py's upload_resource()
+                                route) - value is the real cat_id, label is the real
+                                category_name. No hardcoded categories or IDs.
+                            -->
                             <select id="categorySelect" name="category_id" class="form-control" required>
                                 <option value="" disabled selected>Select category...</option>
-                                <option value="programming">Programming</option>
-                                <option value="database">Database Management</option>
-                                <option value="networking">Networking</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.cat_id }}">{{ cat.category_name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
 
                         <div class="form-group">
                             <label for="moduleSelect">Module</label>
-                            <select id="moduleSelect" name="module_id" class="form-control" required>
+                            <!--
+                                Task #41: starts empty and disabled - upload-resource.js
+                                populates it live from modules_tbl (filtered by the selected
+                                Category's cat_id) once a valid Category is chosen.
+                            -->
+                            <select id="moduleSelect" name="module_id" class="form-control" required disabled>
                                 <option value="" disabled selected>Select module...</option>
-                                <option value="mod1">Module 1: Introduction</option>
-                                <option value="mod2">Module 2: Core Concepts</option>
-                                <option value="mod3">Module 3: Advanced Architecture</option>
                             </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="lessonName">Lesson Name</label>
-                            <input type="text" id="lessonName" name="lesson_name" class="form-control" placeholder="Enter lesson name..." required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="lessonStatus">Status</label>
-                            <input type="text" id="lessonStatus" name="lesson_status" class="form-control status-input-field" value="Draft" readonly>
                         </div>
                     </div>
 
@@ -152,8 +150,9 @@
     </div>
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
-    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
-    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
-    <script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/upload-resource.js') }}"></script>
 </body>
 </html>
