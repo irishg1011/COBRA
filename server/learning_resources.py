@@ -10,6 +10,10 @@ Mirrors manage_course.py's pattern - pure DB-access helpers, no Flask/
 session/request handling here. admin_routes.py is the only place these
 get turned into HTTP responses, so business logic doesn't pile up
 inline in the routes file (per project convention).
+
+UPDATED: Created At / Updated At date filtering + real pagination,
+following the exact same convention manage_course.py's
+get_modules_overview() already established for Manage Course (Task #30).
 """
 
 from mysql.connector import Error
@@ -58,9 +62,11 @@ def get_resource_type_options():
             connection.close()
 
 
-def get_learning_resources_overview(search_query=None, type_filter=None):
+def get_learning_resources_overview(search_query=None, type_filter=None, page=1, per_page=8,
+                                     created_from=None, created_to=None,
+                                     updated_from=None, updated_to=None):
     """
-    Pulls every learning_resources_tbl row, LEFT JOINed against
+    Pulls a page of learning_resources_tbl, LEFT JOINed against
     category_tbl / resource_types_tbl / learning_resources_stats_tbl /
     account_tbl+profile_tbl so Category, Type, Status, and Uploaded By
     are all resolved to readable display values - never a raw
@@ -79,16 +85,35 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
     title. All fields are OR'ed together as one group.
 
     type_filter (str | int | None): the resource type's real key -
-    learning_resources_tbl.resource_type_id, which is what
-    resource_types_tbl.resource_type_id (the primary key) actually
-    joins against. Matching on the id rather than resource_type_name
-    means a rename in resource_types_tbl can never silently break
-    filtering, and there's no ambiguity if two types ever shared a
-    display name. Anything falsy, or not parseable as an int, means
-    "no type filter applied" (covers "", "All Types", or a stray
-    non-numeric value).
+    learning_resources_tbl.resource_type_id. Anything falsy, or not
+    parseable as an int, means "no type filter applied" (covers "",
+    "All Types", or a stray non-numeric value).
 
-    Returns {"resources": [...], "total": int}, or None on DB failure
+    page / per_page: standard pagination - filtering (search, type,
+    and the four date bounds below) is always applied BEFORE the
+    LIMIT/OFFSET, so the total count and page count are always correct
+    for whatever filters are currently active.
+
+    Date filtering (created_from/created_to/updated_from/updated_to,
+    each an optional 'YYYY-MM-DD' string) - mirrors
+    manage_course.get_modules_overview() exactly:
+        - Filters against the REAL learning_resources_tbl.created_at /
+          .updated_at columns - never hardcoded/static dates.
+        - Compares by DATE ONLY (via SQL DATE(...)), so a timestamp
+          like '2026-08-07 18:21:43' still matches a filter of
+          '2026-08-07' - the time-of-day portion never excludes an
+          otherwise-matching row, and an end date is naturally
+          inclusive through 23:59:59 of that day.
+        - Each of the four bounds is only ever added to the query when
+          it was actually supplied - an absent bound adds no
+          restriction, and created_at / updated_at filtering are
+          independent of each other (both may be active together).
+        - Composes with search_query/type_filter/pagination exactly
+          like every other condition already in this query - all
+          AND'ed together.
+
+    Returns {"resources": [...], "total": int, "page": int,
+    "per_page": int, "total_pages": int}, or None on DB failure
     (caller renders an empty-state table rather than crashing).
     """
     connection = get_db_connection()
@@ -111,23 +136,16 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
 
         term = (search_query or "").strip()
         if term:
-            # Task: search must match across resource_title, resource
-            # type, category, uploader (name or username), status, AND
-            # the created_at / updated_at dates - not just the title.
+            # Search must match across resource_title, resource type,
+            # category, uploader (name or username), status, AND the
+            # created_at / updated_at dates - not just the title.
             #
-            # created_at/updated_at are matched via DATE_FORMAT(...) using
-            # the SAME '%b %e, %Y' pattern _fmt_date() below renders for
-            # display (e.g. "Jul 2, 2026") - '%e' (not '%d') is what
-            # gives the day without a leading zero, matching dt.day's
-            # un-padded output exactly, so a user can search using
-            # whatever date text they actually see in the table.
-            #
-            # This whole block is one OR-grouped condition, ANDed with
-            # the type filter below (and with the empty WHERE 1=1
-            # anchor above it) - matching the task's required
-            # "(title OR type OR category OR uploader OR status OR
-            # created_at OR updated_at) AND active_type_filter"
-            # structure exactly.
+            # created_at/updated_at are matched via DATE_FORMAT(...)
+            # using the SAME '%b %e, %Y' pattern _fmt_date() below
+            # renders for display (e.g. "Jul 2, 2026") - '%e' (not
+            # '%d') gives the day without a leading zero, matching
+            # dt.day's un-padded output exactly, so a user can search
+            # using whatever date text they actually see in the table.
             base_query += """
                 AND (
                     LOWER(lr.resource_title) LIKE %s
@@ -159,6 +177,39 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
                 # or silently matching nothing.
                 pass
 
+        # ------------------------------------------------------------
+        # Created At / Updated At date filters
+        # ------------------------------------------------------------
+        created_from = (created_from or "").strip() or None
+        created_to = (created_to or "").strip() or None
+        updated_from = (updated_from or "").strip() or None
+        updated_to = (updated_to or "").strip() or None
+
+        if created_from:
+            base_query += " AND DATE(lr.created_at) >= %s"
+            params.append(created_from)
+        if created_to:
+            base_query += " AND DATE(lr.created_at) <= %s"
+            params.append(created_to)
+        if updated_from:
+            base_query += " AND DATE(lr.updated_at) >= %s"
+            params.append(updated_from)
+        if updated_to:
+            base_query += " AND DATE(lr.updated_at) <= %s"
+            params.append(updated_to)
+
+        # Total count (for pagination), before LIMIT/OFFSET - filtering
+        # (search, type, date bounds) always happens before pagination,
+        # so the displayed page count and resource records stay correct.
+        cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
+        total = cursor.fetchone()["total"]
+
+        page = max(1, page)
+        per_page = max(1, per_page)
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
+
         cursor.execute(
             f"""
             SELECT
@@ -171,8 +222,9 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
                 lr.created_at, lr.updated_at
             {base_query}
             ORDER BY lr.created_at DESC
+            LIMIT %s OFFSET %s
             """,
-            tuple(params)
+            tuple(params) + (per_page, offset)
         )
         rows = cursor.fetchall()
         cursor.close()
@@ -186,7 +238,7 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
             resources.append({
                 "resource_id": row["resource_id"],
                 "title": row["resource_title"],
-                # NEW: the real key, alongside the display name - the
+                # The real key, alongside the display name - the
                 # frontend never needs to filter/compare by name.
                 "type_id": row.get("resource_type_id"),
                 "type": row.get("resource_type_name") or "Unspecified",
@@ -197,7 +249,13 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
                 "updated_at": _fmt_date(row.get("updated_at")),
             })
 
-        return {"resources": resources, "total": len(resources)}
+        return {
+            "resources": resources,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+        }
     except Error as e:
         print(f"learning_resources: failed to load learning resources overview: {e}")
         return None

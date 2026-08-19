@@ -67,8 +67,50 @@
                                 <option value="{{ t.resource_type_id }}">{{ t.resource_type_name }}</option>
                                 {% endfor %}
                             </select>
+
+                            <!--
+                                Created At / Updated At date filters. Each is
+                                a single date picker by default - the
+                                "Range" toggle reveals a second (end) date
+                                input only when the admin wants to filter a
+                                span of dates. Values filter against the
+                                real learning_resources_tbl.created_at /
+                                .updated_at columns (see
+                                admin-learning-resources.js +
+                                learning_resources.py's
+                                get_learning_resources_overview()), never
+                                hardcoded dates. Prefilled from the query
+                                string (if any) so a direct/shared filtered
+                                URL shows the same state on load.
+                            -->
+                            <div class="date-filter-group" id="resourceCreatedDateGroup">
+                                <span class="date-filter-label">Created At</span>
+                                <input type="date" class="custom-select" id="resourceCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="resourceCreatedToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="resourceCreatedRangeToggle"> Range
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearResourceCreatedDateBtn" title="Clear Created At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+
+                            <div class="date-filter-group" id="resourceUpdatedDateGroup">
+                                <span class="date-filter-label">Updated At</span>
+                                <input type="date" class="custom-select" id="resourceUpdatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="resourceUpdatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="resourceUpdatedRangeToggle"> Range
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearResourceUpdatedDateBtn" title="Clear Updated At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Inline validation message (e.g. invalid date range) -->
+                    <p id="resourceDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
 
                     <!-- Resources Table -->
                     <table class="data-table">
@@ -134,7 +176,11 @@
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
                         <span id="resourcesShowingCount">Showing {{ resources|length }} of {{ total_resources|default(0) }} Resources</span>
-                        <span>&lt; 1 of 1 &gt;</span>
+                        <span>
+                            <button id="resourcesPrevBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
+                            <span id="resourcesPageLabel">{{ page|default(1) }} of {{ total_pages|default(1) }}</span>
+                            <button id="resourcesNextBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
+                        </span>
                     </div>
 
                 </div>

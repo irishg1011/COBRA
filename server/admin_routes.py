@@ -1480,52 +1480,110 @@ def learning_resources():
     Renders the Learning Resources page with LIVE data from
     learning_resources_tbl - Category / Type / Status / Uploaded By /
     Created At / Updated At are all resolved via
-    learning_resources.get_learning_resources_overview() (see that
-    module for the underlying joins), never hardcoded or mocked.
-
-    Calling it with no filters here means the page shows the full,
-    newest-first list the moment it loads - the same "server renders
-    real data on load" pattern already used by account_security() and
-    manage_course(). admin-learning-resources.js then takes over for
-    live search + type filtering, without a page reload.
-
+    learning_resources.get_learning_resources_overview().
+ 
+    UPDATED: now also accepts `page`, plus the four optional Created At /
+    Updated At date-filter query params ('YYYY-MM-DD' strings), the same
+    "absent param = no restriction" convention already used by
+    manage_course(). Values are reflected back into the template so a
+    bookmarked/shared filtered URL shows the same filter state on load -
+    admin-learning-resources.js takes over for every subsequent live
+    filter/page change.
+ 
     DB unreachable -> render with an empty list rather than crashing;
     the template's {% else %} branch already shows "No resources
     found." for an empty list.
     """
-    overview = get_learning_resources_overview()
+    page = request.args.get('page', 1, type=int)
+ 
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+ 
+    overview = get_learning_resources_overview(
+        page=page,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
     if overview is None:
-        overview = {"resources": [], "total": 0}
-
+        overview = {"resources": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
+ 
     return render_template(
         'learning-resources.html',
         resources=overview["resources"],
         total_resources=overview["total"],
-        # NEW: Type filter dropdown options - populated dynamically from
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        # Type filter dropdown options - populated dynamically from
         # resource_types_tbl, never hardcoded Video/PDF/Image/Document.
         resource_types=get_resource_type_options(),
+        # Reflected back into the date inputs' `value` attributes so a
+        # direct/refreshed load with a query string shows the same
+        # filter state instead of silently resetting it.
+        created_from=created_from or '',
+        created_to=created_to or '',
+        updated_from=updated_from or '',
+        updated_to=updated_to or '',
     )
-
-
+ 
+ 
 # ============================================================
-# ROUTE: LIVE LEARNING RESOURCES SEARCH + TYPE FILTER (JSON)
+# ROUTE: LIVE LEARNING RESOURCES SEARCH + TYPE + DATE FILTER + PAGINATION (JSON)
 # ============================================================
 @admin_bp.route('/learning-resources/data')
 def learning_resources_data():
     """
-    Backend-driven live search/type-filter for the Learning Resources
-    table, mirroring /manage-course/data's pattern for consistency.
-
-    Query params (both optional):
-      q    - free-text search term (title / category / uploader name or username)
-      type - resource type display name (e.g. "Video"), or blank for "All Types"
-
-    Returns JSON: { "success": bool, "resources": [...], "total": int }
+    Backend-driven live search/type-filter/date-filter/pagination for
+    the Learning Resources table, mirroring /manage-course/data's
+    pattern for consistency.
+ 
+    Query params (all optional):
+      q             - free-text search term (title / category / uploader / etc.)
+      type          - resource type id (e.g. "3"), or blank for "All Types"
+      created_from  - 'YYYY-MM-DD', Created At range/single-date start
+      created_to    - 'YYYY-MM-DD', Created At range end (mirrors
+                       created_from when the admin isn't using a range)
+      updated_from  - 'YYYY-MM-DD', Updated At range/single-date start
+      updated_to    - 'YYYY-MM-DD', Updated At range end
+      page          - page number (defaults to 1)
+ 
+    Server-side validates that each date range's end is not before its
+    start - never trusts only the frontend's own check (the frontend
+    validates the same thing for instant feedback, but a request can
+    always arrive here directly).
+ 
+    Returns JSON: { "success": bool, "resources": [...], "total": int,
+    "page": int, "per_page": int, "total_pages": int }
     """
     search = request.args.get('q', '')
     resource_type = request.args.get('type', '')
-
-    overview = get_learning_resources_overview(search_query=search, type_filter=resource_type)
+    page = request.args.get('page', 1, type=int)
+ 
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+ 
+    # Plain string comparison is safe here because both bounds are
+    # always 'YYYY-MM-DD' (ISO 8601 sorts lexicographically the same
+    # as chronologically) - same convention as manage_course_data().
+    if created_from and created_to and created_from > created_to:
+        return jsonify({
+            "success": False,
+            "message": "Created At: end date must be on or after the start date.",
+        }), 400
+    if updated_from and updated_to and updated_from > updated_to:
+        return jsonify({
+            "success": False,
+            "message": "Updated At: end date must be on or after the start date.",
+        }), 400
+ 
+    overview = get_learning_resources_overview(
+        search_query=search, type_filter=resource_type, page=page,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database.", "resources": []}), 500
     return jsonify({"success": True, **overview}), 200
