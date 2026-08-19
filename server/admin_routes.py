@@ -39,7 +39,9 @@ from manage_course import (
     archive_module, restore_module,
     get_modules_by_category,  # NEW: dependent Module dropdown (Upload Learning Resource)
    )
-
+from lesson_content import (  # NEW: Lesson Name normalization + global uniqueness
+       normalize_lesson_name, lesson_name_exists, create_lesson,
+   )
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1737,3 +1739,106 @@ def upload_resource_modules():
     cat_id = request.args.get('cat_id', '')
     modules = get_modules_by_category(cat_id)
     return jsonify({"success": True, "modules": modules}), 200
+
+"""
+admin_routes_LESSON_ADDITION.py
+----------------------------------
+NOT a standalone file to run - these pieces get ADDED into the
+EXISTING admin_routes.py.
+"""
+
+# ------------------------------------------------------------
+# STEP 1 - add this import near the other feature imports at the top
+# of admin_routes.py:
+# ------------------------------------------------------------
+#
+#   from lesson_content import (  # NEW: Lesson Name normalization + global uniqueness
+#       normalize_lesson_name, lesson_name_exists, create_lesson,
+#   )
+# ------------------------------------------------------------
+
+
+# ============================================================
+# ROUTE: LIVE LESSON NAME AVAILABILITY CHECK (JSON)
+# ============================================================
+@admin_bp.route('/lessons/check-name')
+def check_lesson_name_availability():
+    """
+    Backs live "does this lesson name already exist?" feedback on the
+    New Lesson form, the same UX pattern as
+    /admin/accounts/check-availability for username/email/mobile.
+
+    Deliberately checks GLOBALLY - no cat_id/module_id param is read
+    or applied here, per the task's "duplicate validation must not be
+    scoped to Category or Module" requirement.
+
+    This is a UX convenience only; create_lesson() (used by the actual
+    submit route) re-validates uniqueness itself before ever inserting
+    a row, so this endpoint being skipped or spoofed can't bypass
+    anything.
+
+    Query params:
+      name - the current, as-typed Lesson Name value.
+
+    Returns JSON: { "success": bool, "available": bool }
+    """
+    raw_name = request.args.get('name', '')
+    normalized = normalize_lesson_name(raw_name)
+
+    if not normalized:
+        return jsonify({"success": True, "available": True}), 200
+
+    exists = lesson_name_exists(normalized)
+    return jsonify({"success": True, "available": not exists}), 200
+
+
+# ============================================================
+# ROUTE: CREATE / PUBLISH LESSON (JSON)
+# ============================================================
+@admin_bp.route('/lessons/create', methods=['POST'])
+def create_lesson_route():
+    """
+    ASSUMPTION: the actual "Save Draft" / "Publish" submit endpoint for
+    the New Lesson form wasn't included in the provided files. This is
+    a minimal version of that route focused ONLY on the Lesson Name
+    requirement (normalize -> validate -> globally-unique check ->
+    create). If a real create/publish route already exists elsewhere,
+    replace its lesson-name handling with these same three calls
+    (normalize_lesson_name / lesson_name_exists / create_lesson)
+    instead of adding a second, competing route - the important part
+    is that EVERY lesson-creation path goes through
+    lesson_content.create_lesson(), never a second, divergent
+    normalize/duplicate-check implementation.
+
+    Server-side validation is mandatory here regardless of whether the
+    frontend already blocked the submit button - never trust only the
+    client-side check.
+    """
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+    raw_lesson_name = (data.get('lesson_name') or '').strip()
+
+    # cat_id / module_id are passed straight through to create_lesson()
+    # as extra_fields - already-selected/validated by the dependent
+    # Category/Module dropdowns (see /admin/upload-resource/* routes) -
+    # this route's only job is the Lesson Name rule itself.
+    cat_id = data.get('cat_id')
+    module_id = data.get('module_id')
+
+    success, message, normalized_name = create_lesson(
+        raw_lesson_name,
+        cat_id=cat_id,
+        module_id=module_id,
+    )
+
+    if not success:
+        return jsonify({
+            "success": False,
+            "errors": {"lesson_name": message},
+            "message": message,
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "message": message,
+        "lesson_name": normalized_name,
+    }), 201
