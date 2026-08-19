@@ -58,7 +58,9 @@ def get_resource_type_options():
             connection.close()
 
 
-def get_learning_resources_overview(search_query=None, type_filter=None):
+def get_learning_resources_overview(search_query=None, type_filter=None,
+                                     created_from=None, created_to=None,
+                                     updated_from=None, updated_to=None):
     """
     Pulls every learning_resources_tbl row, LEFT JOINed against
     category_tbl / resource_types_tbl / learning_resources_stats_tbl /
@@ -87,6 +89,23 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
     display name. Anything falsy, or not parseable as an int, means
     "no type filter applied" (covers "", "All Types", or a stray
     non-numeric value).
+
+    created_from / created_to / updated_from / updated_to (str | None):
+    optional 'YYYY-MM-DD' date-range bounds against the REAL
+    learning_resources_tbl.created_at / updated_at columns - mirrors
+    manage_course.get_modules_overview()'s Task #30 date-filter
+    convention exactly, for consistency across the two admin tables:
+        - Compared via SQL DATE(...), so the time-of-day portion never
+          excludes an otherwise-matching row, and an end date is
+          naturally inclusive through 23:59:59 of that day.
+        - Each bound is only ever added to the query when it was
+          actually supplied - an absent bound adds no restriction, and
+          the two ranges (created/updated) are independent of each
+          other (both may be active together).
+        - A single-date filter is just created_from == created_to (or
+          updated_from == updated_to) - the frontend collapses to this
+          when its own "Range" toggle is off, so this function only
+          ever needs to think in terms of a from/to pair.
 
     Returns {"resources": [...], "total": int}, or None on DB failure
     (caller renders an empty-state table rather than crashing).
@@ -158,6 +177,32 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
                 # treat exactly like "no filter" rather than erroring
                 # or silently matching nothing.
                 pass
+
+        # ------------------------------------------------------------
+        # Created At / Updated At date-range filters
+        # ------------------------------------------------------------
+        # Same convention as manage_course.get_modules_overview(): DATE()
+        # comparison (so time-of-day never excludes a matching row), each
+        # bound only added when actually supplied, and the two ranges
+        # are independent of/composable with each other and with the
+        # search/type filters above (everything is AND'ed together).
+        created_from = (created_from or "").strip() or None
+        created_to = (created_to or "").strip() or None
+        updated_from = (updated_from or "").strip() or None
+        updated_to = (updated_to or "").strip() or None
+
+        if created_from:
+            base_query += " AND DATE(lr.created_at) >= %s"
+            params.append(created_from)
+        if created_to:
+            base_query += " AND DATE(lr.created_at) <= %s"
+            params.append(created_to)
+        if updated_from:
+            base_query += " AND DATE(lr.updated_at) >= %s"
+            params.append(updated_from)
+        if updated_to:
+            base_query += " AND DATE(lr.updated_at) <= %s"
+            params.append(updated_to)
 
         cursor.execute(
             f"""
