@@ -18,6 +18,10 @@ get_modules_overview() already established for Manage Course (Task #30).
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from text_formatting import format_display_name  # NEW (Task #42): reuse the SAME
+    # sentence-case normalizer Manage Course already uses for Category/Module
+    # names ("iNtRoDuCtIoN" -> "Introduction"), instead of a second copy of
+    # this rule.
 
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 CATEGORY_TABLE = "category_tbl"
@@ -25,6 +29,13 @@ RESOURCE_TYPES_TABLE = "resource_types_tbl"
 LR_STATS_TABLE = "learning_resources_stats_tbl"
 ACCOUNT_TABLE = "account_tbl"
 PROFILE_TABLE = "profile_tbl"
+
+# NEW (Task #42): same seed-on-first-use convention as manage_course.py's
+# DEFAULT_STATUSES / ensure_module_stats() - learning_resources_stats_tbl
+# ships empty in the SQL dump, so a brand-new resource needs somewhere to
+# default to.
+DEFAULT_LR_STATUSES = ["Published", "Draft", "Archived"]
+_lr_stats_ensured = False
 
 
 def _fmt_date(dt):
@@ -259,6 +270,169 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
     except Error as e:
         print(f"learning_resources: failed to load learning resources overview: {e}")
         return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+# ================================================================
+# TASK #41 + #42: LESSON / RESOURCE CREATION - CATEGORY/MODULE LINKAGE
+# + GLOBAL TITLE UNIQUENESS
+# ================================================================
+def ensure_lr_stats(connection):
+    """
+    Idempotently seeds learning_resources_stats_tbl the first time a
+    resource is created, mirroring manage_course.ensure_module_stats()
+    exactly - gated behind a module-level flag so it only round-trips
+    once per process lifetime.
+    """
+    global _lr_stats_ensured
+    if _lr_stats_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT lr_stats_name FROM {LR_STATS_TABLE}")
+        existing = {row[0] for row in cursor.fetchall()}
+        missing = [s for s in DEFAULT_LR_STATUSES if s not in existing]
+        for name in missing:
+            cursor.execute(
+                f"INSERT INTO {LR_STATS_TABLE} (lr_stats_name) VALUES (%s)", (name,)
+            )
+        if missing:
+            connection.commit()
+        cursor.close()
+        _lr_stats_ensured = True
+    except Error as e:
+        print(f"learning_resources: failed to seed {LR_STATS_TABLE}: {e}")
+
+
+def _get_default_lr_stats_id(cursor):
+    """New resources default to 'Draft', same convention as
+    manage_course.create_module()."""
+    cursor.execute(
+        f"SELECT lr_stats_id FROM {LR_STATS_TABLE} WHERE lr_stats_name = %s",
+        ("Draft",)
+    )
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def is_resource_title_taken(title, exclude_resource_id=None):
+    """
+    Task #42, Requirements #1-3: checks resource_title uniqueness
+    GLOBALLY across the entire learning_resources_tbl table -
+    deliberately NOT scoped to any cat_id/module_id - so a title reused
+    in a different Category or Module is still flagged as taken.
+    Case-insensitive, matching the same LOWER(...) = LOWER(%s) pattern
+    already used throughout this project (account_tbl.username/email,
+    category_tbl.category_name, modules_tbl.module_name).
+
+    exclude_resource_id lets a future "edit resource" flow re-use this
+    check without flagging a resource against its own existing title.
+
+    Returns True/False, or None (never raises) if the database is
+    unreachable - callers must treat None as "could not verify" rather
+    than silently treating it as available.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor()
+        query = f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE LOWER(resource_title) = LOWER(%s)"
+        params = [title]
+        if exclude_resource_id:
+            query += " AND resource_id != %s"
+            params.append(exclude_resource_id)
+        cursor.execute(query, tuple(params))
+        taken = cursor.fetchone() is not None
+        cursor.close()
+        return taken
+    except Error as e:
+        print(f"learning_resources: failed to check title availability: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def create_learning_resource(title, cat_id, module_id, resource_type_id, uploaded_by=None):
+    """
+    Task #41: creates a new learning_resources_tbl row linked to the
+    submitted Category + Module.
+    Task #42: enforces global lesson-title uniqueness and sentence-case
+    normalization before that row is ever written.
+
+    - Requirement #4: title is normalized to sentence case via
+      format_display_name() BEFORE validation, duplicate-checking, or
+      saving - "INTRODUCTION"/"iNtRoDuCtIoN"/"introduction" all become
+      "Introduction".
+    - Requirements #1-3: duplicate check runs against the WHOLE table
+      (no cat_id/module_id scoping) - never bypassable by picking a
+      different Category/Module.
+    - Task #41: re-verifies server-side that the submitted module_id
+      actually belongs to the submitted cat_id - never trusts only the
+      frontend's own cat_id-filtered dropdown.
+
+    Mirrors manage_course.create_module()'s validate-then-insert shape.
+    Returns (success: bool, message: str, resource_id: int | None).
+    """
+    name = format_display_name(title)
+    if not name:
+        return False, "Lesson title is required.", None
+    if not cat_id:
+        return False, "Category is required.", None
+    if not module_id:
+        return False, "Module is required.", None
+    if not resource_type_id:
+        return False, "Resource type is required.", None
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database.", None
+
+    try:
+        ensure_lr_stats(connection)
+        cursor = connection.cursor()
+
+        # Task #42: GLOBAL duplicate check, done here (inside the same
+        # transaction as the insert) rather than only trusting the
+        # earlier live-check endpoint - a second tab/request could have
+        # taken the title in between.
+        cursor.execute(
+            f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE LOWER(resource_title) = LOWER(%s)",
+            (name,)
+        )
+        if cursor.fetchone():
+            cursor.close()
+            return False, "A resource with this lesson title already exists.", None
+
+        # Task #41: the module must genuinely belong to the submitted
+        # category - re-verified server-side.
+        cursor.execute(
+            "SELECT module_id FROM modules_tbl WHERE module_id = %s AND cat_id = %s",
+            (module_id, cat_id)
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            return False, "The selected module does not belong to the selected category.", None
+
+        default_status_id = _get_default_lr_stats_id(cursor)
+
+        cursor.execute(
+            f"""INSERT INTO {LEARNING_RESOURCES_TABLE}
+                (resource_title, resource_type_id, cat_id, module_id,
+                 uploaded_by, lr_stats_id, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())""",
+            (name, resource_type_id, cat_id, module_id, uploaded_by, default_status_id)
+        )
+        connection.commit()
+        new_id = cursor.lastrowid
+        cursor.close()
+        return True, "Resource uploaded successfully.", new_id
+    except Error as e:
+        connection.rollback()
+        print(f"learning_resources: failed to create resource: {e}")
+        return False, f"Database error: {e}", None
     finally:
         if connection.is_connected():
             connection.close()

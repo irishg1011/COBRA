@@ -6,7 +6,9 @@ from mysql.connector import Error
 from werkzeug.security import generate_password_hash  # NEW: reuses the exact same hashing scheme as the Learner Sign Up flow
 from learning_resources import (  # NEW: Learning Resources DB integration (Category/Type/Status/Uploader resolution)
     get_learning_resources_overview, get_resource_type_options,
+    is_resource_title_taken, create_learning_resource,  # NEW (Task #41 + #42): Upload Resource modal
 )
+from text_formatting import format_display_name  # NEW (Task #42): same normalizer manage_course.py already uses
 from cobradb import get_db_connection
 from account_status import refresh_inactive_accounts, get_account_status_counts  # NEW: shared, configurable Active/Inactive sweep + lean status-count aggregate
 from login_logs import get_todays_login_metrics  # NEW: today's login/success/fail counts for the Login Logs metric cards
@@ -1587,6 +1589,70 @@ def learning_resources_data():
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database.", "resources": []}), 500
     return jsonify({"success": True, **overview}), 200
+
+
+# ============================================================
+# ROUTE: LIVE LESSON/RESOURCE TITLE AVAILABILITY (Task #42, JSON)
+# ============================================================
+@admin_bp.route('/learning-resources/check-title')
+def learning_resources_check_title():
+    """
+    Backs the Upload Resource modal's live duplicate-title check
+    (Task #42, Requirement #6: "without unnecessarily refreshing the
+    page"). Mirrors check_account_field_availability()'s shape - UX
+    convenience only, never authoritative: create_learning_resource()
+    re-validates uniqueness itself, inside its own transaction, before
+    ever inserting a row, so this endpoint being skipped or spoofed
+    can't bypass anything.
+    """
+    raw_title = request.args.get('title', '')
+    normalized = format_display_name(raw_title)
+    if not normalized:
+        return jsonify({"success": False, "message": "Title is required."}), 400
+
+    taken = is_resource_title_taken(normalized)
+    if taken is None:
+        return jsonify({"success": False, "message": "Could not check availability."}), 500
+
+    return jsonify({
+        "success": True,
+        "available": not taken,
+        "normalized_title": normalized,
+    }), 200
+
+
+# ============================================================
+# ROUTE: CREATE LEARNING RESOURCE (Task #41 + #42, JSON)
+# ============================================================
+@admin_bp.route('/learning-resources/create', methods=['POST'])
+def learning_resources_create():
+    """
+    Task #41: persists the Category + (server-verified) Module
+    selection made in the Upload Resource modal.
+    Task #42: enforces global lesson-title uniqueness server-side -
+    the frontend's live check (above) is a convenience only, this is
+    the actual gate. All business logic lives in
+    learning_resources.create_learning_resource(); this route only
+    reads the request and turns the result into JSON.
+    """
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+
+    title = (data.get('resource_title') or '').strip()
+    cat_id = data.get('cat_id')
+    module_id = data.get('module_id')
+    resource_type_id = data.get('resource_type_id')
+
+    success, message, resource_id = create_learning_resource(
+        title, cat_id, module_id, resource_type_id,
+        uploaded_by=session.get("admin_id"),
+    )
+
+    if success:
+        return jsonify({"success": True, "message": message, "resource_id": resource_id}), 201
+
+    status_code = 409 if "already exists" in message else 400
+    return jsonify({"success": False, "message": message}), status_code
+
 
 @admin_bp.route('/learning-activities')
 def learning_activities():
