@@ -385,21 +385,12 @@
             });
 
             categoriesListView.querySelectorAll(".js-edit-category").forEach(icon => {
-                icon.addEventListener("click", async (e) => {
+                icon.addEventListener("click", (e) => {
                     e.stopPropagation();
                     const item = icon.closest(".category-accordion-item");
                     const catId = item.dataset.catId;
-                    const currentName = item.querySelector(".category-name").textContent;
-                    const newName = prompt("Rename category:", currentName);
-                    if (newName === null || !newName.trim()) return;
-                    const resp = await fetch(`/admin/manage-course/categories/${catId}/update`, {
-                        method: "POST", credentials: "include",
-                        body: new URLSearchParams({ category_name: newName })
-                    });
-                    const result = await resp.json();
-                    if (!result.success) alert(result.message);
-                    refreshCategoriesModal();
-                    loadModules();
+                    const currentName = item.querySelector(".category-name").textContent.trim();
+                    openEditCategoryModal(catId, currentName);
                 });
             });
 
@@ -561,6 +552,78 @@
                     return;
                 }
                 closeEditModuleModal();
+                loadModules();
+            });
+        }
+
+        // ------------------------------------------------------------
+        // Edit Category Modal (replaces the old prompt()/alert()-based
+        // rename flow - see edit-category-modal.html). Mirrors the Edit
+        // Module modal immediately above: same open/close pattern, same
+        // outside-click-to-close behavior, and posts to the SAME
+        // /manage-course/categories/<cat_id>/update route the old
+        // prompt()-based flow already used (admin_routes.py /
+        // manage_course.update_category()) - no new backend logic, no
+        // duplicated update-category code path.
+        // ------------------------------------------------------------
+        const editCategoryModal = document.getElementById("editCategoryModal");
+        const closeEditCategoryModalBtn = document.getElementById("closeEditCategoryModal");
+        const cancelEditCategoryBtn = document.getElementById("cancelEditCategoryBtn");
+        const editCategoryForm = document.getElementById("editCategoryForm");
+        const editCategoryIdInput = document.getElementById("editCategoryId");
+        const editCategoryNameInput = document.getElementById("editCategoryName");
+
+        function openEditCategoryModal(id, currentName) {
+            if (!editCategoryModal) return;
+            editCategoryIdInput.value = id;
+            editCategoryNameInput.value = currentName;
+            editCategoryModal.style.display = "flex";
+            editCategoryNameInput.focus();
+        }
+
+        function closeEditCategoryModal() {
+            if (editCategoryModal) editCategoryModal.style.display = "none";
+            if (editCategoryForm) editCategoryForm.reset();
+        }
+
+        if (closeEditCategoryModalBtn) {
+            closeEditCategoryModalBtn.addEventListener("click", closeEditCategoryModal);
+        }
+        if (cancelEditCategoryBtn) {
+            // Requirement: "Cancel closes the modal without saving changes."
+            cancelEditCategoryBtn.addEventListener("click", closeEditCategoryModal);
+        }
+        if (editCategoryModal) {
+            // Click outside the card closes it too, matching the Edit
+            // Module modal's own outside-click behavior.
+            editCategoryModal.addEventListener("click", (e) => {
+                if (e.target === editCategoryModal) closeEditCategoryModal();
+            });
+        }
+
+        if (editCategoryForm) {
+            editCategoryForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const catId = editCategoryIdInput.value;
+                const resp = await fetch(`/admin/manage-course/categories/${catId}/update`, {
+                    method: "POST", credentials: "include",
+                    body: new URLSearchParams({ category_name: editCategoryNameInput.value.trim() })
+                });
+                const result = await resp.json();
+                if (!result.success) {
+                    // Same validation rules as before (required, no
+                    // duplicate name) - manage_course.update_category()
+                    // already enforces these; just surfaced here instead
+                    // of inside a native prompt().
+                    alert(result.message);
+                    return;
+                }
+                closeEditCategoryModal();
+                // Refreshes the accordion (new name) AND the active
+                // Manage Course table (module rows show this category's
+                // name in their Category column too) - same two calls
+                // the old prompt()-based handler already made.
+                refreshCategoriesModal();
                 loadModules();
             });
         }
