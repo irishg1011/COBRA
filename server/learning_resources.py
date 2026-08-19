@@ -1,5 +1,5 @@
 """
-learning_resources.py - Task #37, #38, #39 & #40: Learning Resources DB Integration
+learning_resources.py - Task #37, #38, #39, #40 & #43: Learning Resources DB Integration
 --------------------------------------------------------------------------------------
 Pure DB-access helpers backing the Admin > Learning Resources page,
 mirroring manage_course.py's style exactly: this file never touches
@@ -68,6 +68,15 @@ Task #40 requirements this file satisfies:
     - Composes with search_query/type_filter/pagination exactly like
       every other condition already in this query - all AND'ed
       together.
+
+Task #43 requirements this file satisfies:
+    - get_learning_resources_overview() now also resolves each
+      resource's PARENT MODULE status (module_id, module_status), so
+      the Learning Resources table/JS can know - without a second
+      request - whether a resource is even eligible to be published
+      (its module must be "Published" first; see resource_publishing.py,
+      which is the authoritative, server-side gate for the actual
+      publish action).
 """
 
 from datetime import datetime
@@ -79,6 +88,9 @@ RESOURCE_TYPES_TABLE = "resource_types_tbl"
 CATEGORY_TABLE = "category_tbl"
 PROFILE_TABLE = "profile_tbl"
 LR_STATS_TABLE = "learning_resources_stats_tbl"
+# NEW - Task #43: needed to resolve each resource's parent module status.
+MODULES_TABLE = "modules_tbl"
+MODULE_STATS_TABLE = "module_stats_tbl"
 
 
 def _fmt_date(dt):
@@ -134,17 +146,18 @@ def get_resource_types():
 
 
 # ================================================================
-# Task #37, #39 & #40: LEARNING RESOURCES OVERVIEW (table data)
+# Task #37, #39, #40 & #43: LEARNING RESOURCES OVERVIEW (table data)
 # ================================================================
 def get_learning_resources_overview(search_query=None, type_filter=None, page=1, per_page=8,
                                      created_from=None, created_to=None,
                                      updated_from=None, updated_to=None):
     """
     Pulls a page of learning_resources_tbl, LEFT JOINed against
-    category_tbl, resource_types_tbl, profile_tbl (uploader), and
-    learning_resources_stats_tbl so Category / Uploaded By / Type /
-    Status are all returned as display-ready names - never a raw
-    cat_id / uploaded_by / resource_type_id / lr_stats_id.
+    category_tbl, resource_types_tbl, profile_tbl (uploader),
+    learning_resources_stats_tbl, AND (NEW - Task #43) modules_tbl /
+    module_stats_tbl, so Category / Uploaded By / Type / Status / parent
+    Module Status are all returned as display-ready values - never a raw
+    cat_id / uploaded_by / resource_type_id / lr_stats_id / module_id.
 
     LEFT JOINs (not INNER) are used throughout because every one of
     these foreign keys can legitimately be NULL or point at a row that
@@ -185,6 +198,16 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
     admin_routes.py is responsible for turning a None into a proper
     "could not reach the database" response rather than silently
     showing an empty table (Task #37, Requirement #7).
+
+    Each resource dict now also includes (Task #43):
+        "module_id"      - the resource's parent module_id (or None)
+        "module_status"  - the parent module's Published/Draft/Archived
+                            status name ("Draft" if the module row is
+                            missing/unlinked) - used by the Learning
+                            Resources table/JS to grey out or explain
+                            why the Publish button is blocked, before
+                            the server re-validates the exact same rule
+                            authoritatively (see resource_publishing.py).
     """
     connection = get_db_connection()
     if connection is None:
@@ -199,6 +222,8 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
             LEFT JOIN {RESOURCE_TYPES_TABLE} rt ON lr.resource_type_id = rt.resource_type_id
             LEFT JOIN {PROFILE_TABLE} p ON lr.uploaded_by = p.acc_id
             LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            LEFT JOIN {MODULES_TABLE} md ON lr.module_id = md.module_id
+            LEFT JOIN {MODULE_STATS_TABLE} mst ON md.module_stats_id = mst.module_stats_id
             WHERE 1 = 1
         """
         params = []
@@ -271,6 +296,7 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                 lr.cat_id, c.category_name,
                 lr.uploaded_by, p.firstname, p.lastname,
                 lr.lr_stats_id, lrs.lr_stats_name,
+                lr.module_id, mst.module_stats_name,
                 lr.created_at, lr.updated_at
             {base_query}
             ORDER BY lr.created_at DESC
@@ -300,7 +326,15 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                 "cat_id": row.get("cat_id"),
                 "category": row.get("category_name") or "Uncategorized",
                 "uploaded_by": uploaded_by_display,
-                "status": row.get("lr_stats_name") or "—",
+                "status": row.get("lr_stats_name") or "Draft",
+                # NEW - Task #43: parent module identity + status, so the
+                # frontend can grey out / explain the Publish button
+                # without a second request. Defaults to "Draft" when the
+                # resource has no linked module row, which correctly
+                # blocks publishing (a resource with no real parent
+                # module can never be "Published").
+                "module_id": row.get("module_id"),
+                "module_status": row.get("module_stats_name") or "Draft",
                 "created_at": _fmt_date(row.get("created_at")),
                 "updated_at": _fmt_datetime(row.get("updated_at")),
             })

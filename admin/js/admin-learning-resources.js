@@ -1,7 +1,7 @@
 /**
- * admin-learning-resources.js - Task #37, #38, #39 & #40: Learning
+ * admin-learning-resources.js - Task #37, #38, #39, #40 & #43: Learning
  * Resources Live Search + Dynamic Type Filter + Created/Updated Date
- * Filters
+ * Filters + Publish/Unpublish Actions
  * --------------------------------------------------------------------
  * Wires up the Learning Resources toolbar - the search box, the
  * database-driven "All Types" dropdown (Task #38), and the Created At /
@@ -20,6 +20,15 @@
  *     single query string on every request, so they always compose
  *     with each other (Task #39 Requirement #5, Task #40 Requirements
  *     #5 & #6).
+ *
+ * Task #43: renderRows() now also renders the Status badge with the
+ * js-status-cell hook, and an Actions cell with the Publish/Unpublish
+ * button - using the exact same markup helpers
+ * (window.cobraByteResourcePublishing) that admin-resource-publish.js
+ * exposes, so the server-rendered initial table and this script's live
+ * re-renders can never drift out of sync with each other. This file
+ * does NOT wire up the button's click behavior itself - that stays in
+ * admin-resource-publish.js, loaded after this file.
  *
  * Only present on pages that have #resourceSearchInput and
  * #resourcesTableBody (currently just learning-resources.html), so
@@ -129,13 +138,36 @@
             return `<span class="badge ${cls}">${escapeHtml(type || "—")}</span>`;
         }
 
+        // ------------------------------------------------------------
+        // Task #43: Status badge + Publish/Unpublish button markup.
+        // Falls back to a plain badge/no button if
+        // admin-resource-publish.js hasn't loaded for some reason
+        // (script tag order or load failure), so the table still shows
+        // useful info instead of throwing.
+        // ------------------------------------------------------------
+        function statusBadgeHtml(status) {
+            if (window.cobraByteResourcePublishing) {
+                return window.cobraByteResourcePublishing.statusBadgeHtml(status);
+            }
+            const normalized = (status || "").toLowerCase();
+            const cls = normalized === "published" ? "badge-active" : "badge-draft";
+            return `<span class="badge ${cls}">${escapeHtml(status || "Draft")}</span>`;
+        }
+
+        function publishButtonHtml(resourceId, status, moduleStatus) {
+            if (window.cobraByteResourcePublishing) {
+                return window.cobraByteResourcePublishing.publishButtonHtml(resourceId, status, moduleStatus);
+            }
+            return "";
+        }
+
         function renderRows(resources) {
             if (!resources || resources.length === 0) {
                 // Task #37, Requirement #7: empty state only ever shown
                 // when the query genuinely returned zero rows.
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="7" class="text-muted table-empty-message">
+                        <td colspan="8" class="text-muted table-empty-message">
                             No resources found.
                         </td>
                     </tr>`;
@@ -151,9 +183,10 @@
                     <td>${typeBadgeHtml(r.type)}</td>
                     <td class="text-muted">${escapeHtml(r.category)}</td>
                     <td class="text-muted">${escapeHtml(r.uploaded_by)}</td>
-                    <td class="text-muted">${escapeHtml(r.status)}</td>
+                    <td class="text-muted js-status-cell">${statusBadgeHtml(r.status)}</td>
                     <td class="text-muted">${escapeHtml(r.created_at)}</td>
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>
+                    <td class="text-right">${publishButtonHtml(r.resource_id, r.status, r.module_status)}</td>
                 </tr>
             `).join("");
         }
@@ -215,7 +248,7 @@
                     }
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="7" class="text-muted table-empty-message">
+                            <td colspan="8" class="text-muted table-empty-message">
                                 Could not load resources. Please try again.
                             </td>
                         </tr>`;
@@ -235,7 +268,7 @@
                 if (requestId !== activeRequestId) return;
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="7" class="text-muted table-empty-message">
+                        <td colspan="8" class="text-muted table-empty-message">
                             Could not reach the server.
                         </td>
                     </tr>`;

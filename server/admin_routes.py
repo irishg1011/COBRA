@@ -35,6 +35,9 @@ from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Res
     get_resource_types, get_learning_resources_overview,
 )
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
+from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
+    get_draft_status_id, publish_resource, unpublish_resource,
+)
 
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -1589,6 +1592,39 @@ def learning_resources_data():
         return jsonify({"success": False, "message": "Could not reach the database."}), 500
     return jsonify({"success": True, **overview}), 200
 
+
+# ============================================================
+# Task #43: PUBLISH / UNPUBLISH A LEARNING RESOURCE
+# ============================================================
+@admin_bp.route('/learning-resources/<int:resource_id>/publish', methods=['POST'])
+def publish_learning_resource(resource_id):
+    """
+    Task #43: flips a resource's status to "Published". All of the real
+    validation - including the "parent module must already be Published"
+    gate - lives in resource_publishing.publish_resource(), never here;
+    this route is a thin HTTP wrapper only, matching this project's
+    existing convention (see manage_course_delete_module(),
+    manage_course_restore_module(), etc.).
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = publish_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-resources/<int:resource_id>/unpublish', methods=['POST'])
+def unpublish_learning_resource(resource_id):
+    """
+    Task #43: flips a resource's status back to "Draft". Unlike
+    publishing, no parent-status gate applies here - taking a resource
+    offline is always allowed (see resource_publishing.unpublish_resource()).
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = unpublish_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
 @admin_bp.route('/learning-activities')
 def learning_activities():
     """
@@ -1664,6 +1700,23 @@ def upload_resource():
         # "Javascript". This is the exact value that MUST be used
         # wherever the learning_resources_tbl row is actually persisted.
         normalized_lesson_name = result  # noqa: F841 - consumed by the resource-creation workflow
+
+        # NEW - Task #43: whenever the actual INSERT into
+        # learning_resources_tbl is wired up here, its lr_stats_id MUST
+        # come from get_draft_status_id() - never a hardcoded id - so
+        # every newly created resource starts out as "Draft" and can
+        # only go live through the explicit Publish action (see
+        # publish_learning_resource() above), which itself refuses to
+        # publish until the resource's parent module is "Published".
+        #
+        #     draft_status_id = get_draft_status_id()
+        #     cursor.execute(
+        #         "INSERT INTO learning_resources_tbl "
+        #         "(resource_title, resource_type_id, cat_id, module_id, "
+        #         " uploaded_by, lr_stats_id, created_at, updated_at) "
+        #         "VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())",
+        #         (normalized_lesson_name, ..., ..., ..., ..., draft_status_id)
+        #     )
 
         flash('Lesson name validated successfully.', 'success')
         return redirect(url_for('admin_bp.upload_resource'))

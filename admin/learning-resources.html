@@ -122,6 +122,8 @@
                                 <th>Status</th>
                                 <th>Created At</th>
                                 <th>Updated At</th>
+                                <!-- NEW - Task #43: Publish / Unpublish action -->
+                                <th class="text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="resourcesTableBody">
@@ -143,13 +145,40 @@
                                 </td>
                                 <td class="text-muted">{{ resource.category }}</td>
                                 <td class="text-muted">{{ resource.uploaded_by }}</td>
-                                <td class="text-muted">{{ resource.status }}</td>
+                                <!--
+                                    Task #43: js-status-cell lets
+                                    admin-resource-publish.js update just
+                                    this badge in place after a successful
+                                    publish/unpublish, without re-rendering
+                                    or re-fetching the whole row.
+                                -->
+                                <td class="text-muted js-status-cell">
+                                    <span class="badge {{ 'badge-active' if resource.status == 'Published' else 'badge-draft' }}">{{ resource.status }}</span>
+                                </td>
                                 <td class="text-muted">{{ resource.created_at }}</td>
                                 <td class="text-muted">{{ resource.updated_at }}</td>
+                                <!--
+                                    Task #43: Publish/Unpublish toggle.
+                                    data-status / data-module-status feed
+                                    admin-resource-publish.js's client-side
+                                    confirmation + parent-status gating;
+                                    the server (resource_publishing.py)
+                                    always re-validates the parent-module
+                                    gate authoritatively regardless.
+                                -->
+                                <td class="text-right">
+                                    <button type="button"
+                                            class="btn {{ 'btn-secondary-custom' if resource.status == 'Published' else 'btn-success-custom' }} js-toggle-publish-btn"
+                                            data-resource-id="{{ resource.resource_id }}"
+                                            data-status="{{ resource.status }}"
+                                            data-module-status="{{ resource.module_status }}">
+                                        {{ 'Unpublish' if resource.status == 'Published' else 'Publish' }}
+                                    </button>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="7" class="text-muted table-empty-message">
+                                <td colspan="8" class="text-muted table-empty-message">
                                     No resources found.
                                 </td>
                             </tr>
@@ -177,5 +206,9 @@
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learning-resources.js') }}"></script>
+    <!-- NEW - Task #43: Publish/Unpublish workflow. Must load AFTER
+         admin-learning-resources.js so window.cobraByteResourcePublishing
+         is available when that script's renderRows() needs it. -->
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-resource-publish.js') }}"></script>
 </body>
 </html>
