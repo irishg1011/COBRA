@@ -189,9 +189,12 @@
         </main>
     </div>
 
+    {% include 'upload-resource-modal.html' %}
+
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learning-resources.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-upload-resource.js') }}"></script>
 </body>
 </html>

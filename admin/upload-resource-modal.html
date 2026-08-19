@@ -1,0 +1,70 @@
+<!-- admin/upload-resource-modal.html
+     Task #41: Upload Resource modal - Category dropdown (from
+     category_tbl) with a dependent Module dropdown (from modules_tbl,
+     filtered by the selected cat_id). Styled after
+     admin-create-admin-modal.html. Populated entirely by
+     admin-upload-resource.js via the EXISTING
+     GET /admin/manage-course/categories endpoint (manage_course.py's
+     get_categories_with_modules()) - no new backend route was needed
+     for this task. -->
+<div id="uploadResourceModal" class="modal-overlay modal-hidden">
+    <div class="modal-card create-admin-card">
+        <button type="button" class="modal-close-btn" id="closeUploadResourceModal">&times;</button>
+
+        <div class="modal-header-section">
+            <div class="modal-icon-glow">
+                <i class="fa-solid fa-upload"></i>
+            </div>
+            <h2>Upload Resource</h2>
+            <p>Add a new learning resource to a module.</p>
+        </div>
+
+        <form id="uploadResourceForm">
+            <div class="form-section-group">
+                <div class="form-group">
+                    <label for="resourceTitleInput">Lesson / Resource Title</label>
+                    <input type="text" id="resourceTitleInput" name="resource_title" placeholder="e.g. Introduction to Variables" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="resourceCategorySelect">Category</label>
+                        <!-- Task #41: populated dynamically from
+                             category_tbl via admin-upload-resource.js -
+                             never hardcoded. -->
+                        <select id="resourceCategorySelect" name="cat_id" class="custom-select" required>
+                            <option value="" selected>Loading categories&hellip;</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="resourceModuleSelect">Module</label>
+                        <!-- Task #41: disabled by default. Only enabled
+                             (and populated) once a valid Category is
+                             selected - filtered client-side by cat_id
+                             against the same payload the Category
+                             dropdown was built from. -->
+                        <select id="resourceModuleSelect" name="module_id" class="custom-select" required disabled>
+                            <option value="" selected>Select a category first</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="resourceTypeSelectModal">Resource Type</label>
+                    <select id="resourceTypeSelectModal" name="resource_type_id" class="custom-select" required>
+                        <option value="" disabled selected>Select Type</option>
+                        {% for t in resource_types %}
+                        <option value="{{ t.resource_type_id }}">{{ t.resource_type_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer-actions">
+                <button type="submit" class="btn btn-create-account" id="submitUploadResourceBtn">
+                    <i class="fa-solid fa-upload"></i> Upload Resource
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
