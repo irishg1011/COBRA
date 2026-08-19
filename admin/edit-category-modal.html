@@ -1,0 +1,39 @@
+<!-- admin/edit-category-modal.html
+     Task: "Fix the current Edit Category interaction" - replaces the
+     old prompt()/alert()-based Category rename flow (previously in
+     admin-manage-course.js's js-edit-category click handler, using
+     window.prompt()) with a proper modal. Styled identically to the
+     existing Edit Module modal (see edit-module-modal.html - same
+     "create-admin-card edit-module-card" sizing/shell, same icon-glow
+     header, same form-group/input styling, same Save Changes button)
+     so both editing experiences look and behave the same. Included on
+     manage-course.html, right after edit-module-modal.html. -->
+<div id="editCategoryModal" class="modal-overlay modal-hidden">
+    <div class="modal-card create-admin-card edit-module-card">
+        <button type="button" class="modal-close-btn" id="closeEditCategoryModal">&times;</button>
+
+        <div class="modal-header-section">
+            <div class="modal-icon-glow">
+                <i class="fa-solid fa-pen-to-square"></i>
+            </div>
+            <h2>Edit Category</h2>
+            <p>Update this category's name.</p>
+        </div>
+
+        <form id="editCategoryForm">
+            <input type="hidden" id="editCategoryId">
+
+            <div class="form-group">
+                <label for="editCategoryName">Category Name</label>
+                <input type="text" id="editCategoryName" placeholder="Enter category name" required>
+            </div>
+
+            <div class="modal-footer-actions" style="gap: 12px;">
+                <button type="button" class="btn-cancel-custom" id="cancelEditCategoryBtn">Cancel</button>
+                <button type="submit" class="btn btn-create-account">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
