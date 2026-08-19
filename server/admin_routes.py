@@ -4,9 +4,11 @@ from datetime import datetime
 from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash  # NEW: reuses the exact same hashing scheme as the Learner Sign Up flow
-from learning_resources import (  # NEW: Learning Resources DB integration (Category/Type/Status/Uploader resolution)
+from learning_resources import (
     get_learning_resources_overview, get_resource_type_options,
-)
+    create_learning_resource,          # NEW: always creates as Draft
+    publish_resource, unpublish_resource,  # NEW: status workflow
+   )
 from cobradb import get_db_connection
 from account_status import refresh_inactive_accounts, get_account_status_counts  # NEW: shared, configurable Active/Inactive sweep + lean status-count aggregate
 from login_logs import get_todays_login_metrics  # NEW: today's login/success/fail counts for the Login Logs metric cards
@@ -1842,3 +1844,105 @@ def create_lesson_route():
         "message": message,
         "lesson_name": normalized_name,
     }), 201
+
+"""
+admin_routes_PUBLISH_ADDITION.py
+------------------------------------
+NOT a standalone file to run - add these into the EXISTING
+admin_routes.py.
+"""
+
+# ------------------------------------------------------------
+# STEP 1 - update the existing learning_resources import from:
+#
+#   from learning_resources import (
+#       get_learning_resources_overview, get_resource_type_options,
+#   )
+#
+# to:
+#
+#   from learning_resources import (
+#       get_learning_resources_overview, get_resource_type_options,
+#       create_learning_resource,          # NEW: always creates as Draft
+#       publish_resource, unpublish_resource,  # NEW: status workflow
+#   )
+# ------------------------------------------------------------
+
+
+# ============================================================
+# ROUTE: PUBLISH A LEARNING RESOURCE (JSON)
+# ============================================================
+@admin_bp.route('/learning-resources/<int:resource_id>/publish', methods=['POST'])
+def publish_learning_resource(resource_id):
+    """
+    Task: publishing must be fully re-validated server-side - the
+    resource's existence/current status AND both parent (Category,
+    Module) statuses - regardless of what the confirmation dialog on
+    the frontend already asked. A manipulated/direct POST to this
+    route with an unpublished parent is rejected exactly the same way
+    as a normal click would be.
+
+    Returns JSON: { "success": bool, "message": str, "status": str|None }
+    "status" is the resource's REAL current status after this call -
+    the frontend must render its Publish/Unpublish button from this
+    value, never flip its own local state optimistically.
+    """
+    success, message, new_status = publish_resource(resource_id)
+    status_code = 200 if success else 400
+    return jsonify({"success": success, "message": message, "status": new_status}), status_code
+
+
+# ============================================================
+# ROUTE: UNPUBLISH A LEARNING RESOURCE (JSON)
+# ============================================================
+@admin_bp.route('/learning-resources/<int:resource_id>/unpublish', methods=['POST'])
+def unpublish_learning_resource(resource_id):
+    """
+    Task: Unpublish must persist to the database (never a
+    frontend-only toggle) and return the resource's real resulting
+    status so the button state stays synchronized with the database.
+    """
+    success, message, new_status = unpublish_resource(resource_id)
+    status_code = 200 if success else 400
+    return jsonify({"success": success, "message": message, "status": new_status}), status_code
+
+
+# ============================================================
+# ROUTE: CREATE LEARNING RESOURCE (JSON)
+# ============================================================
+# ASSUMPTION: as with the earlier Lesson-name feature, the actual
+# "New Lesson" submit route wasn't included in the files provided. If
+# a real create route already exists elsewhere, replace its resource
+# INSERT with a call to learning_resources.create_learning_resource()
+# instead of adding a second, competing route - the important part is
+# that EVERY resource-creation path defaults to Draft through that one
+# function, never a second copy of this logic.
+@admin_bp.route('/learning-resources/create', methods=['POST'])
+def create_learning_resource_route():
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+
+    resource_title = (data.get('resource_title') or data.get('lesson_name') or '').strip()
+    cat_id = data.get('cat_id')
+    module_id = data.get('module_id')
+    resource_type_id = data.get('resource_type_id')
+
+    if not resource_title or not cat_id or not module_id:
+        return jsonify({
+            "success": False,
+            "message": "Title, Category, and Module are all required.",
+        }), 400
+
+    success, message, new_resource_id = create_learning_resource(
+        resource_title=resource_title,
+        cat_id=cat_id,
+        module_id=module_id,
+        resource_type_id=resource_type_id,
+        uploaded_by=session.get("admin_id"),
+    )
+    status_code = 201 if success else 400
+    return jsonify({
+        "success": success,
+        "message": message,
+        "resource_id": new_resource_id,
+        "status": "Draft" if success else None,
+    }), status_code

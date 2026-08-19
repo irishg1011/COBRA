@@ -249,3 +249,331 @@ def get_learning_resources_overview(search_query=None, type_filter=None,
     finally:
         if connection.is_connected():
             connection.close()
+
+"""
+learning_resources_ADDITION.py
+---------------------------------
+NOT a standalone file to run - append these functions into the
+EXISTING learning_resources.py (it already owns LR_STATS_TABLE /
+CATEGORY_TABLE constants and get_db_connection, so this reuses that
+exact module rather than creating a second one).
+
+SCHEMA ASSUMPTIONS (please correct if these don't match reality):
+
+1. learning_resources_tbl has no module_id column in the schema shown
+   so far (get_learning_resources_overview() only ever joins on
+   cat_id). But the New Lesson form has a Module dropdown, and this
+   task requires validating "the selected Module's status" per
+   resource - so a module_id FK is added here idempotently
+   (ADD COLUMN IF NOT EXISTS), matching the exact pattern
+   admin_routes.py already uses for profile_tbl.mobile.
+
+2. category_tbl (per your phpMyAdmin screenshot) currently has ONLY
+   cat_id and category_name - no status field at all. Since this task
+   requires blocking publish when "the Category is Draft", a status
+   column is required and didn't exist before. Added idempotently
+   (ADD COLUMN IF NOT EXISTS) as a plain VARCHAR, mirroring
+   account_tbl.status's own convention (a simple 'Active'/'Inactive'
+   string, not a separate lookup table) rather than introducing a new
+   category_stats_tbl for a single column. Defaults every existing
+   (and new) category to 'Published' so this migration can never
+   retroactively block any resource that could already publish today -
+   satisfies "safe for current records, no destructive changes".
+
+3. Module status already exists and is fully reused as-is:
+   modules_tbl.module_stats_id -> module_stats_tbl.module_stats_name
+   ("Draft"/"Published"/"Archived") - see manage_course.py. Nothing
+   new is added for Module status.
+
+4. learning_resources_stats_tbl already exists (see LR_STATS_TABLE),
+   the exact same lookup-table pattern as module_stats_tbl - reused
+   as-is; ensure_lr_stats() below just guarantees "Draft" and
+   "Published" rows exist in it, the same way
+   manage_course.ensure_module_stats() seeds module_stats_tbl.
+"""
+
+CATEGORY_STATUS_COLUMN = "status"
+LR_MODULE_ID_COLUMN = "module_id"
+
+_lr_stats_ensured = False
+_category_status_column_ensured = False
+_lr_module_id_column_ensured = False
+
+# Task: "Do not assume status IDs or hardcode numeric values unless
+# the project already defines stable constants" - these are the
+# stable, well-known DISPLAY NAMES the rest of the project already
+# uses for status lookups (module_stats_name, lr_stats_name); actual
+# ids are always resolved by name via SQL, never hardcoded as numbers.
+LR_STATUS_DRAFT = "Draft"
+LR_STATUS_PUBLISHED = "Published"
+
+
+def ensure_lr_stats(connection):
+    """
+    Idempotent seed for learning_resources_stats_tbl - guarantees
+    "Draft" and "Published" rows exist, mirroring
+    manage_course.ensure_module_stats() exactly. Gated behind a
+    module-level flag so it only round-trips once per process.
+    """
+    global _lr_stats_ensured
+    if _lr_stats_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT lr_stats_name FROM {LR_STATS_TABLE}")
+        existing = {row[0] for row in cursor.fetchall()}
+        missing = [s for s in (LR_STATUS_DRAFT, LR_STATUS_PUBLISHED) if s not in existing]
+        for name in missing:
+            cursor.execute(f"INSERT INTO {LR_STATS_TABLE} (lr_stats_name) VALUES (%s)", (name,))
+        if missing:
+            connection.commit()
+        cursor.close()
+        _lr_stats_ensured = True
+    except Error as e:
+        print(f"learning_resources: failed to seed {LR_STATS_TABLE}: {e}")
+
+
+def ensure_category_status_column(connection):
+    """
+    Idempotent migration - see assumption #2 above. Defaults every
+    row (existing and new) to 'Published' so nothing that could
+    already be published before this column existed suddenly becomes
+    blocked.
+    """
+    global _category_status_column_ensured
+    if _category_status_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {CATEGORY_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"{CATEGORY_STATUS_COLUMN} VARCHAR(20) NOT NULL DEFAULT '{LR_STATUS_PUBLISHED}'"
+        )
+        connection.commit()
+        cursor.close()
+        _category_status_column_ensured = True
+    except Error as e:
+        print(f"learning_resources: failed to ensure {CATEGORY_TABLE}.{CATEGORY_STATUS_COLUMN}: {e}")
+
+
+def ensure_lr_module_id_column(connection):
+    """Idempotent migration - see assumption #1 above."""
+    global _lr_module_id_column_ensured
+    if _lr_module_id_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {LEARNING_RESOURCES_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"{LR_MODULE_ID_COLUMN} INT NULL"
+        )
+        connection.commit()
+        cursor.close()
+        _lr_module_id_column_ensured = True
+    except Error as e:
+        print(f"learning_resources: failed to ensure {LEARNING_RESOURCES_TABLE}.{LR_MODULE_ID_COLUMN}: {e}")
+
+
+def _get_lr_stats_id(cursor, status_name):
+    """Resolves a status display name to its real lr_stats_id - never
+    a hardcoded number."""
+    cursor.execute(f"SELECT lr_stats_id FROM {LR_STATS_TABLE} WHERE lr_stats_name = %s", (status_name,))
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def create_learning_resource(resource_title, cat_id, module_id, resource_type_id, uploaded_by):
+    """
+    Task: "Every newly created Learning Resource automatically starts
+    with a Draft status" - the admin never selects an initial status;
+    this function always resolves and assigns the real Draft
+    lr_stats_id itself.
+
+    Returns (bool success, str message, resource_id or None).
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database.", None
+
+    try:
+        ensure_lr_stats(connection)
+        ensure_lr_module_id_column(connection)
+        cursor = connection.cursor()
+
+        draft_id = _get_lr_stats_id(cursor, LR_STATUS_DRAFT)
+        if draft_id is None:
+            cursor.close()
+            return False, "Draft status is not configured.", None
+
+        cursor.execute(
+            f"""INSERT INTO {LEARNING_RESOURCES_TABLE}
+                (resource_title, cat_id, {LR_MODULE_ID_COLUMN}, resource_type_id,
+                 lr_stats_id, uploaded_by, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())""",
+            (resource_title, cat_id, module_id, resource_type_id, draft_id, uploaded_by)
+        )
+        connection.commit()
+        new_id = cursor.lastrowid
+        cursor.close()
+        return True, "Learning resource created as Draft.", new_id
+    except Error as e:
+        connection.rollback()
+        print(f"learning_resources: failed to create resource: {e}")
+        return False, f"Database error: {e}", None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_resource_publish_context(resource_id):
+    """
+    Pulls exactly what a publish/unpublish decision needs in one query:
+    the resource's own current status, its Category's status, and its
+    Module's status - all resolved to real display names, never raw
+    ids passed back to the caller to interpret.
+
+    Returns a dict:
+        {
+            "resource_id": int,
+            "resource_status": str | None,
+            "cat_id": int | None,
+            "category_status": str | None,
+            "module_id": int | None,
+            "module_status": str | None,
+        }
+    or None if the resource itself doesn't exist / on DB error.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        ensure_category_status_column(connection)
+        ensure_lr_module_id_column(connection)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""
+            SELECT
+                lr.resource_id,
+                lrs.lr_stats_name AS resource_status,
+                lr.cat_id, c.{CATEGORY_STATUS_COLUMN} AS category_status,
+                lr.{LR_MODULE_ID_COLUMN} AS module_id, ms.module_stats_name AS module_status
+            FROM {LEARNING_RESOURCES_TABLE} lr
+            LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
+            LEFT JOIN modules_tbl m ON lr.{LR_MODULE_ID_COLUMN} = m.module_id
+            LEFT JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+            WHERE lr.resource_id = %s
+            """,
+            (resource_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row
+    except Error as e:
+        print(f"learning_resources: failed to load publish context for resource {resource_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def publish_resource(resource_id):
+    """
+    Task: full server-side publish flow - identify resource, check its
+    current status, validate BOTH parent statuses, and only then flip
+    lr_stats_id to Published. Never trusts a frontend-supplied status.
+
+    Returns (bool success, str message, new_status str | None).
+    """
+    context = get_resource_publish_context(resource_id)
+    if context is None or context.get("resource_status") is None:
+        return False, "This learning resource does not exist.", None
+
+    if context["resource_status"] == LR_STATUS_PUBLISHED:
+        return False, "This resource is already published.", context["resource_status"]
+
+    if context.get("cat_id") is None or context.get("category_status") is None:
+        return False, "This resource's Category could not be found.", None
+    if context.get("module_id") is None or context.get("module_status") is None:
+        return False, "This resource's Module could not be found.", None
+
+    if context["category_status"] != LR_STATUS_PUBLISHED:
+        return False, "The selected Category must be published before this resource can be published.", None
+    if context["module_status"] != LR_STATUS_PUBLISHED:
+        return False, "The selected Module must be published before this resource can be published.", None
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database.", None
+
+    try:
+        ensure_lr_stats(connection)
+        cursor = connection.cursor()
+        published_id = _get_lr_stats_id(cursor, LR_STATUS_PUBLISHED)
+        if published_id is None:
+            cursor.close()
+            return False, "Published status is not configured.", None
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                SET lr_stats_id = %s, updated_at = NOW()
+                WHERE resource_id = %s""",
+            (published_id, resource_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Learning resource published successfully.", LR_STATUS_PUBLISHED
+    except Error as e:
+        connection.rollback()
+        print(f"learning_resources: failed to publish resource {resource_id}: {e}")
+        return False, f"Database error: {e}", None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unpublish_resource(resource_id):
+    """
+    Task: Unpublish always returns a Published resource back to Draft.
+    Still fully server-validated - a nonexistent resource, or a
+    resource that's already Draft, is rejected with a clear message
+    rather than silently "succeeding".
+
+    Returns (bool success, str message, new_status str | None).
+    """
+    context = get_resource_publish_context(resource_id)
+    if context is None or context.get("resource_status") is None:
+        return False, "This learning resource does not exist.", None
+
+    if context["resource_status"] == LR_STATUS_DRAFT:
+        return False, "This resource is already a draft.", context["resource_status"]
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database.", None
+
+    try:
+        ensure_lr_stats(connection)
+        cursor = connection.cursor()
+        draft_id = _get_lr_stats_id(cursor, LR_STATUS_DRAFT)
+        if draft_id is None:
+            cursor.close()
+            return False, "Draft status is not configured.", None
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                SET lr_stats_id = %s, updated_at = NOW()
+                WHERE resource_id = %s""",
+            (draft_id, resource_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Learning resource moved back to Draft.", LR_STATUS_DRAFT
+    except Error as e:
+        connection.rollback()
+        print(f"learning_resources: failed to unpublish resource {resource_id}: {e}")
+        return False, f"Database error: {e}", None
+    finally:
+        if connection.is_connected():
+            connection.close()

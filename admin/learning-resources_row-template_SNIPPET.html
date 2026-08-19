@@ -1,0 +1,78 @@
+<!--
+learning-resources_row-template_SNIPPET.html
+-----------------------------------------------
+NOT a standalone page - shows the exact, minimal markup addition
+needed in TWO existing places so the Publish/Unpublish button appears
+consistently whether the table was just server-rendered (page load)
+or just re-rendered by admin-learning-resources.js (after a
+search/filter). Only the <div class="table-actions-group"> cell
+changes - everything else in both files stays exactly as-is, per
+"preserve layout/styling/spacing/existing Publish button design".
+-->
+
+<!-- ============================================================
+     1) learning-resources.html - inside the {% for resource in
+     resources %} loop, replace the existing actions cell:
+     ============================================================ -->
+
+<!-- BEFORE -->
+<td class="text-right">
+    <div class="table-actions-group">
+        <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+        <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
+    </div>
+</td>
+
+<!-- AFTER -->
+<td class="text-right">
+    <div class="table-actions-group">
+        <!--
+            Task: button label/state is derived from the resource's
+            REAL status, both on first render (Jinja, here) and after
+            every publish/unpublish call (admin-learning-resources-status.js).
+            data-status is the source of truth the JS reads/writes.
+        -->
+        <button type="button"
+                class="table-action-icon js-toggle-publish"
+                data-id="{{ resource.resource_id }}"
+                data-status="{{ resource.status }}">
+            {{ 'Unpublish' if resource.status == 'Published' else 'Publish' }}
+        </button>
+        <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+        <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
+    </div>
+</td>
+
+
+<!-- ============================================================
+     2) admin-learning-resources.js - inside renderRows(), the row
+     template's actions cell (same shape, same status source, just as
+     a JS template literal so it re-renders identically after a live
+     search/filter):
+     ============================================================ -->
+
+<!-- BEFORE (inside the `.map(r => ...)` template literal) -->
+<!--
+    <td class="text-right">
+        <div class="table-actions-group">
+            <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+            <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
+        </div>
+    </td>
+-->
+
+<!-- AFTER -->
+<!--
+    <td class="text-right">
+        <div class="table-actions-group">
+            <button type="button"
+                    class="table-action-icon js-toggle-publish"
+                    data-id="${escapeHtml(r.resource_id)}"
+                    data-status="${escapeHtml(r.status)}">
+                ${r.status === 'Published' ? 'Unpublish' : 'Publish'}
+            </button>
+            <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+            <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
+        </div>
+    </td>
+-->
