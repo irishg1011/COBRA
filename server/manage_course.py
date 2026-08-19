@@ -682,3 +682,92 @@ def _fmt_date(dt):
     if not dt:
         return "—"
     return f"{dt.strftime('%b')} {dt.day}, {dt.year}"
+
+"""
+manage_course_ADDITION.py
+--------------------------
+NOT a standalone file to run - this is the single new function to
+ADD into the EXISTING manage_course.py (append it near the other
+CATEGORIES / MODULES helpers, e.g. right after get_categories()).
+
+No new file is needed for this feature: manage_course.py already owns
+category_tbl / modules_tbl access (see get_categories(),
+get_categories_with_modules()), so this reuses that exact same module
+and its existing get_db_connection() / CATEGORY_TABLE / MODULES_TABLE
+constants - no duplicated DB logic, no new supporting file.
+"""
+
+def get_modules_by_category(cat_id):
+    """
+    Backs the Upload Learning Resource ("New Lesson") form's dependent
+    Module dropdown: returns every non-archived module belonging to a
+    SINGLE, validated cat_id.
+
+    Args:
+        cat_id: the Category id selected on the frontend - arrives as
+            a string from query params, so it's coerced/validated here
+            before ever touching SQL.
+
+    Returns:
+        list[dict]: [{"module_id": int, "module_name": str}, ...] for
+        a valid, existing cat_id (possibly empty if that category has
+        no modules yet). Returns [] (never raises) for:
+          - a missing/blank cat_id,
+          - a non-numeric cat_id (can't be manipulated into arbitrary
+            SQL - it's cast with int() and rejected otherwise),
+          - a cat_id that doesn't exist in category_tbl,
+          - any database error.
+
+        An empty list is exactly what the frontend needs to keep the
+        Module dropdown disabled/showing its empty-state placeholder -
+        never modules from an unrelated category.
+
+    Uses a parameterized query throughout (no string-built SQL from
+    the cat_id value), matching this project's existing convention
+    (see get_categories(), get_modules_overview()).
+    """
+    try:
+        cat_id = int(cat_id)
+    except (TypeError, ValueError):
+        # Not a valid integer id at all - treat exactly like "no
+        # category selected" rather than erroring or guessing.
+        return []
+
+    connection = get_db_connection()
+    if connection is None:
+        return []
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        # Validate the category actually exists before using it to
+        # query modules - an invalid/nonexistent cat_id must never
+        # silently fall through to matching unrelated rows.
+        cursor.execute(
+            f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE cat_id = %s",
+            (cat_id,)
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            return []
+
+        # Only non-archived modules should be selectable for a new
+        # lesson - mirrors get_modules_overview()'s default (active)
+        # scope elsewhere in this file.
+        cursor.execute(
+            f"""SELECT module_id, module_name
+                FROM {MODULES_TABLE}
+                WHERE cat_id = %s AND is_archived = 0
+                ORDER BY module_name ASC""",
+            (cat_id,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
+
+    except Error as e:
+        print(f"manage_course: failed to load modules for category {cat_id}: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            connection.close()

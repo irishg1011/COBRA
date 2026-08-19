@@ -25,13 +25,20 @@ from validators import (  # NEW: same validation rules used by login.py's Learne
     ADMIN_MIN_SIGNUP_AGE,  # NEW: Admin accounts require 20-60, not Learner's 13-60
     ADMIN_MAX_SIGNUP_AGE,  # NEW
 )
+from manage_course import (
+    get_module_stats_options, get_categories, get_categories_with_modules,
+    create_category, update_category, delete_category,
+    create_module, update_module, delete_module, get_modules_overview,
+    archive_module, restore_module,
+   )
 from id_generator import generate_prefixed_acc_id  # NEW: same sequential-ID generator login.py's signup uses, just with a different prefix
 from manage_course import (
     get_module_stats_options, get_categories, get_categories_with_modules,
     create_category, update_category, delete_category,
     create_module, update_module, delete_module, get_modules_overview,
-    archive_module, restore_module,  # NEW - Task #27: soft delete/archive
-)
+    archive_module, restore_module,
+    get_modules_by_category,  # NEW: dependent Module dropdown (Upload Learning Resource)
+   )
 
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -1649,3 +1656,84 @@ def achievements():
 @admin_bp.route('/reports')
 def reports():
     return render_placeholder("Reports")
+
+"""
+admin_routes_ADDITION.py
+--------------------------
+NOT a standalone file to run - these pieces get ADDED into the
+EXISTING admin_routes.py:
+
+  1. Add `get_modules_by_category` to the existing manage_course
+     import block near the top of admin_routes.py.
+  2. Add the two new route functions below anywhere alongside the
+     other /manage-course/* routes.
+
+Both routes are intentionally thin (just read query params, call the
+helper, jsonify) - all the real category/module DB logic lives in
+manage_course.py, per the "keep admin_routes.py focused on
+route/controller responsibilities" requirement.
+"""
+
+# ------------------------------------------------------------
+# STEP 1 - update the existing import in admin_routes.py from:
+#
+#   from manage_course import (
+#       get_module_stats_options, get_categories, get_categories_with_modules,
+#       create_category, update_category, delete_category,
+#       create_module, update_module, delete_module, get_modules_overview,
+#       archive_module, restore_module,
+#   )
+#
+# to (adding get_modules_by_category):
+#
+#   from manage_course import (
+#       get_module_stats_options, get_categories, get_categories_with_modules,
+#       create_category, update_category, delete_category,
+#       create_module, update_module, delete_module, get_modules_overview,
+#       archive_module, restore_module,
+#       get_modules_by_category,  # NEW: dependent Module dropdown (Upload Learning Resource)
+#   )
+# ------------------------------------------------------------
+
+
+# ============================================================
+# ROUTE: UPLOAD LEARNING RESOURCE - CATEGORY DROPDOWN (JSON)
+# ============================================================
+@admin_bp.route('/upload-resource/categories')
+def upload_resource_categories():
+    """
+    Category dropdown source for the New Lesson / Upload Learning
+    Resource form. Reuses get_categories() - the exact same function
+    already backing the Manage Course page's Category dropdown and
+    the Categories modal - so there is only ever one place "all
+    categories" is queried from.
+
+    Returns JSON: { "success": bool, "categories": [{cat_id, category_name}, ...] }
+    """
+    return jsonify({"success": True, "categories": get_categories()}), 200
+
+
+# ============================================================
+# ROUTE: UPLOAD LEARNING RESOURCE - MODULE DROPDOWN (JSON)
+# ============================================================
+@admin_bp.route('/upload-resource/modules')
+def upload_resource_modules():
+    """
+    Dependent Module dropdown source - returns modules for ONE
+    validated cat_id only.
+
+    Query params:
+      cat_id - the selected Category's cat_id (required; anything
+               missing, non-numeric, or not found in category_tbl
+               safely resolves to an empty module list rather than an
+               error or unrelated modules - see
+               manage_course.get_modules_by_category()).
+
+    Returns JSON: { "success": bool, "modules": [{module_id, module_name}, ...] }
+    Always 200 - get_modules_by_category() itself never raises, and an
+    empty list is a normal, valid response (e.g. "no category selected
+    yet" or "this category has no modules"), not a failure.
+    """
+    cat_id = request.args.get('cat_id', '')
+    modules = get_modules_by_category(cat_id)
+    return jsonify({"success": True, "modules": modules}), 200
