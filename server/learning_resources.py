@@ -76,10 +76,15 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
     name/username - same convention as
     admin_routes.get_accounts_overview()'s search.
 
-    type_filter (str | None): matches the resource type's display NAME
-    (e.g. "Video") - never a numeric id, and never concatenated
-    directly into the query. Anything falsy/"All Types" means "no type
-    filter applied".
+    type_filter (str | int | None): the resource type's real key -
+    learning_resources_tbl.resource_type_id, which is what
+    resource_types_tbl.resource_type_id (the primary key) actually
+    joins against. Matching on the id rather than resource_type_name
+    means a rename in resource_types_tbl can never silently break
+    filtering, and there's no ambiguity if two types ever shared a
+    display name. Anything falsy, or not parseable as an int, means
+    "no type filter applied" (covers "", "All Types", or a stray
+    non-numeric value).
 
     Returns {"resources": [...], "total": int}, or None on DB failure
     (caller renders an empty-state table rather than crashing).
@@ -115,16 +120,27 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
             like_term = f"%{term.lower()}%"
             params.extend([like_term, like_term, like_term, like_term])
 
-        type_term = (type_filter or "").strip()
+        # Filter by the real FK (resource_type_id), never by string-
+        # matching resource_type_name - a display name is not a stable
+        # identifier to filter on.
+        type_term = (type_filter or "")
+        type_term = str(type_term).strip() if type_term != "" else ""
         if type_term and type_term.lower() != "all types":
-            base_query += " AND rt.resource_type_name = %s"
-            params.append(type_term)
+            try:
+                type_id = int(type_term)
+                base_query += " AND lr.resource_type_id = %s"
+                params.append(type_id)
+            except (TypeError, ValueError):
+                # Not a valid id (e.g. a stray non-numeric value) -
+                # treat exactly like "no filter" rather than erroring
+                # or silently matching nothing.
+                pass
 
         cursor.execute(
             f"""
             SELECT
                 lr.resource_id, lr.resource_title,
-                rt.resource_type_name,
+                lr.resource_type_id, rt.resource_type_name,
                 c.category_name,
                 lrs.lr_stats_name,
                 lr.uploaded_by,
@@ -147,6 +163,9 @@ def get_learning_resources_overview(search_query=None, type_filter=None):
             resources.append({
                 "resource_id": row["resource_id"],
                 "title": row["resource_title"],
+                # NEW: the real key, alongside the display name - the
+                # frontend never needs to filter/compare by name.
+                "type_id": row.get("resource_type_id"),
                 "type": row.get("resource_type_name") or "Unspecified",
                 "category": row.get("category_name") or "Uncategorized",
                 "status": row.get("lr_stats_name") or "Draft",

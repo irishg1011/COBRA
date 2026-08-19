@@ -55,12 +55,16 @@
                                 Type options are populated dynamically from
                                 resource_types_tbl (see admin_routes.py:
                                 learning_resources() -> get_resource_type_options())
-                                - never hardcoded.
+                                - never hardcoded. The option VALUE is the
+                                real key (resource_type_id) that
+                                learning_resources_tbl.resource_type_id
+                                actually references - filtering matches
+                                this id, never the display name text.
                             -->
                             <select class="custom-select" id="resourceTypeSelect">
                                 <option value="">All Types</option>
                                 {% for t in resource_types %}
-                                <option value="{{ t.resource_type_name }}">{{ t.resource_type_name }}</option>
+                                <option value="{{ t.resource_type_id }}">{{ t.resource_type_name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
