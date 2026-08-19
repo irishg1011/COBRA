@@ -7,6 +7,7 @@ from werkzeug.security import generate_password_hash  # NEW: reuses the exact sa
 from learning_resources import (  # NEW: Learning Resources DB integration (Category/Type/Status/Uploader resolution)
     get_learning_resources_overview, get_resource_type_options,
     is_resource_title_taken, create_learning_resource,  # NEW (Task #41 + #42): Upload Resource modal
+    publish_learning_resource, unpublish_learning_resource,  # NEW (Task #43): Draft -> Publish -> Unpublish workflow
 )
 from text_formatting import format_display_name  # NEW (Task #42): same normalizer manage_course.py already uses
 from cobradb import get_db_connection
@@ -1634,6 +1635,10 @@ def learning_resources_create():
     the actual gate. All business logic lives in
     learning_resources.create_learning_resource(); this route only
     reads the request and turns the result into JSON.
+
+    Task #43, Requirement #1: create_learning_resource() always
+    defaults a brand-new resource to 'Draft' - this route never
+    accepts or forwards a status value from the client.
     """
     data = request.form if request.form else (request.get_json(silent=True) or {})
 
@@ -1652,6 +1657,42 @@ def learning_resources_create():
 
     status_code = 409 if "already exists" in message else 400
     return jsonify({"success": False, "message": message}), status_code
+
+
+# ============================================================
+# ROUTE: PUBLISH LEARNING RESOURCE (Task #43, JSON)
+# ============================================================
+@admin_bp.route('/learning-resources/<int:resource_id>/publish', methods=['POST'])
+def learning_resources_publish(resource_id):
+    """
+    Task #43, Requirements #2-4: transitions a Draft resource to
+    Published. The frontend shows a confirmation dialog before ever
+    calling this route, but the AUTHORITATIVE check - that the
+    resource's parent Category AND Module are both already Published -
+    happens here, server-side, inside
+    learning_resources.publish_learning_resource(). This route never
+    performs the status update itself; it only calls into that function
+    and turns the (success, message) result into JSON.
+    """
+    success, message = publish_learning_resource(resource_id)
+    status_code = 200 if success else 400
+    return jsonify({"success": success, "message": message}), status_code
+
+
+# ============================================================
+# ROUTE: UNPUBLISH LEARNING RESOURCE (Task #43, JSON)
+# ============================================================
+@admin_bp.route('/learning-resources/<int:resource_id>/unpublish', methods=['POST'])
+def learning_resources_unpublish(resource_id):
+    """
+    Task #43, Requirement #6: transitions a Published resource back to
+    Draft. All logic lives in
+    learning_resources.unpublish_learning_resource(); this route only
+    turns the result into JSON.
+    """
+    success, message = unpublish_learning_resource(resource_id)
+    status_code = 200 if success else 400
+    return jsonify({"success": success, "message": message}), status_code
 
 
 @admin_bp.route('/learning-activities')

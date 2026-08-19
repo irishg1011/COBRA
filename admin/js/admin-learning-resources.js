@@ -1,9 +1,10 @@
 /**
  * admin-learning-resources.js - CobraByte Live Learning Resources
  * Search + Type Filter + Created/Updated At Date Filters + Pagination
+ * + Task #43: Publish / Unpublish workflow
  * ---------------------------------------------------------------
  * Wires up the Manage Learning Resources toolbar (search box, Type
- * dropdown, and the new Created At / Updated At date filters) to the
+ * dropdown, and the Created At / Updated At date filters) to the
  * backend endpoint (/admin/learning-resources/data) so the table
  * updates live as the admin types or changes a filter, with no page
  * reload.
@@ -19,6 +20,15 @@
  *     query string on every request, so they always compose with each
  *     other, and pagination always reflects whatever filters are
  *     currently active.
+ *
+ * Task #43: adds the Publish / Unpublish row action. window.confirm()
+ * is used for the "Are you sure...?" step, matching the exact same
+ * confirmation pattern already used by admin-manage-course.js's
+ * archive/restore/delete actions - no new modal component introduced.
+ * The backend is the SOURCE OF TRUTH: after a click, the row is only
+ * ever re-rendered from the fresh data the backend returns (via a full
+ * table reload), never optimistically flipped client-side, so the UI
+ * can never drift from the database.
  *
  * Only present on pages that have #resourceSearchInput and
  * #resourcesTableBody (currently just learning-resources.html), so
@@ -137,6 +147,19 @@
             return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
         }
 
+        /**
+         * Task #43: renders the Publish/Unpublish action icon based on
+         * the resource's REAL status from the backend - never a
+         * client-guessed toggle. Published -> Unpublish icon only;
+         * anything else (Draft/Archived) -> Publish icon only.
+         */
+        function publishActionHtml(resource) {
+            if (resource.status === "Published") {
+                return `<a href="#" title="Unpublish" class="table-action-icon js-unpublish-resource" data-id="${escapeHtml(resource.resource_id)}"><i class="fa-solid fa-eye-slash"></i></a>`;
+            }
+            return `<a href="#" title="Publish" class="table-action-icon js-publish-resource" data-id="${escapeHtml(resource.resource_id)}"><i class="fa-solid fa-upload"></i></a>`;
+        }
+
         function renderRows(resources) {
             if (!resources || resources.length === 0) {
                 tableBody.innerHTML = `
@@ -161,6 +184,7 @@
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>
                     <td class="text-right">
                         <div class="table-actions-group">
+                            ${publishActionHtml(r)}
                             <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
                             <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
                         </div>
@@ -347,5 +371,79 @@
                 scheduleSearch(true);
             });
         }
+
+        // ------------------------------------------------------------
+        // Task #43: Publish / Unpublish (event delegation - rows are
+        // re-rendered by runSearch()/renderRows() above)
+        // ------------------------------------------------------------
+        tableBody.addEventListener("click", async (e) => {
+            const publishBtn = e.target.closest(".js-publish-resource");
+            const unpublishBtn = e.target.closest(".js-unpublish-resource");
+
+            if (publishBtn) {
+                e.preventDefault();
+                const id = publishBtn.dataset.id;
+
+                // Requirement #2: confirmation BEFORE changing status -
+                // reuses the project's existing window.confirm() pattern
+                // (see admin-manage-course.js's archive/restore/delete
+                // confirmations).
+                if (!confirm("Are you sure you want to publish this resource?")) return;
+
+                try {
+                    const resp = await fetch(`/admin/learning-resources/${id}/publish`, {
+                        method: "POST", credentials: "include"
+                    });
+                    const result = await resp.json();
+                    if (!result.success) {
+                        // Requirement #3: backend blocks publishing when
+                        // the Category or Module is still Draft - the
+                        // exact reason comes straight from the server.
+                        alert(result.message);
+                    } else {
+                        alert(result.message || "Resource published successfully.");
+                    }
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
+                } finally {
+                    // Task #43, Requirement #9: the UI always reflects the
+                    // ACTUAL database status - reload from the backend
+                    // regardless of success/failure, rather than
+                    // optimistically flipping the button client-side.
+                    runSearch();
+                }
+                return;
+            }
+
+            if (unpublishBtn) {
+                e.preventDefault();
+                const id = unpublishBtn.dataset.id;
+
+                if (!confirm("Are you sure you want to unpublish this resource? It will move back to Draft.")) return;
+
+                try {
+                    const resp = await fetch(`/admin/learning-resources/${id}/unpublish`, {
+                        method: "POST", credentials: "include"
+                    });
+                    const result = await resp.json();
+                    if (!result.success) {
+                        alert(result.message);
+                    } else {
+                        alert(result.message || "Resource moved back to Draft.");
+                    }
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
+                } finally {
+                    runSearch();
+                }
+            }
+        });
+
+        // Exposed globally so admin-upload-resource.js can refresh this
+        // table immediately after a successful upload/draft-save,
+        // instead of the admin having to manually search/filter to see
+        // their new resource (this was previously called but never
+        // defined - Task #43 fixes that dangling reference).
+        window.cobraByteReloadResourcesTable = () => runSearch();
     });
 })();

@@ -31,6 +31,21 @@ _module_stats_ensured = False
 # every single request.
 _is_archived_column_ensured = False
 
+# ------------------------------------------------------------------
+# Task #43: Category "status" (Draft/Published/Archived) - lazy
+# migration flag
+# ------------------------------------------------------------------
+# category_tbl ships with NO status column at all - the Draft/Publish/
+# Unpublish workflow for Learning Resources needs to validate a
+# resource's PARENT Category status, not just its parent Module status
+# (which already exists via modules_tbl.module_stats_id). Rather than
+# introduce a brand-new status lookup table, this reuses the EXACT
+# same module_stats_tbl (Published/Draft/Archived) modules_tbl already
+# points at - one shared vocabulary of statuses across Categories and
+# Modules, added via the same idempotent "ADD COLUMN IF NOT EXISTS"
+# convention already used for modules_tbl.is_archived / profile_tbl.mobile.
+_category_stats_column_ensured = False
+
 
 def ensure_is_archived_column(connection):
     """
@@ -63,6 +78,42 @@ def ensure_is_archived_column(connection):
         print(f"manage_course: failed to ensure {MODULES_TABLE}.is_archived column exists: {e}")
 
 
+def ensure_category_stats_column(connection):
+    """
+    Task #43 - adds category_tbl.category_stats_id (INT NULL, pointing
+    at module_stats_tbl.module_stats_id) if it doesn't already exist.
+
+    Reuses module_stats_tbl (already seeded with Published/Draft/
+    Archived by ensure_module_stats()) instead of a second, duplicate
+    status table - Categories and Modules share the exact same status
+    vocabulary.
+
+    IMPORTANT: the current Admin UI has no "Publish Category" action of
+    its own (out of scope for this task, which only covers the
+    Learning Resource Draft/Publish/Unpublish workflow), so every
+    category - existing and newly created - defaults to "Published"
+    here (see _get_default_category_status_id below). This keeps
+    today's behavior unchanged (nothing was ever blocked by category
+    status before this column existed) while still making the status
+    real, queryable, and enforceable the moment a future feature (or a
+    direct DB edit) sets a category to Draft.
+    """
+    global _category_stats_column_ensured
+    if _category_stats_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {CATEGORY_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"category_stats_id INT NULL"
+        )
+        connection.commit()
+        cursor.close()
+        _category_stats_column_ensured = True
+    except Error as e:
+        print(f"manage_course: failed to ensure {CATEGORY_TABLE}.category_stats_id column exists: {e}")
+
+
 def ensure_module_stats(connection):
     """
     "If these records do not already exist, automatically insert them
@@ -89,6 +140,27 @@ def ensure_module_stats(connection):
         _module_stats_ensured = True
     except Error as e:
         print(f"manage_course: failed to seed module_stats_tbl: {e}")
+
+
+def _get_status_id_by_name(cursor, name):
+    """Shared lookup: resolves a status display name (e.g. 'Draft',
+    'Published') to its module_stats_tbl id. Used for both Module and
+    Category status defaults/validation, since they share one table."""
+    cursor.execute(
+        f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = %s",
+        (name,)
+    )
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def _get_default_category_status_id(cursor):
+    """
+    Task #43: new (and, via the ALTER above, existing) categories
+    default to "Published" - see ensure_category_stats_column()'s
+    docstring for why this is Published rather than Draft.
+    """
+    return _get_status_id_by_name(cursor, "Published")
 
 
 # ================================================================
@@ -132,6 +204,40 @@ def get_categories():
     except Error as e:
         print(f"manage_course: failed to load categories: {e}")
         return []
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_category_status(cat_id):
+    """
+    Task #43: resolves ONE category's Published/Draft/Archived status
+    (via category_stats_id -> module_stats_tbl), defaulting to
+    'Published' if the column is somehow NULL (matches the same
+    default new categories are created with). Returns None (never
+    raises) on any database error or if the category doesn't exist.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        ensure_category_stats_column(connection)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""
+            SELECT COALESCE(ms.module_stats_name, 'Published') AS status_name
+            FROM {CATEGORY_TABLE} c
+            LEFT JOIN {MODULE_STATS_TABLE} ms ON c.category_stats_id = ms.module_stats_id
+            WHERE c.cat_id = %s
+            """,
+            (cat_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row["status_name"] if row else None
+    except Error as e:
+        print(f"manage_course: failed to get category status: {e}")
+        return None
     finally:
         if connection.is_connected():
             connection.close()
@@ -193,6 +299,8 @@ def create_category(category_name):
         return False, "Could not connect to the database.", None
 
     try:
+        ensure_module_stats(connection)
+        ensure_category_stats_column(connection)
         cursor = connection.cursor()
         # Prevent duplicate category names (case-insensitive).
         cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s)", (name,))
@@ -200,7 +308,15 @@ def create_category(category_name):
             cursor.close()
             return False, "A category with this name already exists.", None
 
-        cursor.execute(f"INSERT INTO {CATEGORY_TABLE} (category_name) VALUES (%s)", (name,))
+        # Task #43: every new category gets an explicit status
+        # (defaults to Published - see ensure_category_stats_column()'s
+        # docstring) instead of being left NULL.
+        default_status_id = _get_default_category_status_id(cursor)
+
+        cursor.execute(
+            f"INSERT INTO {CATEGORY_TABLE} (category_name, category_stats_id) VALUES (%s, %s)",
+            (name, default_status_id)
+        )
         connection.commit()
         new_id = cursor.lastrowid
         cursor.close()

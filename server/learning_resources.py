@@ -14,6 +14,11 @@ inline in the routes file (per project convention).
 UPDATED: Created At / Updated At date filtering + real pagination,
 following the exact same convention manage_course.py's
 get_modules_overview() already established for Manage Course (Task #30).
+
+UPDATED (Task #43): Draft -> Publish -> Unpublish workflow.
+publish_learning_resource() / unpublish_learning_resource() live here
+(not admin_routes.py) per project convention - the routes in
+admin_routes.py only call into these and turn the result into JSON.
 """
 
 from mysql.connector import Error
@@ -22,6 +27,9 @@ from text_formatting import format_display_name  # NEW (Task #42): reuse the SAM
     # sentence-case normalizer Manage Course already uses for Category/Module
     # names ("iNtRoDuCtIoN" -> "Introduction"), instead of a second copy of
     # this rule.
+from manage_course import ensure_category_stats_column  # NEW (Task #43): reuse the
+    # SAME idempotent category_stats_id migration Manage Course owns,
+    # instead of a second copy of that ALTER TABLE logic here.
 
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 CATEGORY_TABLE = "category_tbl"
@@ -29,6 +37,8 @@ RESOURCE_TYPES_TABLE = "resource_types_tbl"
 LR_STATS_TABLE = "learning_resources_stats_tbl"
 ACCOUNT_TABLE = "account_tbl"
 PROFILE_TABLE = "profile_tbl"
+MODULES_TABLE = "modules_tbl"  # NEW (Task #43)
+MODULE_STATS_TABLE = "module_stats_tbl"  # NEW (Task #43) - shared by Category + Module status
 
 # NEW (Task #42): same seed-on-first-use convention as manage_course.py's
 # DEFAULT_STATUSES / ensure_module_stats() - learning_resources_stats_tbl
@@ -226,8 +236,9 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
             SELECT
                 lr.resource_id, lr.resource_title,
                 lr.resource_type_id, rt.resource_type_name,
-                c.category_name,
-                lrs.lr_stats_name,
+                lr.cat_id, c.category_name,
+                lr.module_id,
+                lr.lr_stats_id, lrs.lr_stats_name,
                 lr.uploaded_by,
                 a.username, p.firstname, p.lastname,
                 lr.created_at, lr.updated_at
@@ -253,7 +264,9 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                 # frontend never needs to filter/compare by name.
                 "type_id": row.get("resource_type_id"),
                 "type": row.get("resource_type_name") or "Unspecified",
+                "cat_id": row.get("cat_id"),  # NEW (Task #43): needed by the frontend Publish action
                 "category": row.get("category_name") or "Uncategorized",
+                "module_id": row.get("module_id"),  # NEW (Task #43)
                 "status": row.get("lr_stats_name") or "Draft",
                 "uploaded_by": uploader_name,
                 "created_at": _fmt_date(row.get("created_at")),
@@ -305,15 +318,25 @@ def ensure_lr_stats(connection):
         print(f"learning_resources: failed to seed {LR_STATS_TABLE}: {e}")
 
 
-def _get_default_lr_stats_id(cursor):
-    """New resources default to 'Draft', same convention as
-    manage_course.create_module()."""
+def _get_lr_status_id(cursor, name):
+    """
+    Task #43: resolves a learning_resources_stats_tbl status display
+    name ('Draft', 'Published') to its id - shared by
+    _get_default_lr_stats_id(), publish_learning_resource(), and
+    unpublish_learning_resource() so the lookup only lives in one place.
+    """
     cursor.execute(
         f"SELECT lr_stats_id FROM {LR_STATS_TABLE} WHERE lr_stats_name = %s",
-        ("Draft",)
+        (name,)
     )
     row = cursor.fetchone()
     return row[0] if row else None
+
+
+def _get_default_lr_stats_id(cursor):
+    """New resources default to 'Draft' (Task #43, Requirement #1) -
+    same convention as manage_course.create_module()."""
+    return _get_lr_status_id(cursor, "Draft")
 
 
 def is_resource_title_taken(title, exclude_resource_id=None):
@@ -361,6 +384,10 @@ def create_learning_resource(title, cat_id, module_id, resource_type_id, uploade
     submitted Category + Module.
     Task #42: enforces global lesson-title uniqueness and sentence-case
     normalization before that row is ever written.
+    Task #43, Requirement #1: EVERY new resource defaults to lr_stats
+    'Draft' (via _get_default_lr_stats_id() below) - this is the only
+    place a resource's initial status is ever set, and it is always
+    Draft, never Published, regardless of what the frontend sends.
 
     - Requirement #4: title is normalized to sentence case via
       format_display_name() BEFORE validation, duplicate-checking, or
@@ -416,6 +443,8 @@ def create_learning_resource(title, cat_id, module_id, resource_type_id, uploade
             cursor.close()
             return False, "The selected module does not belong to the selected category.", None
 
+        # Task #43, Requirement #1: always Draft on creation - never
+        # trusts a status value from the client (none is even accepted).
         default_status_id = _get_default_lr_stats_id(cursor)
 
         cursor.execute(
@@ -433,6 +462,153 @@ def create_learning_resource(title, cat_id, module_id, resource_type_id, uploade
         connection.rollback()
         print(f"learning_resources: failed to create resource: {e}")
         return False, f"Database error: {e}", None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ================================================================
+# TASK #43: DRAFT -> PUBLISH -> UNPUBLISH WORKFLOW
+# ================================================================
+def publish_learning_resource(resource_id):
+    """
+    Transitions a resource from Draft to Published - but ONLY after
+    verifying, server-side, that BOTH its parent Category and parent
+    Module are themselves Published. This is the authoritative check;
+    the frontend's confirmation dialog and button state are UX only and
+    must never be trusted on their own.
+
+    Rules enforced (Requirement #3):
+        - Resource must currently be Draft (not already Published).
+        - Category status must be 'Published' (see manage_course.py's
+          category_stats_id / ensure_category_stats_column()).
+        - Module status must be 'Published' (modules_tbl.module_stats_id).
+        - Only when BOTH are Published does the resource itself flip
+          to Published.
+
+    Returns (success: bool, message: str).
+    """
+    if not resource_id:
+        return False, "Resource ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_lr_stats(connection)
+        ensure_category_stats_column(connection)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            f"""
+            SELECT
+                lr.resource_id, lrs.lr_stats_name,
+                COALESCE(cs.module_stats_name, 'Published') AS category_status,
+                COALESCE(ms.module_stats_name, 'Draft') AS module_status
+            FROM {LEARNING_RESOURCES_TABLE} lr
+            LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
+            LEFT JOIN {MODULE_STATS_TABLE} cs ON c.category_stats_id = cs.module_stats_id
+            LEFT JOIN {MODULES_TABLE} m ON lr.module_id = m.module_id
+            LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+            WHERE lr.resource_id = %s
+            """,
+            (resource_id,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            cursor.close()
+            return False, "Resource not found."
+
+        if row["lr_stats_name"] == "Published":
+            cursor.close()
+            return False, "This resource is already published."
+
+        if row["category_status"] != "Published":
+            cursor.close()
+            return False, "Cannot publish: this resource's Category is not Published yet."
+
+        if row["module_status"] != "Published":
+            cursor.close()
+            return False, "Cannot publish: this resource's Module is not Published yet."
+
+        published_id = _get_lr_status_id(cursor, "Published")
+        if not published_id:
+            cursor.close()
+            return False, "Published status is not configured."
+
+        cursor.execute(
+            f"UPDATE {LEARNING_RESOURCES_TABLE} SET lr_stats_id = %s, updated_at = NOW() WHERE resource_id = %s",
+            (published_id, resource_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Resource published successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"learning_resources: failed to publish resource: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unpublish_learning_resource(resource_id):
+    """
+    Transitions a Published resource back to Draft (Requirement #6).
+    No parent-status re-check is needed here (Category/Module being
+    Draft never blocks moving something OUT of Published), but the
+    resource itself must currently be Published, so this can't be
+    called redundantly on an already-Draft resource.
+
+    Returns (success: bool, message: str).
+    """
+    if not resource_id:
+        return False, "Resource ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_lr_stats(connection)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            f"""SELECT lr.resource_id, lrs.lr_stats_name
+                FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.resource_id = %s""",
+            (resource_id,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            cursor.close()
+            return False, "Resource not found."
+
+        if row["lr_stats_name"] != "Published":
+            cursor.close()
+            return False, "This resource is not currently published."
+
+        draft_id = _get_lr_status_id(cursor, "Draft")
+        if not draft_id:
+            cursor.close()
+            return False, "Draft status is not configured."
+
+        cursor.execute(
+            f"UPDATE {LEARNING_RESOURCES_TABLE} SET lr_stats_id = %s, updated_at = NOW() WHERE resource_id = %s",
+            (draft_id, resource_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Resource moved back to Draft."
+    except Error as e:
+        connection.rollback()
+        print(f"learning_resources: failed to unpublish resource: {e}")
+        return False, f"Database error: {e}"
     finally:
         if connection.is_connected():
             connection.close()

@@ -158,6 +158,25 @@
                                 <td class="text-muted">{{ resource.updated_at }}</td>
                                 <td class="text-right">
                                     <div class="table-actions-group">
+                                        <!--
+                                            Task #43: Publish / Unpublish toggle,
+                                            reflecting the REAL DB status
+                                            (resource.status), not just a UI
+                                            guess. While Published, only
+                                            "Unpublish" is shown - there is no
+                                            way to accidentally re-trigger a
+                                            separate "Draft" action while
+                                            Published (Requirement #5).
+                                        -->
+                                        {% if resource.status == 'Published' %}
+                                        <a href="#" title="Unpublish" class="table-action-icon js-unpublish-resource" data-id="{{ resource.resource_id }}">
+                                            <i class="fa-solid fa-eye-slash"></i>
+                                        </a>
+                                        {% else %}
+                                        <a href="#" title="Publish" class="table-action-icon js-publish-resource" data-id="{{ resource.resource_id }}">
+                                            <i class="fa-solid fa-upload"></i>
+                                        </a>
+                                        {% endif %}
                                         <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
                                         <a href="#" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></a>
                                     </div>
