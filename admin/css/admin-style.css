@@ -1375,6 +1375,38 @@ body {
     font-size: 14px;
 }
 
+/* ==========================================================================
+   TASK #44: Unsaved Changes Modal (upload-resource.html:
+   #unsavedChangesModal) - three-action variant of the logout confirm
+   modal (Stay / Leave Without Saving / Save Draft & Leave).
+   ========================================================================== */
+.modal-confirm-actions-triple {
+    flex-wrap: wrap;
+}
+
+.modal-btn-save {
+    padding: 10px 20px;
+    border: none;
+    background: #09B300;
+    color: white;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-btn-save:hover {
+    background: #079600;
+}
+
+.modal-btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* --- Categories Modal Custom Styles --- */
 .custom-modal-overlay {
     position: fixed;

@@ -38,7 +38,7 @@ from lesson_validation import validate_lesson_title  # NEW - Task #42: global le
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
 )
-
+from resource_draft import save_lesson_draft  # NEW - Task #44: Upload Resource draft autosave
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1769,7 +1769,41 @@ def upload_resource_check_lesson_name():
 
     return jsonify({"success": True, "available": True, "normalized": result}), 200
 
+# ============================================================
+# ROUTE: TASK #44 - SAVE UPLOAD RESOURCE FORM AS A DRAFT
+# ============================================================
+@admin_bp.route('/upload-resource/save-draft', methods=['POST'])
+def upload_resource_save_draft():
+    """
+    Task #44: saves the Upload Resource form's current in-progress
+    values (lesson name, category, module, rich-text content) as a
+    real Draft row, so the admin's work survives navigating away
+    mid-edit. All persistence logic lives in resource_draft.py - this
+    route is a thin HTTP wrapper only, matching this project's existing
+    convention (see publish_learning_resource(), manage_course_delete_module(), etc.).
 
+    Expects JSON body: { resource_id, lesson_name, category_id, module_id, module_content }
+    resource_id is omitted/null on the very first save; the frontend
+    (upload-resource-draft-guard.js) echoes it back on every save
+    afterward so this always updates the SAME row in place.
+
+    Returns JSON: { "success": bool, "message": str, "resource_id": int | None }
+    """
+    data = request.get_json(silent=True) or {}
+
+    success, message, saved_resource_id = save_lesson_draft(
+        resource_id=data.get('resource_id'),
+        lesson_name=data.get('lesson_name'),
+        cat_id=data.get('category_id'),
+        module_id=data.get('module_id'),
+        content_html=data.get('module_content') or '',
+        uploaded_by=session.get('admin_id'),
+    )
+    return jsonify({
+        "success": success,
+        "message": message,
+        "resource_id": saved_resource_id,
+    }), (200 if success else 400)
 # ============================================================
 # ROUTE: TASK #41 - MODULES DEPENDENT ON SELECTED CATEGORY
 # ============================================================

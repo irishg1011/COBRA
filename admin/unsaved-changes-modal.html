@@ -1,0 +1,27 @@
+<!-- admin/unsaved-changes-modal.html
+     Task #44: Warns the admin before losing in-progress Upload
+     Resource form data (lesson name, category, module, or lesson
+     content) - whether they click away via the sidebar, the header
+     Back link, or close/refresh the tab. Styled identically to the
+     existing Logout Confirmation modal (admin-sidebar.html:
+     #adminLogoutModal) for visual consistency; wired up entirely by
+     upload-resource-draft-guard.js. Hidden by default. Included only
+     on upload-resource.html. -->
+<div id="unsavedChangesModal" class="modal-overlay modal-hidden">
+    <div class="modal-card modal-card-confirm">
+        <div class="modal-confirm-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="modal-confirm-icon-svg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+        </div>
+        <h3 class="modal-confirm-title">Leave without saving?</h3>
+        <p class="modal-confirm-text">You have unsaved changes to this lesson. Save your work as a draft, or leave and lose your changes.</p>
+        <div class="modal-confirm-actions modal-confirm-actions-triple">
+            <button type="button" id="unsavedStayBtn" class="modal-btn-cancel">Stay on Page</button>
+            <button type="button" id="unsavedLeaveBtn" class="modal-btn-danger">Leave Without Saving</button>
+            <button type="button" id="unsavedSaveAndLeaveBtn" class="modal-btn-save">
+                <i class="fa-regular fa-floppy-disk"></i> Save Draft &amp; Leave
+            </button>
+        </div>
+    </div>
+</div>

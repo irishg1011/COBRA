@@ -44,12 +44,13 @@
                             <button type="button" class="btn btn-light-custom">
                                 <i class="fa-regular fa-eye"></i> Preview Lesson
                             </button>
-                            <button type="button" class="btn btn-light-custom">
+                            <button type="button" class="btn btn-light-custom" id="saveDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
                             <button type="submit" form="uploadModuleForm" class="btn btn-success-custom">
                                 <i class="fa-solid fa-paper-plane"></i> Publish
                             </button>
+                            
                         </div>
                     </div>
                 </div>
@@ -177,6 +178,7 @@
                         <div class="editor-body">
                             <div id="editorContent" class="form-textarea" contenteditable="true" data-placeholder="Write your lesson content here... You can format text, headings, alignments, lists, quotes, and more."></div>
                             <input type="hidden" name="module_content" id="hiddenModuleContent">
+                            <input type="hidden" name="resource_id" id="resourceIdInput" value="">
                         </div>
 
                     </div>
@@ -184,6 +186,7 @@
                 </form>
 
             </div>
+            {% include 'unsaved-changes-modal.html' %}
         </main>
     </div>
 
@@ -192,5 +195,6 @@
 <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/upload-resource-draft-guard.js') }}"></script>
 </body>
 </html>
