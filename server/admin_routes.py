@@ -4,7 +4,9 @@ from datetime import datetime
 from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash  # NEW: reuses the exact same hashing scheme as the Learner Sign Up flow
-
+from learning_resources import (  # NEW: Learning Resources DB integration (Category/Type/Status/Uploader resolution)
+    get_learning_resources_overview, get_resource_type_options,
+)
 from cobradb import get_db_connection
 from account_status import refresh_inactive_accounts, get_account_status_counts  # NEW: shared, configurable Active/Inactive sweep + lean status-count aggregate
 from login_logs import get_todays_login_metrics  # NEW: today's login/success/fail counts for the Login Logs metric cards
@@ -1474,7 +1476,59 @@ def render_placeholder(title):
 
 @admin_bp.route('/learning-resources')
 def learning_resources():
-    return render_template('learning-resources.html')
+    """
+    Renders the Learning Resources page with LIVE data from
+    learning_resources_tbl - Category / Type / Status / Uploaded By /
+    Created At / Updated At are all resolved via
+    learning_resources.get_learning_resources_overview() (see that
+    module for the underlying joins), never hardcoded or mocked.
+
+    Calling it with no filters here means the page shows the full,
+    newest-first list the moment it loads - the same "server renders
+    real data on load" pattern already used by account_security() and
+    manage_course(). admin-learning-resources.js then takes over for
+    live search + type filtering, without a page reload.
+
+    DB unreachable -> render with an empty list rather than crashing;
+    the template's {% else %} branch already shows "No resources
+    found." for an empty list.
+    """
+    overview = get_learning_resources_overview()
+    if overview is None:
+        overview = {"resources": [], "total": 0}
+
+    return render_template(
+        'learning-resources.html',
+        resources=overview["resources"],
+        total_resources=overview["total"],
+        # NEW: Type filter dropdown options - populated dynamically from
+        # resource_types_tbl, never hardcoded Video/PDF/Image/Document.
+        resource_types=get_resource_type_options(),
+    )
+
+
+# ============================================================
+# ROUTE: LIVE LEARNING RESOURCES SEARCH + TYPE FILTER (JSON)
+# ============================================================
+@admin_bp.route('/learning-resources/data')
+def learning_resources_data():
+    """
+    Backend-driven live search/type-filter for the Learning Resources
+    table, mirroring /manage-course/data's pattern for consistency.
+
+    Query params (both optional):
+      q    - free-text search term (title / category / uploader name or username)
+      type - resource type display name (e.g. "Video"), or blank for "All Types"
+
+    Returns JSON: { "success": bool, "resources": [...], "total": int }
+    """
+    search = request.args.get('q', '')
+    resource_type = request.args.get('type', '')
+
+    overview = get_learning_resources_overview(search_query=search, type_filter=resource_type)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database.", "resources": []}), 500
+    return jsonify({"success": True, **overview}), 200
 
 @admin_bp.route('/learning-activities')
 def learning_activities():
