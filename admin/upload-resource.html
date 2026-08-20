@@ -84,7 +84,7 @@
                         <h2>New Lesson</h2>
                     </div>
 
-                    <!-- 4-Column Horizontal Fields: Lesson Name, Category, Module -->
+                    <!-- 4-Column Horizontal Fields: Lesson Name, Category, Module, Status -->
                     <div class="lesson-meta-grid">
                         <div class="form-group lesson-name-group-override">
                             <label for="lessonNameInput">Lesson Name</label>
@@ -129,6 +129,28 @@
                             <select id="moduleSelect" name="module_id" class="form-control" required disabled data-preselect-module-id="{{ existing_resource.module_id if existing_resource else '' }}">
                                 <option value="" disabled selected>Select module...</option>
                             </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="lessonStatusInput">Status</label>
+                            <!--
+                                Task #48: every resource created through this
+                                editor starts life as "Draft"
+                                (resource_draft.save_lesson_draft() always
+                                inserts with resource_publishing.get_draft_status_id()
+                                - never anything else), and Save Draft/re-saving
+                                an in-progress draft never changes that status
+                                on its own - only the Learning Resources table's
+                                Publish action does (resource_publishing.publish_resource()).
+                                Read-only here since this field is purely
+                                informational, mirroring the same disabled
+                                "Status" pattern already used on
+                                create-coding-exercise.html. Reflects the
+                                REAL status (resource_draft.get_lesson_draft())
+                                when reopening a saved resource, rather than
+                                always assuming "Draft".
+                            -->
+                            <input type="text" id="lessonStatusInput" class="form-control status-input-field" value="{{ existing_resource.status if existing_resource else 'Draft' }}" readonly>
                         </div>
                     </div>
 

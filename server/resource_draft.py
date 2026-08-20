@@ -38,6 +38,11 @@ from resource_publishing import get_draft_status_id
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 LESSON_CONTENT_TABLE = "lesson_content_tbl"
 RESOURCE_TYPES_TABLE = "resource_types_tbl"
+# NEW - Task #48: needed so get_lesson_draft() can resolve and display the
+# resource's real Draft/Published status name (see learning_resources.py /
+# resource_publishing.py, which already use this same table under this
+# same constant name).
+LR_STATS_TABLE = "learning_resources_stats_tbl"
 
 # The Upload Resource page has no Resource Type selector of its own -
 # every lesson created there is a "Lesson Content" resource. Never
@@ -109,10 +114,20 @@ def get_lesson_draft(resource_id):
 
     Returns:
         dict with keys resource_id, lesson_name, cat_id, module_id,
-        content_html - or None if resource_id is missing/invalid, the
-        resource doesn't exist, or the database is unreachable. Callers
-        should treat None exactly like "no draft to reload" (i.e. show
-        a normal blank form) rather than raising.
+        content_html, status - or None if resource_id is missing/invalid,
+        the resource doesn't exist, or the database is unreachable.
+        Callers should treat None exactly like "no draft to reload" (i.e.
+        show a normal blank form) rather than raising.
+
+        "status" (Task #48) is the resource's REAL, current
+        lr_stats_name ("Draft" by default, since every resource is
+        created via get_draft_status_id() - see save_lesson_draft()
+        below - and only ever moves to "Published" through
+        resource_publishing.publish_resource(), never through this
+        editor). It's resolved fresh from the database rather than
+        assumed, so if a resource somehow reaches this editor while
+        already Published, the New Lesson page's read-only Status field
+        reflects that truthfully instead of always claiming "Draft".
     """
     if not resource_id:
         return None
@@ -127,10 +142,17 @@ def get_lesson_draft(resource_id):
 
     try:
         cursor = connection.cursor(dictionary=True)
+        # Task #48: LEFT JOINed against learning_resources_stats_tbl so
+        # the resource's real status NAME comes back directly - never a
+        # raw lr_stats_id, and never an assumed/hardcoded "Draft" string.
+        # LEFT JOIN (not INNER) so a resource somehow missing its stats
+        # row still loads instead of silently disappearing.
         cursor.execute(
-            f"""SELECT resource_id, resource_title, cat_id, module_id
-                FROM {LEARNING_RESOURCES_TABLE}
-                WHERE resource_id = %s""",
+            f"""SELECT lr.resource_id, lr.resource_title, lr.cat_id, lr.module_id,
+                       lrs.lr_stats_name
+                FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.resource_id = %s""",
             (rid,)
         )
         resource = cursor.fetchone()
@@ -154,6 +176,11 @@ def get_lesson_draft(resource_id):
             # happen - save_lesson_draft() always writes one - but fail
             # safe with an empty editor rather than erroring) becomes "".
             "content_html": (content_row["content_body"] if content_row else "") or "",
+            # Task #48: real status name, defaulting to "Draft" only if
+            # the stats row is somehow missing - matches the default
+            # every other status display in this project already falls
+            # back to (see learning_resources.py's own "Draft" fallback).
+            "status": resource.get("lr_stats_name") or "Draft",
         }
     except Error as e:
         print(f"resource_draft: failed to load lesson draft for resource_id={resource_id}: {e}")
