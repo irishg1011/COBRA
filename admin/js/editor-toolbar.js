@@ -20,6 +20,41 @@ document.addEventListener("DOMContentLoaded", function () {
     const BLOCK_LEVEL_TAGS = ["h1", "h2", "h3", "div", "p", "blockquote", "li"];
     const EXIT_ON_ENTER_TAGS = ["h1", "h2", "h3", "blockquote"];
 
+    // --- Task #46: minimum lesson content before console/terminal blocks ---
+    //
+    // Requirement: "Restrict the addition of interactive console or
+    // terminal blocks so they cannot be inserted unless a minimum amount
+    // of lesson content text has been typed first." The threshold is
+    // measured against the admin's own narrative text - NOT the text
+    // typed inside an already-inserted console/output/terminal box - so
+    // padding out a code block's own content can never be used to game
+    // the check. See getMainLessonContentLength() below.
+    const MIN_LESSON_CONTENT_CHARS = 20;
+
+    function isInteractiveBlockWrapper(node) {
+        return !!(
+            node &&
+            node.nodeType === Node.ELEMENT_NODE &&
+            (node.classList.contains("editor-code-container") || node.classList.contains("editor-terminal-container"))
+        );
+    }
+
+    // Measures how much real lesson text the admin has written so far,
+    // deliberately excluding the contents of any already-inserted
+    // console/terminal block (filename, code, expected output, terminal
+    // text) - those are supporting material for a lesson, not the lesson
+    // narrative itself, so they should never count toward "enough
+    // content to justify adding another interactive block."
+    function getMainLessonContentLength() {
+        const clone = editor.cloneNode(true);
+        clone.querySelectorAll(".editor-code-container, .editor-terminal-container").forEach((n) => n.remove());
+        return clone.textContent.replace(/\s+/g, " ").trim().length;
+    }
+
+    function hasEnoughLessonContentForBlock() {
+        return getMainLessonContentLength() >= MIN_LESSON_CONTENT_CHARS;
+    }
+
     // --- Selection helpers ------------------------------------------------
 
     function getAnchorNode() {
@@ -438,6 +473,183 @@ document.addEventListener("DOMContentLoaded", function () {
 
     editor.addEventListener("beforeinput", pushHistoryThrottled);
 
+    // --- Task #46: guarded console/terminal block deletion ---------------
+    //
+    // Requirement: blocks may ONLY be removed via their own dedicated
+    // trash/delete button - never as a side effect of Backspace/Delete,
+    // a multi-node selection delete, or a cut. `intentionalBlockRemoval`
+    // is the single flag every legitimate removal path (the trash button,
+    // wired below and in insertCodeBlockTemplate()/insertTerminalBlockTemplate())
+    // sets immediately before calling wrapper.remove() - the
+    // MutationObserver below trusts this flag, and only this flag, to
+    // tell an intentional removal apart from an accidental one.
+    let intentionalBlockRemoval = false;
+
+    // Requirement: "Prompt a confirmation warning modal when deleting a
+    // console or terminal block that contains typed user inputs." Checks
+    // every field a block actually lets the admin type into.
+    function blockHasUserInput(wrapper) {
+        if (!wrapper) return false;
+
+        if (wrapper.classList.contains("editor-code-container")) {
+            const filenameInput = wrapper.querySelector(".editor-code-filename");
+            const consoleBox = wrapper.querySelector(".editor-console-box");
+            const outputBox = wrapper.querySelector(".editor-output-box");
+            const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
+
+            const filenameVal = filenameInput ? filenameInput.value.trim() : "";
+            const consoleVal = consoleBox ? consoleBox.textContent.trim() : "";
+            // Auto-evaluated output is placeholder text the admin never
+            // typed themselves - only count it when it's actually
+            // editable/manual.
+            const isManualOutput = !outputModeSelect || outputModeSelect.value !== "auto";
+            const outputVal = (isManualOutput && outputBox) ? outputBox.textContent.trim() : "";
+
+            return !!(filenameVal || consoleVal || outputVal);
+        }
+
+        if (wrapper.classList.contains("editor-terminal-container")) {
+            const terminalBox = wrapper.querySelector(".editor-terminal-box");
+            return !!(terminalBox && terminalBox.textContent.trim());
+        }
+
+        return false;
+    }
+
+    // Single source of truth for "actually remove this block" - used by
+    // every trash button (both newly-inserted blocks and blocks
+    // rehydrated from a saved draft/lesson). Confirms first if the block
+    // has typed content the admin would otherwise silently lose, then
+    // performs the removal through the same intentional-removal flag the
+    // MutationObserver safety net below relies on.
+    function confirmAndRemoveBlock(wrapper) {
+        if (!wrapper || !wrapper.parentNode) return;
+
+        if (blockHasUserInput(wrapper)) {
+            const confirmed = window.confirm(
+                "This block still has content you typed (filename, code, expected output, or terminal " +
+                "text). Deleting it will permanently lose that content. Delete it anyway?"
+            );
+            if (!confirmed) return;
+        }
+
+        intentionalBlockRemoval = true;
+        wrapper.remove();
+        pushHistory();
+        intentionalBlockRemoval = false;
+    }
+
+    // Safety net: catches any removal of a console/terminal wrapper that
+    // did NOT go through confirmAndRemoveBlock() above - e.g. Backspace/
+    // Delete at a block boundary the keydown guard below didn't catch, a
+    // selection spanning a block, or a cut - and puts the block right
+    // back where it was, then explains why. The keydown guard is what
+    // makes the common single-caret case feel instant (no flicker); this
+    // observer is the guarantee that a block can never actually be lost
+    // through anything other than its own trash button.
+    const blockRemovalGuard = new MutationObserver((mutationList) => {
+        if (intentionalBlockRemoval) return;
+
+        let restoredAny = false;
+
+        mutationList.forEach((mutation) => {
+            mutation.removedNodes.forEach((node) => {
+                if (isInteractiveBlockWrapper(node)) {
+                    try {
+                        mutation.target.insertBefore(node, mutation.nextSibling || null);
+                        restoredAny = true;
+                    } catch (err) {
+                        // Parent no longer in the document (e.g. an
+                        // ancestor was also removed) - nothing sensible
+                        // to restore into; fall through.
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE && typeof node.querySelectorAll === "function") {
+                    // A wrapper nested inside a removed ancestor (e.g. an
+                    // entire paragraph deleted around it) - best-effort
+                    // restore by appending it back to the editor so the
+                    // block itself is never silently lost.
+                    const nested = node.querySelectorAll(".editor-code-container, .editor-terminal-container");
+                    nested.forEach((wrapper) => {
+                        editor.appendChild(wrapper);
+                        restoredAny = true;
+                    });
+                }
+            });
+        });
+
+        if (restoredAny) {
+            alert("Console and terminal blocks can only be removed using their delete (trash) button.");
+        }
+    });
+    blockRemovalGuard.observe(editor, { childList: true, subtree: true });
+
+    // Proactive guard: prevents the common case (caret sitting directly
+    // next to a block) from ever deleting/merging into the block wrapper
+    // in the first place, so there's no visible flicker before the
+    // MutationObserver safety net above would otherwise restore it.
+    function findAdjacentBlockWrapper(key) {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return null;
+        const range = selection.getRangeAt(0);
+        // A real (non-collapsed) selection is handled by the
+        // MutationObserver safety net instead - too many shapes to
+        // reason about precisely here.
+        if (!range.collapsed) return null;
+
+        let node = range.startContainer;
+        let offset = range.startOffset;
+
+        if (key === "Backspace") {
+            if (node.nodeType === Node.TEXT_NODE) {
+                if (offset > 0) return null; // caret is mid/end of text - safe
+                node = node.parentNode;
+            } else if (offset > 0) {
+                const prev = node.childNodes[offset - 1];
+                return isInteractiveBlockWrapper(prev) ? prev : null;
+            }
+            // Caret sits at the very start of its element - walk up
+            // toward the editor looking for a wrapper as the previous
+            // sibling at any level.
+            let current = node;
+            while (current && current !== editor) {
+                if (current.previousSibling) {
+                    return isInteractiveBlockWrapper(current.previousSibling) ? current.previousSibling : null;
+                }
+                current = current.parentNode;
+            }
+            return null;
+        }
+
+        if (key === "Delete") {
+            if (node.nodeType === Node.TEXT_NODE) {
+                if (offset < node.textContent.length) return null; // caret is before end of text - safe
+                node = node.parentNode;
+            } else if (offset < node.childNodes.length) {
+                const next = node.childNodes[offset];
+                return isInteractiveBlockWrapper(next) ? next : null;
+            }
+            let current = node;
+            while (current && current !== editor) {
+                if (current.nextSibling) {
+                    return isInteractiveBlockWrapper(current.nextSibling) ? current.nextSibling : null;
+                }
+                current = current.parentNode;
+            }
+            return null;
+        }
+
+        return null;
+    }
+
+    editor.addEventListener("keydown", function (e) {
+        if (e.key !== "Backspace" && e.key !== "Delete") return;
+        const adjacentWrapper = findAdjacentBlockWrapper(e.key);
+        if (adjacentWrapper) {
+            e.preventDefault();
+            alert("Console and terminal blocks can only be removed using their delete (trash) button.");
+        }
+    });
+
     // Main entry point used by the toolbar buttons.
     function setBlockFormat(action) {
         const anchorNode = getAnchorNode();
@@ -495,6 +707,19 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             if (action === "redo") {
                 performRedo();
+                return;
+            }
+
+            // Task #46: check the state of the main text editor content
+            // BEFORE doing anything else for these two actions - no
+            // history snapshot, no insertion - so a blocked attempt
+            // leaves the editor and its undo stack completely untouched.
+            if ((action === "codeBlock" || action === "terminalBlock") && !hasEnoughLessonContentForBlock()) {
+                const blockLabel = action === "codeBlock" ? "console" : "terminal";
+                alert(
+                    `Please write at least ${MIN_LESSON_CONTENT_CHARS} characters of lesson content ` +
+                    `before adding a ${blockLabel} block.`
+                );
                 return;
             }
 
@@ -642,10 +867,12 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
         `;
 
-        // Delete Block Event Listener
+        // Delete Block Event Listener (Task #46: confirms first if the
+        // block has typed content, and always removes via the shared
+        // guarded path so the MutationObserver safety net recognizes
+        // this as an intentional removal).
         wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
-            wrapper.remove();
-            pushHistory();
+            confirmAndRemoveBlock(wrapper);
         });
 
         const modeSelect = wrapper.querySelector(".editor-code-mode-select");
@@ -717,8 +944,7 @@ document.addEventListener("DOMContentLoaded", function () {
         `;
 
         wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
-            wrapper.remove();
-            pushHistory();
+            confirmAndRemoveBlock(wrapper);
         });
 
         range.deleteContents();
@@ -799,8 +1025,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const btn = wrapper.querySelector(".editor-delete-block-btn");
         if (btn) {
             btn.addEventListener("click", function () {
-                wrapper.remove();
-                pushHistory();
+                confirmAndRemoveBlock(wrapper);
             });
         }
     }
