@@ -89,6 +89,80 @@ def _get_lesson_content_type_id(connection):
     return row[0] if row else None
 
 
+def get_lesson_draft(resource_id):
+    """
+    Task #45: Companion read-path to save_lesson_draft() below - fetches
+    a previously saved lesson's metadata (title, category, module) AND
+    its full lesson_content_tbl.content_body (the rich-text editor's
+    complete innerHTML, including every nested interactive block: code
+    console containers with their filename/mode fields, expected-output
+    boxes, and terminal blocks) so admin_routes.py's upload_resource()
+    GET handler can hand it straight to the template and have the New
+    Lesson page reopen exactly as it was left - not just the plain text,
+    but every embedded block and field.
+
+    Args:
+        resource_id (int | str | None): the learning_resources_tbl.resource_id
+            to load. Falsy/invalid values short-circuit to None so this
+            is always safe to call with a raw, unvalidated query-string
+            value.
+
+    Returns:
+        dict with keys resource_id, lesson_name, cat_id, module_id,
+        content_html - or None if resource_id is missing/invalid, the
+        resource doesn't exist, or the database is unreachable. Callers
+        should treat None exactly like "no draft to reload" (i.e. show
+        a normal blank form) rather than raising.
+    """
+    if not resource_id:
+        return None
+    try:
+        rid = int(resource_id)
+    except (TypeError, ValueError):
+        return None
+
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""SELECT resource_id, resource_title, cat_id, module_id
+                FROM {LEARNING_RESOURCES_TABLE}
+                WHERE resource_id = %s""",
+            (rid,)
+        )
+        resource = cursor.fetchone()
+        if not resource:
+            cursor.close()
+            return None
+
+        cursor.execute(
+            f"SELECT content_body FROM {LESSON_CONTENT_TABLE} WHERE resource_id = %s",
+            (rid,)
+        )
+        content_row = cursor.fetchone()
+        cursor.close()
+
+        return {
+            "resource_id": resource["resource_id"],
+            "lesson_name": resource["resource_title"],
+            "cat_id": resource["cat_id"],
+            "module_id": resource["module_id"],
+            # NULL/no lesson_content_tbl row yet (shouldn't normally
+            # happen - save_lesson_draft() always writes one - but fail
+            # safe with an empty editor rather than erroring) becomes "".
+            "content_html": (content_row["content_body"] if content_row else "") or "",
+        }
+    except Error as e:
+        print(f"resource_draft: failed to load lesson draft for resource_id={resource_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html, uploaded_by=None):
     """
     Saves (creating or updating) a Draft learning_resources_tbl /

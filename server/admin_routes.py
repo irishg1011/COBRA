@@ -38,7 +38,7 @@ from lesson_validation import validate_lesson_title  # NEW - Task #42: global le
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
 )
-from resource_draft import save_lesson_draft  # NEW - Task #44: Upload Resource draft autosave
+from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1669,64 +1669,96 @@ def reports():
 @admin_bp.route('/upload-resource', methods=['GET', 'POST'])
 def upload_resource():
     """
-    Task #42: the lesson's title (posted as `lesson_name`) is now
-    validated before anything else happens - normalized to sentence
-    case, then checked for GLOBAL uniqueness across every category and
-    module in learning_resources_tbl - via
-    lesson_validation.validate_lesson_title(), a separate, reusable
-    module (never inline validation logic here, matching this
-    project's existing "no new logic inline inside admin_routes.py"
-    convention - see manage_course.py / learning_resources.py /
-    account_status.py).
+    Task #42: the lesson's title (posted as `lesson_name`) is still
+    validated first - normalized to sentence case, then checked for
+    GLOBAL uniqueness across every category and module in
+    learning_resources_tbl. That rule now lives one level down, inside
+    resource_draft.save_lesson_draft() (which itself calls
+    lesson_validation.validate_lesson_title() - never re-implemented
+    here), since Task #45 needs the SAME save path Publish and Save
+    Draft both go through.
 
-    On failure (missing name, or a global duplicate), the error is
-    flashed and the admin is redirected back to this same page - no
-    partial/invalid data is ever saved. On success, `lesson_name` has
-    already been normalized ("javascript" -> "Javascript") and is ready
-    to be persisted by the resource-creation/status workflow.
+    Task #45: this route used to stop at validating the title and threw
+    everything else away (see the old commented-out INSERT that never
+    ran). It now actually PERSISTS the lesson - metadata (title,
+    category, module) AND the full rich-text content, including every
+    nested interactive block (code console containers with their
+    filename/mode/expected-output fields, terminal blocks) - via
+    resource_draft.save_lesson_draft(), the exact same function
+    upload_resource_save_draft() below already uses for "Save Draft".
+    Publish and Save Draft can therefore never disagree about how a
+    lesson is stored; the only thing Publish does on top of that is
+    flip the resource's status to "Published" afterward via
+    resource_publishing.publish_resource() - which still enforces its
+    own authoritative "parent module must already be Published" gate
+    regardless of what this route does. No new persistence logic lives
+    inline here - both save_lesson_draft() (resource_draft.py) and
+    publish_resource() (resource_publishing.py) are the single sources
+    of truth, matching this project's existing convention.
+
+    On failure (missing/duplicate title, or the save otherwise fails),
+    the error is flashed and the admin is redirected back to this same
+    page - no partial/invalid data is ever saved.
+
+    On GET, an optional ?resource_id= query param reloads a previously
+    saved resource (its metadata AND its full content_body - every
+    embedded interactive block included) back into the form/editor via
+    resource_draft.get_lesson_draft(), instead of always starting
+    blank. Absent/invalid/unknown resource_id behaves exactly like
+    before - a normal blank form.
     """
     if request.method == 'POST':
         lesson_name = (request.form.get('lesson_name') or '').strip()
+        cat_id = request.form.get('category_id') or None
+        module_id = request.form.get('module_id') or None
+        module_content = request.form.get('module_content') or ''
+        resource_id = request.form.get('resource_id') or None
 
-        is_valid, result = validate_lesson_title(lesson_name)
-        if not is_valid:
-            # `result` is the human-readable error message when
-            # is_valid is False (required / DB unreachable / duplicate).
-            flash(result, 'error')
+        success, message, saved_resource_id = save_lesson_draft(
+            resource_id=resource_id,
+            lesson_name=lesson_name,
+            cat_id=cat_id,
+            module_id=module_id,
+            content_html=module_content,
+            uploaded_by=session.get('admin_id'),
+        )
+
+        if not success:
+            flash(message, 'error')
+            # Keep the admin on the same in-progress resource (if one
+            # already exists) rather than bouncing them back to a blank
+            # form and losing their place.
+            redirect_resource_id = saved_resource_id or resource_id
+            if redirect_resource_id:
+                return redirect(url_for('admin_bp.upload_resource', resource_id=redirect_resource_id))
             return redirect(url_for('admin_bp.upload_resource'))
 
-        # `result` is now the normalized ("sentence case") lesson title -
-        # e.g. "javascript" / "JAVASCRIPT" / "jAvAsCrIpT" all become
-        # "Javascript". This is the exact value that MUST be used
-        # wherever the learning_resources_tbl row is actually persisted.
-        normalized_lesson_name = result  # noqa: F841 - consumed by the resource-creation workflow
+        publish_success, publish_message = publish_resource(saved_resource_id)
+        if not publish_success:
+            # The lesson itself saved successfully - only the "go live"
+            # step was blocked (most commonly: the parent module isn't
+            # Published yet). Say so plainly instead of a generic
+            # failure message, and stay on this same resource.
+            flash(f"Lesson saved as a draft, but could not publish it: {publish_message}", 'error')
+            return redirect(url_for('admin_bp.upload_resource', resource_id=saved_resource_id))
 
-        # NEW - Task #43: whenever the actual INSERT into
-        # learning_resources_tbl is wired up here, its lr_stats_id MUST
-        # come from get_draft_status_id() - never a hardcoded id - so
-        # every newly created resource starts out as "Draft" and can
-        # only go live through the explicit Publish action (see
-        # publish_learning_resource() above), which itself refuses to
-        # publish until the resource's parent module is "Published".
-        #
-        #     draft_status_id = get_draft_status_id()
-        #     cursor.execute(
-        #         "INSERT INTO learning_resources_tbl "
-        #         "(resource_title, resource_type_id, cat_id, module_id, "
-        #         " uploaded_by, lr_stats_id, created_at, updated_at) "
-        #         "VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())",
-        #         (normalized_lesson_name, ..., ..., ..., ..., draft_status_id)
-        #     )
-
-        flash('Lesson name validated successfully.', 'success')
-        return redirect(url_for('admin_bp.upload_resource'))
+        flash('Lesson published successfully.', 'success')
+        return redirect(url_for('admin_bp.learning_resources'))
 
     # Task #41: Category dropdown is rendered server-side from real
     # category_tbl rows (same get_categories() Manage Course already
     # uses) - never hardcoded. The Module dropdown starts empty/disabled
     # in the template and is populated live by upload-resource.js once
-    # the Admin picks a Category.
-    return render_template('upload-resource.html', categories=get_categories())
+    # the Admin picks a Category (or immediately, if reloading an
+    # existing resource - see below).
+    resource_id = request.args.get('resource_id', '') or None
+    existing_resource = get_lesson_draft(resource_id) if resource_id else None
+
+    return render_template(
+        'upload-resource.html',
+        categories=get_categories(),
+        existing_resource=existing_resource,
+    )
 
 
 # ============================================================

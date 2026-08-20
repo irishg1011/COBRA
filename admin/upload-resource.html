@@ -99,7 +99,7 @@
                                 server-side (lesson_validation.py) before
                                 it's ever compared or saved.
                             -->
-                            <input type="text" id="lessonNameInput" name="lesson_name" class="form-control" placeholder="e.g. Introduction to Python" autocomplete="off" required>
+                            <input type="text" id="lessonNameInput" name="lesson_name" class="form-control" placeholder="e.g. Introduction to Python" autocomplete="off" value="{{ existing_resource.lesson_name if existing_resource else '' }}" required>
                             <p id="lessonNameError" class="js-error-message" style="display: none; color: #e02424; font-size: 12px; margin-top: 6px;"></p>
                         </div>
 
@@ -112,9 +112,9 @@
                                 category_name. No hardcoded categories or IDs.
                             -->
                             <select id="categorySelect" name="category_id" class="form-control" required>
-                                <option value="" disabled selected>Select category...</option>
+                                <option value="" disabled {{ 'selected' if not existing_resource }}>Select category...</option>
                                 {% for cat in categories %}
-                                <option value="{{ cat.cat_id }}">{{ cat.category_name }}</option>
+                                <option value="{{ cat.cat_id }}" {{ 'selected' if existing_resource and existing_resource.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -126,7 +126,7 @@
                                 populates it live from modules_tbl (filtered by the selected
                                 Category's cat_id) once a valid Category is chosen.
                             -->
-                            <select id="moduleSelect" name="module_id" class="form-control" required disabled>
+                            <select id="moduleSelect" name="module_id" class="form-control" required disabled data-preselect-module-id="{{ existing_resource.module_id if existing_resource else '' }}">
                                 <option value="" disabled selected>Select module...</option>
                             </select>
                         </div>
@@ -176,9 +176,9 @@
 
                         <!-- Visual ContentEditable Editor Body -->
                         <div class="editor-body">
-                            <div id="editorContent" class="form-textarea" contenteditable="true" data-placeholder="Write your lesson content here... You can format text, headings, alignments, lists, quotes, and more."></div>
+                            <div id="editorContent" class="form-textarea" contenteditable="true" data-placeholder="Write your lesson content here... You can format text, headings, alignments, lists, quotes, and more.">{{ existing_resource.content_html | safe if existing_resource else '' }}</div>
                             <input type="hidden" name="module_content" id="hiddenModuleContent">
-                            <input type="hidden" name="resource_id" id="resourceIdInput" value="">
+                            <input type="hidden" name="resource_id" id="resourceIdInput" value="{{ existing_resource.resource_id if existing_resource else '' }}">
                         </div>
 
                     </div>

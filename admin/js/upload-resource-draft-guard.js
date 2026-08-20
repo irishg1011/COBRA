@@ -155,6 +155,16 @@
             }
 
             try {
+                // Task #45: same fix as the real Publish submit (see
+                // editor-toolbar.js's syncInteractiveBlockValues()) -
+                // without this, a filename typed or a mode dropdown
+                // changed inside a code/terminal block would silently
+                // vanish from the draft the moment it's saved, since
+                // those live values never make it into editor.innerHTML
+                // on their own.
+                if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
+                    window.cobraByteSyncInteractiveBlocks();
+                }
                 if (hiddenContent && editor) hiddenContent.value = editor.innerHTML;
 
                 const response = await fetch("/admin/upload-resource/save-draft", {

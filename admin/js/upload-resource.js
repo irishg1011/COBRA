@@ -99,6 +99,27 @@
             categorySelect.addEventListener("change", () => {
                 loadModulesForCategory(categorySelect.value);
             });
+
+            // Task #45: when reopening a previously saved resource, the
+            // server already renders categorySelect with the right
+            // option selected (see admin_routes.py's upload_resource()
+            // GET handler + upload-resource.html), but the dependent
+            // Module dropdown still starts out empty/disabled - it's
+            // only ever populated by the "change" handler above, which
+            // never fires just from the server pre-selecting a value.
+            // Kick off that same load once on page load whenever a
+            // category is already selected, then restore the saved
+            // module (moduleSelect's data-preselect-module-id, rendered
+            // server-side from existing_resource.module_id) once the
+            // real module list has finished loading.
+            if (categorySelect.value) {
+                const preselectModuleId = moduleSelect.dataset.preselectModuleId || "";
+                loadModulesForCategory(categorySelect.value).then(() => {
+                    if (preselectModuleId) {
+                        moduleSelect.value = preselectModuleId;
+                    }
+                });
+            }
         }
 
         // ------------------------------------------------------------
@@ -228,4 +249,3 @@
         }
     });
 })();
-

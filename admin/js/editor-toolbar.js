@@ -732,6 +732,140 @@ document.addEventListener("DOMContentLoaded", function () {
         pushHistory();
     }
 
+    // --- Task #45: interactive block value sync (save) & rehydration (load) ---
+    //
+    // WHY THIS EXISTS: the code console / terminal blocks built by
+    // insertCodeBlockTemplate()/insertTerminalBlockTemplate() above mix
+    // two kinds of editable surfaces inside the SAME wrapper:
+    //   - contenteditable <div>s (console box, output box, terminal box)
+    //     - typed content DOES serialize into editor.innerHTML for free,
+    //       since it's real DOM content.
+    //   - real form controls (<input class="editor-code-filename">,
+    //     <select class="editor-code-mode-select">,
+    //     <select class="editor-output-mode-select">) - typing/selecting
+    //     updates their live DOM .value, but that does NOT get reflected
+    //     back into the `value=""` / `selected` HTML attributes, which is
+    //     the only thing editor.innerHTML actually serializes for form
+    //     controls. Left alone, every filename typed and every dropdown
+    //     choice made would silently vanish the moment editor.innerHTML
+    //     was captured into the hidden field and saved - the exact "drop
+    //     secondary builder elements during database submission" failure
+    //     Task #45 calls out.
+    //
+    // syncInteractiveBlockValues() fixes the write side: called right
+    // before ANY capture of editor.innerHTML (both the real Publish
+    // submit below, and Save Draft - see
+    // upload-resource-draft-guard.js's performSaveDraft(), which calls
+    // window.cobraByteSyncInteractiveBlocks() for the exact same reason
+    // before its own fetch()), it copies each control's current live
+    // value into the attribute that actually gets serialized.
+    function syncInteractiveBlockValues() {
+        editor.querySelectorAll(".editor-code-filename").forEach((input) => {
+            input.setAttribute("value", input.value || "");
+        });
+        editor.querySelectorAll(".editor-code-mode-select, .editor-output-mode-select").forEach((select) => {
+            Array.from(select.options).forEach((opt) => {
+                if (opt.value === select.value) {
+                    opt.setAttribute("selected", "selected");
+                } else {
+                    opt.removeAttribute("selected");
+                }
+            });
+        });
+    }
+    // Exposed globally so upload-resource-draft-guard.js's Save Draft
+    // flow can run the exact same fix before ITS OWN capture of
+    // editor.innerHTML, instead of a second, divergent copy of this
+    // logic.
+    window.cobraByteSyncInteractiveBlocks = syncInteractiveBlockValues;
+
+    // hydrateExistingInteractiveBlocks() is the read-side companion:
+    // when a saved lesson's content_body (already-serialized HTML,
+    // complete with the value="..."/selected fixes above) is reloaded
+    // into #editorContent by the server (see admin_routes.py's
+    // upload_resource() GET handler + upload-resource.html), the
+    // restored <select> elements' change handlers and each block's
+    // delete button are NOT wired up automatically - those listeners
+    // only ever got attached at the moment a NEW block was inserted via
+    // insertCodeBlockTemplate()/insertTerminalBlockTemplate() during
+    // this same page session, never for markup that arrived already
+    // sitting in the DOM on page load. Without this, a reloaded code
+    // block's mode dropdown would LOOK right (selected value restored)
+    // but silently do nothing when changed, and its delete button
+    // wouldn't work either - exactly the "retrieved resource content
+    // renders fully with all integrated functions ... intact"
+    // requirement this task calls out.
+    function wireDeleteButton(wrapper) {
+        const btn = wrapper.querySelector(".editor-delete-block-btn");
+        if (btn) {
+            btn.addEventListener("click", function () {
+                wrapper.remove();
+                pushHistory();
+            });
+        }
+    }
+
+    function wireCodeContainer(wrapper) {
+        wireDeleteButton(wrapper);
+
+        const modeSelect = wrapper.querySelector(".editor-code-mode-select");
+        const outputPane = wrapper.querySelector(".output-card-pane");
+        const consolePane = wrapper.querySelector(".console-card-pane");
+        const runBtn = wrapper.querySelector(".run-btn");
+        const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
+        const outputBox = wrapper.querySelector(".editor-output-box");
+        const outputDesc = wrapper.querySelector(".output-desc-text");
+
+        if (modeSelect) {
+            modeSelect.addEventListener("change", function () {
+                if (this.value === "snippet") {
+                    outputPane.style.display = "none";
+                    runBtn.style.display = "none";
+                    consolePane.style.gridColumn = "1 / -1";
+                } else {
+                    outputPane.style.display = "flex";
+                    runBtn.style.display = "flex";
+                    consolePane.style.gridColumn = "auto";
+                }
+            });
+            // Apply whatever mode was restored from the database so the
+            // layout matches the saved selection immediately, not just
+            // after the admin manually re-toggles it.
+            if (modeSelect.value === "snippet") {
+                outputPane.style.display = "none";
+                runBtn.style.display = "none";
+                consolePane.style.gridColumn = "1 / -1";
+            }
+        }
+
+        if (outputModeSelect) {
+            outputModeSelect.addEventListener("change", function () {
+                if (this.value === "auto") {
+                    outputBox.contentEditable = "false";
+                    outputBox.style.background = "#f3f4f6";
+                    outputBox.style.color = "#6b7280";
+                    outputBox.textContent = "// Output will be automatically evaluated from code execution...";
+                    outputDesc.textContent = "Output is dynamically generated based on code execution.";
+                } else {
+                    outputBox.contentEditable = "true";
+                    outputBox.style.background = "#ffffff";
+                    outputBox.style.color = "#374151";
+                    outputDesc.textContent = "Set the expected output manually.";
+                }
+            });
+        }
+    }
+
+    function wireTerminalContainer(wrapper) {
+        wireDeleteButton(wrapper);
+    }
+
+    function hydrateExistingInteractiveBlocks() {
+        editor.querySelectorAll(".editor-code-container").forEach(wireCodeContainer);
+        editor.querySelectorAll(".editor-terminal-container").forEach(wireTerminalContainer);
+    }
+    hydrateExistingInteractiveBlocks();
+
     // --- State sync ---------------------------------------------------------
 
     function updateToolbarStates() {
@@ -821,6 +955,10 @@ document.addEventListener("DOMContentLoaded", function () {
     editor.addEventListener("input", updateToolbarStates);
 
     form.addEventListener("submit", function () {
+        // Task #45: must run BEFORE reading editor.innerHTML, or every
+        // filename/dropdown selection typed into a code block would be
+        // silently dropped from what actually gets saved.
+        syncInteractiveBlockValues();
         hiddenInput.value = editor.innerHTML;
     });
 });
@@ -855,4 +993,3 @@ document.addEventListener("keydown", function (e) {
         }
     }
 });
-
