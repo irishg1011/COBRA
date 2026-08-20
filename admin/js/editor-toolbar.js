@@ -55,6 +55,28 @@ document.addEventListener("DOMContentLoaded", function () {
         return getMainLessonContentLength() >= MIN_LESSON_CONTENT_CHARS;
     }
 
+    // --- Task #47: pre-filled, runnable Python example for new console blocks ---
+    //
+    // Requirement: every newly-inserted interactive exercise block should
+    // land with a real, syntactically valid Python example (a function
+    // definition, code that actually calls it, and the matching expected
+    // output) instead of empty boxes - so the admin has a working
+    // starting point to edit rather than a blank slate.
+    const DEFAULT_CODE_FILENAME = "main.py";
+    const DEFAULT_CODE_EXAMPLE =
+        "def calculate_average(numbers):\n" +
+        "    \"\"\"Return the average of a list of numbers.\"\"\"\n" +
+        "    if not numbers:\n" +
+        "        return 0\n" +
+        "    return sum(numbers) / len(numbers)\n" +
+        "\n" +
+        "\n" +
+        "scores = [85, 92, 78, 90, 88]\n" +
+        "result = calculate_average(scores)\n" +
+        "print(f\"Average score: {result}\")";
+    // Matches DEFAULT_CODE_EXAMPLE exactly: (85+92+78+90+88) / 5 = 86.6
+    const DEFAULT_CODE_OUTPUT = "Average score: 86.6";
+
     // --- Selection helpers ------------------------------------------------
 
     function getAnchorNode() {
@@ -866,6 +888,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
             </div>
         `;
+
+        // Task #47: seed the block with a real, ready-to-run example
+        // instead of empty inputs - filename, a working function
+        // definition + call, and the output that call actually produces.
+        // Set via the DOM properties (not string-interpolated into the
+        // template above) so nothing about the example code - quotes,
+        // braces, f-strings - needs HTML-escaping.
+        const filenameInput = wrapper.querySelector(".editor-code-filename");
+        if (filenameInput) filenameInput.value = DEFAULT_CODE_FILENAME;
+
+        const consoleBoxEl = wrapper.querySelector(".editor-console-box");
+        if (consoleBoxEl) consoleBoxEl.textContent = DEFAULT_CODE_EXAMPLE;
+
+        const outputBoxEl = wrapper.querySelector(".editor-output-box");
+        if (outputBoxEl) outputBoxEl.textContent = DEFAULT_CODE_OUTPUT;
 
         // Delete Block Event Listener (Task #46: confirms first if the
         // block has typed content, and always removes via the shared
