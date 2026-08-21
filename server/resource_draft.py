@@ -34,6 +34,7 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from lesson_validation import format_lesson_title, is_lesson_title_taken
 from resource_publishing import get_draft_status_id
+from lesson_content_validation import validate_lesson_content  # NEW
 
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 LESSON_CONTENT_TABLE = "lesson_content_tbl"
@@ -225,14 +226,23 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
         return False, "Please select a category before saving a draft.", None
     if not module_id:
         return False, "Please select a module before saving a draft.", None
+    if not module_id:
+        return False, "Please select a module before saving a draft.", None
 
+    # NEW: Lesson Message minimum length - enforced here so it applies
+    # identically to Publish AND Save Draft, for a new lesson or an
+    # edit, and can never be bypassed by skipping the browser check.
+    content_ok, content_message = validate_lesson_content(content_html)
+    if not content_ok:
+        return False, content_message, None
+    
     existing_id = None
     if resource_id:
         try:
             existing_id = int(resource_id)
         except (TypeError, ValueError):
             existing_id = None
-
+    
     connection = get_db_connection()
     if connection is None:
         return False, "Could not connect to the database.", None

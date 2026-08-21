@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // typed inside an already-inserted console/output/terminal box - so
     // padding out a code block's own content can never be used to game
     // the check. See getMainLessonContentLength() below.
+    const MIN_CONTENT_BEFORE_BLOCK = 1;
     const MIN_LESSON_CONTENT_CHARS = 20;
 
     function isInteractiveBlockWrapper(node) {
@@ -52,7 +53,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function hasEnoughLessonContentForBlock() {
-        return getMainLessonContentLength() >= MIN_LESSON_CONTENT_CHARS;
+        return getMainLessonContentLength() >= MIN_CONTENT_BEFORE_BLOCK;
     }
 
     // --- Task #47: pre-filled, runnable Python example for new console blocks ---
@@ -62,7 +63,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // definition, code that actually calls it, and the matching expected
     // output) instead of empty boxes - so the admin has a working
     // starting point to edit rather than a blank slate.
-    const DEFAULT_CODE_FILENAME = "main.py";
+    const DEFAULT_CODE_FILENAME = "";
     const DEFAULT_CODE_EXAMPLE =
         "def calculate_average(numbers):\n" +
         "    \"\"\"Return the average of a list of numbers.\"\"\"\n" +
@@ -206,34 +207,50 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function placeCaretAtEnd(el) {
-        const target = getDeepLastNode(el);
-        const range = document.createRange();
-        if (target.nodeType === Node.TEXT_NODE) {
-            range.setStart(target, target.textContent.length);
-            range.collapse(true);
-        } else {
-            range.selectNodeContents(target);
-            range.collapse(false);
-        }
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+    const target = getDeepLastNode(el);
+    const range = document.createRange();
+    if (target.nodeType === Node.TEXT_NODE) {
+        range.setStart(target, target.textContent.length);
+        range.collapse(true);
+    } else if (target.tagName === "BR") {
+        // A range whose container is a childless <br> makes
+        // insertNode() insert the new node AS A CHILD of the <br>
+        // instead of next to it - place the caret in the <br>'s
+        // parent, right after it, instead.
+        const parent = target.parentNode;
+        const idx = Array.prototype.indexOf.call(parent.childNodes, target) + 1;
+        range.setStart(parent, idx);
+        range.collapse(true);
+    } else {
+        range.selectNodeContents(target);
+        range.collapse(false);
     }
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
 
-    function placeCaretAtStart(el) {
-        const target = getDeepFirstNode(el);
-        const range = document.createRange();
-        if (target.nodeType === Node.TEXT_NODE) {
-            range.setStart(target, 0);
-            range.collapse(true);
-        } else {
-            range.selectNodeContents(target);
-            range.collapse(true);
-        }
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+function placeCaretAtStart(el) {
+    const target = getDeepFirstNode(el);
+    const range = document.createRange();
+    if (target.nodeType === Node.TEXT_NODE) {
+        range.setStart(target, 0);
+        range.collapse(true);
+    } else if (target.tagName === "BR") {
+        // Same fix as placeCaretAtEnd() above, but "before" the <br>
+        // since this is the start-of-content case.
+        const parent = target.parentNode;
+        const idx = Array.prototype.indexOf.call(parent.childNodes, target);
+        range.setStart(parent, idx);
+        range.collapse(true);
+    } else {
+        range.selectNodeContents(target);
+        range.collapse(true);
     }
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
 
     // --- Block-level formatting (manual DOM rewrite, no execCommand) -----
     //
@@ -495,17 +512,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
     editor.addEventListener("beforeinput", pushHistoryThrottled);
 
-    // --- Task #46: guarded console/terminal block deletion ---------------
+        // Task #46: guarded console/terminal block deletion ---------------
     //
-    // Requirement: blocks may ONLY be removed via their own dedicated
-    // trash/delete button - never as a side effect of Backspace/Delete,
-    // a multi-node selection delete, or a cut. `intentionalBlockRemoval`
-    // is the single flag every legitimate removal path (the trash button,
-    // wired below and in insertCodeBlockTemplate()/insertTerminalBlockTemplate())
-    // sets immediately before calling wrapper.remove() - the
-    // MutationObserver below trusts this flag, and only this flag, to
-    // tell an intentional removal apart from an accidental one.
-    let intentionalBlockRemoval = false;
+    // Replaces the old single boolean flag (which had to be reset via a
+    // deferred microtask and could race against the MutationObserver
+    // callback below - losing that race caused a trash-button delete to
+    // get treated as "accidental" and the wrapper silently reinserted,
+    // leaving a phantom block that kept re-triggering this guard on
+    // later, unrelated edits). A WeakSet keyed on the actual wrapper
+    // element has no timing dependency at all: a wrapper is marked
+    // right before removal and only that exact node is ever exempted,
+    // synchronously, whenever the observer happens to run.
+    const intentionallyRemovedWrappers = new WeakSet();
 
     // Requirement: "Prompt a confirmation warning modal when deleting a
     // console or terminal block that contains typed user inputs." Checks
@@ -544,21 +562,21 @@ document.addEventListener("DOMContentLoaded", function () {
     // has typed content the admin would otherwise silently lose, then
     // performs the removal through the same intentional-removal flag the
     // MutationObserver safety net below relies on.
-    function confirmAndRemoveBlock(wrapper) {
+        function confirmAndRemoveBlock(wrapper) {
         if (!wrapper || !wrapper.parentNode) return;
 
         if (blockHasUserInput(wrapper)) {
             const confirmed = window.confirm(
-                "This block still has content you typed (filename, code, expected output, or terminal " +
-                "text). Deleting it will permanently lose that content. Delete it anyway?"
+                "This block still has content you typed (filename, code, expected " +
+                "output, or terminal text). Deleting it will permanently lose that " +
+                "content. Delete it anyway?"
             );
             if (!confirmed) return;
         }
 
-        intentionalBlockRemoval = true;
+        intentionallyRemovedWrappers.add(wrapper);
         wrapper.remove();
         pushHistory();
-        intentionalBlockRemoval = false;
     }
 
     // Safety net: catches any removal of a console/terminal wrapper that
@@ -570,28 +588,34 @@ document.addEventListener("DOMContentLoaded", function () {
     // observer is the guarantee that a block can never actually be lost
     // through anything other than its own trash button.
     const blockRemovalGuard = new MutationObserver((mutationList) => {
-        if (intentionalBlockRemoval) return;
+        // NEW: same defensive short-circuit as the keydown guard above -
+        // if the editor has no interactive blocks left, there is
+        // nothing legitimate to restore, so skip processing entirely.
+        const hasAnyBlocks = !!editor.querySelector(".editor-code-container, .editor-terminal-container");
 
         let restoredAny = false;
 
         mutationList.forEach((mutation) => {
             mutation.removedNodes.forEach((node) => {
                 if (isInteractiveBlockWrapper(node)) {
+                    if (intentionallyRemovedWrappers.has(node)) {
+                        intentionallyRemovedWrappers.delete(node);
+                        return;
+                    }
+                    if (!hasAnyBlocks) return; // nothing left to legitimately protect
                     try {
                         mutation.target.insertBefore(node, mutation.nextSibling || null);
                         restoredAny = true;
                     } catch (err) {
-                        // Parent no longer in the document (e.g. an
-                        // ancestor was also removed) - nothing sensible
-                        // to restore into; fall through.
+                        // Parent no longer in the document - fall through.
                     }
                 } else if (node.nodeType === Node.ELEMENT_NODE && typeof node.querySelectorAll === "function") {
-                    // A wrapper nested inside a removed ancestor (e.g. an
-                    // entire paragraph deleted around it) - best-effort
-                    // restore by appending it back to the editor so the
-                    // block itself is never silently lost.
                     const nested = node.querySelectorAll(".editor-code-container, .editor-terminal-container");
                     nested.forEach((wrapper) => {
+                        if (intentionallyRemovedWrappers.has(wrapper)) {
+                            intentionallyRemovedWrappers.delete(wrapper);
+                            return;
+                        }
                         editor.appendChild(wrapper);
                         restoredAny = true;
                     });
@@ -665,6 +689,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
     editor.addEventListener("keydown", function (e) {
         if (e.key !== "Backspace" && e.key !== "Delete") return;
+
+        // NEW: defensive short-circuit. If there are currently zero
+        // console/terminal blocks anywhere in the editor, there is
+        // nothing this guard could legitimately be protecting - skip
+        // the DOM walk entirely rather than risk matching a stale/
+        // orphaned node reference (e.g. left over from a delete that
+        // happened before this guard's logic was last reloaded, or any
+        // other edge case). This makes the guard self-correcting: it
+        // can only ever fire when a real block genuinely exists.
+        if (!editor.querySelector(".editor-code-container, .editor-terminal-container")) return;
+
         const adjacentWrapper = findAdjacentBlockWrapper(e.key);
         if (adjacentWrapper) {
             e.preventDefault();
@@ -739,8 +774,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if ((action === "codeBlock" || action === "terminalBlock") && !hasEnoughLessonContentForBlock()) {
                 const blockLabel = action === "codeBlock" ? "console" : "terminal";
                 alert(
-                    `Please write at least ${MIN_LESSON_CONTENT_CHARS} characters of lesson content ` +
-                    `before adding a ${blockLabel} block.`
+                    `Please write some lesson content before adding a ${blockLabel} block.`
                 );
                 return;
             }
@@ -840,11 +874,48 @@ document.addEventListener("DOMContentLoaded", function () {
         placeCaretAtStart(newBlock);
         updateToolbarStates();
     });
+        // Task: keep the :empty CSS placeholder rules (module-editor.css:
+    // .editor-console-box:empty:before / .editor-output-box:empty:before)
+    // matching reliably forever - not just the first time. Backspacing
+    // out all typed content in a contenteditable often leaves a stray
+    // <br> or empty text node behind, which defeats the :empty selector
+    // and makes the placeholder never reappear. Normalizing to TRUE DOM
+    // emptiness on every input keeps "type -> delete everything ->
+    // placeholder reappears" working every single time, not once.
+    function keepPlaceholderPermanent(el) {
+        if (!el) return;
+        el.addEventListener("input", () => {
+            const text = el.textContent.replace(/\u00a0/g, " ").trim();
+            if (text === "") el.innerHTML = "";
+        });
+    }
 
-   function insertCodeBlockTemplate() {
+        // Ensures block insertion (Console/Terminal) always has a valid
+    // insertion point inside the editor, regardless of where the
+    // browser's selection currently is. Without this, clicking the
+    // toolbar button while focus/selection was last in the Lesson Name
+    // field, a code block's filename input, the Console/Output boxes,
+    // or nowhere at all (selection.rangeCount === 0) caused
+    // insertCodeBlockTemplate()/insertTerminalBlockTemplate() to bail
+    // out silently - the button appeared to do nothing, with no error
+    // and no visible feedback.
+    function getInsertionRange() {
         const selection = window.getSelection();
-        if (!selection.rangeCount) return;
-        const range = selection.getRangeAt(0);
+        if (selection.rangeCount) {
+            const range = selection.getRangeAt(0);
+            if (editor.contains(range.startContainer)) {
+                return range;
+            }
+        }
+        // Selection missing or outside the editor - fall back to the
+        // very end of the lesson content instead of doing nothing.
+        const target = editor.lastChild || editor;
+        placeCaretAtEnd(target);
+        return window.getSelection().getRangeAt(0);
+    }
+
+    function insertCodeBlockTemplate() {
+        const range = getInsertionRange();
 
         const wrapper = document.createElement("div");
         wrapper.className = "editor-code-container";
@@ -870,7 +941,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         <button type="button" class="console-action-btn run-btn" title="Run Code"><i class="fa-solid fa-play"></i> Run</button>
                     </div>
                     <p class="editor-code-desc">Provide example code for students.</p>
-                    <div class="editor-console-box" contenteditable="true" spellcheck="false" placeholder="# Write your code here..."></div>
+                    <div class="editor-console-box" contenteditable="true" spellcheck="false" placeholder="e.g. print(&quot;Hello, World!&quot;)"></div>
                 </div>
             </div>
             <div class="editor-code-card output-card-pane">
@@ -884,7 +955,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         </select>
                     </div>
                     <p class="editor-code-desc output-desc-text">Set the expected output manually.</p>
-                    <div class="editor-output-box" contenteditable="true" placeholder="Enter expected output..."></div>
+                    <div class="editor-output-box" contenteditable="true" placeholder="e.g. Hello, World!"></div>
                 </div>
             </div>
         `;
@@ -898,17 +969,11 @@ document.addEventListener("DOMContentLoaded", function () {
         const filenameInput = wrapper.querySelector(".editor-code-filename");
         if (filenameInput) filenameInput.value = DEFAULT_CODE_FILENAME;
 
-        const consoleBoxEl = wrapper.querySelector(".editor-console-box");
-        if (consoleBoxEl) consoleBoxEl.textContent = DEFAULT_CODE_EXAMPLE;
-
-        const outputBoxEl = wrapper.querySelector(".editor-output-box");
-        if (outputBoxEl) outputBoxEl.textContent = DEFAULT_CODE_OUTPUT;
-
         // Delete Block Event Listener (Task #46: confirms first if the
         // block has typed content, and always removes via the shared
         // guarded path so the MutationObserver safety net recognizes
         // this as an intentional removal).
-        wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
+         wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
             confirmAndRemoveBlock(wrapper);
         });
 
@@ -919,6 +984,17 @@ document.addEventListener("DOMContentLoaded", function () {
         const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
         const outputBox = wrapper.querySelector(".editor-output-box");
         const outputDesc = wrapper.querySelector(".output-desc-text");
+        const consoleBoxEl = wrapper.querySelector(".editor-console-box");
+        keepPlaceholderPermanent(consoleBoxEl);
+        keepPlaceholderPermanent(outputBox);
+
+        // Apply auto mode's placeholder-only state immediately on load
+        // too, so a resource saved while in Auto mode reopens empty
+        // (placeholder) rather than blank-but-editable.
+        if (outputModeSelect && outputModeSelect.value === "auto") {
+            outputBox.innerHTML = "";
+            outputBox.setAttribute("placeholder", "Output will be automatically evaluated from code execution...");
+        }
 
         modeSelect.addEventListener("change", function () {
             if (this.value === "snippet") {
@@ -932,18 +1008,25 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
 
-        outputModeSelect.addEventListener("change", function () {
+                outputModeSelect.addEventListener("change", function () {
             if (this.value === "auto") {
                 outputBox.contentEditable = "false";
                 outputBox.style.background = "#f3f4f6";
                 outputBox.style.color = "#6b7280";
-                outputBox.textContent = "// Output will be automatically evaluated from code execution...";
+                // NEW: empty DOM + placeholder attribute instead of real
+                // textContent - this message is now purely a CSS-drawn
+                // placeholder (module-editor.css's :empty:before) and is
+                // never part of editor.innerHTML, so it can never be
+                // saved as actual lesson content.
+                outputBox.innerHTML = "";
+                outputBox.setAttribute("placeholder", "Output will be automatically evaluated from code execution...");
                 outputDesc.textContent = "Output is dynamically generated based on code execution.";
             } else {
                 outputBox.contentEditable = "true";
                 outputBox.style.background = "#ffffff";
                 outputBox.style.color = "#374151";
-                outputBox.textContent = "";
+                outputBox.innerHTML = "";
+                outputBox.setAttribute("placeholder", "e.g. Hello, World!");
                 outputDesc.textContent = "Set the expected output manually.";
             }
         });
@@ -960,9 +1043,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function insertTerminalBlockTemplate() {
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
-        const range = selection.getRangeAt(0);
+        const range = getInsertionRange();
 
         const wrapper = document.createElement("div");
         wrapper.className = "editor-terminal-container";
@@ -981,7 +1062,7 @@ document.addEventListener("DOMContentLoaded", function () {
         `;
 
         wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
-            confirmAndRemoveBlock(wrapper);
+    confirmAndRemoveBlock(wrapper);
         });
 
         range.deleteContents();

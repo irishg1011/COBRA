@@ -147,7 +147,20 @@
                 showDraftNotice("Please select a module before saving a draft.", true);
                 return false;
             }
+                    if (!moduleSelect || !moduleSelect.value) {
+            showDraftNotice("Please select a module before saving a draft.", true);
+            return false;
+        }
 
+        // NEW: same Lesson Message minimum-length rule Publish enforces
+        // (editor-toolbar.js), reused here instead of a second copy.
+        if (typeof window.cobraByteValidateLessonContent === "function") {
+            const contentCheck = window.cobraByteValidateLessonContent();
+            if (!contentCheck.valid) {
+                showDraftNotice(contentCheck.message, true);
+                return false;
+            }
+        }
             const originalHtml = saveDraftBtn ? saveDraftBtn.innerHTML : "";
             if (saveDraftBtn) {
                 saveDraftBtn.disabled = true;
@@ -236,6 +249,51 @@
         form.addEventListener("submit", () => {
             isSubmitting = true;
             clearDirty();
+        });
+        // Task: Lesson Message minimum length - shared by the Publish submit
+        // below AND upload-resource-draft-guard.js's Save Draft flow (via
+        // window.cobraByteValidateLessonContent), so create and edit both
+        // enforce the exact same rule instead of two divergent copies.
+        function validateLessonContentLength() {
+            const length = getMainLessonContentLength();
+            if (length < MIN_LESSON_CONTENT_CHARS) {
+                return {
+                    valid: false,
+                    message: `Lesson message must contain at least ${MIN_LESSON_CONTENT_CHARS} characters of meaningful content.`,
+                };
+            }
+            return { valid: true, message: "" };
+        }
+
+        function showLessonContentError(message) {
+            const errorEl = document.getElementById("lessonContentError");
+            if (!errorEl) { alert(message); return; }
+            errorEl.textContent = message;
+            errorEl.style.display = "block";
+        }
+
+        function clearLessonContentError() {
+            const errorEl = document.getElementById("lessonContentError");
+            if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
+        }
+
+        editor.addEventListener("input", clearLessonContentError);
+
+        window.cobraByteValidateLessonContent = validateLessonContentLength;
+
+        form.addEventListener("submit", function (e) {
+            const check = validateLessonContentLength();
+            if (!check.valid) {
+                e.preventDefault();
+                showLessonContentError(check.message);
+                editor.focus();
+                return;
+            }
+            clearLessonContentError();
+
+            // Task #45: must run BEFORE reading editor.innerHTML...
+            syncInteractiveBlockValues();
+            hiddenInput.value = editor.innerHTML;
         });
     });
 })();
