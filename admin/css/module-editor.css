@@ -371,6 +371,8 @@ select.form-control {
     width: 100%;
     box-sizing: border-box;
     font-family: inherit;
+    white-space: pre-wrap;   /* NEW - preserves newlines from captured output */
+    word-break: break-all;   /* NEW - matches .editor-terminal-box wrapping */
 }
 
 .editor-console-box:empty:before {
@@ -648,4 +650,34 @@ select.form-control {
     .lesson-meta-grid {
         grid-template-columns: 1fr 1fr;
     }
+}
+
+/* Live terminal-style input() prompt inside the Expected Output box
+   while Run is executing a Console block. */
+.editor-output-box.editor-output-terminal-active {
+    background: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    font-family: monospace;
+}
+
+.editor-terminal-prompt-text {
+    white-space: pre-wrap;
+}
+
+.editor-terminal-inline-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #38FF92;
+    outline: none;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: inherit;
+    caret-color: #38FF92;
+    width: 220px;
+    max-width: 70%;
+    padding: 0 2px;
+}
+
+.editor-terminal-inline-input:disabled {
+    border-bottom-color: transparent;
 }

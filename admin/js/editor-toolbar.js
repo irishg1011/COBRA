@@ -78,6 +78,252 @@ document.addEventListener("DOMContentLoaded", function () {
     // Matches DEFAULT_CODE_EXAMPLE exactly: (85+92+78+90+88) / 5 = 86.6
     const DEFAULT_CODE_OUTPUT = "Average score: 86.6";
 
+    // --- Task: Run button - executes the Console's code via Pyodide,
+    // a real Python interpreter compiled to WebAssembly that runs
+    // entirely in the browser. This gives the New Lesson editor a
+    // genuine "run it and see" IDE feel without ever sending
+    // admin-authored code to the server to execute. ---
+    const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+    
+    // --- Cross-block imports: lets one Console block `import` another by filename ---
+const LESSON_MODULES_DIR = "/lesson_modules";
+
+function ensureModulesDirExists(pyodide) {
+    try {
+        pyodide.FS.mkdirTree(LESSON_MODULES_DIR);
+    } catch (e) {
+        // already exists - fine
+    }
+}
+
+// Writes every named .py block's current code into the shared virtual
+// directory, so `import <name>` can find it. Blocks with no filename (or
+// a non-.py filename) are skipped - they can't be import targets.
+function syncModuleFilesToFS(pyodide, files) {
+    ensureModulesDirExists(pyodide);
+    files.forEach(({ filename, code }) => {
+        const name = (filename || "").trim();
+        if (!name.toLowerCase().endsWith(".py")) return;
+        const baseName = name.split("/").pop().split("\\").pop();
+        try {
+            pyodide.FS.writeFile(`${LESSON_MODULES_DIR}/${baseName}`, code || "", { encoding: "utf8" });
+        } catch (e) {
+            console.warn("Could not write module file for import support:", baseName, e);
+        }
+    });
+}
+
+// Collects {filename, code} from every Code block currently in the editor,
+// in DOM order, so Run always sees the latest typed content of every block.
+function getAllCodeBlockFiles() {
+    const files = [];
+    editor.querySelectorAll(".editor-code-container").forEach((wrapper) => {
+        const filenameInput = wrapper.querySelector(".editor-code-filename");
+        const consoleBox = wrapper.querySelector(".editor-console-box");
+        files.push({
+            filename: filenameInput ? filenameInput.value.trim() : "",
+            code: consoleBox ? consoleBox.innerText : "",
+        });
+    });
+    return files;
+}
+    
+    let activeOutputBox = null; // tracks which Output box the currently-running input() prompt should render into
+
+function showTerminalInputPrompt(promptText) {
+    return new Promise((resolve) => {
+        const outputBox = activeOutputBox;
+        if (!outputBox) { resolve(""); return; }
+
+        const promptSpan = document.createElement("span");
+        promptSpan.className = "editor-terminal-prompt-text";
+        promptSpan.textContent = promptText || "";
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "editor-terminal-inline-input";
+        input.autocomplete = "off";
+        input.spellcheck = false;
+
+        outputBox.appendChild(promptSpan);
+        outputBox.appendChild(input);
+        outputBox.scrollTop = outputBox.scrollHeight;
+        input.focus();
+
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                input.disabled = true;
+                resolve(input.value);
+            }
+        });
+    });
+}
+// Pyodide's `import js as _cobrabyte_js` can reach this as
+// _cobrabyte_js.cobraByteTerminalInput(...)
+window.cobraByteTerminalInput = showTerminalInputPrompt;
+
+    let pyodideLoadPromise = null;
+
+    // Lazily loads (and caches) the single shared Pyodide instance -
+    // the WASM runtime is a few MB, so this only happens once per page
+    // load, the first time the admin actually clicks Run, not on
+    // page load itself.
+    function getPyodideInstance() {
+        if (!pyodideLoadPromise) {
+            if (typeof loadPyodide !== "function") {
+                return Promise.reject(new Error("Pyodide script did not load."));
+            }
+            pyodideLoadPromise = loadPyodide({ indexURL: PYODIDE_INDEX_URL });
+        }
+        return pyodideLoadPromise;
+    }
+
+    // Runs `code` as Python, capturing everything written to stdout AND
+    // stderr (print() output, uncaught tracebacks, etc.) into one
+    // string. Never throws - any failure (Pyodide unreachable, a
+    // genuine Python error in the admin's example code) is returned as
+    // readable text instead, so the caller can always just display
+    // whatever comes back in the Expected Output box.
+    //
+    // NOTE ON input(): Pyodide's sandbox has no real stdin device, so
+    // Python's normal input() throws "OSError: [Errno 29] I/O error"
+    // the instant example code calls it. Since Run is a live preview
+    // tool for the ADMIN (not the eventual learner, whose actual
+    // answer isn't known yet), input() is overridden below to pop a
+    // real browser prompt() dialog asking the admin for a sample
+    // value - whatever they type is fed back into the running code AND
+    // echoed into the captured output (prompt text + typed value),
+    // exactly like a real terminal would show it.
+    async function runPythonCode(code, files = [], currentFilename = "") {
+        let pyodide;
+        try {
+            pyodide = await getPyodideInstance();
+        } catch (err) {
+            return "Could not load the Python runtime. Check your internet connection and try again.";
+        }
+
+        // Modules still get written to disk (harmless fallback), but the
+        // real import mechanism below no longer relies on Python's plain
+        // synchronous `import` for them.
+        syncModuleFilesToFS(pyodide, files);
+
+        pyodide.globals.set("_cobrabyte_user_code", code || "");
+        pyodide.globals.set("_cobrabyte_module_files", files);
+        pyodide.globals.set("_cobrabyte_current_filename", currentFilename || "");
+
+        try {
+            const result = await pyodide.runPythonAsync(
+                "import sys, io, traceback, builtins, importlib, ast, types\n" +
+                "import js as _cobrabyte_js\n" +
+                `_cobrabyte_modules_dir = ${JSON.stringify(LESSON_MODULES_DIR)}\n` +
+                "if _cobrabyte_modules_dir not in sys.path:\n" +
+                "    sys.path.insert(0, _cobrabyte_modules_dir)\n" +
+                "importlib.invalidate_caches()\n" +
+                "_cobrabyte_stdout = io.StringIO()\n" +
+                "_cobrabyte_stderr = io.StringIO()\n" +
+                "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
+                "_old_input = builtins.input\n" +
+                "sys.stdout, sys.stderr = _cobrabyte_stdout, _cobrabyte_stderr\n" +
+                "async def _cobrabyte_input(prompt=''):\n" +
+                "    if prompt:\n" +
+                "        sys.stdout.write(str(prompt))\n" +
+                "    _val = await _cobrabyte_js.cobraByteTerminalInput(str(prompt) if prompt else '')\n" +
+                "    if _val is None:\n" +
+                "        raise EOFError('Input was cancelled while testing.')\n" +
+                "    _val = str(_val)\n" +
+                "    sys.stdout.write(_val + chr(10))\n" +
+                "    return _val\n" +
+                "builtins.input = _cobrabyte_input\n" +
+                "class _CobrabyteInputAwaiter(ast.NodeTransformer):\n" +
+                "    def visit_Call(self, node):\n" +
+                "        self.generic_visit(node)\n" +
+                "        if isinstance(node.func, ast.Name) and node.func.id == 'input':\n" +
+                "            return ast.copy_location(ast.Await(value=node), node)\n" +
+                "        return node\n" +
+                "async def _cobrabyte_exec_async(source, mod_globals):\n" +
+                "    tree = ast.parse(source or '', mode='exec')\n" +
+                "    _CobrabyteInputAwaiter().visit(tree)\n" +
+                "    ast.fix_missing_locations(tree)\n" +
+                "    body = tree.body if tree.body else [ast.Pass()]\n" +
+                "    func = ast.AsyncFunctionDef(\n" +
+                "        name='_cobrabyte_block_main',\n" +
+                "        args=ast.arguments(posonlyargs=[], args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),\n" +
+                "        body=body, decorator_list=[], returns=None,\n" +
+                "    )\n" +
+                "    module_ast = ast.Module(body=[func], type_ignores=[])\n" +
+                "    ast.fix_missing_locations(module_ast)\n" +
+                "    exec(compile(module_ast, '<exec>', 'exec'), mod_globals)\n" +
+                "    await mod_globals['_cobrabyte_block_main']()\n" +
+                "try:\n" +
+                "    for _mf in _cobrabyte_module_files.to_py():\n" +
+                "        _mf_name = (_mf.get('filename') or '').strip()\n" +
+                "        if not _mf_name.lower().endswith('.py'):\n" +
+                "            continue\n" +
+                "        if _mf_name == _cobrabyte_current_filename:\n" +
+                "            continue\n" +
+                "        _mod_name = _mf_name.split('/')[-1].split(chr(92))[-1][:-3]\n" +
+                "        sys.modules.pop(_mod_name, None)\n" +
+                "        _mod = types.ModuleType(_mod_name)\n" +
+                "        sys.modules[_mod_name] = _mod\n" +
+                "        try:\n" +
+                "            await _cobrabyte_exec_async(_mf.get('code') or '', _mod.__dict__)\n" +
+                "        except Exception:\n" +
+                "            traceback.print_exc()\n" +
+                "    await _cobrabyte_exec_async(_cobrabyte_user_code, {'__name__': '__main__'})\n" +
+                "except Exception:\n" +
+                "    traceback.print_exc()\n" +
+                "finally:\n" +
+                "    builtins.input = _old_input\n" +
+                "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
+                "_cobrabyte_stdout.getvalue() + _cobrabyte_stderr.getvalue()\n"
+            );
+            return result;
+        } catch (err) {
+            return "Error running code: " + (err && err.message ? err.message : String(err));
+        }
+    }
+
+    // Wires a single code block's "Run" button - shared by BOTH a
+    // freshly-inserted block (insertCodeBlockTemplate) and a block
+    // rehydrated from a saved draft/lesson (wireCodeContainer), so
+    // there is only ever one place this behavior lives.
+    function wireRunButton(wrapper) {
+        const runBtn = wrapper.querySelector(".run-btn");
+        const consoleBox = wrapper.querySelector(".editor-console-box");
+        const outputBox = wrapper.querySelector(".editor-output-box");
+        const filenameInput = wrapper.querySelector(".editor-code-filename"); // NEW
+        if (!runBtn || !consoleBox || !outputBox) return;
+
+        runBtn.addEventListener("click", async function () {
+            const code = consoleBox.innerText.trim();
+            if (!code) {
+                alert("Write some example code in the Console first.");
+                return;
+            }
+
+            const originalHtml = runBtn.innerHTML;
+            runBtn.disabled = true;
+            runBtn.innerHTML = pyodideLoadPromise
+                ? '<i class="fa-solid fa-spinner fa-spin"></i> Running...'
+                : '<i class="fa-solid fa-spinner fa-spin"></i> Loading Python...';
+
+            activeOutputBox = outputBox;
+            outputBox.textContent = "";
+
+            const files = getAllCodeBlockFiles();
+            const currentFilename = filenameInput ? filenameInput.value.trim() : ""; // NEW
+            const output = await runPythonCode(code, files, currentFilename); // NEW arg
+
+            activeOutputBox = null;
+            outputBox.textContent = output.trim();
+            pushHistory();
+
+            runBtn.disabled = false;
+            runBtn.innerHTML = originalHtml;
+        });
+    }
+
     // --- Selection helpers ------------------------------------------------
 
     function getAnchorNode() {
@@ -207,50 +453,34 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function placeCaretAtEnd(el) {
-    const target = getDeepLastNode(el);
-    const range = document.createRange();
-    if (target.nodeType === Node.TEXT_NODE) {
-        range.setStart(target, target.textContent.length);
-        range.collapse(true);
-    } else if (target.tagName === "BR") {
-        // A range whose container is a childless <br> makes
-        // insertNode() insert the new node AS A CHILD of the <br>
-        // instead of next to it - place the caret in the <br>'s
-        // parent, right after it, instead.
-        const parent = target.parentNode;
-        const idx = Array.prototype.indexOf.call(parent.childNodes, target) + 1;
-        range.setStart(parent, idx);
-        range.collapse(true);
-    } else {
-        range.selectNodeContents(target);
-        range.collapse(false);
+        const target = getDeepLastNode(el);
+        const range = document.createRange();
+        if (target.nodeType === Node.TEXT_NODE) {
+            range.setStart(target, target.textContent.length);
+            range.collapse(true);
+        } else {
+            range.selectNodeContents(target);
+            range.collapse(false);
+        }
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
     }
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-}
 
-function placeCaretAtStart(el) {
-    const target = getDeepFirstNode(el);
-    const range = document.createRange();
-    if (target.nodeType === Node.TEXT_NODE) {
-        range.setStart(target, 0);
-        range.collapse(true);
-    } else if (target.tagName === "BR") {
-        // Same fix as placeCaretAtEnd() above, but "before" the <br>
-        // since this is the start-of-content case.
-        const parent = target.parentNode;
-        const idx = Array.prototype.indexOf.call(parent.childNodes, target);
-        range.setStart(parent, idx);
-        range.collapse(true);
-    } else {
-        range.selectNodeContents(target);
-        range.collapse(true);
+    function placeCaretAtStart(el) {
+        const target = getDeepFirstNode(el);
+        const range = document.createRange();
+        if (target.nodeType === Node.TEXT_NODE) {
+            range.setStart(target, 0);
+            range.collapse(true);
+        } else {
+            range.selectNodeContents(target);
+            range.collapse(true);
+        }
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
     }
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-}
 
     // --- Block-level formatting (manual DOM rewrite, no execCommand) -----
     //
@@ -528,33 +758,39 @@ function placeCaretAtStart(el) {
     // Requirement: "Prompt a confirmation warning modal when deleting a
     // console or terminal block that contains typed user inputs." Checks
     // every field a block actually lets the admin type into.
-    function blockHasUserInput(wrapper) {
-        if (!wrapper) return false;
+function blockHasUserInput(wrapper) {
+    if (!wrapper) return false;
 
-        if (wrapper.classList.contains("editor-code-container")) {
-            const filenameInput = wrapper.querySelector(".editor-code-filename");
-            const consoleBox = wrapper.querySelector(".editor-console-box");
-            const outputBox = wrapper.querySelector(".editor-output-box");
-            const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
+    if (wrapper.classList.contains("editor-code-container")) {
+        const filenameInput = wrapper.querySelector(".editor-code-filename");
+        const consoleBox = wrapper.querySelector(".editor-console-box");
 
-            const filenameVal = filenameInput ? filenameInput.value.trim() : "";
-            const consoleVal = consoleBox ? consoleBox.textContent.trim() : "";
-            // Auto-evaluated output is placeholder text the admin never
-            // typed themselves - only count it when it's actually
-            // editable/manual.
-            const isManualOutput = !outputModeSelect || outputModeSelect.value !== "auto";
-            const outputVal = (isManualOutput && outputBox) ? outputBox.textContent.trim() : "";
+        const filenameVal = filenameInput ? filenameInput.value.trim() : "";
 
-            return !!(filenameVal || consoleVal || outputVal);
-        }
+        // The default filename is automatically populated and does not
+        // count as user-entered content.
+        const filenameChanged = !!(
+            filenameVal &&
+            filenameVal !== DEFAULT_CODE_FILENAME
+        );
 
-        if (wrapper.classList.contains("editor-terminal-container")) {
-            const terminalBox = wrapper.querySelector(".editor-terminal-box");
-            return !!(terminalBox && terminalBox.textContent.trim());
-        }
+        // Console content is still considered user input.
+        const consoleVal = consoleBox
+            ? consoleBox.textContent.trim()
+            : "";
 
-        return false;
+        // Output is intentionally NOT checked here because the output box
+        // is now read-only / generated content.
+        return !!(filenameChanged || consoleVal);
     }
+
+    if (wrapper.classList.contains("editor-terminal-container")) {
+        const terminalBox = wrapper.querySelector(".editor-terminal-box");
+        return !!(terminalBox && terminalBox.textContent.trim());
+    }
+
+    return false;
+}
 
     // Single source of truth for "actually remove this block" - used by
     // every trash button (both newly-inserted blocks and blocks
@@ -927,10 +1163,6 @@ function placeCaretAtStart(el) {
                     <i class="fa-regular fa-file-code" style="color: #6b7280; font-size: 1.1rem;"></i>
                     <input type="text" class="editor-code-filename" placeholder="File name (e.g. main.py)">
                 </div>
-                <select class="editor-code-mode-select">
-                    <option value="exercise">Interactive Exercise (Console + Output)</option>
-                    <option value="snippet">Code Example Only (Console)</option>
-                </select>
                 <button type="button" class="editor-delete-block-btn" title="Delete Block"><i class="fa-solid fa-trash-can"></i></button>
             </div>
             <div class="editor-code-card console-card-pane">
@@ -949,13 +1181,9 @@ function placeCaretAtStart(el) {
                 <div class="editor-code-card-body">
                     <div class="editor-code-title-row">
                         <div class="editor-code-title"><i class="fa-solid fa-terminal"></i> Expected Output</div>
-                        <select class="editor-output-mode-select">
-                            <option value="manual">Manual Input</option>
-                            <option value="auto">Auto-Evaluate from Code</option>
-                        </select>
                     </div>
-                    <p class="editor-code-desc output-desc-text">Set the expected output manually.</p>
-                    <div class="editor-output-box" contenteditable="true" placeholder="e.g. Hello, World!"></div>
+                    <p class="editor-code-desc output-desc-text">Runs automatically as a live terminal - click Run to generate it.</p>
+                    <div class="editor-output-box editor-output-terminal" contenteditable="false" placeholder="Click Run to see the output here..."></div>
                 </div>
             </div>
         `;
@@ -969,24 +1197,17 @@ function placeCaretAtStart(el) {
         const filenameInput = wrapper.querySelector(".editor-code-filename");
         if (filenameInput) filenameInput.value = DEFAULT_CODE_FILENAME;
 
-        // Delete Block Event Listener (Task #46: confirms first if the
-        // block has typed content, and always removes via the shared
-        // guarded path so the MutationObserver safety net recognizes
-        // this as an intentional removal).
          wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
             confirmAndRemoveBlock(wrapper);
         });
 
-        const modeSelect = wrapper.querySelector(".editor-code-mode-select");
-        const outputPane = wrapper.querySelector(".output-card-pane");
-        const consolePane = wrapper.querySelector(".console-card-pane");
-        const runBtn = wrapper.querySelector(".run-btn");
-        const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
         const outputBox = wrapper.querySelector(".editor-output-box");
-        const outputDesc = wrapper.querySelector(".output-desc-text");
         const consoleBoxEl = wrapper.querySelector(".editor-console-box");
         keepPlaceholderPermanent(consoleBoxEl);
-        keepPlaceholderPermanent(outputBox);
+        wireRunButton(wrapper);
+
+        range.deleteContents();
+        range.insertNode(wrapper);
 
         // Apply auto mode's placeholder-only state immediately on load
         // too, so a resource saved while in Auto mode reopens empty
@@ -1062,7 +1283,7 @@ function placeCaretAtStart(el) {
         `;
 
         wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
-    confirmAndRemoveBlock(wrapper);
+            confirmAndRemoveBlock(wrapper);
         });
 
         range.deleteContents();
@@ -1148,56 +1369,29 @@ function placeCaretAtStart(el) {
         }
     }
 
-    function wireCodeContainer(wrapper) {
-        wireDeleteButton(wrapper);
+function wireCodeContainer(wrapper) {
+    wireDeleteButton(wrapper);
+    wireRunButton(wrapper);
 
-        const modeSelect = wrapper.querySelector(".editor-code-mode-select");
-        const outputPane = wrapper.querySelector(".output-card-pane");
-        const consolePane = wrapper.querySelector(".console-card-pane");
-        const runBtn = wrapper.querySelector(".run-btn");
-        const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
-        const outputBox = wrapper.querySelector(".editor-output-box");
-        const outputDesc = wrapper.querySelector(".output-desc-text");
+    const outputBox = wrapper.querySelector(".editor-output-box");
 
-        if (modeSelect) {
-            modeSelect.addEventListener("change", function () {
-                if (this.value === "snippet") {
-                    outputPane.style.display = "none";
-                    runBtn.style.display = "none";
-                    consolePane.style.gridColumn = "1 / -1";
-                } else {
-                    outputPane.style.display = "flex";
-                    runBtn.style.display = "flex";
-                    consolePane.style.gridColumn = "auto";
-                }
-            });
-            // Apply whatever mode was restored from the database so the
-            // layout matches the saved selection immediately, not just
-            // after the admin manually re-toggles it.
-            if (modeSelect.value === "snippet") {
-                outputPane.style.display = "none";
-                runBtn.style.display = "none";
-                consolePane.style.gridColumn = "1 / -1";
-            }
-        }
-
-        if (outputModeSelect) {
-            outputModeSelect.addEventListener("change", function () {
-                if (this.value === "auto") {
-                    outputBox.contentEditable = "false";
-                    outputBox.style.background = "#f3f4f6";
-                    outputBox.style.color = "#6b7280";
-                    outputBox.textContent = "// Output will be automatically evaluated from code execution...";
-                    outputDesc.textContent = "Output is dynamically generated based on code execution.";
-                } else {
-                    outputBox.contentEditable = "true";
-                    outputBox.style.background = "#ffffff";
-                    outputBox.style.color = "#374151";
-                    outputDesc.textContent = "Set the expected output manually.";
-                }
-            });
-        }
+    // Make output a read-only terminal
+    if (outputBox) {
+        outputBox.setAttribute("contenteditable", "false");
+        outputBox.classList.add("editor-output-terminal");
     }
+
+    // Remove legacy mode controls if they still exist
+    const legacyModeSelect = wrapper.querySelector(".editor-code-mode-select");
+    if (legacyModeSelect) {
+        legacyModeSelect.remove();
+    }
+
+    const legacyOutputModeSelect = wrapper.querySelector(".editor-output-mode-select");
+    if (legacyOutputModeSelect) {
+        legacyOutputModeSelect.remove();
+    }
+}
 
     function wireTerminalContainer(wrapper) {
         wireDeleteButton(wrapper);

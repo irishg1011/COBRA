@@ -219,6 +219,12 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+<!-- Task: "Run" button in the Console block - loads a real Python
+     interpreter compiled to WebAssembly, running entirely in the
+     admin's browser. Nothing about this executes admin-authored code
+     on the Flask server; editor-toolbar.js only calls into this after
+     the admin explicitly clicks Run. -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource-draft-guard.js') }}"></script>
