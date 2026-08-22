@@ -605,6 +605,67 @@ body {
     color: #ffffff !important;
 }
 
+/* ==========================================================================
+   TASK #81: HIGH-CONTRAST UNPUBLISH BUTTON
+   Replaces the previous ".btn-secondary-custom" usage for Unpublish,
+   which rendered as a near-white button with faint gray text - readable
+   enough to pass a casual glance, but easy to mistake for a disabled
+   control. This gives Unpublish its own solid, clearly-clickable style,
+   visually distinct from the green Publish button, without touching
+   .btn-secondary-custom itself (still used elsewhere in the admin UI).
+   ========================================================================== */
+.btn-unpublish-custom {
+    background: #DC2626 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    border: none !important;
+    text-decoration: none !important;
+    font-weight: 600 !important;
+}
+
+.btn-unpublish-custom:hover,
+.btn-unpublish-custom:focus,
+.btn-unpublish-custom:active {
+    background: #B91C1C !important;
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+.btn-unpublish-custom * {
+    color: #ffffff !important;
+}
+
+/* ==========================================================================
+   TASK #81 (follow-up): SPACING BETWEEN ACTIONS AND PUBLISH STATUS
+   Both columns are right-aligned with no column padding by default
+   (.data-table td { padding: 12px 0; }), so the Archive icon and the
+   Publish/Unpublish button end up touching each other with no gap.
+   Scoped to the Learning Resources table only (#resourcesDataTable) so
+   other admin tables that still use a single trailing Actions column
+   (Manage Course, Account & Security, Login Logs) are unaffected.
+   ========================================================================== */
+#resourcesDataTable th:nth-last-child(2),
+#resourcesDataTable td:nth-last-child(2) {
+    padding-right: 28px;
+}
+
+#resourcesDataTable .table-actions-group {
+    gap: 16px;
+}
+
+/* ==========================================================================
+   TASK #81 (follow-up 2): PUBLISH/UNPUBLISH BUTTON ALIGNMENT
+   .btn uses display:flex, which makes it a block-level box - block boxes
+   ignore their parent's text-align, so the button stayed pinned to the
+   left instead of lining up under the right-aligned "Publish Status"
+   header like every other cell in this table does. inline-flex keeps
+   the exact same internal flex layout (icon/label gap, centering) while
+   letting the surrounding td's text-align position the button itself.
+   ========================================================================== */
+#resourcesDataTable .js-toggle-publish-btn {
+    display: inline-flex;
+}
+
 /* Metric Box Modifiers */
 .metric-inactive {
     background: #f3f4f6;

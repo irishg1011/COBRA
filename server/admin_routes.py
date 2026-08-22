@@ -38,6 +38,7 @@ from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Res
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
+    archive_resource,  # NEW - Task #81: Manage Learning Resources ACTIONS -> Archive
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 
@@ -1641,6 +1642,24 @@ def unpublish_learning_resource(resource_id):
     Returns JSON: { "success": bool, "message": str }
     """
     success, message = unpublish_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# Task #81: ARCHIVE A LEARNING RESOURCE (ACTIONS column)
+# ============================================================
+@admin_bp.route('/learning-resources/<int:resource_id>/archive', methods=['POST'])
+def archive_learning_resource(resource_id):
+    """
+    Task #81: Manage Learning Resources table's ACTIONS -> Archive
+    control. Thin HTTP wrapper only, matching this project's existing
+    convention (see publish_learning_resource() /
+    unpublish_learning_resource() above) - all real logic lives in
+    resource_publishing.archive_resource().
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = archive_resource(resource_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 

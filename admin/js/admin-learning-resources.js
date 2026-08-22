@@ -161,13 +161,24 @@
             return "";
         }
 
+        // Task #81: ACTIONS column (Edit/Archive) markup - falls back to
+        // just an Edit link if admin-resource-actions.js hasn't loaded
+        // for some reason (script tag order/load failure), so the table
+        // still shows a usable action instead of throwing.
+        function actionsHtml(resourceId) {
+            if (window.cobraByteResourceActions) {
+                return window.cobraByteResourceActions.actionsHtml(resourceId);
+            }
+            return `<a href="/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>`;
+        }
+
         function renderRows(resources) {
             if (!resources || resources.length === 0) {
                 // Task #37, Requirement #7: empty state only ever shown
                 // when the query genuinely returned zero rows.
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-muted table-empty-message">
+                        <td colspan="9" class="text-muted table-empty-message">
                             No resources found.
                         </td>
                     </tr>`;
@@ -175,6 +186,10 @@
                 return;
             }
 
+            // Task #81: ACTIONS (Edit/Archive) and PUBLISH STATUS
+            // (Publish/Unpublish) are now two separate cells, in that
+            // order, both still at the far right of the row - no other
+            // columns were reordered.
             tableBody.innerHTML = resources.map(r => `
                 <tr data-resource-id="${r.resource_id}">
                     <td>
@@ -186,6 +201,7 @@
                     <td class="text-muted js-status-cell">${statusBadgeHtml(r.status)}</td>
                     <td class="text-muted">${escapeHtml(r.created_at)}</td>
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>
+                    <td class="text-right">${actionsHtml(r.resource_id)}</td>
                     <td class="text-right">${publishButtonHtml(r.resource_id, r.status, r.module_status)}</td>
                 </tr>
             `).join("");

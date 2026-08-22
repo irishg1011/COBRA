@@ -51,7 +51,14 @@
         function publishButtonHtml(resourceId, status, moduleStatus) {
             const isPublished = status === "Published";
             const label = isPublished ? "Unpublish" : "Publish";
-            const btnClass = isPublished ? "btn-secondary-custom" : "btn-success-custom";
+            // Task #81, Requirement #4: the old "btn-secondary-custom"
+            // class rendered as a near-white button with faint text -
+            // clickable, but easy to mistake for disabled. Unpublish
+            // now uses its own dedicated, high-contrast style
+            // (.btn-unpublish-custom, see admin-style.css) so it reads
+            // as an active, clickable button and stays visually
+            // distinct from the green Publish button.
+            const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
             return `
                 <button type="button"
                         class="btn ${btnClass} js-toggle-publish-btn"

@@ -112,7 +112,7 @@
                     <p id="resourceDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
 
                     <!-- Resources Table -->
-                    <table class="data-table">
+                    <table class="data-table" id="resourcesDataTable">
                         <thead>
                             <tr>
                                 <th>Resource</th>
@@ -122,8 +122,16 @@
                                 <th>Status</th>
                                 <th>Created At</th>
                                 <th>Updated At</th>
-                                <!-- NEW - Task #43: Publish / Unpublish action -->
+                                <!--
+                                    Task #81: ACTIONS is strictly Edit /
+                                    Archive (resource management). Publish /
+                                    Unpublish now lives in its own dedicated
+                                    "Publish Status" column immediately after
+                                    it - both stay at the far right of the
+                                    table; no existing columns were reordered.
+                                -->
                                 <th class="text-right">Actions</th>
+                                <th class="text-right">Publish Status</th>
                             </tr>
                         </thead>
                         <tbody id="resourcesTableBody">
@@ -158,17 +166,41 @@
                                 <td class="text-muted">{{ resource.created_at }}</td>
                                 <td class="text-muted">{{ resource.updated_at }}</td>
                                 <!--
-                                    Task #43: Publish/Unpublish toggle.
-                                    data-status / data-module-status feed
-                                    admin-resource-publish.js's client-side
-                                    confirmation + parent-status gating;
-                                    the server (resource_publishing.py)
-                                    always re-validates the parent-module
-                                    gate authoritatively regardless.
+                                    Task #81: ACTIONS is strictly resource
+                                    management - Edit (reuses the existing
+                                    Upload Resource / edit-in-place route,
+                                    admin_bp.upload_resource) and Archive
+                                    (reuses the existing table-action-icon
+                                    styling already used on Manage Course).
+                                -->
+                                <td class="text-right">
+                                    <div class="table-actions-group">
+                                        <a href="{{ url_for('admin_bp.upload_resource', resource_id=resource.resource_id) }}"
+                                           title="Edit" class="table-action-icon">
+                                            <i class="fa-solid fa-pen-to-square"></i>
+                                        </a>
+                                        <a href="#" title="Archive"
+                                           class="table-action-icon delete-action js-archive-resource-btn"
+                                           data-resource-id="{{ resource.resource_id }}">
+                                            <i class="fa-solid fa-box-archive"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                                <!--
+                                    Task #81: PUBLISH STATUS is strictly the
+                                    Publish/Unpublish toggle, split out of
+                                    ACTIONS into its own column immediately
+                                    after it. data-status / data-module-status
+                                    still feed admin-resource-publish.js's
+                                    client-side confirmation + parent-status
+                                    gating; the server
+                                    (resource_publishing.py) always
+                                    re-validates the parent-module gate
+                                    authoritatively regardless.
                                 -->
                                 <td class="text-right">
                                     <button type="button"
-                                            class="btn {{ 'btn-secondary-custom' if resource.status == 'Published' else 'btn-success-custom' }} js-toggle-publish-btn"
+                                            class="btn {{ 'btn-unpublish-custom' if resource.status == 'Published' else 'btn-success-custom' }} js-toggle-publish-btn"
                                             data-resource-id="{{ resource.resource_id }}"
                                             data-status="{{ resource.status }}"
                                             data-module-status="{{ resource.module_status }}">
@@ -178,7 +210,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="8" class="text-muted table-empty-message">
+                                <td colspan="9" class="text-muted table-empty-message">
                                     No resources found.
                                 </td>
                             </tr>
@@ -206,9 +238,14 @@
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learning-resources.js') }}"></script>
-    <!-- NEW - Task #43: Publish/Unpublish workflow. Must load AFTER
-         admin-learning-resources.js so window.cobraByteResourcePublishing
+    <!-- NEW - Task #81: Edit/Archive (ACTIONS column). Must load AFTER
+         admin-learning-resources.js so window.cobraByteResourceActions
          is available when that script's renderRows() needs it. -->
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-resource-actions.js') }}"></script>
+    <!-- NEW - Task #43: Publish/Unpublish workflow (PUBLISH STATUS
+         column). Must load AFTER admin-learning-resources.js so
+         window.cobraByteResourcePublishing is available when that
+         script's renderRows() needs it. -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-resource-publish.js') }}"></script>
 </body>
 </html>

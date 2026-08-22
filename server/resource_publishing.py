@@ -46,11 +46,19 @@ MODULES_TABLE = "modules_tbl"
 MODULE_STATS_TABLE = "module_stats_tbl"
 CATEGORY_TABLE = "category_tbl"
 
-# Task requirement: these two statuses must exist in
+# Task requirement: these statuses must exist in
 # learning_resources_stats_tbl. Never hardcoded anywhere else in the
 # app - every caller reads the id it needs via get_draft_status_id() /
-# get_published_status_id() below.
-DEFAULT_LR_STATUSES = ["Draft", "Published"]
+# get_published_status_id() / get_archived_status_id() below.
+#
+# NEW (Task #81): "Archived" is a resource-level state distinct from
+# Draft/Published, backing the Manage Learning Resources table's
+# ACTIONS -> Archive control. This mirrors module_stats_tbl already
+# having a "Archived" status alongside "Draft"/"Published" (see
+# manage_course.py's DEFAULT_STATUSES) - no schema change, just a new
+# row in the existing learning_resources_stats_tbl, seeded lazily the
+# exact same way Draft/Published already are.
+DEFAULT_LR_STATUSES = ["Draft", "Published", "Archived"]
 
 _lr_stats_ensured = False
 
@@ -123,6 +131,14 @@ def get_published_status_id(connection):
     already-open connection (see publish_resource() below)."""
     ensure_lr_stats(connection)
     return _get_status_id(connection, "Published")
+
+
+def get_archived_status_id(connection):
+    """Returns the lr_stats_id for "Archived" (Task #81). Reuses the
+    caller's already-open connection, same convention as
+    get_published_status_id() above."""
+    ensure_lr_stats(connection)
+    return _get_status_id(connection, "Archived")
 
 
 def _get_resource_with_parent_status(connection, resource_id):
@@ -252,6 +268,63 @@ def unpublish_resource(resource_id):
     except Error as e:
         connection.rollback()
         print(f"resource_publishing: failed to unpublish resource {resource_id}: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def archive_resource(resource_id):
+    """
+    Task #81: backs the Manage Learning Resources table's ACTIONS ->
+    Archive control. Flips a resource's lr_stats_id to "Archived" -
+    never a DELETE, so the row (and its lesson_content_tbl content) is
+    always preserved and the action is reversible by an admin re-
+    editing the resource's status later, mirroring
+    manage_course.archive_module()'s soft-delete convention for
+    modules but scoped to learning_resources_tbl instead.
+
+    No parent-status gate is needed to archive (same as unpublishing) -
+    taking a resource out of the active list is always allowed
+    regardless of its own or its parent module's current status.
+
+    Returns (bool, str) - (success, message).
+    """
+    if not resource_id:
+        return False, "Resource ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_lr_stats(connection)
+        cursor = connection.cursor()
+        cursor.execute(
+            f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
+            (resource_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Resource not found."
+
+        archived_id = get_archived_status_id(connection)
+        if not archived_id:
+            cursor.close()
+            return False, "Could not resolve the Archived status."
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                SET lr_stats_id = %s, updated_at = NOW()
+                WHERE resource_id = %s""",
+            (archived_id, resource_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Resource archived successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"resource_publishing: failed to archive resource {resource_id}: {e}")
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():

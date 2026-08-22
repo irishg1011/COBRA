@@ -224,8 +224,14 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
             LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
             LEFT JOIN {MODULES_TABLE} md ON lr.module_id = md.module_id
             LEFT JOIN {MODULE_STATS_TABLE} mst ON md.module_stats_id = mst.module_stats_id
-            WHERE 1 = 1
+            WHERE (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')
         """
+        # NEW - Task #81: an archived resource (see resource_publishing.
+        # archive_resource()) is removed from the active Manage Learning
+        # Resources list the same way an archived module is excluded
+        # from the active Manage Course list - it still exists in
+        # learning_resources_tbl (never deleted), just filtered out of
+        # this default view.
         params = []
 
         # ------------------------------------------------------------
