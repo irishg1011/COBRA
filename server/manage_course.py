@@ -9,7 +9,7 @@ responses, so this file never touches Flask/session state directly.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
-from text_formatting import format_display_name  # NEW: sentence-case normalization for Category/Module names
+from text_formatting import format_display_name, format_sentence_case  # NEW: sentence-case normalization for Category/Module names; format_sentence_case (Task #77) additionally restarts casing after every period, for Module Name + Description
 
 CATEGORY_TABLE = "category_tbl"
 MODULES_TABLE = "modules_tbl"
@@ -288,11 +288,13 @@ def delete_category(cat_id):
 # MODULES
 # ================================================================
 def create_module(module_name, description, cat_id, module_stats_id):
-    # Task: Module names are auto-formatted to sentence case the same
-    # way Category names are (see create_category() above) - only the
-    # name, never the free-form description.
-    name = format_display_name(module_name)
-    desc = (description or "").strip()
+    # Task #77: Module Name AND Description are both auto-formatted to
+    # sentence case via format_sentence_case() - which, unlike
+    # format_display_name() (still used for Category names), restarts
+    # capitalization after every period so a multi-sentence Description
+    # (or Module Name) is fully sentence-cased, not just its first word.
+    name = format_sentence_case(module_name)
+    desc = format_sentence_case(description)
 
     if not name:
         return False, "Module name is required.", None
@@ -347,10 +349,13 @@ def create_module(module_name, description, cat_id, module_stats_id):
 
 
 def update_module(module_id, module_name, description, cat_id, module_stats_id):
-    # Task: same sentence-case formatting as create_module() above, so
-    # an edit always ends up in the same normalized form.
-    name = format_display_name(module_name)
-    desc = (description or "").strip()
+    # Task #77: same period-aware sentence-case formatting as
+    # create_module() above, so editing an existing Module always ends
+    # up in the same normalized form (e.g. "INTRODUCTION TO PYTHON. THIS
+    # IS THE FIRST LESSON." -> "Introduction to python. This is the
+    # first lesson.").
+    name = format_sentence_case(module_name)
+    desc = format_sentence_case(description)
 
     if not name:
         return False, "Module name is required."

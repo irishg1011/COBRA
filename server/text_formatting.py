@@ -54,3 +54,76 @@ def format_display_name(value):
 
     lowered = trimmed.lower()
     return lowered[0].upper() + lowered[1:]
+
+
+def format_sentence_case(value):
+    """
+    Task #77 - Module Name / Description sentence-case formatter.
+
+    Like format_display_name() above, but sentence casing RESTARTS after
+    every period ('.') instead of only capitalizing the very first letter
+    of the whole string. This is what lets a multi-sentence Description
+    (or a Module Name containing more than one sentence) end up fully
+    sentence-cased, not just its opening word:
+
+        "this IS a MODULE. this IS ANOTHER one."
+            -> "This is a module. This is another one."
+
+    Rules:
+        - The first alphabetic character in the string is capitalized.
+        - Every alphabetic character after that is lowercased, UNTIL a
+          '.' is encountered, at which point the next alphabetic
+          character is capitalized again (restarting the same rule).
+        - Every non-alphabetic character (spaces, digits, commas,
+          question marks, exclamation marks, parentheses, hyphens,
+          multiple/extra spaces, etc.) is left completely untouched -
+          only letter CASE is ever changed, never spacing or
+          punctuation.
+        - Only leading/trailing whitespace is stripped (matching
+          format_display_name()'s own convention); all internal spacing
+          - including runs of multiple spaces - is preserved exactly.
+        - An empty/blank/None input returns "" unchanged, so existing
+          "required" checks (e.g. "Module name is required.") still
+          catch it exactly like format_display_name() does.
+
+    Args:
+        value (str | None): the raw, as-typed Module Name or Description.
+
+    Returns:
+        str: the sentence-cased text, or "" if there was nothing to format.
+    """
+    if not value:
+        return ""
+
+    trimmed = value.strip()
+    if not trimmed:
+        return ""
+
+    chars = list(trimmed)
+
+    # The very first character is uppercased literally (matching
+    # format_display_name()'s own convention) - e.g. "123 PYTHON" starts
+    # with a digit, so this step has no visible effect and the first
+    # actual LETTER ("P") is still lowercased below, giving
+    # "123 python" rather than "123 Python".
+    chars[0] = chars[0].upper()
+
+    # After the (already-handled) first character, every other
+    # alphabetic character is lowercased by default - UNLESS a '.' was
+    # just seen, in which case casing "pauses" (skipping over any
+    # spaces or other punctuation in between) until the next actual
+    # letter, which gets capitalized instead.
+    capitalize_next_alpha = False
+    for i in range(1, len(chars)):
+        ch = chars[i]
+        if capitalize_next_alpha:
+            if ch.isalpha():
+                chars[i] = ch.upper()
+                capitalize_next_alpha = False
+        elif ch.isalpha():
+            chars[i] = ch.lower()
+
+        if ch == ".":
+            capitalize_next_alpha = True
+
+    return "".join(chars)

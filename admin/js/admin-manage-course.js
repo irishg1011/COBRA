@@ -15,6 +15,45 @@
 
     const DEBOUNCE_MS = 300;
 
+    // ------------------------------------------------------------
+    // Task #77: Module Name / Description sentence-case formatter.
+    // Mirrors manage_course.py's format_sentence_case() exactly - only
+    // letter CASE is ever changed, spacing/punctuation are left
+    // untouched, and capitalization restarts after every period. This
+    // is a UX convenience only; the backend re-applies the exact same
+    // rule authoritatively before every INSERT/UPDATE, so this being
+    // skipped or bypassed can never leave incorrectly-cased text saved.
+    // ------------------------------------------------------------
+    function formatSentenceCase(value) {
+        if (!value) return "";
+        const trimmed = value.trim();
+        if (!trimmed) return "";
+
+        const chars = trimmed.split("");
+        const isAlpha = (ch) => /[a-zA-Z]/.test(ch);
+
+        // Literal first character is uppercased (matching the backend's
+        // format_sentence_case()) - e.g. "123 PYTHON" starts with a
+        // digit, so this has no visible effect and the first actual
+        // letter is still lowercased below, giving "123 python".
+        chars[0] = chars[0].toUpperCase();
+
+        let capitalizeNextAlpha = false;
+        for (let i = 1; i < chars.length; i++) {
+            const ch = chars[i];
+            if (capitalizeNextAlpha) {
+                if (isAlpha(ch)) {
+                    chars[i] = ch.toUpperCase();
+                    capitalizeNextAlpha = false;
+                }
+            } else if (isAlpha(ch)) {
+                chars[i] = ch.toLowerCase();
+            }
+            if (ch === ".") capitalizeNextAlpha = true;
+        }
+        return chars.join("");
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         const searchInput = document.getElementById("moduleSearchInput");
         const statusSelect = document.getElementById("moduleStatusSelect");
@@ -522,6 +561,19 @@
             if (editModuleForm) editModuleForm.reset();
         }
 
+        // Task #77: live sentence-case formatting on blur, same as the
+        // Add Module drawer above.
+        if (editModuleNameInput) {
+            editModuleNameInput.addEventListener("blur", () => {
+                editModuleNameInput.value = formatSentenceCase(editModuleNameInput.value);
+            });
+        }
+        if (editModuleDescInput) {
+            editModuleDescInput.addEventListener("blur", () => {
+                editModuleDescInput.value = formatSentenceCase(editModuleDescInput.value);
+            });
+        }
+
         if (closeEditModuleModalBtn) {
             closeEditModuleModalBtn.addEventListener("click", closeEditModuleModal);
         }
@@ -537,9 +589,11 @@
             editModuleForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
                 const id = editModuleIdInput.value;
+                // Task #77: safety-net formatting right before submit,
+                // in case blur never fired.
                 const body = new URLSearchParams({
-                    module_name: editModuleNameInput.value.trim(),
-                    description: editModuleDescInput.value.trim(),
+                    module_name: formatSentenceCase(editModuleNameInput.value),
+                    description: formatSentenceCase(editModuleDescInput.value),
                     cat_id: editModuleCategorySelect.value,
                     module_stats_id: editModuleStatusSelect.value
                 });
@@ -710,10 +764,12 @@
                 const statuses = await fetchStatuses();
                 const draft = statuses.find(s => s.module_stats_name === "Draft") || statuses[0];
 
+                // Task #77: safety-net formatting right before submit,
+                // in case blur never fired (e.g. Enter-key submission).
                 const resp = await fetch("/admin/manage-course/modules/create", {
                     method: "POST", credentials: "include",
                     body: new URLSearchParams({
-                        module_name: name, description: desc,
+                        module_name: formatSentenceCase(name), description: formatSentenceCase(desc),
                         cat_id: catId, module_stats_id: draft ? draft.module_stats_id : ""
                     })
                 });
@@ -765,6 +821,20 @@
                 // "Create Module" action the button uses.
                 e.preventDefault();
                 submitCreateModule();
+            });
+        }
+
+        // Task #77: live sentence-case formatting on blur (UX
+        // convenience only - see formatSentenceCase() above; the
+        // backend re-normalizes authoritatively regardless).
+        if (newModuleNameInput) {
+            newModuleNameInput.addEventListener("blur", () => {
+                newModuleNameInput.value = formatSentenceCase(newModuleNameInput.value);
+            });
+        }
+        if (newModuleDescInput) {
+            newModuleDescInput.addEventListener("blur", () => {
+                newModuleDescInput.value = formatSentenceCase(newModuleDescInput.value);
             });
         }
 
