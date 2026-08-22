@@ -681,3 +681,53 @@ select.form-control {
 .editor-terminal-inline-input:disabled {
     border-bottom-color: transparent;
 }
+
+/* ==========================================================================
+   TASK #82: Lesson Name validation message layout
+   - lessonNameError (live duplicate-check, from upload-resource.js) sits
+     BESIDE the "Lesson Name" label -> .lesson-name-label-row /
+     .lesson-name-inline-message
+   - Save Draft / Publish notice (from upload-resource-draft-guard.js)
+     sits UNDER the Preview Lesson / Save Draft / Publish buttons ->
+     .top-bar-validation-row / .top-bar-inline-message
+   Kept as two separate, clearly-scoped areas so the two message sources
+   never land in the same spot and concatenate together.
+   ========================================================================== */
+.lesson-name-label-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.lesson-name-label-row label {
+    margin: 0 !important;
+}
+
+.lesson-name-inline-message {
+    color: #e02424;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.top-bar-validation-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+    margin-bottom: 4px;
+}
+
+.top-bar-inline-message {
+    color: #e02424;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+@media (max-width: 900px) {
+    .top-bar-validation-row {
+        justify-content: flex-start;
+    }
+}

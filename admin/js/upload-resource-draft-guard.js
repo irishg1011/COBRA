@@ -19,6 +19,13 @@
  *   - Clears the unsaved-changes flag the moment a draft save OR the
  *     real Publish submission succeeds.
  *
+ * Task #82: showDraftNotice() below renders in .top-bar-validation-row
+ * (under the Preview Lesson / Save Draft / Publish buttons) - a
+ * DIFFERENT spot than #lessonNameError, which lives beside the "Lesson
+ * Name" label (see upload-resource.html / upload-resource.js). The two
+ * message sources are kept fully separate so they never land in the
+ * same element and visually run together.
+ *
  * Only present on pages that have #uploadModuleForm (currently just
  * upload-resource.html), so this is safe to include as a shared
  * script without guard checks elsewhere.
@@ -110,24 +117,34 @@
         }
 
         // --------------------------------------------------------
-        // Inline "Draft saved" / error notice, right under the Lesson
-        // Name field - reuses the same dynamic-banner technique already
-        // used by admin-create-admin.js's showFormMessage().
+        // Task #82: Draft save notice ("Draft saved successfully." /
+        // "Please enter a lesson name before saving a draft.", etc.)
+        // renders inside .top-bar-validation-row, under the Preview
+        // Lesson / Save Draft / Publish buttons - completely separate
+        // from #lessonNameError (which sits beside the Lesson Name
+        // label instead).
         // --------------------------------------------------------
         function showDraftNotice(message, isError) {
-            const anchor = lessonNameInput ? lessonNameInput.closest(".form-group") : null;
+            const anchor = document.querySelector(".top-bar-validation-row");
             if (!anchor) { if (isError) alert(message); return; }
             let notice = anchor.querySelector(".js-draft-notice");
             if (!notice) {
-                notice = document.createElement("p");
-                notice.className = "js-draft-notice";
-                notice.style.fontSize = "12px";
-                notice.style.marginTop = "6px";
-                notice.style.fontWeight = "600";
+                notice = document.createElement("span");
+                notice.className = "js-draft-notice top-bar-inline-message";
                 anchor.appendChild(notice);
             }
             notice.textContent = message;
+            notice.style.display = "inline";
             notice.style.color = isError ? "#e02424" : "#09B300";
+        }
+
+        function clearDraftNotice() {
+            const anchor = document.querySelector(".top-bar-validation-row");
+            const notice = anchor ? anchor.querySelector(".js-draft-notice") : null;
+            if (notice) {
+                notice.textContent = "";
+                notice.style.display = "none";
+            }
         }
 
         // --------------------------------------------------------
