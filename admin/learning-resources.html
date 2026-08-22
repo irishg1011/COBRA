@@ -48,7 +48,7 @@
                     <div class="table-toolbar">
                         <div class="header-search search-override">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input type="text" id="resourceSearchInput" placeholder="Search resources...">
+                            <input type="text" id="resourceSearchInput" placeholder="Search resources, types, categories, statuses...">
                         </div>
                         <div class="toolbar-filters">
                             <!--
@@ -87,7 +87,7 @@
                                 <input type="date" class="custom-select" id="resourceCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
                                 <input type="date" class="custom-select date-range-end" id="resourceCreatedToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
                                 <label class="date-range-toggle" title="Filter by a date range instead of a single date">
-                                    <input type="checkbox" id="resourceCreatedRangeToggle"> Range
+                                    <input type="checkbox" id="resourceCreatedRangeToggle"> Today
                                 </label>
                                 <button type="button" class="icon-button-reset table-action-icon" id="clearResourceCreatedDateBtn" title="Clear Created At filter">
                                     <i class="fa-solid fa-xmark"></i>
@@ -99,7 +99,7 @@
                                 <input type="date" class="custom-select" id="resourceUpdatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
                                 <input type="date" class="custom-select date-range-end" id="resourceUpdatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
                                 <label class="date-range-toggle" title="Filter by a date range instead of a single date">
-                                    <input type="checkbox" id="resourceUpdatedRangeToggle"> Range
+                                    <input type="checkbox" id="resourceUpdatedRangeToggle"> Today
                                 </label>
                                 <button type="button" class="icon-button-reset table-action-icon" id="clearResourceUpdatedDateBtn" title="Clear Updated At filter">
                                     <i class="fa-solid fa-xmark"></i>
