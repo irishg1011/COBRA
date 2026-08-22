@@ -566,6 +566,109 @@ def restore_module(module_id):
             connection.close()
 
 
+# ================================================================
+# Task #80: PERMANENT DELETE (Archived Modules only)
+# ================================================================
+def permanently_delete_module(module_id):
+    """
+    Task #80: PERMANENTLY removes an archived module row from
+    modules_tbl - a real DELETE, never another archive/status flip like
+    archive_module()/restore_module() above. Only ever callable on a
+    module that is already archived (is_archived = 1); this action
+    lives exclusively under the Archived Modules view.
+
+    REFERENTIAL INTEGRITY (Requirement #6): per the project's schema
+    (cobra_db.sql), modules_tbl is referenced by
+    learning_resources_tbl.module_id (fk_lr_module_id) and
+    learning_activities_tbl.module_id (fk_la_module_id) - neither
+    foreign key is ON DELETE CASCADE, so a bare DELETE would simply
+    fail with a foreign-key constraint error the instant either table
+    has a row pointing at this module. Rather than guessing that the
+    admin also wants those dependent resources/activities destroyed
+    (out of scope here, and irreversible), this function fails safe:
+    it checks for dependent rows FIRST and, if any exist, blocks the
+    delete with a clear explanation instead of a raw database error or
+    a silent cascade.
+
+    Returns (bool, str) - (success, message).
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        # Confirm the module exists AND is currently archived - a
+        # permanent delete may only ever be performed from the Archived
+        # Modules list, never the active Manage Course table.
+        cursor.execute(
+            f"SELECT is_archived FROM {MODULES_TABLE} WHERE module_id = %s",
+            (module_id,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, "Module not found."
+
+        if not row[0]:
+            cursor.close()
+            return False, "This module must be archived before it can be permanently deleted."
+
+        # Dependent-record check - never blindly DELETE and let the
+        # database throw a raw foreign-key error.
+        cursor.execute(
+            "SELECT COUNT(*) FROM learning_resources_tbl WHERE module_id = %s",
+            (module_id,)
+        )
+        (resource_count,) = cursor.fetchone()
+        cursor.execute(
+            "SELECT COUNT(*) FROM learning_activities_tbl WHERE module_id = %s",
+            (module_id,)
+        )
+        (activity_count,) = cursor.fetchone()
+
+        if resource_count > 0 or activity_count > 0:
+            cursor.close()
+            parts = []
+            if resource_count > 0:
+                parts.append(f"{resource_count} learning resource(s)")
+            if activity_count > 0:
+                parts.append(f"{activity_count} learning activity/activities")
+            return False, (
+                f"Cannot permanently delete this module - {' and '.join(parts)} "
+                "still reference it. Remove or reassign them first."
+            )
+
+        cursor.execute(
+            f"DELETE FROM {MODULES_TABLE} WHERE module_id = %s AND is_archived = 1",
+            (module_id,)
+        )
+        connection.commit()
+        deleted_rows = cursor.rowcount
+        cursor.close()
+
+        if deleted_rows == 0:
+            # Row disappeared/changed state between our checks above and
+            # the DELETE (e.g. restored by another admin in the
+            # meantime) - report this honestly rather than claiming
+            # success.
+            return False, "This module could not be deleted (it may no longer be archived)."
+
+        return True, "Module permanently deleted."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to permanently delete module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def get_modules_overview(search_query=None, status_filter=None, page=1, per_page=8, archived=False,
                           created_from=None, created_to=None, updated_from=None, updated_to=None):
     """

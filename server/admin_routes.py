@@ -30,6 +30,7 @@ from manage_course import (
     create_module, update_module, delete_module, get_modules_overview,
     archive_module, restore_module,  # NEW - Task #27: soft delete/archive
     get_modules_by_category,  # NEW - Task #41: dependent Module dropdown lookup
+    permanently_delete_module,  # NEW - Task #80: Archived Modules permanent delete
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -1471,6 +1472,24 @@ def manage_course_restore_module(module_id):
     category, and publication status are preserved.
     """
     success, message = restore_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/permanent-delete', methods=['POST'])
+def manage_course_permanently_delete_module(module_id):
+    """
+    Task #80: permanently removes an archived module from the database -
+    a real DELETE, never another archive/status flip. Thin HTTP wrapper
+    only (matches this project's convention - see
+    manage_course_restore_module()/manage_course_delete_module() above);
+    all validation (module must exist and already be archived) and the
+    foreign-key/referential-integrity safety check live in
+    manage_course.permanently_delete_module().
+
+    Only reachable from the Archived Modules view - there is no
+    equivalent route for the active Manage Course table.
+    """
+    success, message = permanently_delete_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 # ------------------------------------------------------------------

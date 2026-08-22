@@ -874,21 +874,30 @@
                 archivedTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">No archived modules found.</td></tr>`;
                 return;
             }
+            // Task #80: Actions column moved to the FIRST position (see
+            // archived-modules-modal.html's reordered <thead>), and now
+            // includes a Permanent Delete action alongside the existing
+            // Restore action.
             archivedTableBody.innerHTML = modules.map(m => `
-                <tr data-module-id="${m.module_id}">
-                    <td>
-                        <strong class="table-item-title">${escapeHtml(m.module_name)}</strong>
-                        <small class="text-muted">${escapeHtml(m.description)}</small>
-                    </td>
-                    <td class="text-muted">${escapeHtml(m.category)}</td>
-                    <td>${statusBadgeHtml(m.status)}</td>
-                    <td class="text-muted">${escapeHtml(m.updated_at)}</td>
-                    <td class="text-right">
-                        <div class="table-actions-group">
-                            <a href="#" title="Restore" class="table-action-icon js-restore-module" data-id="${m.module_id}"><i class="fa-solid fa-rotate-left"></i></a>
-                        </div>
-                    </td>
-                </tr>
+ <tr data-module-id="${m.module_id}">
+    <td>
+        <strong class="table-item-title">${escapeHtml(m.module_name)}</strong>
+        <small class="text-muted">${escapeHtml(m.description)}</small>
+    </td>
+    <td class="text-muted">${escapeHtml(m.category)}</td>
+    <td>${statusBadgeHtml(m.status)}</td>
+    <td class="text-muted">${escapeHtml(m.updated_at)}</td>
+    <td class="text-right">
+        <div class="table-actions-group">
+            <a href="#" title="Restore" class="table-action-icon js-restore-module" data-id="${m.module_id}">
+                <i class="fa-solid fa-rotate-left"></i>
+            </a>
+            <a href="#" title="Permanently Delete" class="table-action-icon delete-action js-permanent-delete-module" data-id="${m.module_id}">
+                <i class="fa-solid fa-trash-can"></i>
+            </a>
+        </div>
+    </td>
+</tr>
             `).join("");
         }
 
@@ -948,23 +957,74 @@
         if (archivedTableBody) {
             archivedTableBody.addEventListener("click", async (e) => {
                 const restoreBtn = e.target.closest(".js-restore-module");
-                if (!restoreBtn) return;
-                e.preventDefault();
-                const id = restoreBtn.dataset.id;
-                if (!confirm("Are you sure you want to restore this module?")) return;
-                const resp = await fetch(`/admin/manage-course/modules/${id}/restore`, {
-                    method: "POST", credentials: "include"
-                });
-                const result = await resp.json();
-                if (!result.success) {
-                    alert(result.message);
-                } else {
-                    alert("Module restored successfully.");
+                const permanentDeleteBtn = e.target.closest(".js-permanent-delete-module");
+
+                if (restoreBtn) {
+                    e.preventDefault();
+                    const id = restoreBtn.dataset.id;
+                    if (!confirm("Are you sure you want to restore this module?")) return;
+                    const resp = await fetch(`/admin/manage-course/modules/${id}/restore`, {
+                        method: "POST", credentials: "include"
+                    });
+                    const result = await resp.json();
+                    if (!result.success) {
+                        alert(result.message);
+                    } else {
+                        alert("Module restored successfully.");
+                    }
+                    // Restored module leaves the archived list and reappears
+                    // in the active Manage Course table - refresh both.
+                    loadArchivedModules();
+                    loadModules();
+                    return;
                 }
-                // Restored module leaves the archived list and reappears
-                // in the active Manage Course table - refresh both.
-                loadArchivedModules();
-                loadModules();
+
+                // ------------------------------------------------------------
+                // Task #80: Permanent Delete - real DELETE from the database,
+                // never another archive/status flip. Requires an explicit
+                // confirmation that clearly states the action is irreversible
+                // before the request is ever sent, and only removes the row
+                // from the UI after the backend confirms success (a failure -
+                // e.g. the module is still referenced by learning resources
+                // or activities - leaves the row exactly where it was).
+                // ------------------------------------------------------------
+                if (permanentDeleteBtn) {
+                    e.preventDefault();
+                    const id = permanentDeleteBtn.dataset.id;
+                    const confirmed = confirm(
+                        "Are you sure you want to permanently delete this module? " +
+                        "This action cannot be undone and the module will be permanently " +
+                        "removed from the system."
+                    );
+                    if (!confirmed) return; // Cancel: no request sent, nothing changes.
+
+                    permanentDeleteBtn.style.pointerEvents = "none";
+
+                    try {
+                        const resp = await fetch(`/admin/manage-course/modules/${id}/permanent-delete`, {
+                            method: "POST", credentials: "include"
+                        });
+                        const result = await resp.json();
+
+                        if (!result.success) {
+                            // Backend refused (not archived, still referenced,
+                            // DB error, etc.) - keep the row, surface why.
+                            alert(result.message || "Could not permanently delete this module.");
+                            permanentDeleteBtn.style.pointerEvents = "";
+                            return;
+                        }
+
+                        alert(result.message || "Module permanently deleted.");
+                        // Dynamic removal - no full page/table reload required.
+                        // Re-fetch the current page so pagination counts/labels
+                        // stay accurate (e.g. a now-short last page), matching
+                        // the same pattern already used after Restore.
+                        loadArchivedModules();
+                    } catch (err) {
+                        alert("Could not reach the server. Please try again.");
+                        permanentDeleteBtn.style.pointerEvents = "";
+                    }
+                }
             });
         }
     });

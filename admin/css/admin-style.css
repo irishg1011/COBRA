@@ -1733,3 +1733,25 @@ textarea.form-control-custom {
 .eye-icon:hover {
     color: #09B300;
 }
+/* Archived Modules modal - table spacing refinement */
+#archivedModulesModal .header-search {
+    margin-bottom: 24px !important;
+}
+
+#archivedModulesModal .data-table th {
+    padding-top: 6px;
+    padding-bottom: 12px;
+}
+
+#archivedModulesModal .data-table td:last-child,
+#archivedModulesModal .data-table th:last-child {
+    padding-right: 20px;
+}
+
+#archivedModulesModal .data-table th:last-child {
+    text-align: right;
+}
+
+#archivedModulesModal .data-table .table-actions-group {
+    gap: 12px;
+}
