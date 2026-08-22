@@ -442,6 +442,18 @@ def archive_module(module_id):
       already-archived module is a no-op UPDATE (rowcount 0) rather than
       silently "succeeding" twice - the caller is told exactly why.
 
+    Task #79 - Published modules cannot be archived directly:
+    A module's CURRENT status is read fresh from modules_tbl (joined
+    against module_stats_tbl for the real status name - never a raw
+    module_stats_id, and never anything supplied by the caller/frontend)
+    immediately before the archive UPDATE. If that status is
+    "Published", the archive is rejected here - the one and only place
+    this rule is enforced - and the row is left completely untouched
+    (still Published, still is_archived = 0). The admin must explicitly
+    change the module to "Draft" first (the existing update_module()
+    flow already supports this); this function never auto-downgrades a
+    Published module to Draft on the caller's behalf.
+
     Returns (bool, str).
     """
     if not module_id:
@@ -455,14 +467,37 @@ def archive_module(module_id):
         ensure_is_archived_column(connection)
         cursor = connection.cursor()
 
-        cursor.execute(f"SELECT is_archived FROM {MODULES_TABLE} WHERE module_id = %s", (module_id,))
+        # Task #79: pulls both is_archived AND the module's real,
+        # current status name in one query - is_archived alone (the
+        # original check below) can't tell a Published module from a
+        # Draft one, and module_stats_id alone would be a raw FK id,
+        # not the actual status name this rule needs to compare against.
+        cursor.execute(
+            f"""SELECT m.is_archived, ms.module_stats_name
+                FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.module_id = %s""",
+            (module_id,)
+        )
         row = cursor.fetchone()
         if row is None:
             cursor.close()
             return False, "Module not found."
-        if row[0]:
+
+        is_archived, status_name = row
+        if is_archived:
             cursor.close()
             return False, "This module is already archived."
+
+        # Task #79, Requirement 1 & 3: reject BEFORE the archive UPDATE
+        # ever runs, based solely on the database's own status value -
+        # never a status the frontend happened to display or send.
+        if status_name == "Published":
+            cursor.close()
+            return False, (
+                "Published modules cannot be archived. Please change the "
+                "module status to Draft first."
+            )
 
         cursor.execute(
             f"""UPDATE {MODULES_TABLE}
