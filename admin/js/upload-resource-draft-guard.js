@@ -49,6 +49,11 @@
         const stayBtn = document.getElementById("unsavedStayBtn");
         const leaveBtn = document.getElementById("unsavedLeaveBtn");
         const saveAndLeaveBtn = document.getElementById("unsavedSaveAndLeaveBtn");
+        // Task #84: in-modal error slot + the Manage Learning Resources
+        // redirect target (rendered server-side onto the button itself via
+        // url_for('admin_bp.learning_resources') - see
+        // unsaved-changes-modal.html).
+        const unsavedSaveError = document.getElementById("unsavedSaveError");
 
         // Task #83: shared Save Draft / Publish confirmation modal (see
         // confirm-action-modal.html). One generic Yes/No modal reused by
@@ -96,14 +101,35 @@
         // --------------------------------------------------------
         // Custom modal
         // --------------------------------------------------------
+        // Task #84: shows/clears the in-modal "why didn't this save"
+        // message. Uses the existing .modal-hidden class (admin-style.css)
+        // rather than touching inline style, and falls back to alert()
+        // only in the unlikely case the element itself is missing.
+        function showUnsavedSaveError(message) {
+            if (!unsavedSaveError) {
+                if (message) alert(message);
+                return;
+            }
+            unsavedSaveError.textContent = message;
+            unsavedSaveError.classList.remove("modal-hidden");
+        }
+
+        function clearUnsavedSaveError() {
+            if (!unsavedSaveError) return;
+            unsavedSaveError.textContent = "";
+            unsavedSaveError.classList.add("modal-hidden");
+        }
+
         function openUnsavedModal(navigateAction) {
             pendingNavigation = navigateAction;
+            clearUnsavedSaveError();
             if (unsavedModal) unsavedModal.style.display = "flex";
         }
 
         function closeUnsavedModal() {
             if (unsavedModal) unsavedModal.style.display = "none";
             pendingNavigation = null;
+            clearUnsavedSaveError();
         }
 
         if (stayBtn) stayBtn.addEventListener("click", closeUnsavedModal);
@@ -163,12 +189,63 @@
 
         if (saveAndLeaveBtn) {
             saveAndLeaveBtn.addEventListener("click", async () => {
-                const action = pendingNavigation;
+                clearUnsavedSaveError();
+
+                // Captured up front: pendingNavigation gets cleared the
+                // moment closeUnsavedModal() runs, and the real target
+                // (Manage Learning Resources) lives on the button itself,
+                // rendered server-side - see unsaved-changes-modal.html.
+                const fallbackAction = pendingNavigation;
+                const redirectUrl = saveAndLeaveBtn.dataset.redirectUrl || "";
+
+                // Task #84: guard against double-clicks and keep the other
+                // two options from being used mid-save.
                 saveAndLeaveBtn.disabled = true;
+                if (stayBtn) stayBtn.disabled = true;
+                if (leaveBtn) leaveBtn.disabled = true;
+
+                // Reuses the exact same save-draft logic/route the header
+                // "Save Draft" button already uses (Task #44) - never a
+                // second copy of the validation or the fetch() call.
                 const ok = await performSaveDraft();
+
                 saveAndLeaveBtn.disabled = false;
+                if (stayBtn) stayBtn.disabled = false;
+                if (leaveBtn) leaveBtn.disabled = false;
+
+                if (!ok) {
+                    // Task #84: a required field (Lesson Name, Category,
+                    // Module, or lesson content length) is still missing -
+                    // performSaveDraft() already surfaced the exact reason
+                    // via showDraftNotice() (top-bar notice, hidden behind
+                    // this modal's overlay). Mirror that same message
+                    // inside the modal itself and KEEP IT OPEN, instead of
+                    // closing it and leaving the admin wondering why
+                    // nothing happened - they can fix the field and click
+                    // Save Draft & Leave again without losing their intent
+                    // to leave.
+                    const notice = document.querySelector(".top-bar-validation-row .js-draft-notice");
+                    const message = (notice && notice.textContent)
+                        ? notice.textContent
+                        : "Could not save this draft. Please check the form and try again.";
+                    showUnsavedSaveError(message);
+                    return;
+                }
+
+                // Success: the draft is saved (performSaveDraft() already
+                // cleared the unsaved-changes flag) - close this modal and
+                // always return to the Manage Learning Resources list,
+                // regardless of which link originally opened this modal,
+                // per Task #84's expected result. Falls back to whatever
+                // link was originally clicked only if the redirect URL is
+                // somehow missing from the button.
                 closeUnsavedModal();
-                if (ok && action) action();
+
+                if (redirectUrl) {
+                    window.location.href = redirectUrl;
+                } else if (fallbackAction) {
+                    fallbackAction();
+                }
             });
         }
 

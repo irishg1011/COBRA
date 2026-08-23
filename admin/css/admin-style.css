@@ -1468,6 +1468,19 @@ body {
     cursor: not-allowed;
 }
 
+/* ==========================================================================
+   TASK #84: Save Draft & Leave - in-modal error text (unsaved-changes-
+   modal.html: #unsavedSaveError). Shown when a Save Draft & Leave attempt
+   fails (e.g. a required field like Lesson Name is still empty), so the
+   admin sees exactly why and can fix it without the modal disappearing.
+   Hidden/shown via the existing .modal-hidden class, never inline style.
+   ========================================================================== */
+.modal-error-text {
+    color: #e02424;
+    font-weight: 600;
+    margin-top: -8px;
+}
+
 /* --- Categories Modal Custom Styles --- */
 .custom-modal-overlay {
     position: fixed;
