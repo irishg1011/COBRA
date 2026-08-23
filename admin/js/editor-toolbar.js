@@ -40,6 +40,100 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     }
 
+    // Task #85: like isInteractiveBlockWrapper() above, but walks the
+    // FULL ancestor chain up to (not including) the editor - true if
+    // `node` IS an interactive wrapper OR sits anywhere inside one (its
+    // filename input, Console box, Output box, or Terminal box). Used to
+    // stop block-level formatting (headings/quote/normal) and blockquote
+    // insertion-splitting from ever reaching into these components.
+    function isWithinInteractiveBlock(node) {
+        let current = node;
+        while (current && current !== editor) {
+            if (isInteractiveBlockWrapper(current)) return true;
+            current = current.parentNode;
+        }
+        return false;
+    }
+
+    // Task #85: walks up from `node` (up to, not including, the editor)
+    // looking for a <blockquote> ancestor - the block-quote equivalent of
+    // getListItem()/getBlockElement() elsewhere in this file. Returns the
+    // blockquote element, or null if `node` isn't inside one.
+    function findAncestorBlockquote(node) {
+        let current = node;
+        while (current && current !== editor) {
+            if (current.nodeType === Node.ELEMENT_NODE && current.tagName && current.tagName.toLowerCase() === "blockquote") {
+                return current;
+            }
+            current = current.parentNode;
+        }
+        return null;
+    }
+
+    // Task #85: splits `blockquote` at the given (collapsed) range point -
+    // everything from that point onward is moved into a brand new
+    // <blockquote> inserted immediately after the original, and a fresh,
+    // collapsed Range sitting exactly between the two (i.e. a real,
+    // root-level editor position, outside any quote) is returned. This is
+    // what lets a Terminal/Console/Expected-Output block be inserted
+    // "after the quote container" instead of nested inside it, per Task
+    // #85's requirement, while leaving the quoted text itself intact on
+    // both sides of the split.
+    //
+    // If the split leaves either resulting blockquote completely empty
+    // (e.g. the cursor was at the very start or very end of the quote),
+    // that empty half is removed entirely rather than left behind as a
+    // stray blank quote line.
+    function splitBlockquoteAt(range, blockquote) {
+        const tailRange = document.createRange();
+        tailRange.setStart(range.startContainer, range.startOffset);
+        tailRange.setEnd(blockquote, blockquote.childNodes.length);
+
+        let tailFragment;
+        try {
+            tailFragment = tailRange.extractContents();
+        } catch (err) {
+            tailFragment = document.createDocumentFragment();
+        }
+
+        const newBlockquote = document.createElement("blockquote");
+        newBlockquote.appendChild(tailFragment);
+        if (!newBlockquote.firstChild) {
+            newBlockquote.appendChild(document.createElement("br"));
+        }
+
+        blockquote.parentNode.insertBefore(newBlockquote, blockquote.nextSibling);
+
+        function isEmptyBlockquote(el) {
+            if (el.querySelector(".editor-code-container, .editor-terminal-container")) return false;
+            return el.textContent.replace(/\u00a0/g, " ").trim() === "";
+        }
+
+        const originalEmpty = isEmptyBlockquote(blockquote);
+        const newEmpty = isEmptyBlockquote(newBlockquote);
+
+        if (originalEmpty) blockquote.remove();
+        if (newEmpty) newBlockquote.remove();
+
+        const insertionRange = document.createRange();
+        if (newBlockquote.parentNode) {
+            insertionRange.setStartBefore(newBlockquote);
+        } else if (blockquote.parentNode) {
+            insertionRange.setStartAfter(blockquote);
+        } else {
+            // Both halves ended up empty and were removed (the quote had
+            // no real content) - fall back to a fresh spacer line at the
+            // end of the editor so there is always a concrete, root-level
+            // place to insert into.
+            const spacer = document.createElement("div");
+            spacer.appendChild(document.createElement("br"));
+            editor.appendChild(spacer);
+            insertionRange.selectNodeContents(spacer);
+        }
+        insertionRange.collapse(true);
+        return insertionRange;
+    }
+
     // Measures how much real lesson text the admin has written so far,
     // deliberately excluding the contents of any already-inserted
     // console/terminal block (filename, code, expected output, terminal
@@ -967,6 +1061,17 @@ function blockHasUserInput(wrapper) {
         const anchorNode = getAnchorNode();
         if (!anchorNode) return;
 
+        // Task #85: never let block-level formatting (Normal/H1/H2/H3/
+        // Quote) reach into a Terminal/Console/Expected-Output component -
+        // those are atomic, non-text blocks, not paragraphs. This covers
+        // both the caret landing directly on the wrapper (contentEditable
+        // is false, so a click can select the whole node as one atomic
+        // unit) AND the caret sitting inside one of the wrapper's own
+        // editable sub-fields (e.g. typing inside the Console box), since
+        // getBlockElement()'s BLOCK_LEVEL_TAGS list includes "div" and
+        // would otherwise happily replace that inner box's own tag.
+        if (isWithinInteractiveBlock(anchorNode)) return;
+
         const targetTag = BLOCK_TAG_MAP[action];
 
         // Check for a list item ANYWHERE up the chain first — not
@@ -986,6 +1091,12 @@ function blockHasUserInput(wrapper) {
             wrapBareContent(targetTag);
             return;
         }
+
+        // Task #85: belt-and-suspenders - even if isWithinInteractiveBlock()
+        // above somehow missed it, never replace an interactive wrapper's
+        // own tag with a heading/quote/normal block tag.
+        if (isInteractiveBlockWrapper(block)) return;
+
         const currentTag = block.tagName.toLowerCase();
 
         // "Normal" always forces div. Headings/quote toggle back to
@@ -1156,17 +1267,37 @@ function blockHasUserInput(wrapper) {
     // and no visible feedback.
     function getInsertionRange() {
         const selection = window.getSelection();
+        let range = null;
+
         if (selection.rangeCount) {
-            const range = selection.getRangeAt(0);
-            if (editor.contains(range.startContainer)) {
-                return range;
+            const candidate = selection.getRangeAt(0);
+            if (editor.contains(candidate.startContainer)) {
+                range = candidate;
             }
         }
-        // Selection missing or outside the editor - fall back to the
-        // very end of the lesson content instead of doing nothing.
-        const target = editor.lastChild || editor;
-        placeCaretAtEnd(target);
-        return window.getSelection().getRangeAt(0);
+
+        if (!range) {
+            // Selection missing or outside the editor - fall back to the
+            // very end of the lesson content instead of doing nothing.
+            const target = editor.lastChild || editor;
+            placeCaretAtEnd(target);
+            range = window.getSelection().getRangeAt(0);
+        }
+
+        // Task #85: Terminal/Console/Expected-Output blocks must always
+        // land at root editor level, never nested inside a <blockquote>.
+        // If the resolved insertion point is currently inside one, split
+        // the quote at that exact point and re-point the range at the
+        // gap between the two halves (a real root-level position) before
+        // handing it back to the caller.
+        const blockquote = findAncestorBlockquote(range.startContainer);
+        if (blockquote) {
+            range = splitBlockquoteAt(range, blockquote);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        return range;
     }
 
     function insertCodeBlockTemplate() {
