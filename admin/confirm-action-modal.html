@@ -1,0 +1,32 @@
+<!-- admin/confirm-action-modal.html
+     Task #83: Save Draft & Publish Confirmation
+     -------------------------------------------------------------
+     Shared Yes/No confirmation modal reused by BOTH the "Save Draft"
+     and "Publish" actions on the Upload Resource page (see
+     upload-resource-draft-guard.js's showConfirmModal()). Styled
+     identically to the existing Logout Confirmation modal
+     (admin-sidebar.html: #adminLogoutModal) and the Unsaved Changes
+     modal (unsaved-changes-modal.html) - same .modal-card-confirm
+     shell/icon/title/text layout, and the same .modal-btn-cancel /
+     .modal-btn-save button classes already defined in admin-style.css -
+     so this introduces no new CSS and matches the current admin design.
+
+     The title/message text and what happens on Confirm are set
+     dynamically by JS; this file is only the shared markup shell.
+     Included on upload-resource.html, right after
+     unsaved-changes-modal.html. Hidden by default. -->
+<div id="confirmActionModal" class="modal-overlay modal-hidden">
+    <div class="modal-card modal-card-confirm">
+        <div class="modal-confirm-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="modal-confirm-icon-svg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+        </div>
+        <h3 class="modal-confirm-title" id="confirmActionTitle">Are you sure?</h3>
+        <p class="modal-confirm-text" id="confirmActionText"></p>
+        <div class="modal-confirm-actions">
+            <button type="button" id="confirmActionCancelBtn" class="modal-btn-cancel">Cancel</button>
+            <button type="button" id="confirmActionConfirmBtn" class="modal-btn-save">Confirm</button>
+        </div>
+    </div>
+</div>

@@ -56,6 +56,25 @@ document.addEventListener("DOMContentLoaded", function () {
         return getMainLessonContentLength() >= MIN_CONTENT_BEFORE_BLOCK;
     }
 
+    // Task #83: shared "does the lesson have enough content to save/
+    // publish?" check. This file already owns MIN_LESSON_CONTENT_CHARS
+    // and getMainLessonContentLength() (used above for the block-
+    // insertion gate), so this is exposed globally as the single source
+    // of truth for that same rule, instead of a second, divergent copy
+    // living elsewhere. upload-resource-draft-guard.js's Save Draft AND
+    // Publish submit flow both call this exact function.
+    function validateLessonContentLength() {
+        const length = getMainLessonContentLength();
+        if (length < MIN_LESSON_CONTENT_CHARS) {
+            return {
+                valid: false,
+                message: `Lesson message must contain at least ${MIN_LESSON_CONTENT_CHARS} characters of meaningful content.`,
+            };
+        }
+        return { valid: true, message: "" };
+    }
+    window.cobraByteValidateLessonContent = validateLessonContentLength;
+
     // --- Task #47: pre-filled, runnable Python example for new console blocks ---
     //
     // Requirement: every newly-inserted interactive exercise block should

@@ -50,9 +50,21 @@
         const leaveBtn = document.getElementById("unsavedLeaveBtn");
         const saveAndLeaveBtn = document.getElementById("unsavedSaveAndLeaveBtn");
 
+        // Task #83: shared Save Draft / Publish confirmation modal (see
+        // confirm-action-modal.html). One generic Yes/No modal reused by
+        // both actions - showConfirmModal() below sets its title/message
+        // and what runs on Confirm.
+        const confirmActionModal = document.getElementById("confirmActionModal");
+        const confirmActionTitle = document.getElementById("confirmActionTitle");
+        const confirmActionText = document.getElementById("confirmActionText");
+        const confirmActionCancelBtn = document.getElementById("confirmActionCancelBtn");
+        const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
+
         let isDirty = false;
         let isSubmitting = false; // true once the real Publish form is actually submitting
         let pendingNavigation = null; // function to run once the admin confirms leaving
+        let pendingConfirmAction = null; // function to run once the admin confirms Save Draft/Publish
+        let publishConfirmed = false; // true once the admin has confirmed Publish for the in-flight submit
 
         // --------------------------------------------------------
         // Dirty-state tracking
@@ -95,6 +107,50 @@
         }
 
         if (stayBtn) stayBtn.addEventListener("click", closeUnsavedModal);
+
+        // --------------------------------------------------------
+        // Task #83: Save Draft / Publish confirmation modal
+        // --------------------------------------------------------
+        // Shows the shared confirm modal with a given title/message and
+        // runs `onConfirm` only if the admin actually clicks Confirm.
+        // Cancel (or clicking outside the card) simply closes the modal -
+        // no form data is touched either way, and `onConfirm` never runs.
+        // Falls back to a native confirm() if the modal markup isn't on
+        // the page for some reason, so this never silently breaks the
+        // Save Draft/Publish flow.
+        function showConfirmModal(message, onConfirm, title) {
+            if (!confirmActionModal) {
+                if (window.confirm(message)) onConfirm();
+                return;
+            }
+            pendingConfirmAction = onConfirm;
+            if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
+            if (confirmActionText) confirmActionText.textContent = message;
+            confirmActionModal.style.display = "flex";
+        }
+
+        function closeConfirmModal() {
+            if (confirmActionModal) confirmActionModal.style.display = "none";
+            pendingConfirmAction = null;
+        }
+
+        if (confirmActionCancelBtn) {
+            confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+        }
+        if (confirmActionConfirmBtn) {
+            confirmActionConfirmBtn.addEventListener("click", () => {
+                const action = pendingConfirmAction;
+                closeConfirmModal();
+                if (action) action();
+            });
+        }
+        if (confirmActionModal) {
+            // Click outside the card closes it too, matching every other
+            // modal's own outside-click behavior on this page.
+            confirmActionModal.addEventListener("click", (e) => {
+                if (e.target === confirmActionModal) closeConfirmModal();
+            });
+        }
 
         if (leaveBtn) {
             leaveBtn.addEventListener("click", () => {
@@ -233,10 +289,18 @@
             }
         }
 
+        // Task #83: confirm before actually saving a draft. Cancel closes
+        // the modal and leaves every field exactly as typed; Confirm runs
+        // the existing performSaveDraft() flow unchanged (including its
+        // own required-field/content-length validation).
         if (saveDraftBtn) {
             saveDraftBtn.addEventListener("click", (e) => {
                 e.preventDefault();
-                performSaveDraft();
+                showConfirmModal(
+                    "Are you sure you want to save this draft?",
+                    () => { performSaveDraft(); },
+                    "Save Draft?"
+                );
             });
         }
 
@@ -258,30 +322,6 @@
             });
         });
 
-        // --------------------------------------------------------
-        // Clear the unsaved-changes flag once the real Publish form is
-        // actually being submitted, so beforeunload's native prompt
-        // doesn't fire during a legitimate, successful submission.
-        // --------------------------------------------------------
-        form.addEventListener("submit", () => {
-            isSubmitting = true;
-            clearDirty();
-        });
-        // Task: Lesson Message minimum length - shared by the Publish submit
-        // below AND upload-resource-draft-guard.js's Save Draft flow (via
-        // window.cobraByteValidateLessonContent), so create and edit both
-        // enforce the exact same rule instead of two divergent copies.
-        function validateLessonContentLength() {
-            const length = getMainLessonContentLength();
-            if (length < MIN_LESSON_CONTENT_CHARS) {
-                return {
-                    valid: false,
-                    message: `Lesson message must contain at least ${MIN_LESSON_CONTENT_CHARS} characters of meaningful content.`,
-                };
-            }
-            return { valid: true, message: "" };
-        }
-
         function showLessonContentError(message) {
             const errorEl = document.getElementById("lessonContentError");
             if (!errorEl) { alert(message); return; }
@@ -294,23 +334,73 @@
             if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
         }
 
-        editor.addEventListener("input", clearLessonContentError);
+        if (editor) editor.addEventListener("input", clearLessonContentError);
 
-        window.cobraByteValidateLessonContent = validateLessonContentLength;
-
+        // --------------------------------------------------------
+        // Publish submit handling (Task #83, plus a fix for a pre-existing
+        // bug): the Publish button is a real type="submit" control, so the
+        // browser's own required-field validation (Lesson Name, Category,
+        // Module all have `required`) already runs BEFORE this listener
+        // ever fires - that behavior is untouched here.
+        //
+        // Once the native required-field check passes:
+        //   1. Content-length is checked via the SAME shared validator
+        //      Save Draft already uses (window.cobraByteValidateLessonContent,
+        //      defined once in editor-toolbar.js) - previously this file had
+        //      its own broken copy of this check (referencing functions/
+        //      variables that don't exist in this file's scope), which threw
+        //      an error on every single Publish click. That broken copy is
+        //      removed; this is now the one place this rule is enforced for
+        //      Publish.
+        //   2. If content is valid and the admin hasn't confirmed yet, the
+        //      real submission is paused (preventDefault) and the shared
+        //      confirm modal is shown. Cancel leaves the form exactly as it
+        //      was - nothing is submitted, nothing is lost.
+        //   3. On Confirm, the same interactive-block sync Publish always
+        //      needed (Task #45) is performed, then the form is submitted
+        //      for real via form.requestSubmit() - which re-runs this exact
+        //      listener, but `publishConfirmed` is now true, so it falls
+        //      through to the real, unblocked submission instead of asking
+        //      again.
         form.addEventListener("submit", function (e) {
-            const check = validateLessonContentLength();
+            const check = typeof window.cobraByteValidateLessonContent === "function"
+                ? window.cobraByteValidateLessonContent()
+                : { valid: true, message: "" };
+
             if (!check.valid) {
                 e.preventDefault();
                 showLessonContentError(check.message);
-                editor.focus();
+                if (editor) editor.focus();
                 return;
             }
             clearLessonContentError();
 
-            // Task #45: must run BEFORE reading editor.innerHTML...
-            syncInteractiveBlockValues();
-            hiddenInput.value = editor.innerHTML;
+            if (!publishConfirmed) {
+                e.preventDefault();
+                showConfirmModal(
+                    "Are you sure you want to publish this resource?",
+                    () => {
+                        publishConfirmed = true;
+                        isSubmitting = true;
+                        clearDirty();
+                        // Task #45: must run BEFORE reading editor.innerHTML,
+                        // or any filename typed / dropdown chosen inside a
+                        // code/terminal block would silently be dropped from
+                        // what actually gets published.
+                        if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
+                            window.cobraByteSyncInteractiveBlocks();
+                        }
+                        if (hiddenContent && editor) hiddenContent.value = editor.innerHTML;
+                        form.requestSubmit();
+                    },
+                    "Publish Resource?"
+                );
+                return;
+            }
+
+            // Already confirmed - this is the real, final submission.
+            isSubmitting = true;
+            clearDirty();
         });
     });
 })();
