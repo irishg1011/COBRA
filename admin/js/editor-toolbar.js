@@ -1313,6 +1313,10 @@ function blockHasUserInput(wrapper) {
                     <i class="fa-regular fa-file-code" style="color: #6b7280; font-size: 1.1rem;"></i>
                     <input type="text" class="editor-code-filename" placeholder="File name (e.g. main.py)">
                 </div>
+                <select class="editor-code-mode-select" title="Component Type">
+                    <option value="interactive" selected>Interactive Exercise (Console + Output)</option>
+                    <option value="snippet">Code Example Only (Console)</option>
+                </select>
                 <button type="button" class="editor-delete-block-btn" title="Delete Block"><i class="fa-solid fa-trash-can"></i></button>
             </div>
             <div class="editor-code-card console-card-pane">
@@ -1331,9 +1335,13 @@ function blockHasUserInput(wrapper) {
                 <div class="editor-code-card-body">
                     <div class="editor-code-title-row">
                         <div class="editor-code-title"><i class="fa-solid fa-terminal"></i> Expected Output</div>
+                        <select class="editor-output-mode-select" title="Expected Output Mode">
+                            <option value="manual" selected>Manual Input</option>
+                            <option value="auto">Auto-Evaluate from Code</option>
+                        </select>
                     </div>
-                    <p class="editor-code-desc output-desc-text">Runs automatically as a live terminal - click Run to generate it.</p>
-                    <div class="editor-output-box editor-output-terminal" contenteditable="false" placeholder="Click Run to see the output here..."></div>
+                    <p class="editor-code-desc output-desc-text">Set the expected output manually.</p>
+                    <div class="editor-output-box" contenteditable="true" placeholder="Enter expected output..."></div>
                 </div>
             </div>
         `;
@@ -1347,60 +1355,25 @@ function blockHasUserInput(wrapper) {
         const filenameInput = wrapper.querySelector(".editor-code-filename");
         if (filenameInput) filenameInput.value = DEFAULT_CODE_FILENAME;
 
-         wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
+        wrapper.querySelector(".editor-delete-block-btn").addEventListener("click", function () {
             confirmAndRemoveBlock(wrapper);
         });
 
-        const outputBox = wrapper.querySelector(".editor-output-box");
         const consoleBoxEl = wrapper.querySelector(".editor-console-box");
         keepPlaceholderPermanent(consoleBoxEl);
+        keepPlaceholderPermanent(wrapper.querySelector(".editor-output-box"));
         wireRunButton(wrapper);
 
-        range.deleteContents();
-        range.insertNode(wrapper);
-
-        // Apply auto mode's placeholder-only state immediately on load
-        // too, so a resource saved while in Auto mode reopens empty
-        // (placeholder) rather than blank-but-editable.
-        if (outputModeSelect && outputModeSelect.value === "auto") {
-            outputBox.innerHTML = "";
-            outputBox.setAttribute("placeholder", "Output will be automatically evaluated from code execution...");
-        }
-
-        modeSelect.addEventListener("change", function () {
-            if (this.value === "snippet") {
-                outputPane.style.display = "none";
-                runBtn.style.display = "none";
-                consolePane.style.gridColumn = "1 / -1";
-            } else {
-                outputPane.style.display = "flex";
-                runBtn.style.display = "flex";
-                consolePane.style.gridColumn = "auto";
-            }
-        });
-
-                outputModeSelect.addEventListener("change", function () {
-            if (this.value === "auto") {
-                outputBox.contentEditable = "false";
-                outputBox.style.background = "#f3f4f6";
-                outputBox.style.color = "#6b7280";
-                // NEW: empty DOM + placeholder attribute instead of real
-                // textContent - this message is now purely a CSS-drawn
-                // placeholder (module-editor.css's :empty:before) and is
-                // never part of editor.innerHTML, so it can never be
-                // saved as actual lesson content.
-                outputBox.innerHTML = "";
-                outputBox.setAttribute("placeholder", "Output will be automatically evaluated from code execution...");
-                outputDesc.textContent = "Output is dynamically generated based on code execution.";
-            } else {
-                outputBox.contentEditable = "true";
-                outputBox.style.background = "#ffffff";
-                outputBox.style.color = "#374151";
-                outputBox.innerHTML = "";
-                outputBox.setAttribute("placeholder", "e.g. Hello, World!");
-                outputDesc.textContent = "Set the expected output manually.";
-            }
-        });
+        // Task #86: Component Type (Interactive Exercise vs Code Example
+        // Only) and the Expected Output evaluation mode (Manual vs Auto)
+        // are two INDEPENDENT controls - wireCodeComponentMode() /
+        // wireOutputEvaluationMode() below are the single source of truth
+        // for both, shared with wireCodeContainer() (used when a saved
+        // lesson is reopened) so a reloaded block behaves identically to
+        // a freshly-inserted one, and so switching one control can never
+        // reset or remove the other.
+        wireCodeComponentMode(wrapper);
+        wireOutputEvaluationMode(wrapper);
 
         range.deleteContents();
         range.insertNode(wrapper);
@@ -1519,28 +1492,96 @@ function blockHasUserInput(wrapper) {
         }
     }
 
+    // Task #86: shared "Component Type" (Interactive Exercise vs Code
+    // Example Only) wiring - used by both a freshly-inserted block
+    // (insertCodeBlockTemplate) and a block rehydrated from a saved
+    // draft/lesson (wireCodeContainer), so there is only ever one place
+    // this behavior lives. Selecting "Code Example Only (Console)" hides
+    // the Expected Output pane and the Run button entirely - a plain
+    // code snippet never needs or requires an expected output - and lets
+    // the Console pane fill the full row width; switching back to
+    // "Interactive Exercise" restores both. This never touches the
+    // Expected Output evaluation mode select (wireOutputEvaluationMode
+    // below) - the two controls are completely independent, per Task
+    // #86's requirement that changing one can never remove/affect the
+    // other.
+    function wireCodeComponentMode(wrapper) {
+        const modeSelect = wrapper.querySelector(".editor-code-mode-select");
+        if (!modeSelect) return;
+
+        const consolePane = wrapper.querySelector(".console-card-pane");
+        const outputPane = wrapper.querySelector(".output-card-pane");
+        const runBtn = wrapper.querySelector(".run-btn");
+
+        function applyMode() {
+            const isSnippetOnly = modeSelect.value === "snippet";
+            if (outputPane) outputPane.style.display = isSnippetOnly ? "none" : "flex";
+            if (runBtn) runBtn.style.display = isSnippetOnly ? "none" : "flex";
+            if (consolePane) consolePane.style.gridColumn = isSnippetOnly ? "1 / -1" : "auto";
+        }
+
+        applyMode();
+        modeSelect.addEventListener("change", applyMode);
+    }
+
+    // Task #86: shared Expected Output evaluation-mode wiring (Manual
+    // Input vs Auto-Evaluate from Code) - independent of
+    // wireCodeComponentMode() above. Manual keeps the Expected Output box
+    // freely editable; Auto turns it into a read-only, auto-populated
+    // terminal that Run fills in (see wireRunButton()).
+    function wireOutputEvaluationMode(wrapper) {
+        const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
+        const outputBox = wrapper.querySelector(".editor-output-box");
+        const outputDesc = wrapper.querySelector(".output-desc-text");
+        if (!outputModeSelect || !outputBox) return;
+
+        function applyMode() {
+            if (outputModeSelect.value === "auto") {
+                outputBox.setAttribute("contenteditable", "false");
+                outputBox.classList.add("editor-output-terminal");
+                outputBox.style.background = "#f3f4f6";
+                outputBox.style.color = "#6b7280";
+                // Empty DOM + placeholder attribute instead of real
+                // textContent - this message is purely a CSS-drawn
+                // placeholder (module-editor.css's :empty:before) and is
+                // never part of editor.innerHTML, so it can never be
+                // saved as actual lesson content.
+                outputBox.innerHTML = "";
+                outputBox.setAttribute("placeholder", "Output will be automatically evaluated from code execution...");
+                if (outputDesc) outputDesc.textContent = "Output is dynamically generated based on code execution.";
+            } else {
+                outputBox.setAttribute("contenteditable", "true");
+                outputBox.classList.remove("editor-output-terminal");
+                outputBox.style.background = "#ffffff";
+                outputBox.style.color = "#374151";
+                outputBox.setAttribute("placeholder", "e.g. Hello, World!");
+                if (outputDesc) outputDesc.textContent = "Set the expected output manually.";
+            }
+        }
+
+        applyMode();
+        outputModeSelect.addEventListener("change", applyMode);
+    }
+
 function wireCodeContainer(wrapper) {
     wireDeleteButton(wrapper);
     wireRunButton(wrapper);
+    keepPlaceholderPermanent(wrapper.querySelector(".editor-console-box"));
+    keepPlaceholderPermanent(wrapper.querySelector(".editor-output-box"));
 
-    const outputBox = wrapper.querySelector(".editor-output-box");
-
-    // Make output a read-only terminal
-    if (outputBox) {
-        outputBox.setAttribute("contenteditable", "false");
-        outputBox.classList.add("editor-output-terminal");
-    }
-
-    // Remove legacy mode controls if they still exist
-    const legacyModeSelect = wrapper.querySelector(".editor-code-mode-select");
-    if (legacyModeSelect) {
-        legacyModeSelect.remove();
-    }
-
-    const legacyOutputModeSelect = wrapper.querySelector(".editor-output-mode-select");
-    if (legacyOutputModeSelect) {
-        legacyOutputModeSelect.remove();
-    }
+    // Task #86: rewire (never remove) the Component Type (Interactive
+    // Exercise vs Code Example Only) and Expected Output evaluation mode
+    // (Manual vs Auto) selects on a block reloaded from a saved draft/
+    // lesson. These used to be stripped out here ("Remove legacy mode
+    // controls if they still exist"), which is exactly what made "Code
+    // Example Only (Console)" disappear from a lesson the moment it was
+    // reopened for editing. Their `selected` option is already restored
+    // from the saved content_body (see syncInteractiveBlockValues()), so
+    // applying the CURRENT selection here - not defaulting back to
+    // "interactive"/"manual" - is what makes a saved Code-Example-Only
+    // block reopen as Code-Example-Only instead of silently reverting.
+    wireCodeComponentMode(wrapper);
+    wireOutputEvaluationMode(wrapper);
 }
 
     function wireTerminalContainer(wrapper) {
