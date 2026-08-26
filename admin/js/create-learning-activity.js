@@ -1,3 +1,261 @@
+/**
+ * create-learning-activity.js
+ * --------------------------------------------------------------------
+ * Task #58 additions (Multiple Choice question builder only - Section 2
+ * of Create Learning Activity):
+ *
+ *   1. Confirmation warning before any question-builder field (Question
+ *      text, an Answer Option, or a Feedback field) is CLEARED from
+ *      having text to being empty - covers both manual clearing (select
+ *      all + delete/backspace) and clicking a trash/delete icon
+ *      (removeQuestionCard / removeOptionRow) on a question/option that
+ *      still has typed data. Canceling restores the previous value
+ *      (for in-field clears) or aborts the removal (for delete icons).
+ *
+ *   2. Live casing normalization on every Question / Answer Option /
+ *      Feedback field: first character uppercase, every other character
+ *      lowercase - mirrors the exact same rule already used server-side
+ *      for Activity/Lesson/Category names (text_formatting.py,
+ *      lesson_validation.py, activity_validation.py) and client-side in
+ *      create-learning-activity-validations.js for the Activity Title
+ *      field, just applied here to the Section 2 builder fields.
+ *
+ *   3. "Add Question" / "Duplicate Question" are blocked (with an
+ *      explanatory alert) unless the CURRENT last question card already
+ *      has its Question text, every Answer Option, and every Feedback
+ *      field filled in - so a new/duplicated card can never be appended
+ *      while the previous one is still incomplete.
+ *
+ * All three behaviors are implemented via event delegation scoped to
+ * #questionsContainer, so they apply uniformly to every question card -
+ * including ones added, duplicated, moved, or reindexed after page
+ * load - without needing to re-bind anything per card.
+ */
+
+// ========================================================================
+// TASK #58: shared helpers - casing normalization, clear-confirmation,
+// and "is this question complete?" checks for the Multiple Choice
+// question builder (#questionsContainer).
+// ========================================================================
+
+// Tracks the last known value of every guarded field (Question text /
+// Answer Option text / Feedback text), keyed by the actual DOM element -
+// this is what lets us tell "the admin just cleared a field that had
+// text" apart from "this field has always been empty", without needing
+// a data-* attribute that would have to be kept in sync separately.
+const questionFieldValueTracker = new WeakMap();
+
+/**
+ * True for exactly the fields Task #58 governs: the Question textarea,
+ * and any Answer Option "text" or "feedback" input - all scoped to
+ * inside #questionsContainer (Multiple Choice only; Fill in the Blanks
+ * and Flashcards are unaffected). Radios (the "Is Correct" column) are
+ * explicitly excluded.
+ */
+function isGuardedQuestionField(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toUpperCase();
+    if (tag !== 'TEXTAREA' && tag !== 'INPUT') return false;
+    if (tag === 'INPUT' && el.type === 'radio') return false;
+    if (!el.closest || !el.closest('#questionsContainer')) return false;
+
+    if (el.classList && el.classList.contains('question-textarea')) return true;
+
+    const name = el.getAttribute('name') || '';
+    return /^questions\[\d+\]\[options\]\[\d+\]\[(text|feedback)\]$/.test(name);
+}
+
+/**
+ * "First character uppercase, every other character lowercase" - the
+ * exact same rule already used for Activity Title / Lesson Name /
+ * Category Name elsewhere in this project.
+ */
+function normalizeQuestionFieldCasing(value) {
+    if (!value) return value;
+    return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+}
+
+/**
+ * Applies normalizeQuestionFieldCasing() to `el.value` in place, keeping
+ * the caret where the admin was typing (rather than jumping to the end
+ * of the field) - same technique already used by
+ * create-learning-activity-validations.js's Activity Title formatter.
+ */
+function applyQuestionFieldCasing(el) {
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const normalized = normalizeQuestionFieldCasing(el.value);
+    if (normalized === el.value) return;
+    el.value = normalized;
+    if (start !== null && end !== null && typeof el.setSelectionRange === 'function') {
+        el.setSelectionRange(start, end);
+    }
+}
+
+/**
+ * (Re)synchronizes the tracker for every guarded field currently inside
+ * `scopeEl` to that field's CURRENT value. Must be called right after a
+ * question card is created or duplicated (including once its options
+ * have been copied over), so a freshly-duplicated field that already
+ * has text is correctly recognized as "has data" the very first time
+ * the admin tries to clear it - not just after they've typed into it
+ * once themselves.
+ */
+function refreshQuestionFieldTrackers(scopeEl) {
+    if (!scopeEl || !scopeEl.querySelectorAll) return;
+    scopeEl.querySelectorAll('.question-textarea, input[type="text"]').forEach((el) => {
+        if (isGuardedQuestionField(el)) {
+            questionFieldValueTracker.set(el, el.value || '');
+        }
+    });
+}
+
+/**
+ * Task #58, Requirement #1 (in-field clearing): fires on every input
+ * event anywhere inside #questionsContainer. If a guarded field just
+ * transitioned from having text to being completely empty, the admin is
+ * asked to confirm; canceling restores the field to its previous value.
+ * Otherwise (still has text, or was already empty), the field's casing
+ * is normalized live (Requirement #2) and the tracker is updated.
+ */
+function handleQuestionBuilderInput(e) {
+    const el = e.target;
+    if (!isGuardedQuestionField(el)) return;
+
+    const previousValue = questionFieldValueTracker.has(el) ? questionFieldValueTracker.get(el) : '';
+    const currentValue = el.value;
+
+    if (previousValue.trim() !== '' && currentValue.trim() === '') {
+        const confirmed = window.confirm(
+            'This field contains data. Are you sure you want to clear it?'
+        );
+        if (!confirmed) {
+            el.value = previousValue;
+            questionFieldValueTracker.set(el, previousValue);
+            if (typeof el.setSelectionRange === 'function') {
+                el.setSelectionRange(previousValue.length, previousValue.length);
+            }
+            return;
+        }
+        // Confirmed - the field is intentionally left empty.
+        questionFieldValueTracker.set(el, '');
+        return;
+    }
+
+    applyQuestionFieldCasing(el);
+    questionFieldValueTracker.set(el, el.value);
+}
+
+/**
+ * Initializes tracking for a guarded field the first time it's ever
+ * focused (covers a field that's focused and then cleared before any
+ * 'input' event has had a chance to seed the tracker - e.g. focus,
+ * select-all, delete, all before this field has been touched otherwise).
+ */
+function initQuestionFieldTracking(e) {
+    const el = e.target;
+    if (!isGuardedQuestionField(el)) return;
+    if (!questionFieldValueTracker.has(el)) {
+        questionFieldValueTracker.set(el, el.value || '');
+    }
+}
+
+document.addEventListener('input', handleQuestionBuilderInput);
+// 'focus' does not bubble, so this listener must be registered in the
+// capture phase to reliably see focus events on nested inputs/textareas.
+document.addEventListener('focus', initQuestionFieldTracking, true);
+
+/**
+ * True only if `card` has its Question text filled in AND every one of
+ * its current Answer Options has BOTH an answer and a feedback message
+ * filled in (matches the "Feedback for Learner *" required column shown
+ * in the builder). A question with fewer than 2 options is treated as
+ * incomplete, since Multiple Choice always requires at least 2.
+ */
+function isQuestionCardComplete(card) {
+    if (!card) return false;
+
+    const textarea = card.querySelector('.question-textarea');
+    const questionText = textarea ? textarea.value.trim() : '';
+    if (!questionText) return false;
+
+    const rows = card.querySelectorAll('.answer-row');
+    if (rows.length < 2) return false;
+
+    for (const row of rows) {
+        const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
+        const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
+        const optionText = textInput ? textInput.value.trim() : '';
+        const feedbackText = feedbackInput ? feedbackInput.value.trim() : '';
+        if (!optionText || !feedbackText) return false;
+    }
+
+    return true;
+}
+
+/**
+ * Task #58, Requirement #3: gate for both "Add Question" and "Duplicate
+ * Question". Returns true (and does nothing else) when there is no
+ * existing question yet, or the current LAST question card is fully
+ * complete. Otherwise alerts the admin with the reason and returns
+ * false, so the caller can abort before appending/duplicating anything.
+ */
+function canAddNewQuestion() {
+    const container = document.getElementById('questionsContainer');
+    if (!container) return true;
+
+    const cards = container.querySelectorAll('.question-card');
+    if (cards.length === 0) return true;
+
+    const lastCard = cards[cards.length - 1];
+    if (!isQuestionCardComplete(lastCard)) {
+        alert(
+            'Please complete the current question first - the question text, ' +
+            'every answer option, and every feedback field are all required ' +
+            'before adding or duplicating another question.'
+        );
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * True if `card` (a whole question) has ANY typed content - its own
+ * Question text, or any Answer Option's text/feedback - used to decide
+ * whether deleting the card needs a confirmation warning.
+ */
+function questionCardHasData(card) {
+    if (!card) return false;
+
+    const textarea = card.querySelector('.question-textarea');
+    if (textarea && textarea.value.trim() !== '') return true;
+
+    const rows = card.querySelectorAll('.answer-row');
+    for (const row of rows) {
+        const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
+        const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
+        if (textInput && textInput.value.trim() !== '') return true;
+        if (feedbackInput && feedbackInput.value.trim() !== '') return true;
+    }
+
+    return false;
+}
+
+/**
+ * True if a single Answer Option `row` has a typed answer and/or
+ * feedback - used to decide whether removing that one option needs a
+ * confirmation warning.
+ */
+function optionRowHasData(row) {
+    if (!row) return false;
+    const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
+    const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
+    const optionText = textInput ? textInput.value.trim() : '';
+    const feedbackText = feedbackInput ? feedbackInput.value.trim() : '';
+    return !!(optionText || feedbackText);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Activity Type Dropdown Change Logic
     const activityTypeSelect = document.getElementById('activityType');
@@ -41,6 +299,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const addQuestionMainBtn = document.getElementById('addQuestionMainBtn');
     if (addQuestionMainBtn) {
         addQuestionMainBtn.addEventListener('click', function() {
+            // Task #58, Requirement #3: never append a new question while
+            // the current last one is still incomplete.
+            if (!canAddNewQuestion()) return;
             addNewQuestionCard();
         });
     }
@@ -134,6 +395,12 @@ function addNewQuestionCard(prefilledData = null) {
 
     container.appendChild(card);
     setupTextareaCounters(card);
+    // Task #58: seed the clear-confirmation tracker with whatever this
+    // card starts out with (blank for a fresh card, or the prefilled
+    // Question text passed in for a duplicate - option values are
+    // copied in separately by duplicateQuestionCard(), which refreshes
+    // the tracker itself once that's done).
+    refreshQuestionFieldTrackers(card);
     updatePointsTotal();
 }
 
@@ -173,6 +440,9 @@ function addOptionRow(btn, qIndex) {
     `;
 
     optionsWrapper.appendChild(newRow);
+    // Task #58: a freshly-added option row starts empty - track it from
+    // the start so clearing it later behaves consistently.
+    refreshQuestionFieldTrackers(newRow);
 }
 
 // Delete an option row with the minus button
@@ -183,6 +453,15 @@ function removeOptionRow(btn) {
     if (wrapper.querySelectorAll('.answer-row').length <= 2) {
         alert('Multiple choice questions must have at least 2 options.');
         return;
+    }
+
+    // Task #58, Requirement #1: confirm before removing an option that
+    // still has a typed answer and/or feedback message.
+    if (optionRowHasData(row)) {
+        const confirmed = window.confirm(
+            'This answer option contains data. Are you sure you want to remove it?'
+        );
+        if (!confirmed) return;
     }
 
     const card = wrapper.closest('.question-card');
@@ -214,6 +493,17 @@ function removeOptionRow(btn) {
 // Delete an entire question card
 function removeQuestionCard(btn) {
     const card = btn.closest('.question-card');
+
+    // Task #58, Requirement #1: confirm before deleting a question that
+    // still has a typed question, answer option, or feedback in it.
+    if (questionCardHasData(card)) {
+        const confirmed = window.confirm(
+            'This question contains data. Are you sure you want to delete it? ' +
+            'This action cannot be undone.'
+        );
+        if (!confirmed) return;
+    }
+
     card.remove();
 
     const container = document.getElementById('questionsContainer');
@@ -333,6 +623,12 @@ function moveQuestionDown(btn) {
 
 // 3. Duplicate Question Card
 function duplicateQuestionCard(btn) {
+    // Task #58, Requirement #3: never duplicate while the current last
+    // question is still incomplete - a duplicate always gets appended
+    // to the end, so this is the same completeness gate as "Add
+    // Question".
+    if (!canAddNewQuestion()) return;
+
     const card = btn.closest('.question-card');
     const textarea = card.querySelector('.question-textarea');
     const textVal = textarea ? textarea.value : '';
@@ -374,6 +670,12 @@ function duplicateQuestionCard(btn) {
         `;
         newOptionsWrapper.appendChild(clonedRow);
     });
+
+    // Task #58: the duplicated options were just copied in with real
+    // values (not typed), so the clear-confirmation tracker must be
+    // refreshed AFTER copying - otherwise the very first attempt to
+    // clear a duplicated field wouldn't be recognized as "had data".
+    refreshQuestionFieldTrackers(newCard);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -388,6 +690,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Update Activity Type change listener to calculate points based on active section
+    const activityTypeSelect = document.getElementById('activityType');
+    const multipleChoiceSection = document.getElementById('multipleChoiceSection');
+    const fillBlanksSection = document.getElementById('fillBlanksSection');
+    const flashcardsSection = document.getElementById('flashcardsSection');
+    const instructionLabel = document.querySelector('.sub-instruction strong');
+    const instructionDesc = document.querySelector('.sub-instruction p');
+
     if (activityTypeSelect) {
         activityTypeSelect.addEventListener('change', function() {
             const selectedType = this.value;
@@ -511,25 +820,6 @@ function removeFillBlankCard(btn) {
     updatePointsTotal();
 }
 
-// Re-sequence Fill in the Blank items
-function reindexAllFillBlanks() {
-    const container = document.getElementById('fillBlanksContainer');
-    const cards = container.querySelectorAll('.fill-blank-card');
-
-    cards.forEach((card, idx) => {
-        card.dataset.index = idx;
-        card.querySelector('.fill-blank-title').textContent = `Item ${idx + 1}`;
-
-        const textarea = card.querySelector('textarea');
-        if (textarea) textarea.name = `fill_blanks[${idx}][content]`;
-
-        const inputs = card.querySelectorAll('input[type="text"]');
-        if (inputs[0]) inputs[0].name = `fill_blanks[${idx}][correct_answer]`;
-        if (inputs[1]) inputs[1].name = `fill_blanks[${idx}][correct_feedback]`;
-        if (inputs[2]) inputs[2].name = `fill_blanks[${idx}][incorrect_feedback]`;
-    });
-}
-
 // Duplicate Fill in the Blank Card
 function duplicateFillBlankCard(btn) {
     const card = btn.closest('.fill-blank-card');
@@ -564,7 +854,8 @@ function moveFillBlankDown(btn) {
     }
 }
 
-// Updated reindex function to keep inputs and names fully synced when moved/deleted
+// Re-sequence Fill in the Blank items (keeps inputs and names fully
+// synced when moved/deleted)
 function reindexAllFillBlanks() {
     const container = document.getElementById('fillBlanksContainer');
     const cards = container.querySelectorAll('.fill-blank-card');
