@@ -35,6 +35,9 @@ from manage_course import (
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
 )
+from learning_activities import (  # NEW: Manage Learning Activities DB integration
+    get_learning_activities_overview, get_activity_types,
+)
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
@@ -1666,9 +1669,38 @@ def archive_learning_resource(resource_id):
 @admin_bp.route('/learning-activities')
 def learning_activities():
     """
-    Renders the static learning activities management page.
+    Renders the Manage Learning Activities page with LIVE data - real rows
+    from learning_activities_tbl, LEFT JOINed against learning_resources_tbl
+    (Lesson Name), learning_activities_stats_tbl (Status), and profile_tbl
+    (Uploaded By) - see learning_activities.py - instead of the previous
+    static/empty page that always showed "No learning activities found."
+    regardless of what was actually in the database.
+ 
+    Mirrors learning_resources()'s own "server renders real data on load"
+    pattern: q / type / page come from the query string (all optional), so
+    a bookmarked/shared filtered URL renders the same result on load.
     """
-    return render_template('manage-learning-activities.html')
+    search = request.args.get('q', '')
+    type_filter = request.args.get('type', '')
+    page = request.args.get('page', 1, type=int)
+ 
+    overview = get_learning_activities_overview(
+        search_query=search, type_filter=type_filter, page=page,
+    )
+    if overview is None:
+        # DB unreachable - render with an empty list rather than crashing;
+        # the template's {% else %} branch already shows "No learning
+        # activities found." for a genuinely empty list.
+        overview = {"activities": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
+ 
+    return render_template(
+        'manage-learning-activities.html',
+        activities=overview["activities"],
+        total_activities=overview["total"],
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        activity_types=get_activity_types(),
+    )
 
 @admin_bp.route('/coding-exercises')
 def coding_exercises():

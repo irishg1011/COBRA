@@ -51,45 +51,62 @@
                             <input type="text" id="activitySearchInput" placeholder="Search activities...">
                         </div>
                         <div class="toolbar-filters">
+                            <!--
+                                Type options now come straight from
+                                activity_types_tbl (activity_types=
+                                get_activity_types(), passed by
+                                admin_routes.py's learning_activities()
+                                route) - value is the real
+                                activity_type_id, label is the real
+                                activity_type_name. No hardcoded types.
+                            -->
                             <select class="custom-select" id="activityTypeSelect">
                                 <option value="">All Types</option>
-                                <option value="Multiple Choice">Multiple Choice</option>
-                                <option value="Flashcard">Flashcard</option>
-                                <option value="Fill in the Blank">Fill in the Blank</option>
+                                {% for t in activity_types %}
+                                <option value="{{ t.activity_type_id }}">{{ t.activity_type_name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
 
-                    <!-- Activities Table -->
-                    <table class="data-table">
+                    <!--
+                        Requirement #1: columns are in this exact order -
+                        Activity Name, Lesson Name, Status, Uploaded By,
+                        Created At, Updated At - with Actions kept at the
+                        far right (functional, not part of the requested
+                        display sequence).
+                    -->
+                    <table class="data-table" id="activitiesDataTable">
                         <thead>
                             <tr>
-                                <th>Category</th>
-                                <th>Module</th>
-                                <th>Lesson</th>
                                 <th>Activity Name</th>
-                                <th>Type</th>
+                                <th>Lesson Name</th>
+                                <th>Status</th>
+                                <th>Uploaded By</th>
+                                <th>Created At</th>
+                                <th>Updated At</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="activitiesTableBody">
                             {% for activity in activities %}
-                            <tr>
-                                <td>{{ activity.category }}</td>
-                                <td class="text-muted">{{ activity.module }}</td>
-                                <td class="text-muted">{{ activity.lesson }}</td>
+                            <tr data-activity-id="{{ activity.activity_id }}">
                                 <td>
                                     <strong class="table-item-title">{{ activity.activity_name }}</strong>
                                 </td>
+                                <td class="text-muted">{{ activity.lesson_name }}</td>
                                 <td>
-                                    {% if activity.activity_type == 'Multiple Choice' %}
-                                    <span class="badge badge-video">Multiple Choice</span>
-                                    {% elif activity.activity_type == 'Flashcard' %}
-                                    <span class="badge badge-pdf">Flashcard</span>
+                                    {% if activity.status == 'Published' %}
+                                    <span class="badge badge-active">{{ activity.status }}</span>
+                                    {% elif activity.status == 'Archived' %}
+                                    <span class="badge badge-inactive">{{ activity.status }}</span>
                                     {% else %}
-                                    <span class="badge badge-document">Fill in the Blank</span>
+                                    <span class="badge badge-draft">{{ activity.status }}</span>
                                     {% endif %}
                                 </td>
+                                <td class="text-muted">{{ activity.uploaded_by }}</td>
+                                <td class="text-muted">{{ activity.created_at }}</td>
+                                <td class="text-muted">{{ activity.updated_at }}</td>
                                 <td class="text-right">
                                     <div class="table-actions-group">
                                         <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
@@ -101,7 +118,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted table-empty-message">
+                                <td colspan="7" class="text-muted table-empty-message">
                                     No learning activities found.
                                 </td>
                             </tr>
@@ -111,8 +128,10 @@
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
-                        <span>Showing {{ activities|length }} of {{ total_activities|default(0) }} Activities</span>
-                        <span>&lt; 1 of 1 &gt;</span>
+                        <span id="activitiesShowingCount">Showing {{ activities|length }} of {{ total_activities|default(0) }} Activities</span>
+                        <span>
+                            <span id="activitiesPageLabel">{{ page|default(1) }} of {{ total_pages|default(1) }}</span>
+                        </span>
                     </div>
 
                 </div>
