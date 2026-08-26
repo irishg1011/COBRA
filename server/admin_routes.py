@@ -41,6 +41,10 @@ from learning_activities import (  # NEW: Manage Learning Activities DB integrat
     delete_activity as db_delete_activity,
 )
 from learning_activity_draft import save_activity_draft, get_activity_draft  # NEW: Unsaved Changes Protection - draft autosave for Create Learning Activity
+from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
+    parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
+)
+from learning_activity_publishing import publish_activity  # NEW - Task #57: flips a saved activity's status to "Published", mirroring resource_publishing.publish_resource()'s two-step pattern
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
@@ -48,7 +52,6 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 from activity_validation import validate_activity_title  # NEW - Task #53: activity name casing + global uniqueness
-from activity_points import calculate_activity_points  # NEW - Task #55: server-side points calculation, never trusts client input
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -2168,40 +2171,93 @@ def create_learning_activity_save_draft():
 
 @admin_bp.route('/create-learning-activity/submit', methods=['POST'])
 def create_activity_submit():
-    # Extract submitted form data and dynamic questions
+    """
+    Task #57: Publish handler for Create Learning Activity.
+
+    Before this task, this route only validated the activity title and
+    then hit a bare "TODO: Insert activity and question sets" - nothing
+    was ever actually saved (no learning_activities_tbl row, no
+    questions/fill-blanks/flashcards). This now persists EVERYTHING the
+    form submitted:
+
+      1. Section 2 (questions[]/fill_blanks[]/flashcards[]) is parsed out
+         of the raw multipart form's bracketed field names via
+         learning_activity_form_parser.py - never re-implemented here.
+      2. Section 1 + Section 2 are both saved together by reusing
+         learning_activity_draft.save_activity_draft() - the EXACT same
+         function "Save Draft" already uses. This means Publish gets,
+         for free and without a second/divergent code path:
+             - Task #53's casing normalization + global title uniqueness
+               (validate_activity_title, called inside save_activity_draft)
+             - Task #55/#56's server-computed points (never the client's
+               own read-only 'points' field/DOM count)
+             - Category/Module/Lesson/Activity Type required-field checks
+             - atomic persistence of the activity row AND its child
+               content rows (mcq_questions_tbl/mcq_options_tbl,
+               fill_blanks_tbl, or flashcards_tbl) in one transaction
+         save_activity_draft() always writes with la_stats_id = "Draft"
+         first, exactly like a normal draft save.
+      3. Once saved, learning_activity_publishing.publish_activity()
+         flips that same row's status to "Published" as the final step -
+         mirroring upload_resource()'s own
+         save_lesson_draft() -> resource_publishing.publish_resource()
+         two-step pattern for Learning Resources.
+
+    On any failure (missing/duplicate title, missing category/module/
+    lesson/activity type, or a database error), the admin is redirected
+    back to the same in-progress activity (via ?activity_id=) with a
+    flashed error - no partial/invalid data is ever left half-published,
+    since save_activity_draft()'s own transaction only ever commits a
+    complete Section 1 + Section 2 save.
+    """
     activity_title = request.form.get('activity_title')
-    course_id = request.form.get('course_id')
+    cat_id = request.form.get('course_id')
     module_id = request.form.get('module_id')
     lesson_id = request.form.get('lesson_id')
     activity_type = request.form.get('activity_type')
-    status = request.form.get('status')
-
-    # Task #55: points are NEVER read from the client's own 'points' field.
-    # That field is read-only in the UI specifically so it can't be
-    # hand-edited (see create-learning-activity.html + updatePointsTotal()
-    # in create-learning-activity.js) - the authoritative count is always
-    # recomputed here, server-side, from the actual submitted
-    # question/fill-blank/flashcard items, via the one shared rule in
-    # activity_points.py. This is what makes "prevent manual overrides"
-    # (Task #55's note) actually enforceable, not just a UI convention.
-    points = calculate_activity_points(activity_type, request.form.keys())
-
-    # Task #53: casing normalization + GLOBAL uniqueness check ...
     activity_id = request.form.get('activity_id') or None
-    exclude_id = int(activity_id) if activity_id and activity_id.isdigit() else None
 
-    is_valid, result = validate_activity_title(activity_title, exclude_la_id=exclude_id)
-    if not is_valid:
-        flash(result, 'error')
-        redirect_kwargs = {'activity_id': activity_id} if activity_id else {}
+    # Task #57: turns the raw multipart form's bracketed field names
+    # (questions[0][text], fill_blanks[2][correct_answer], etc.) into the
+    # exact same list-of-dicts shape Save Draft's JSON body already sends -
+    # so save_activity_draft() below never has to know or care which of
+    # the two submission formats (multipart Publish vs. JSON Save Draft)
+    # actually produced its questions/fill_blanks/flashcards arguments.
+    questions = parse_questions_from_form(request.form)
+    fill_blanks = parse_fill_blanks_from_form(request.form)
+    flashcards = parse_flashcards_from_form(request.form)
+
+    success, message, saved_activity_id, points = save_activity_draft(
+        activity_id=activity_id,
+        activity_title=activity_title,
+        cat_id=cat_id,
+        module_id=module_id,
+        resource_id=lesson_id,
+        activity_type=activity_type,
+        questions=questions,
+        fill_blanks=fill_blanks,
+        flashcards=flashcards,
+        uploaded_by=session.get('admin_id'),
+    )
+
+    if not success:
+        flash(message, 'error')
+        # Keep the admin on the same in-progress activity (if one already
+        # exists) rather than bouncing them back to a blank form and
+        # losing their place - same convention as upload_resource()'s own
+        # failure-redirect handling above.
+        redirect_activity_id = saved_activity_id or activity_id
+        redirect_kwargs = {'activity_id': redirect_activity_id} if redirect_activity_id else {}
         return redirect(url_for('admin_bp.create_learning_activity_page', **redirect_kwargs))
 
-    activity_title = result
-
-    # TODO: Insert activity and question sets into your database here -
-    # `points` above is already the correct, server-verified count and
-    # is the value that must be written to learning_activities_tbl.points
-    # once that insert is implemented.
+    publish_success, publish_message = publish_activity(saved_activity_id)
+    if not publish_success:
+        # The activity itself saved successfully - only the "go live"
+        # step was blocked. Say so plainly and stay on this same
+        # activity, mirroring upload_resource()'s own partial-success
+        # messaging.
+        flash(f"Activity saved as a draft, but could not publish it: {publish_message}", 'error')
+        return redirect(url_for('admin_bp.create_learning_activity_page', activity_id=saved_activity_id))
 
     flash('Learning activity created and published successfully!', 'success')
     return redirect(url_for('admin_bp.learning_activities'))
