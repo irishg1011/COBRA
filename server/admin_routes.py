@@ -1669,30 +1669,32 @@ def archive_learning_resource(resource_id):
 @admin_bp.route('/learning-activities')
 def learning_activities():
     """
-    Renders the Manage Learning Activities page with LIVE data - real rows
-    from learning_activities_tbl, LEFT JOINed against learning_resources_tbl
-    (Lesson Name), learning_activities_stats_tbl (Status), and profile_tbl
-    (Uploaded By) - see learning_activities.py - instead of the previous
-    static/empty page that always showed "No learning activities found."
-    regardless of what was actually in the database.
- 
-    Mirrors learning_resources()'s own "server renders real data on load"
-    pattern: q / type / page come from the query string (all optional), so
-    a bookmarked/shared filtered URL renders the same result on load.
+    Renders the Manage Learning Activities page with LIVE data.
+
+    q / type / sort / page / created_from / created_to / updated_from /
+    updated_to all come from the query string (all optional), so a
+    bookmarked/shared filtered URL renders the same result on load -
+    same convention as learning_resources() / manage_course().
     """
     search = request.args.get('q', '')
     type_filter = request.args.get('type', '')
+    sort = request.args.get('sort', '')
     page = request.args.get('page', 1, type=int)
- 
+
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
     overview = get_learning_activities_overview(
         search_query=search, type_filter=type_filter, page=page,
+        sort_by=sort,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
     )
     if overview is None:
-        # DB unreachable - render with an empty list rather than crashing;
-        # the template's {% else %} branch already shows "No learning
-        # activities found." for a genuinely empty list.
         overview = {"activities": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
- 
+
     return render_template(
         'manage-learning-activities.html',
         activities=overview["activities"],
@@ -1700,7 +1702,69 @@ def learning_activities():
         page=overview["page"],
         total_pages=overview["total_pages"],
         activity_types=get_activity_types(),
+        created_from=created_from or '',
+        created_to=created_to or '',
+        updated_from=updated_from or '',
+        updated_to=updated_to or '',
+        sort=sort or '',
     )
+
+
+# ============================================================
+# ROUTE: LIVE LEARNING ACTIVITIES SEARCH + FILTER + SORT + DATE (JSON)
+# ============================================================
+@admin_bp.route('/learning-activities/data')
+def learning_activities_data():
+    """
+    Backend-driven live search/type-filter/sort/date-filter/pagination
+    for the Manage Learning Activities table - JSON, mirroring
+    learning_resources_data()'s pattern exactly for consistency.
+
+    Query params (all optional):
+      q             - free-text search term (Activity Name, Lesson
+                      Name, Category, Module, Activity Type, Uploaded By)
+      type          - the real activity_type_id from activity_types_tbl
+      sort          - "created_desc" (default), "created_asc", or
+                      "updated_desc"
+      page          - page number
+      created_from / created_to / updated_from / updated_to - 'YYYY-MM-DD'
+
+    Returns JSON: { "success": bool, "activities": [...], "total": int,
+    "page": int, "total_pages": int }
+    """
+    search = request.args.get('q', '')
+    type_filter = request.args.get('type', '')
+    sort = request.args.get('sort', '')
+    page = request.args.get('page', 1, type=int)
+
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
+    # Server-side range validation - never trust only the frontend's own
+    # check, matching manage_course_data()'s / learning_resources_data()'s
+    # own validation convention.
+    if created_from and created_to and created_from > created_to:
+        return jsonify({
+            "success": False,
+            "message": "Created At: end date must be on or after the start date.",
+        }), 400
+    if updated_from and updated_to and updated_from > updated_to:
+        return jsonify({
+            "success": False,
+            "message": "Updated At: end date must be on or after the start date.",
+        }), 400
+
+    overview = get_learning_activities_overview(
+        search_query=search, type_filter=type_filter, page=page,
+        sort_by=sort,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
 
 @admin_bp.route('/coding-exercises')
 def coding_exercises():

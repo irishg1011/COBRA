@@ -94,6 +94,18 @@ DEFAULT_ACTIVITY_TYPES = ["Multiple Choice", "Fill in the Blanks", "Flashcards"]
 _la_stats_ensured = False
 _activity_types_ensured = False
 
+# ------------------------------------------------------------------
+# Sort options for Manage Learning Activities (mirrors admin_routes.py's
+# SORT_CLAUSES pattern for Account & Security) - the dropdown value only
+# ever selects one of these hardcoded ORDER BY clauses, never built from
+# raw input.
+# ------------------------------------------------------------------
+LA_SORT_CLAUSES = {
+    "created_desc": "la.created_at DESC",
+    "created_asc": "la.created_at ASC",
+    "updated_desc": "la.updated_at DESC",
+}
+DEFAULT_LA_SORT_KEY = "created_desc"
 
 def ensure_la_stats(connection):
     """
@@ -212,38 +224,40 @@ def get_activity_types():
 # ================================================================
 # LEARNING ACTIVITIES OVERVIEW (table data + live search/filter)
 # ================================================================
-def get_learning_activities_overview(search_query=None, type_filter=None, page=1, per_page=8):
+def get_learning_activities_overview(search_query=None, type_filter=None, page=1, per_page=8,
+                                      sort_by=None,
+                                      created_from=None, created_to=None,
+                                      updated_from=None, updated_to=None):
     """
     Pulls a page of learning_activities_tbl, LEFT JOINed against
-    learning_resources_tbl (for the Lesson Name), learning_activities_stats_tbl
-    (for the Status name), profile_tbl (for the Uploaded By display name),
-    category_tbl, modules_tbl, and activity_types_tbl - so every column the
-    UI needs is returned display-ready, never a raw resource_id/la_stats_id/
-    uploaded_by/cat_id/module_id/activity_type_id.
-
-    LEFT JOINs (not INNER) are used throughout because every one of these
-    foreign keys can legitimately be missing or point at a row that no
-    longer exists (resource_id, uploaded_by are nullable in the schema;
-    la_stats_id/cat_id/module_id/activity_type_id could reference a since-
-    deleted row) - an INNER JOIN would silently drop those activities
-    instead of showing them with a graceful placeholder.
+    learning_resources_tbl (Lesson Name), learning_activities_stats_tbl
+    (Status), profile_tbl (Uploaded By), category_tbl, modules_tbl, and
+    activity_types_tbl - so every column the UI needs is returned
+    display-ready.
 
     search_query (str | None): matches, case-insensitively, against the
-    activity title, the joined lesson (resource) title, the status name,
-    the uploader's "firstname lastname", the category name, the module
-    name, and the activity type name - all combined with OR in one
-    parameterized clause (never string-concatenated raw input).
+    activity title, lesson (resource) title, category name, module name,
+    activity type name, and the uploader's "firstname lastname" - all
+    combined with OR in one parameterized clause.
 
-    type_filter (str | int | None): Requirement #3 - the real
-    activity_type_id from activity_types_tbl (never a hardcoded id or a
-    name string), compared directly against
-    learning_activities_tbl.activity_type_id. Falsy/empty means "no type
-    filter" (the "All Types" option - Requirement #2).
+    type_filter (str | int | None): the real activity_type_id from
+    activity_types_tbl. Falsy/empty means "no type filter".
+
+    sort_by (str | None): one of LA_SORT_CLAUSES's keys
+    ("created_desc" [default, Newest First], "created_asc"
+    [Oldest First], "updated_desc" [Recently Updated]). Only ever
+    selects one of the three hardcoded clauses above - never built from
+    raw input.
+
+    created_from / created_to / updated_from / updated_to (str | None):
+    optional 'YYYY-MM-DD' strings. Each is only added to the query when
+    actually supplied - an absent bound adds no restriction. Compared
+    via DATE(...) so a timestamp's time-of-day never excludes an
+    otherwise-matching row, and created_at/updated_at filtering are
+    independent of each other (both may be active together).
 
     Returns {"activities": [...], "total": int, "page": int, "per_page":
-    int, "total_pages": int}, or None on DB failure - admin_routes.py is
-    responsible for turning a None into a proper "could not reach the
-    database" response rather than silently showing an empty table.
+    int, "total_pages": int}, or None on DB failure.
     """
     connection = get_db_connection()
     if connection is None:
@@ -271,24 +285,40 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
                 AND (
                     LOWER(la.activity_title) LIKE %s
                     OR LOWER(lr.resource_title) LIKE %s
-                    OR LOWER(last.la_stats_name) LIKE %s
-                    OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
                     OR LOWER(c.category_name) LIKE %s
                     OR LOWER(m.module_name) LIKE %s
                     OR LOWER(atp.activity_type_name) LIKE %s
+                    OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
                 )
             """
             like_term = f"%{term.lower()}%"
-            params.extend([like_term] * 7)
+            params.extend([like_term] * 6)
 
-        # Requirement #3: filter by the REAL activity_type_id, never a
-        # hardcoded/assumed numeric id or a display-name comparison. An
-        # empty value (the "All Types" option - Requirement #2) is simply
-        # omitted, matching exactly what "no type filter" means here.
         type_id = (str(type_filter).strip() if type_filter not in (None, "") else "")
         if type_id:
             base_query += " AND la.activity_type_id = %s"
             params.append(type_id)
+
+        # ------------------------------------------------------------
+        # Created At / Updated At date filters
+        # ------------------------------------------------------------
+        created_from = (created_from or "").strip() or None
+        created_to = (created_to or "").strip() or None
+        updated_from = (updated_from or "").strip() or None
+        updated_to = (updated_to or "").strip() or None
+
+        if created_from:
+            base_query += " AND DATE(la.created_at) >= %s"
+            params.append(created_from)
+        if created_to:
+            base_query += " AND DATE(la.created_at) <= %s"
+            params.append(created_to)
+        if updated_from:
+            base_query += " AND DATE(la.updated_at) >= %s"
+            params.append(updated_from)
+        if updated_to:
+            base_query += " AND DATE(la.updated_at) <= %s"
+            params.append(updated_to)
 
         # Total count (for pagination), before LIMIT/OFFSET.
         cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
@@ -300,6 +330,10 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
         page = min(page, total_pages)
         offset = (page - 1) * per_page
 
+        # Sort - only ever one of the hardcoded LA_SORT_CLAUSES entries.
+        sort_key = (sort_by or "").strip().lower()
+        order_clause = LA_SORT_CLAUSES.get(sort_key, LA_SORT_CLAUSES[DEFAULT_LA_SORT_KEY])
+
         cursor.execute(
             f"""
             SELECT
@@ -310,7 +344,7 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
                 c.category_name, m.module_name, atp.activity_type_name,
                 la.created_at, la.updated_at
             {base_query}
-            ORDER BY la.created_at DESC
+            ORDER BY {order_clause}
             LIMIT %s OFFSET %s
             """,
             tuple(params) + (per_page, offset)
@@ -323,9 +357,6 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
             uploader_name = " ".join(
                 part for part in [row.get("firstname"), row.get("lastname")] if part
             ).strip()
-            # Same nullable-uploader fallback convention as
-            # learning_resources.py: profile name, else the raw acc_id,
-            # else an em-dash if there's no uploader at all.
             uploaded_by_display = uploader_name or row.get("uploaded_by") or "—"
 
             activities.append({
@@ -334,9 +365,6 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
                 "lesson_name": row.get("resource_title") or "—",
                 "status": row.get("la_stats_name") or "Draft",
                 "uploaded_by": uploaded_by_display,
-                # Kept available (not part of the required 6 display
-                # columns) for any search/filter UI built on top of this
-                # later, without needing a second query.
                 "category": row.get("category_name") or "Uncategorized",
                 "module": row.get("module_name") or "—",
                 "type": row.get("activity_type_name") or "—",

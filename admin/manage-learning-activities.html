@@ -51,24 +51,45 @@
                             <input type="text" id="activitySearchInput" placeholder="Search activities...">
                         </div>
                         <div class="toolbar-filters">
-                            <!--
-                                Type options now come straight from
-                                activity_types_tbl (activity_types=
-                                get_activity_types(), passed by
-                                admin_routes.py's learning_activities()
-                                route) - value is the real
-                                activity_type_id, label is the real
-                                activity_type_name. No hardcoded types.
-                            -->
                             <select class="custom-select" id="activityTypeSelect">
                                 <option value="">All Types</option>
                                 {% for t in activity_types %}
                                 <option value="{{ t.activity_type_id }}">{{ t.activity_type_name }}</option>
                                 {% endfor %}
                             </select>
+
+                            <select class="custom-select" id="activitySortSelect">
+                                <option value="created_desc" {{ 'selected' if sort|default('created_desc') == 'created_desc' }}>Newest First</option>
+                                <option value="created_asc" {{ 'selected' if sort|default('') == 'created_asc' }}>Oldest First</option>
+                                <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Recently Updated</option>
+                            </select>
+
+                            <div class="date-filter-group" id="activityCreatedDateGroup">
+                                <span class="date-filter-label">Created At</span>
+                                <input type="date" class="custom-select" id="activityCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="activityCreatedToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="activityCreatedRangeToggle"> Today
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearActivityCreatedDateBtn" title="Clear Created At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+
+                            <div class="date-filter-group" id="activityUpdatedDateGroup">
+                                <span class="date-filter-label">Updated At</span>
+                                <input type="date" class="custom-select" id="activityUpdatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="activityUpdatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="activityUpdatedRangeToggle"> Today
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearActivityUpdatedDateBtn" title="Clear Updated At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
-
+                    <p id="activityDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
                     <!--
                         Requirement #1: columns are in this exact order -
                         Activity Name, Lesson Name, Status, Uploaded By,
@@ -130,7 +151,9 @@
                     <div class="table-pagination">
                         <span id="activitiesShowingCount">Showing {{ activities|length }} of {{ total_activities|default(0) }} Activities</span>
                         <span>
+                            <button id="activitiesPrevBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
                             <span id="activitiesPageLabel">{{ page|default(1) }} of {{ total_pages|default(1) }}</span>
+                            <button id="activitiesNextBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
                         </span>
                     </div>
 
@@ -143,5 +166,6 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-learning-activities.js') }}"></script>
 </body>
 </html>
