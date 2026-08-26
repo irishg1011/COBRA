@@ -47,6 +47,7 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 from activity_validation import validate_activity_title  # NEW - Task #53: activity name casing + global uniqueness
+from activity_points import calculate_activity_points  # NEW - Task #55: server-side points calculation, never trusts client input
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -2147,14 +2148,19 @@ def create_activity_submit():
     module_id = request.form.get('module_id')
     lesson_id = request.form.get('lesson_id')
     activity_type = request.form.get('activity_type')
-    points = request.form.get('points')
     status = request.form.get('status')
 
-    # Task #53: casing normalization + GLOBAL uniqueness check - blocks
-    # submission if a duplicate activity title exists anywhere in the
-    # system, regardless of category/module/lesson. This is the
-    # authoritative, server-side gate; the frontend's live check is a
-    # UX convenience only and can never be relied on alone.
+    # Task #55: points are NEVER read from the client's own 'points' field.
+    # That field is read-only in the UI specifically so it can't be
+    # hand-edited (see create-learning-activity.html + updatePointsTotal()
+    # in create-learning-activity.js) - the authoritative count is always
+    # recomputed here, server-side, from the actual submitted
+    # question/fill-blank/flashcard items, via the one shared rule in
+    # activity_points.py. This is what makes "prevent manual overrides"
+    # (Task #55's note) actually enforceable, not just a UI convention.
+    points = calculate_activity_points(activity_type, request.form.keys())
+
+    # Task #53: casing normalization + GLOBAL uniqueness check ...
     activity_id = request.form.get('activity_id') or None
     exclude_id = int(activity_id) if activity_id and activity_id.isdigit() else None
 
@@ -2164,11 +2170,12 @@ def create_activity_submit():
         redirect_kwargs = {'activity_id': activity_id} if activity_id else {}
         return redirect(url_for('admin_bp.create_learning_activity_page', **redirect_kwargs))
 
-    # Task #53: the normalized ("Python quiz") title, not the raw
-    # as-typed value, is what must actually be persisted.
     activity_title = result
 
-    # TODO: Insert activity and question sets into your database here
+    # TODO: Insert activity and question sets into your database here -
+    # `points` above is already the correct, server-verified count and
+    # is the value that must be written to learning_activities_tbl.points
+    # once that insert is implemented.
 
     flash('Learning activity created and published successfully!', 'success')
     return redirect(url_for('admin_bp.learning_activities'))
