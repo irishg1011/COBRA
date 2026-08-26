@@ -2261,7 +2261,7 @@ def create_activity_submit():
 
     flash('Learning activity created and published successfully!', 'success')
     return redirect(url_for('admin_bp.learning_activities'))
-
+    #wew
 @admin_bp.route('/coding-exercises/create', methods=['GET'])
 def create_coding_exercise():
     return render_template('create-coding-exercise.html')
