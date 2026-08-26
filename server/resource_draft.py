@@ -28,18 +28,29 @@ subsequent save (the frontend echoes that resource_id back) UPDATEs
 the SAME row and its lesson_content_tbl row in place - so clicking
 "Save Draft" repeatedly on the same lesson never creates duplicate
 rows.
+
+NEW: on an UPDATE (re-saving an existing resource as a draft),
+lr_stats_id is now ALSO forced back to "Draft" - not just left
+whatever it was - so reopening an already-Published resource and
+clicking Save Draft correctly reverts it to Draft, exactly like a
+brand-new resource always starts as Draft. This never fights with
+the real Publish flow: admin_routes.py's upload_resource() POST
+handler calls save_lesson_draft() first (forcing Draft), then
+immediately calls resource_publishing.publish_resource() right after,
+which flips it to Published in the very next step of the same
+request.
 """
 
 from mysql.connector import Error
 from cobradb import get_db_connection
 from lesson_validation import format_lesson_title, is_lesson_title_taken
 from resource_publishing import get_draft_status_id
-from lesson_content_validation import validate_lesson_content  # NEW
+from lesson_content_validation import validate_lesson_content
 
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 LESSON_CONTENT_TABLE = "lesson_content_tbl"
 RESOURCE_TYPES_TABLE = "resource_types_tbl"
-# NEW - Task #48: needed so get_lesson_draft() can resolve and display the
+# Task #48: needed so get_lesson_draft() can resolve and display the
 # resource's real Draft/Published status name (see learning_resources.py /
 # resource_publishing.py, which already use this same table under this
 # same constant name).
@@ -226,23 +237,21 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
         return False, "Please select a category before saving a draft.", None
     if not module_id:
         return False, "Please select a module before saving a draft.", None
-    if not module_id:
-        return False, "Please select a module before saving a draft.", None
 
-    # NEW: Lesson Message minimum length - enforced here so it applies
+    # Lesson Message minimum length - enforced here so it applies
     # identically to Publish AND Save Draft, for a new lesson or an
     # edit, and can never be bypassed by skipping the browser check.
     content_ok, content_message = validate_lesson_content(content_html)
     if not content_ok:
         return False, content_message, None
-    
+
     existing_id = None
     if resource_id:
         try:
             existing_id = int(resource_id)
         except (TypeError, ValueError):
             existing_id = None
-    
+
     connection = get_db_connection()
     if connection is None:
         return False, "Could not connect to the database.", None
@@ -263,6 +272,11 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
         cursor = connection.cursor()
 
         if existing_id:
+            # ------------------------------------------------------------
+            # UPDATE branch - re-saving a lesson that already has a
+            # resource_id (i.e. it was saved/created before).
+            # ------------------------------------------------------------
+
             # Confirm the row still exists before updating it - it may
             # have been deleted/archived by another admin in the
             # meantime.
@@ -274,11 +288,25 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
                 cursor.close()
                 return False, "This draft no longer exists. Please refresh and try again.", None
 
+            # Requirement #1 - editing a resource through Save Draft must
+            # also force it back to "Draft", not just leave whatever
+            # status it happened to have (e.g. re-opening an already-
+            # Published resource and clicking Save Draft should revert it
+            # to Draft, exactly like a brand-new resource starts as
+            # Draft). Reuses the SAME status id the INSERT branch below
+            # already resolves via get_draft_status_id() - never a
+            # second/divergent lookup.
+            draft_status_id = get_draft_status_id(connection)
+            if not draft_status_id:
+                cursor.close()
+                return False, "Could not resolve the Draft status.", None
+
             cursor.execute(
                 f"""UPDATE {LEARNING_RESOURCES_TABLE}
-                    SET resource_title = %s, cat_id = %s, module_id = %s, updated_at = NOW()
+                    SET resource_title = %s, cat_id = %s, module_id = %s,
+                        lr_stats_id = %s, updated_at = NOW()
                     WHERE resource_id = %s""",
-                (normalized_name, cat_id, module_id, existing_id)
+                (normalized_name, cat_id, module_id, draft_status_id, existing_id)
             )
 
             cursor.execute(
@@ -301,7 +329,14 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
             cursor.close()
             return True, "Draft saved successfully.", existing_id
 
-        # First save for this lesson - INSERT a brand new Draft row.
+        # ------------------------------------------------------------
+        # INSERT branch - first save for this lesson, no resource_id
+        # yet. This is the branch that was accidentally dropped -
+        # without it, learning_resources_tbl never gets a new row and
+        # lesson_content_tbl's INSERT below is handed a None
+        # resource_id, which is exactly what produced the
+        # "Column 'resource_id' cannot be null" error.
+        # ------------------------------------------------------------
         draft_status_id = get_draft_status_id(connection)
         if not draft_status_id:
             cursor.close()
