@@ -34,28 +34,34 @@ Tables involved (per cobra_db.sql):
 
 WHY THIS EXISTS
 Before this file, admin_routes.py's learning_activities() route rendered
-manage-learning-activities.html with NO data at all - the table always
-showed "No learning activities found." regardless of what was actually in
-learning_activities_tbl. This file gives that page a real, joined query the
-same way learning_resources.py already does for Learning Resources.
+manage-learning-activities.html with NO data at all, and the page's "Type"
+filter dropdown was a hardcoded <option> list (Multiple Choice / Flashcard /
+Fill in the Blank) with no connection to activity_types_tbl whatsoever - a
+new activity type added to the database would never show up, and the
+dropdown's value never matched any real activity_type_id. This file fixes
+both: real joined data for the table (see get_learning_activities_overview()),
+and a real, seeded, id-backed source for the Type dropdown (see
+ensure_activity_types() / get_activity_types() below).
 
 Requirements satisfied:
-    1. Column structure - get_learning_activities_overview() returns each
-       row shaped for exactly: Activity Name, Lesson Name, Status,
-       Uploaded By, Created At, Updated At (plus a few extra fields kept
-       available for search/filtering, e.g. category/module/type).
-    2. Joins - LEFT JOINs learning_activities_tbl.resource_id ->
+    1. Dynamic dropdown - get_activity_types() reads activity_type_id /
+       activity_type_name straight from activity_types_tbl (seeded via
+       ensure_activity_types() if empty) - never a hardcoded list.
+    2. "All Types" default - handled entirely on the frontend/template
+       side (a static leading <option value="">All Types</option>), which
+       maps to type_filter being falsy/empty below - i.e. "no restriction".
+    3. Table filtering - get_learning_activities_overview()'s type_filter
+       param is compared directly against the real
+       learning_activities_tbl.activity_type_id column, never a hardcoded/
+       assumed id or a name-string comparison.
+    4. Joins - LEFT JOINs learning_activities_tbl.resource_id ->
        learning_resources_tbl.resource_id for resource_title (aliased
        "Lesson Name"), and la_stats_id -> learning_activities_stats_tbl for
        the human-readable status name. LEFT JOIN (not INNER) throughout,
-       since resource_id/uploaded_by/la_stats_id can all legitimately be
-       missing or point at a row that no longer exists - an INNER JOIN
-       would silently drop those activities instead of showing them with a
-       graceful placeholder.
-    3. Formatting - created_at/updated_at are formatted the same way
-       learning_resources.py / manage_course.py already format their own
-       date/datetime columns, so there is only one date-formatting
-       convention across the whole admin section.
+       since resource_id/uploaded_by/la_stats_id/activity_type_id can all
+       legitimately be missing or point at a row that no longer exists -
+       an INNER JOIN would silently drop those activities instead of
+       showing them with a graceful placeholder.
 """
 
 from mysql.connector import Error
@@ -71,12 +77,22 @@ ACTIVITY_TYPES_TABLE = "activity_types_tbl"
 
 # Task requirement: these statuses must exist in learning_activities_stats_tbl.
 # Never hardcoded anywhere else in the app - every caller reads them via
-# get_activity_stats_options() below. Mirrors manage_course.py's
-# DEFAULT_STATUSES / resource_publishing.py's DEFAULT_LR_STATUSES seeding
-# pattern exactly.
+# get_learning_activities_overview()'s own status resolution. Mirrors
+# manage_course.py's DEFAULT_STATUSES / resource_publishing.py's
+# DEFAULT_LR_STATUSES seeding pattern exactly.
 DEFAULT_LA_STATUSES = ["Draft", "Published", "Archived"]
 
+# These activity types must exist in activity_types_tbl. Matches the exact
+# three options the Create Learning Activity form
+# (create-learning-activity.html: #activityType) already lets an admin
+# choose from - "Multiple Choice", "Fill in the Blanks", "Flashcards" -
+# never hardcoded anywhere else; every caller (the Type filter dropdown,
+# the create-activity form, future features) reads them fresh via
+# get_activity_types() below.
+DEFAULT_ACTIVITY_TYPES = ["Multiple Choice", "Fill in the Blanks", "Flashcards"]
+
 _la_stats_ensured = False
+_activity_types_ensured = False
 
 
 def ensure_la_stats(connection):
@@ -108,6 +124,36 @@ def ensure_la_stats(connection):
         print(f"learning_activities: failed to seed {LA_STATS_TABLE}: {e}")
 
 
+def ensure_activity_types(connection):
+    """
+    Task: Dynamic Type dropdown. "If these records do not already exist,
+    automatically insert them into activity_types_tbl." Idempotent
+    (checked by name before inserting, so re-running this never creates
+    duplicates) and gated behind a module-level flag so it only round-trips
+    to the database once per process lifetime - identical convention to
+    ensure_la_stats() above and manage_course.ensure_module_stats().
+    """
+    global _activity_types_ensured
+    if _activity_types_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT activity_type_name FROM {ACTIVITY_TYPES_TABLE}")
+        existing = {row[0] for row in cursor.fetchall()}
+        missing = [t for t in DEFAULT_ACTIVITY_TYPES if t not in existing]
+        for name in missing:
+            cursor.execute(
+                f"INSERT INTO {ACTIVITY_TYPES_TABLE} (activity_type_name) VALUES (%s)",
+                (name,)
+            )
+        if missing:
+            connection.commit()
+        cursor.close()
+        _activity_types_ensured = True
+    except Error as e:
+        print(f"learning_activities: failed to seed {ACTIVITY_TYPES_TABLE}: {e}")
+
+
 def _fmt_date(dt):
     """e.g. 'Aug 26, 2026' - matches learning_resources.py's / manage_course.py's
     own _fmt_date() convention, written cross-platform (no %-d, which is
@@ -126,14 +172,18 @@ def _fmt_datetime(dt):
 
 
 # ================================================================
-# ACTIVITY TYPES (dropdown source - never hardcoded)
+# ACTIVITY TYPES (Type filter dropdown source - never hardcoded)
 # ================================================================
 def get_activity_types():
     """
-    Returns every row of activity_types_tbl (activity_type_id,
-    activity_type_name), ordered by name, so the "All Types" dropdown on
-    manage-learning-activities.html can be built entirely from the
-    database instead of the hardcoded <option> list it currently has.
+    Requirement #1: Returns every row of activity_types_tbl
+    (activity_type_id, activity_type_name), ordered by name, so the
+    "All Types" dropdown on manage-learning-activities.html is built
+    ENTIRELY from the database - never a hardcoded <option> list.
+
+    Seeds the table first (ensure_activity_types()) so a fresh/empty
+    database still gives the dropdown real, id-backed rows to render
+    instead of showing just the bare "All Types" option forever.
 
     Returns [] (never raises) on any database error, so the page still
     renders (with just the "All Types" option) instead of crashing.
@@ -142,6 +192,7 @@ def get_activity_types():
     if connection is None:
         return []
     try:
+        ensure_activity_types(connection)
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             f"SELECT activity_type_id, activity_type_name FROM {ACTIVITY_TYPES_TABLE} "
@@ -159,7 +210,7 @@ def get_activity_types():
 
 
 # ================================================================
-# LEARNING ACTIVITIES OVERVIEW (table data)
+# LEARNING ACTIVITIES OVERVIEW (table data + live search/filter)
 # ================================================================
 def get_learning_activities_overview(search_query=None, type_filter=None, page=1, per_page=8):
     """
@@ -183,19 +234,16 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
     name, and the activity type name - all combined with OR in one
     parameterized clause (never string-concatenated raw input).
 
-    type_filter (str | int | None): the real activity_type_id from
-    activity_types_tbl (never a hardcoded id or a name string). Falsy/empty
-    means "no type filter" (the "All Types" option).
+    type_filter (str | int | None): Requirement #3 - the real
+    activity_type_id from activity_types_tbl (never a hardcoded id or a
+    name string), compared directly against
+    learning_activities_tbl.activity_type_id. Falsy/empty means "no type
+    filter" (the "All Types" option - Requirement #2).
 
     Returns {"activities": [...], "total": int, "page": int, "per_page":
     int, "total_pages": int}, or None on DB failure - admin_routes.py is
     responsible for turning a None into a proper "could not reach the
     database" response rather than silently showing an empty table.
-
-    Each activity dict has the exact columns Requirement #1 asks for
-    ("activity_name", "lesson_name", "status", "uploaded_by", "created_at",
-    "updated_at"), plus "category"/"module"/"type" kept available for any
-    future filter/search UI without a second query.
     """
     connection = get_db_connection()
     if connection is None:
@@ -233,8 +281,10 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
             like_term = f"%{term.lower()}%"
             params.extend([like_term] * 7)
 
-        # Filter by the REAL activity_type_id, never a hardcoded/assumed
-        # numeric id or a display-name comparison.
+        # Requirement #3: filter by the REAL activity_type_id, never a
+        # hardcoded/assumed numeric id or a display-name comparison. An
+        # empty value (the "All Types" option - Requirement #2) is simply
+        # omitted, matching exactly what "no type filter" means here.
         type_id = (str(type_filter).strip() if type_filter not in (None, "") else "")
         if type_id:
             base_query += " AND la.activity_type_id = %s"
@@ -284,9 +334,9 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
                 "lesson_name": row.get("resource_title") or "—",
                 "status": row.get("la_stats_name") or "Draft",
                 "uploaded_by": uploaded_by_display,
-                # Kept available (not part of the required 6 columns) for
-                # any search/filter UI built on top of this later, without
-                # needing a second query.
+                # Kept available (not part of the required 6 display
+                # columns) for any search/filter UI built on top of this
+                # later, without needing a second query.
                 "category": row.get("category_name") or "Uncategorized",
                 "module": row.get("module_name") or "—",
                 "type": row.get("activity_type_name") or "—",
