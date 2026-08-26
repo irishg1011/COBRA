@@ -385,3 +385,73 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
     finally:
         if connection.is_connected():
             connection.close()
+
+
+# ================================================================
+# DELETE LEARNING ACTIVITY
+# ================================================================
+def delete_activity(activity_id):
+    """
+    Deletes a learning activity by la_id along with its related child
+    records in mcq_options_tbl, mcq_questions_tbl, fill_blanks_tbl,
+    and flashcards_tbl.
+
+    Args:
+        activity_id (int | str): The primary key (la_id) of the activity to delete.
+
+    Returns:
+        tuple[bool, str]: (True, "Learning activity deleted successfully.") on success,
+                          (False, "<error message>") on failure.
+    """
+    if not activity_id:
+        return False, "Activity ID is required."
+    try:
+        aid = int(activity_id)
+    except (TypeError, ValueError):
+        return False, "Invalid activity ID."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Database connection failed."
+
+    try:
+        cursor = connection.cursor()
+
+        # Check if the activity exists
+        cursor.execute(f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s", (aid,))
+        if not cursor.fetchone():
+            cursor.close()
+            return False, "Learning activity not found."
+
+        # Delete dependent mcq options first
+        cursor.execute(
+            """
+            DELETE FROM mcq_options_tbl
+            WHERE q_id IN (SELECT q_id FROM mcq_questions_tbl WHERE la_id = %s)
+            """,
+            (aid,)
+        )
+
+        # Delete dependent mcq questions
+        cursor.execute("DELETE FROM mcq_questions_tbl WHERE la_id = %s", (aid,))
+
+        # Delete dependent fill in the blanks
+        cursor.execute("DELETE FROM fill_blanks_tbl WHERE la_id = %s", (aid,))
+
+        # Delete dependent flashcards
+        cursor.execute("DELETE FROM flashcards_tbl WHERE la_id = %s", (aid,))
+
+        # Delete the learning activity itself
+        cursor.execute(f"DELETE FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s", (aid,))
+
+        connection.commit()
+        cursor.close()
+        return True, "Learning activity deleted successfully."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"learning_activities: failed to delete learning activity {aid}: {e}")
+        return False, "Could not delete learning activity."
+    finally:
+        if connection.is_connected():
+            connection.close()

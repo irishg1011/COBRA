@@ -38,6 +38,7 @@ from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Res
 )
 from learning_activities import (  # NEW: Manage Learning Activities DB integration
     get_learning_activities_overview, get_activity_types,
+    delete_activity as db_delete_activity,
 )
 from learning_activity_draft import save_activity_draft, get_activity_draft  # NEW: Unsaved Changes Protection - draft autosave for Create Learning Activity
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
@@ -1769,6 +1770,23 @@ def learning_activities_data():
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500
     return jsonify({"success": True, **overview}), 200
+
+
+# ============================================================
+# ROUTE: DELETE LEARNING ACTIVITY
+# ============================================================
+@admin_bp.route('/learning-activities/<int:activity_id>/delete', methods=['POST'])
+def delete_activity(activity_id):
+    """
+    Deletes a learning activity and all of its associated child records.
+    Supports both JSON/fetch calls and standard HTML form POSTs.
+    """
+    success, message = db_delete_activity(activity_id)
+    if request.is_json or request.headers.get('Accept') == 'application/json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"success": success, "message": message}), (200 if success else 400)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_bp.learning_activities'))
+
 
 @admin_bp.route('/coding-exercises')
 def coding_exercises():
