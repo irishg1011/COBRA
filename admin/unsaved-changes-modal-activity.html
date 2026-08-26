@@ -1,0 +1,45 @@
+<!-- admin/unsaved-changes-modal-activity.html
+     Unsaved Changes Protection - Create Learning Activity
+     -------------------------------------------------------------
+     Warns the admin before losing in-progress Create Learning Activity
+     form data (activity title, category, module, lesson, activity
+     type, points, or any question/fill-blank/flashcard content) -
+     whether they click away via the sidebar, the header Back link, or
+     close/refresh the tab. Mirrors upload-resource.html's
+     #unsavedChangesModal (Task #44) exactly - same
+     .modal-card-confirm shell, same three-action layout - just its own
+     copy so its Save Draft & Leave button can point at
+     admin_bp.learning_activities instead of
+     admin_bp.learning_resources. Wired up entirely by
+     create-learning-activity-draft-guard.js. Hidden by default.
+     Included only on create-learning-activity.html. -->
+<div id="unsavedChangesModal" class="modal-overlay modal-hidden">
+    <div class="modal-card modal-card-confirm">
+        <div class="modal-confirm-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="modal-confirm-icon-svg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+        </div>
+        <h3 class="modal-confirm-title">Leave without saving?</h3>
+        <p class="modal-confirm-text">You have unsaved changes to this activity. Save your work as a draft, or leave and lose your changes.</p>
+        <!-- Shown only if Save Draft & Leave's save attempt fails (e.g.
+             Activity Title/Category/Module/Lesson/Activity Type still
+             empty) - keeps the admin inside this modal with a clear
+             reason instead of the modal just closing with nothing
+             visibly happening. Toggled via the existing .modal-hidden
+             class (admin-style.css), never inline style. -->
+        <p id="unsavedSaveError" class="modal-confirm-text modal-error-text modal-hidden"></p>
+        <div class="modal-confirm-actions modal-confirm-actions-triple">
+            <button type="button" id="unsavedStayBtn" class="modal-btn-cancel">Stay on Page</button>
+            <button type="button" id="unsavedLeaveBtn" class="modal-btn-danger">Leave Without Saving</button>
+            <!--
+                data-redirect-url is rendered server-side from the real
+                admin_bp.learning_activities route, so Save Draft &
+                Leave always lands there after a successful save.
+            -->
+            <button type="button" id="unsavedSaveAndLeaveBtn" class="modal-btn-save" data-redirect-url="{{ url_for('admin_bp.learning_activities') }}">
+                <i class="fa-regular fa-floppy-disk"></i> Save Draft &amp; Leave
+            </button>
+        </div>
+    </div>
+</div>

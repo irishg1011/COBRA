@@ -38,6 +38,7 @@ from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Res
 from learning_activities import (  # NEW: Manage Learning Activities DB integration
     get_learning_activities_overview, get_activity_types,
 )
+from learning_activity_draft import save_activity_draft, get_activity_draft  # NEW: Unsaved Changes Protection - draft autosave for Create Learning Activity
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
@@ -1997,8 +1998,66 @@ def upload_resource_modules_by_category():
 
 @admin_bp.route('/create-learning-activity', methods=['GET'])
 def create_learning_activity_page():
+    """
+    Renders the Create Learning Activity form.
+
+    On GET, an optional ?activity_id= query param reloads a previously
+    saved draft's Activity Information fields back into the form - via
+    learning_activity_draft.get_activity_draft() - instead of always
+    starting blank, mirroring upload_resource()'s own
+    ?resource_id=-based reload (Task #45).
+    """
     greeting = "Welcome back"
-    return render_template('create-learning-activity.html', greeting=greeting)
+    activity_id = request.args.get('activity_id', '') or None
+    existing_activity = get_activity_draft(activity_id) if activity_id else None
+
+    return render_template(
+        'create-learning-activity.html',
+        greeting=greeting,
+        existing_activity=existing_activity,
+    )
+
+
+# ============================================================
+# ROUTE: SAVE CREATE LEARNING ACTIVITY FORM AS A DRAFT
+# ============================================================
+@admin_bp.route('/create-learning-activity/save-draft', methods=['POST'])
+def create_learning_activity_save_draft():
+    """
+    Unsaved Changes Protection: saves the Create Learning Activity
+    form's current in-progress Activity Information fields as a real
+    Draft row, so the admin's work survives navigating away mid-edit -
+    mirrors upload_resource_save_draft()'s exact pattern (Task #44),
+    just for learning_activities_tbl instead of
+    learning_resources_tbl. All persistence logic lives in
+    learning_activity_draft.py - this route is a thin HTTP wrapper only.
+
+    Expects JSON body: { activity_id, activity_title, category_id,
+    module_id, lesson_id, activity_type_id, points }
+
+    activity_id is omitted/null on the very first save; the frontend
+    (create-learning-activity-draft-guard.js) echoes it back on every
+    save afterward so this always updates the SAME row in place.
+
+    Returns JSON: { "success": bool, "message": str, "activity_id": int | None }
+    """
+    data = request.get_json(silent=True) or {}
+
+    success, message, saved_activity_id = save_activity_draft(
+        activity_id=data.get('activity_id'),
+        activity_title=data.get('activity_title'),
+        cat_id=data.get('category_id'),
+        module_id=data.get('module_id'),
+        resource_id=data.get('lesson_id'),
+        activity_type_id=data.get('activity_type_id'),
+        points=data.get('points'),
+        uploaded_by=session.get('admin_id'),
+    )
+    return jsonify({
+        "success": success,
+        "message": message,
+        "activity_id": saved_activity_id,
+    }), (200 if success else 400)
 
 @admin_bp.route('/create-learning-activity/submit', methods=['POST'])
 def create_activity_submit():

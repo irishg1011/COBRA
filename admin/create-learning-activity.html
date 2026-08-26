@@ -43,10 +43,13 @@
                             </button>
                         </div>
                     </div>
+                    <div class="top-bar-validation-row">
+                        <span class="js-draft-notice top-bar-inline-message" style="display: none;"></span>
+                    </div>
                 </div>
 
                 <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST">
-                    
+                    <input type="hidden" name="activity_id" id="activityIdInput" value="{{ existing_activity.la_id if existing_activity else '' }}">
                     <!-- Section 1: Activity Information -->
                     <div class="card-box padded-card mb-24">
                         <div class="form-section-header">
@@ -167,6 +170,8 @@
                 </form>
 
             </div>
+        {% include 'unsaved-changes-modal-activity.html' %}
+        {% include 'confirm-action-modal.html' %}
         </main>
     </div>
 
@@ -174,5 +179,6 @@
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-draft-guard.js') }}"></script>
 </body>
 </html>
