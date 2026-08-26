@@ -2123,39 +2123,47 @@ def create_learning_activity_page():
 @admin_bp.route('/create-learning-activity/save-draft', methods=['POST'])
 def create_learning_activity_save_draft():
     """
-    Unsaved Changes Protection: saves the Create Learning Activity
-    form's current in-progress Activity Information fields as a real
-    Draft row, so the admin's work survives navigating away mid-edit -
-    mirrors upload_resource_save_draft()'s exact pattern (Task #44),
-    just for learning_activities_tbl instead of
-    learning_resources_tbl. All persistence logic lives in
-    learning_activity_draft.py - this route is a thin HTTP wrapper only.
+    Task #56: saves the Create Learning Activity form's current
+    in-progress state as a real Draft row - Section 1 (Activity
+    Information) AND Section 2 (questions / fill-in-the-blank items /
+    flashcards, whichever the selected Activity Type is using) - so
+    the admin's work survives navigating away mid-edit and the Manage
+    Learning Activities table/points reflect the actual saved content
+    immediately. All persistence logic lives in
+    learning_activity_draft.py (Section 1 + orchestration) and
+    learning_activity_content.py (Section 2) - this route is a thin
+    HTTP wrapper only.
 
     Expects JSON body: { activity_id, activity_title, category_id,
-    module_id, lesson_id, activity_type_id, points }
+    module_id, lesson_id, activity_type, questions, fill_blanks,
+    flashcards }
 
     activity_id is omitted/null on the very first save; the frontend
     (create-learning-activity-draft-guard.js) echoes it back on every
     save afterward so this always updates the SAME row in place.
 
-    Returns JSON: { "success": bool, "message": str, "activity_id": int | None }
+    Returns JSON: { "success": bool, "message": str,
+    "activity_id": int | None, "points": int }
     """
     data = request.get_json(silent=True) or {}
 
-    success, message, saved_activity_id = save_activity_draft(
+    success, message, saved_activity_id, points = save_activity_draft(
         activity_id=data.get('activity_id'),
         activity_title=data.get('activity_title'),
         cat_id=data.get('category_id'),
         module_id=data.get('module_id'),
         resource_id=data.get('lesson_id'),
-        activity_type_id=data.get('activity_type_id'),
-        points=data.get('points'),
+        activity_type=data.get('activity_type'),
+        questions=data.get('questions'),
+        fill_blanks=data.get('fill_blanks'),
+        flashcards=data.get('flashcards'),
         uploaded_by=session.get('admin_id'),
     )
     return jsonify({
         "success": success,
         "message": message,
         "activity_id": saved_activity_id,
+        "points": points,
     }), (200 if success else 400)
 
 @admin_bp.route('/create-learning-activity/submit', methods=['POST'])

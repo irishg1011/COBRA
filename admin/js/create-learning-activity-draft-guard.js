@@ -13,10 +13,14 @@
  *     immediately, offering "Stay", "Leave Without Saving", or
  *     "Save Draft & Leave".
  *   - Wires the "Save Draft" button to POST the current Activity
- *     Information fields to /admin/create-learning-activity/save-draft
- *     (see admin_routes.py -> learning_activity_draft.py), storing the
- *     returned activity_id in a hidden field so every later save
- *     updates the SAME row instead of creating duplicates.
+ *     Information fields AND the current Section 2 content (Task #56)
+ *     to /admin/create-learning-activity/save-draft (see
+ *     admin_routes.py -> learning_activity_draft.py ->
+ *     learning_activity_content.py), storing the returned activity_id
+ *     in a hidden field so every later save updates the SAME row
+ *     instead of creating duplicates, and syncing the read-only Points
+ *     field from the server's own computed value (never trusting the
+ *     client's own running count as the value that gets saved).
  *   - Clears the unsaved-changes flag the moment a draft save OR the
  *     real Publish submission succeeds.
  *
@@ -63,6 +67,70 @@
         let pendingNavigation = null;
         let pendingConfirmAction = null;
         let publishConfirmed = false;
+
+        // --------------------------------------------------------
+        // Task #56: Section 2 collectors - read the CURRENT DOM state
+        // of whichever builder is active (Multiple Choice / Fill in the
+        // Blanks / Flashcards) into the exact shape
+        // learning_activity_content.py expects. Reused by both the
+        // header "Save Draft" button and "Save Draft & Leave".
+        // --------------------------------------------------------
+        function collectMultipleChoiceQuestions() {
+            const cards = document.querySelectorAll("#questionsContainer .question-card");
+            const questions = [];
+            cards.forEach((card) => {
+                const textarea = card.querySelector(".question-textarea");
+                const text = textarea ? textarea.value.trim() : "";
+
+                const options = [];
+                let correctOption = null;
+                card.querySelectorAll(".answer-row").forEach((row, idx) => {
+                    const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
+                    const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
+                    const radio = row.querySelector('input[type="radio"]');
+                    if (radio && radio.checked) correctOption = idx;
+                    options.push({
+                        text: textInput ? textInput.value.trim() : "",
+                        feedback: feedbackInput ? feedbackInput.value.trim() : "",
+                    });
+                });
+
+                questions.push({ text: text, options: options, correct_option: correctOption });
+            });
+            return questions;
+        }
+
+        function collectFillBlanks() {
+            const cards = document.querySelectorAll("#fillBlanksContainer .fill-blank-card");
+            const items = [];
+            cards.forEach((card) => {
+                const textarea = card.querySelector("textarea");
+                const inputs = card.querySelectorAll('input[type="text"]');
+                items.push({
+                    content: textarea ? textarea.value.trim() : "",
+                    correct_answer: inputs[0] ? inputs[0].value.trim() : "",
+                    correct_feedback: inputs[1] ? inputs[1].value.trim() : "",
+                    incorrect_feedback: inputs[2] ? inputs[2].value.trim() : "",
+                });
+            });
+            return items;
+        }
+
+        function collectFlashcards() {
+            const cards = document.querySelectorAll("#flashcardsContainer .flashcard-card");
+            const items = [];
+            cards.forEach((card) => {
+                const textareas = card.querySelectorAll("textarea");
+                const inputs = card.querySelectorAll('input[type="text"]');
+                items.push({
+                    front: textareas[0] ? textareas[0].value.trim() : "",
+                    back: textareas[1] ? textareas[1].value.trim() : "",
+                    correct_feedback: inputs[0] ? inputs[0].value.trim() : "",
+                    incorrect_feedback: inputs[1] ? inputs[1].value.trim() : "",
+                });
+            });
+            return items;
+        }
 
         // --------------------------------------------------------
         // Dirty-state tracking
@@ -266,6 +334,13 @@
                 saveDraftBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
 
+            // Task #56: only the section matching the currently-selected
+            // Activity Type is actually collected/sent - matches
+            // activity_points.py's own "one list per activity_type" rule,
+            // and keeps the request from carrying stale content left over
+            // from a type the admin has since switched away from.
+            const selectedType = activityTypeSelect.value;
+
             try {
                 const response = await fetch("/admin/create-learning-activity/save-draft", {
                     method: "POST",
@@ -277,8 +352,10 @@
                         category_id: courseSelect.value,
                         module_id: moduleSelect.value,
                         lesson_id: lessonSelect.value,
-                        activity_type_id: activityTypeSelect.value,
-                        points: pointsInput ? pointsInput.value : 0,
+                        activity_type: selectedType,
+                        questions: selectedType === "Multiple Choice" ? collectMultipleChoiceQuestions() : [],
+                        fill_blanks: selectedType === "Fill in the Blanks" ? collectFillBlanks() : [],
+                        flashcards: selectedType === "Flashcards" ? collectFlashcards() : [],
                     }),
                 });
                 const result = await response.json();
@@ -290,6 +367,12 @@
 
                 if (activityIdInput && result.activity_id) {
                     activityIdInput.value = result.activity_id;
+                }
+                // Task #56: reflect the server's own computed points back
+                // into the read-only field - this (not the client's own
+                // running tally) is what was actually persisted.
+                if (pointsInput && typeof result.points !== "undefined" && result.points !== null) {
+                    pointsInput.value = result.points;
                 }
                 clearDirty();
                 showDraftNotice(result.message || "Draft saved successfully.", false);
