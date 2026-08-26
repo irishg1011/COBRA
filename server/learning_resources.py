@@ -146,6 +146,69 @@ def get_resource_types():
 
 
 # ================================================================
+# Task #54: LESSONS BY MODULE (dependent Lesson dropdown lookup)
+# ================================================================
+def get_resources_by_module(module_id):
+    """
+    Task #54: backs the Create Learning Activity page's dependent Lesson
+    dropdown (Category -> Module -> Lesson). Returns only the lessons
+    (learning_resources_tbl rows) whose module_id matches the selected
+    Module - via a parameterized query, so the selected module id is
+    never concatenated into SQL. Mirrors
+    manage_course.get_modules_by_category()'s exact convention (a lean,
+    single-purpose SELECT, not the full paginated/joined shape
+    get_learning_resources_overview() returns) - just one level deeper
+    (Module -> Lesson instead of Category -> Module).
+
+    Excludes Archived resources (see resource_publishing.archive_resource())
+    the same way get_learning_resources_overview()'s own default view
+    does - an archived lesson should never be selectable as a new
+    activity's parent lesson.
+
+    Args:
+        module_id (int | str): the modules_tbl.module_id to filter
+            learning_resources_tbl by.
+
+    Returns:
+        [] (never raises) if module_id is falsy, the module has no
+        resources, or on any database error - callers should treat an
+        empty list as "no lessons available for this module" and never
+        fall back to hardcoded/mock data. Otherwise a list of
+        {"resource_id": int, "resource_title": str} dicts, ordered by
+        title, which is exactly what the Lesson dropdown needs to map
+        resource_id -> resource_title (Task #54's core requirement).
+    """
+    if not module_id:
+        return []
+
+    connection = get_db_connection()
+    if connection is None:
+        return []
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""
+            SELECT lr.resource_id, lr.resource_title
+            FROM {LEARNING_RESOURCES_TABLE} lr
+            LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            WHERE lr.module_id = %s
+              AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')
+            ORDER BY lr.resource_title ASC
+            """,
+            (module_id,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
+    except Error as e:
+        print(f"learning_resources: failed to load lessons for module {module_id}: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ================================================================
 # Task #37, #39, #40 & #43: LEARNING RESOURCES OVERVIEW (table data)
 # ================================================================
 def get_learning_resources_overview(search_query=None, type_filter=None, page=1, per_page=8,

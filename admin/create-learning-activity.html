@@ -69,19 +69,44 @@
                         <div class="form-grid-3">
                             <div class="form-group">
                                 <label class="form-label" for="courseSelect">Category *</label>
+                                <!--
+                                    Task #54: options come straight from category_tbl
+                                    (categories = get_categories(), passed by
+                                    admin_routes.py's create_learning_activity_page()
+                                    route) - value is the real cat_id, label is the
+                                    real category_name. No hardcoded categories or IDs.
+                                -->
                                 <select id="courseSelect" name="course_id" class="custom-select form-control-select" required>
-                                    <option value="" disabled selected>Select category</option>
+                                    <option value="" disabled {{ 'selected' if not existing_activity }}>Select category</option>
+                                    {% for cat in categories %}
+                                    <option value="{{ cat.cat_id }}" {{ 'selected' if existing_activity and existing_activity.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="moduleSelect">Module *</label>
-                                <select id="moduleSelect" name="module_id" class="custom-select form-control-select" required>
+                                <!--
+                                    Task #54: starts empty and disabled - locked until a
+                                    valid Category is chosen. create-learning-activity-
+                                    dependencies.js populates it live from modules_tbl
+                                    (filtered by the selected Category's cat_id) once a
+                                    Category is picked, mirroring upload-resource.js's
+                                    Category -> Module dependency (Task #41).
+                                -->
+                                <select id="moduleSelect" name="module_id" class="custom-select form-control-select" required disabled data-preselect-module-id="{{ existing_activity.module_id if existing_activity else '' }}">
                                     <option value="" disabled selected>Select module</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="lessonSelect">Lesson *</label>
-                                <select id="lessonSelect" name="lesson_id" class="custom-select form-control-select" required>
+                                <!--
+                                    Task #54: starts empty and disabled - locked until a
+                                    valid Module is chosen. Populated live from
+                                    learning_resources_tbl (filtered by the selected
+                                    Module's module_id), mapping each resource_id to its
+                                    resource_title.
+                                -->
+                                <select id="lessonSelect" name="lesson_id" class="custom-select form-control-select" required disabled data-preselect-resource-id="{{ existing_activity.resource_id if existing_activity else '' }}">
                                     <option value="" disabled selected>Select lesson</option>
                                 </select>
                             </div>
@@ -183,6 +208,11 @@
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity.js') }}"></script>
+    <!-- NEW - Task #54: Category -> Module -> Lesson cascading dropdowns.
+         Loaded before the draft-guard script so moduleSelect/lessonSelect
+         are already populated (for a reopened draft) by the time the
+         draft-guard's dirty-state tracking attaches. -->
+    <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-dependencies.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-draft-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-validation.js') }}"></script>
 </body>

@@ -34,6 +34,7 @@ from manage_course import (
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
+    get_resources_by_module,  # NEW - Task #54: dependent Lesson dropdown lookup
 )
 from learning_activities import (  # NEW: Manage Learning Activities DB integration
     get_learning_activities_overview, get_activity_types,
@@ -2034,6 +2035,37 @@ def upload_resource_modules_by_category():
     modules = get_modules_by_category(cat_id)
     return jsonify({"success": True, "modules": modules}), 200
 
+
+# ============================================================
+# ROUTE: TASK #54 - LESSONS DEPENDENT ON SELECTED MODULE
+# (Create Learning Activity: Category -> Module -> Lesson)
+# ============================================================
+@admin_bp.route('/create-learning-activity/lessons-by-module')
+def create_learning_activity_lessons_by_module():
+    """
+    Task #54: backs the Create Learning Activity form's dependent Lesson
+    dropdown - the second step of the Category -> Module -> Lesson
+    cascade. Takes a single query param, `module_id`, and returns ONLY
+    the lessons (learning_resources_tbl rows) whose module_id matches it
+    - via learning_resources.get_resources_by_module()'s parameterized
+    query, so the selected module id is never concatenated into SQL.
+    Mirrors upload_resource_modules_by_category()'s exact pattern
+    (Task #41) one level deeper.
+
+    A missing/invalid module_id returns an empty lesson list rather than
+    a 400, since the frontend calls this defensively on every Module
+    change (including back to "Select module...").
+
+    Returns JSON: { "success": true, "lessons": [{resource_id, resource_title}, ...] }
+    """
+    module_id = request.args.get('module_id', '', type=int)
+    if not module_id:
+        return jsonify({"success": True, "lessons": []}), 200
+
+    lessons = get_resources_by_module(module_id)
+    return jsonify({"success": True, "lessons": lessons}), 200
+
+
 @admin_bp.route('/create-learning-activity', methods=['GET'])
 def create_learning_activity_page():
     """
@@ -2049,10 +2081,20 @@ def create_learning_activity_page():
     activity_id = request.args.get('activity_id', '') or None
     existing_activity = get_activity_draft(activity_id) if activity_id else None
 
+    # Task #54: Category dropdown is rendered server-side from real
+    # category_tbl rows (the SAME get_categories() Manage Course and
+    # Upload Resource already use) - never hardcoded. The Module and
+    # Lesson dropdowns start empty/disabled in the template and are
+    # populated live by create-learning-activity-dependencies.js once
+    # the admin picks a Category, then a Module - or immediately, if
+    # reloading an existing draft (see existing_activity.cat_id/
+    # module_id/resource_id below, and the matching
+    # data-preselect-*-id attributes in create-learning-activity.html).
     return render_template(
         'create-learning-activity.html',
         greeting=greeting,
         existing_activity=existing_activity,
+        categories=get_categories(),
     )
 
 
