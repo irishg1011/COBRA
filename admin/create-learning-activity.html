@@ -43,11 +43,14 @@
                             </button>
                         </div>
                     </div>
-                    <div class="top-bar-validation-row">
-                        <span class="js-draft-notice top-bar-inline-message" style="display: none;"></span>
-                    </div>
+                </div>
+                <!-- ✅ validation row is now a SIBLING, outside dashboard-top-bar entirely -->
+                <div class="top-bar-validation-row">
+                    <span class="js-draft-notice top-bar-inline-message" style="display: none;"></span>
                 </div>
 
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% endwith %}
                 <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST">
                     <input type="hidden" name="activity_id" id="activityIdInput" value="{{ existing_activity.la_id if existing_activity else '' }}">
                     <!-- Section 1: Activity Information -->
