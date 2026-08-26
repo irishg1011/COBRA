@@ -62,7 +62,8 @@
 
                         <div class="form-group mb-20">
                             <label class="form-label" for="activityTitle">Activity Title *</label>
-                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." required>
+                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." value="{{ existing_activity.activity_title if existing_activity else '' }}" required>
+                            <span id="activityTitleError" class="js-error-message" style="display: none; color: #e02424; font-size: 12px; margin-top: 6px;"></span>
                         </div>
 
                         <div class="form-grid-3">
@@ -183,5 +184,6 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-draft-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-validation.js') }}"></script>
 </body>
 </html>

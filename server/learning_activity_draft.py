@@ -40,6 +40,7 @@ lesson_validation.py, manage_course.py, etc.).
 from mysql.connector import Error
 from cobradb import get_db_connection
 from learning_activities import ensure_la_stats, LA_STATS_TABLE, LEARNING_ACTIVITIES_TABLE
+from activity_validation import validate_activity_title  # NEW - Task #53: casing + global uniqueness
 
 
 def get_la_draft_status_id(connection=None):
@@ -143,31 +144,25 @@ def get_activity_draft(activity_id):
 def save_activity_draft(activity_id, activity_title, cat_id, module_id,
                          resource_id, activity_type_id, points, uploaded_by=None):
     """
-    Saves (creating or updating) a Draft learning_activities_tbl row
-    from the Create Learning Activity form's current in-progress
-    Activity Information fields.
-
-    Args:
-        activity_id (int | str | None): the la_id from a PRIOR save on
-            this same activity, or None/empty for the very first save
-            (which INSERTs a new row).
-        activity_title (str): raw, as-typed activity title.
-        cat_id (int | str | None): category_tbl.cat_id.
-        module_id (int | str | None): modules_tbl.module_id.
-        resource_id (int | str | None): learning_resources_tbl.resource_id
-            (the selected Lesson).
-        activity_type_id (int | str | None): activity_types_tbl.activity_type_id.
-        points (int | str | None): points value - defaults to 0 if blank.
-        uploaded_by (str | None): the saving admin's acc_id (from Flask
-            session["admin_id"]) - only ever set on the initial INSERT;
-            an update never changes who originally uploaded it.
-
-    Returns:
-        (success: bool, message: str, activity_id: int | None)
+    ... (docstring unchanged) ...
     """
-    title = (activity_title or "").strip()
-    if not title:
-        return False, "Activity title is required before saving a draft.", None
+    existing_id = None
+    if activity_id:
+        try:
+            existing_id = int(activity_id)
+        except (TypeError, ValueError):
+            existing_id = None
+
+    # Task #53: casing normalization ("Python quiz") + GLOBAL uniqueness
+    # check across the whole learning_activities_tbl, excluding this
+    # activity's own row when re-saving an existing draft so it doesn't
+    # collide with itself. Never a second, divergent copy of this rule -
+    # the exact same validator backs the live check endpoint and the
+    # final Publish submit in admin_routes.py.
+    is_valid, result = validate_activity_title(activity_title, exclude_la_id=existing_id)
+    if not is_valid:
+        return False, result, None
+    title = result
 
     cat_id = cat_id or None
     module_id = module_id or None
@@ -188,16 +183,10 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
     except (TypeError, ValueError):
         points_val = 0
 
-    existing_id = None
-    if activity_id:
-        try:
-            existing_id = int(activity_id)
-        except (TypeError, ValueError):
-            existing_id = None
-
     connection = get_db_connection()
     if connection is None:
         return False, "Could not connect to the database.", None
+    # ... rest of the function is unchanged from here ...
 
     try:
         draft_status_id = get_la_draft_status_id(connection)

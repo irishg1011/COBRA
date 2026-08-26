@@ -45,6 +45,7 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
     archive_resource,  # NEW - Task #81: Manage Learning Resources ACTIONS -> Archive
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
+from activity_validation import validate_activity_title  # NEW - Task #53: activity name casing + global uniqueness
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1937,6 +1938,43 @@ def upload_resource_check_lesson_name():
     return jsonify({"success": True, "available": True, "normalized": result}), 200
 
 # ============================================================
+# ROUTE: TASK #53 - LIVE ACTIVITY TITLE UNIQUENESS CHECK
+# ============================================================
+@admin_bp.route('/create-learning-activity/check-activity-name')
+def create_learning_activity_check_name():
+    """
+    Task #53: backs create-learning-activity-validation.js's live,
+    debounced duplicate check while the admin types an activity title -
+    mirrors upload_resource_check_lesson_name()'s exact pattern. Purely
+    a UX convenience: create_activity_submit() below (and
+    learning_activity_draft.save_activity_draft(), used by Save Draft)
+    always re-validate uniqueness themselves via the SAME
+    activity_validation module before anything is ever saved, so this
+    endpoint being skipped or spoofed can't bypass anything.
+
+    Query params:
+      name - the activity title currently typed (raw, not yet
+             normalized - normalization happens inside
+             validate_activity_title()).
+
+    Returns JSON:
+      { "success": true, "available": bool, "normalized": str }  - on a
+        successful check (available may still be False for a duplicate)
+      { "success": true, "available": false, "message": str }    - when
+        the title can't be validated yet (e.g. still empty)
+      400 - no `name` query param supplied at all
+    """
+    name = (request.args.get('name') or '').strip()
+    if not name:
+        return jsonify({"success": False, "message": "Activity title is required."}), 400
+
+    is_valid, result = validate_activity_title(name)
+    if not is_valid:
+        return jsonify({"success": True, "available": False, "message": result}), 200
+
+    return jsonify({"success": True, "available": True, "normalized": result}), 200
+
+# ============================================================
 # ROUTE: TASK #44 - SAVE UPLOAD RESOURCE FORM AS A DRAFT
 # ============================================================
 @admin_bp.route('/upload-resource/save-draft', methods=['POST'])
@@ -2069,9 +2107,27 @@ def create_activity_submit():
     activity_type = request.form.get('activity_type')
     points = request.form.get('points')
     status = request.form.get('status')
-    
+
+    # Task #53: casing normalization + GLOBAL uniqueness check - blocks
+    # submission if a duplicate activity title exists anywhere in the
+    # system, regardless of category/module/lesson. This is the
+    # authoritative, server-side gate; the frontend's live check is a
+    # UX convenience only and can never be relied on alone.
+    activity_id = request.form.get('activity_id') or None
+    exclude_id = int(activity_id) if activity_id and activity_id.isdigit() else None
+
+    is_valid, result = validate_activity_title(activity_title, exclude_la_id=exclude_id)
+    if not is_valid:
+        flash(result, 'error')
+        redirect_kwargs = {'activity_id': activity_id} if activity_id else {}
+        return redirect(url_for('admin_bp.create_learning_activity_page', **redirect_kwargs))
+
+    # Task #53: the normalized ("Python quiz") title, not the raw
+    # as-typed value, is what must actually be persisted.
+    activity_title = result
+
     # TODO: Insert activity and question sets into your database here
-    
+
     flash('Learning activity created and published successfully!', 'success')
     return redirect(url_for('admin_bp.learning_activities'))
 
