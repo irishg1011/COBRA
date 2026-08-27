@@ -43,7 +43,7 @@
  * is already selected, it kicks off the same Module load, restores the
  * saved Module (moduleSelect's data-preselect-module-id, rendered
  * server-side from existing_activity.module_id), then does the same one
- * level deeper for the Lesson dropdown (data-preselect-resource-id, from
+ * level deeper for the Lesseen dropdown (data-preselect-resource-id, from
  * existing_activity.resource_id).
  *
  * Only present on pages that have #courseSelect, #moduleSelect, and
