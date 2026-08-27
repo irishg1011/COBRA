@@ -1183,10 +1183,10 @@ function addNewFillBlankCard(prefilledData = null) {
     card.className = 'fill-blank-card';
     card.dataset.index = index;
 
-    let textVal = prefilledData ? prefilledData.text : '';
-    let answerVal = prefilledData ? prefilledData.answer : '';
-    let correctFeedbackVal = prefilledData ? prefilledData.correctFeedback : '';
-    let incorrectFeedbackVal = prefilledData ? prefilledData.incorrectFeedback : '';
+    let textVal = prefilledData ? (prefilledData.text || prefilledData.content || '') : '';
+    let answerVal = prefilledData ? (prefilledData.answer || prefilledData.correct_answer || '') : '';
+    let correctFeedbackVal = prefilledData ? (prefilledData.correctFeedback || prefilledData.correct_feedback || '') : '';
+    let incorrectFeedbackVal = prefilledData ? (prefilledData.incorrectFeedback || prefilledData.incorrect_feedback || '') : '';
 
     card.innerHTML = `
         <div class="fill-blank-card-header">
@@ -1201,23 +1201,23 @@ function addNewFillBlankCard(prefilledData = null) {
 
         <div class="form-group mb-20" style="position: relative;">
             <label class="form-label">Question / Content (Include the blank) *</label>
-            <textarea name="fill_blanks[${index}][content]" class="form-control question-textarea" rows="3" placeholder="e.g. To define a function in Python, we use the [_____] keyword." required>${textVal}</textarea>
+            <textarea name="fill_blanks[${index}][content]" class="form-control question-textarea" rows="3" placeholder="e.g. To define a function in Python, we use the [_____] keyword." required>${escapeAttr(textVal)}</textarea>
             <span class="char-counter">${textVal.length} / 500</span>
         </div>
 
         <div class="form-group mb-20">
             <label class="form-label">Correct Answer (word, value, or code to fill in) *</label>
-            <input type="text" name="fill_blanks[${index}][correct_answer]" class="form-control" value="${answerVal}" placeholder="e.g. def" required>
+            <input type="text" name="fill_blanks[${index}][correct_answer]" class="form-control" value="${escapeAttr(answerVal)}" placeholder="e.g. def" required>
         </div>
 
         <div class="fill-blank-grid-2">
             <div class="form-group">
                 <label class="form-label">Correct Feedback</label>
-                <input type="text" name="fill_blanks[${index}][correct_feedback]" class="form-control" value="${correctFeedbackVal}" placeholder="Feedback shown when the learner answers correctly">
+                <input type="text" name="fill_blanks[${index}][correct_feedback]" class="form-control" value="${escapeAttr(correctFeedbackVal)}" placeholder="Feedback shown when the learner answers correctly">
             </div>
             <div class="form-group">
                 <label class="form-label">Incorrect Feedback</label>
-                <input type="text" name="fill_blanks[${index}][incorrect_feedback]" class="form-control" value="${incorrectFeedbackVal}" placeholder="Feedback shown when the learner answers incorrectly">
+                <input type="text" name="fill_blanks[${index}][incorrect_feedback]" class="form-control" value="${escapeAttr(incorrectFeedbackVal)}" placeholder="Feedback shown when the learner answers incorrectly">
             </div>
         </div>
     `;
@@ -1330,10 +1330,10 @@ function addNewFlashcardCard(prefilledData = null) {
     card.className = 'flashcard-card';
     card.dataset.index = index;
 
-    let frontVal = prefilledData ? prefilledData.front : '';
-    let backVal = prefilledData ? prefilledData.back : '';
-    let correctFeedbackVal = prefilledData ? prefilledData.correctFeedback : '';
-    let incorrectFeedbackVal = prefilledData ? prefilledData.incorrectFeedback : '';
+    let frontVal = prefilledData ? (prefilledData.front || prefilledData.front_text || '') : '';
+    let backVal = prefilledData ? (prefilledData.back || prefilledData.back_text || '') : '';
+    let correctFeedbackVal = prefilledData ? (prefilledData.correctFeedback || prefilledData.correct_feedback || '') : '';
+    let incorrectFeedbackVal = prefilledData ? (prefilledData.incorrectFeedback || prefilledData.incorrect_feedback || '') : '';
 
     card.innerHTML = `
         <div class="flashcard-card-header">
@@ -1349,12 +1349,12 @@ function addNewFlashcardCard(prefilledData = null) {
         <div class="flashcard-grid-2">
             <div class="form-group" style="position: relative;">
                 <label class="form-label">Front Card *</label>
-                <textarea name="flashcards[${index}][front]" class="form-control question-textarea" rows="3" placeholder="Prompt, term, or question on the front" required>${frontVal}</textarea>
+                <textarea name="flashcards[${index}][front]" class="form-control question-textarea" rows="3" placeholder="Prompt, term, or question on the front" required>${escapeAttr(frontVal)}</textarea>
                 <span class="char-counter">${frontVal.length} / 500</span>
             </div>
             <div class="form-group" style="position: relative;">
                 <label class="form-label">Back Card *</label>
-                <textarea name="flashcards[${index}][back]" class="form-control question-textarea" rows="3" placeholder="Answer or definition revealed on the back" required>${backVal}</textarea>
+                <textarea name="flashcards[${index}][back]" class="form-control question-textarea" rows="3" placeholder="Answer or definition revealed on the back" required>${escapeAttr(backVal)}</textarea>
                 <span class="char-counter">${backVal.length} / 500</span>
             </div>
         </div>
@@ -1362,11 +1362,11 @@ function addNewFlashcardCard(prefilledData = null) {
         <div class="flashcard-grid-2 mt-16">
             <div class="form-group">
                 <label class="form-label">Correct Feedback</label>
-                <input type="text" name="flashcards[${index}][correct_feedback]" class="form-control" value="${correctFeedbackVal}" placeholder="Feedback shown when the learner answer correctly">
+                <input type="text" name="flashcards[${index}][correct_feedback]" class="form-control" value="${escapeAttr(correctFeedbackVal)}" placeholder="Feedback shown when the learner answer correctly">
             </div>
             <div class="form-group">
                 <label class="form-label">Incorrect Feedback</label>
-                <input type="text" name="flashcards[${index}][incorrect_feedback]" class="form-control" value="${incorrectFeedbackVal}" placeholder="Feedback shown when the learner answer incorrectly">
+                <input type="text" name="flashcards[${index}][incorrect_feedback]" class="form-control" value="${escapeAttr(incorrectFeedbackVal)}" placeholder="Feedback shown when the learner answer incorrectly">
             </div>
         </div>
     `;

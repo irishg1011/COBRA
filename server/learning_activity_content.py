@@ -123,14 +123,14 @@ class FillBlanksActivityController:
     @staticmethod
     def insert(cursor, la_id, fill_blanks):
         for fb in (fill_blanks or []):
-            content = (fb.get("content") or "").strip()
-            answer = (fb.get("correct_answer") or "").strip()
+            content = (fb.get("content") or fb.get("text") or "").strip()
+            answer = (fb.get("correct_answer") or fb.get("answer") or "").strip()
             if not content or not answer:
                 continue
             normalized_content = format_display_name(content)
             normalized_answer = format_display_name(answer)
-            raw_correct_fb = (fb.get("correct_feedback") or "").strip()
-            raw_incorrect_fb = (fb.get("incorrect_feedback") or "").strip()
+            raw_correct_fb = (fb.get("correct_feedback") or fb.get("correctFeedback") or "").strip()
+            raw_incorrect_fb = (fb.get("incorrect_feedback") or fb.get("incorrectFeedback") or "").strip()
             correct_fb = format_display_name(raw_correct_fb) if raw_correct_fb else None
             incorrect_fb = format_display_name(raw_incorrect_fb) if raw_incorrect_fb else None
             cursor.execute(
@@ -143,15 +143,20 @@ class FillBlanksActivityController:
     @staticmethod
     def fetch(cursor, la_id):
         cursor.execute(
-            f"""SELECT content, correct_answer, correct_feedback, incorrect_feedback
+            f"""SELECT fib_id, content, correct_answer, correct_feedback, incorrect_feedback
                 FROM {FILL_BLANKS_TABLE} WHERE la_id = %s ORDER BY fib_id ASC""",
             (la_id,)
         )
         return [
             {
+                "fib_id": row["fib_id"],
+                "content": row["content"],
                 "text": row["content"],
+                "correct_answer": row["correct_answer"],
                 "answer": row["correct_answer"],
+                "correct_feedback": row.get("correct_feedback") or "",
                 "correctFeedback": row.get("correct_feedback") or "",
+                "incorrect_feedback": row.get("incorrect_feedback") or "",
                 "incorrectFeedback": row.get("incorrect_feedback") or "",
             }
             for row in cursor.fetchall()
@@ -160,7 +165,7 @@ class FillBlanksActivityController:
 
 class FlashcardsActivityController:
     """
-    Controller for Flashcard items (flashcards_tbl).
+    Controller for Flashcards items (flashcards_tbl).
     """
 
     @staticmethod
@@ -170,14 +175,14 @@ class FlashcardsActivityController:
     @staticmethod
     def insert(cursor, la_id, flashcards):
         for fc in (flashcards or []):
-            front = (fc.get("front") or "").strip()
-            back = (fc.get("back") or "").strip()
+            front = (fc.get("front") or fc.get("front_text") or "").strip()
+            back = (fc.get("back") or fc.get("back_text") or "").strip()
             if not front or not back:
                 continue
             normalized_front = format_display_name(front)
             normalized_back = format_display_name(back)
-            raw_correct_fb = (fc.get("correct_feedback") or "").strip()
-            raw_incorrect_fb = (fc.get("incorrect_feedback") or "").strip()
+            raw_correct_fb = (fc.get("correct_feedback") or fc.get("correctFeedback") or "").strip()
+            raw_incorrect_fb = (fc.get("incorrect_feedback") or fc.get("incorrectFeedback") or "").strip()
             correct_fb = format_display_name(raw_correct_fb) if raw_correct_fb else None
             incorrect_fb = format_display_name(raw_incorrect_fb) if raw_incorrect_fb else None
             cursor.execute(
@@ -190,15 +195,20 @@ class FlashcardsActivityController:
     @staticmethod
     def fetch(cursor, la_id):
         cursor.execute(
-            f"""SELECT front_text, back_text, correct_feedback, incorrect_feedback
+            f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback
                 FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC""",
             (la_id,)
         )
         return [
             {
+                "flashcard_id": row["flashcard_id"],
                 "front": row["front_text"],
+                "front_text": row["front_text"],
                 "back": row["back_text"],
+                "back_text": row["back_text"],
+                "correct_feedback": row.get("correct_feedback") or "",
                 "correctFeedback": row.get("correct_feedback") or "",
+                "incorrect_feedback": row.get("incorrect_feedback") or "",
                 "incorrectFeedback": row.get("incorrect_feedback") or "",
             }
             for row in cursor.fetchall()
