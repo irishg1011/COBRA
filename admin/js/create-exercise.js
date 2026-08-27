@@ -474,13 +474,36 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
     container.appendChild(row);
 }
 
+function isTestCaseRowPopulated(row) {
+    if (!row) return false;
+    const inputField = row.querySelector('input[name*="[input]"]');
+    const outputField = row.querySelector('input[name*="[output]"]');
+
+    const inputVal = inputField ? inputField.value.trim() : '';
+    const outputVal = outputField ? outputField.value.trim() : '';
+
+    return (inputVal !== '' || outputVal !== '');
+}
+
 function removeTestCaseRow(btn) {
     const row = btn.closest('.test-case-row');
     const container = document.getElementById('testCasesContainer');
 
+    if (!row || !container) return;
+
     if (container.querySelectorAll('.test-case-row').length <= 1) {
         alert('You must have at least one test case.');
         return;
+    }
+
+    // Task #75: Prompt confirmation only if test case row contains populated values
+    if (isTestCaseRowPopulated(row)) {
+        const confirmed = window.confirm(
+            'This test case contains input values. Are you sure you want to delete it? Entered values will be lost.'
+        );
+        if (!confirmed) {
+            return;
+        }
     }
 
     row.remove();
