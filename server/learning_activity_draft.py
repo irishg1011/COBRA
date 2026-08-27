@@ -62,7 +62,7 @@ from learning_activities import (
     ensure_la_stats, LA_STATS_TABLE, LEARNING_ACTIVITIES_TABLE,
     ensure_activity_types, ACTIVITY_TYPES_TABLE,
 )
-from activity_validation import validate_activity_title  # Task #53: casing + global uniqueness
+from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
 from activity_points import calculate_activity_points_from_lists  # Task #55/#56: never trust client-supplied points
 from learning_activity_content import save_activity_content, get_activity_content  # Task #56: Section 2 persistence
 
@@ -284,6 +284,14 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
     activity_type_name = (activity_type or "").strip()
     if not activity_type_name:
         return False, "Please select an activity type before saving a draft.", None, 0
+
+    # Task #62: ensure that for any given lesson (resource_id), only one
+    # active activity entry per unique activity type can exist.
+    is_type_valid, type_err_msg = validate_activity_type_for_lesson(
+        resource_id, activity_type_name, exclude_la_id=existing_id
+    )
+    if not is_type_valid:
+        return False, type_err_msg, None, 0
 
     # Task #55/#56: points are NEVER trusted from the client, for either
     # Save Draft or Publish - always recomputed here from the actual

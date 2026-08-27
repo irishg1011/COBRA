@@ -160,3 +160,120 @@ def validate_activity_title(title, exclude_la_id=None):
         )
 
     return True, normalized
+
+
+ACTIVITY_TYPES_TABLE = "activity_types_tbl"
+
+
+def is_activity_type_taken_for_lesson(resource_id, activity_type, exclude_la_id=None, connection=None):
+    """
+    Task #62: Checks whether an active activity of `activity_type` (e.g.,
+    "Multiple Choice", "Fill in the Blanks", "Flashcards") already exists
+    in learning_activities_tbl for the specified lesson (`resource_id`).
+
+    Args:
+        resource_id (int | str): the learning_resources_tbl.resource_id.
+        activity_type (str | int): the activity type name (e.g. "Multiple Choice")
+            or numeric activity_type_id.
+        exclude_la_id (int | str | None): when editing or re-saving an existing
+            activity draft, pass its la_id so the row does not collide with itself.
+        connection: optional existing MySQL database connection. If None, opens
+            and closes its own connection.
+
+    Returns:
+        True  - an activity with this type already exists for this lesson.
+        False - no activity with this type exists for this lesson.
+        None  - the check could not be performed (missing params or DB error).
+    """
+    if not resource_id or not activity_type:
+        return None
+
+    try:
+        res_id = int(resource_id)
+    except (TypeError, ValueError):
+        return None
+
+    exclude_id = None
+    if exclude_la_id:
+        try:
+            exclude_id = int(exclude_la_id)
+        except (TypeError, ValueError):
+            exclude_id = None
+
+    type_str = str(activity_type).strip()
+
+    own_connection = connection is None
+    if own_connection:
+        connection = get_db_connection()
+        if connection is None:
+            return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        if exclude_id:
+            cursor.execute(
+                f"""SELECT la.la_id, la.activity_title
+                    FROM {LEARNING_ACTIVITIES_TABLE} la
+                    LEFT JOIN {ACTIVITY_TYPES_TABLE} at ON la.activity_type_id = at.activity_type_id
+                    WHERE la.resource_id = %s
+                      AND (at.activity_type_name = %s OR la.activity_type_id = %s)
+                      AND la.la_id != %s
+                    LIMIT 1""",
+                (res_id, type_str, type_str, exclude_id)
+            )
+        else:
+            cursor.execute(
+                f"""SELECT la.la_id, la.activity_title
+                    FROM {LEARNING_ACTIVITIES_TABLE} la
+                    LEFT JOIN {ACTIVITY_TYPES_TABLE} at ON la.activity_type_id = at.activity_type_id
+                    WHERE la.resource_id = %s
+                      AND (at.activity_type_name = %s OR la.activity_type_id = %s)
+                    LIMIT 1""",
+                (res_id, type_str, type_str)
+            )
+        row = cursor.fetchone()
+        cursor.close()
+        return row is not None
+    except Error as e:
+        print(f"activity_validation: failed to check activity type uniqueness for lesson {resource_id}: {e}")
+        return None
+    finally:
+        if own_connection and connection is not None and connection.is_connected():
+            connection.close()
+
+
+def validate_activity_type_for_lesson(resource_id, activity_type, exclude_la_id=None, connection=None):
+    """
+    Task #62: Validates that for any given lesson (`resource_id`), only one
+    active activity entry per unique activity type (Multiple Choice,
+    Fill in the Blanks, and Flashcards) can exist, preventing duplicate
+    activity creations while allowing combinations of different types.
+
+    Args:
+        resource_id (int | str): the selected lesson's resource_id.
+        activity_type (str | int): the selected activity type name or id.
+        exclude_la_id (int | str | None): see is_activity_type_taken_for_lesson.
+        connection: optional existing DB connection.
+
+    Returns:
+        (True, None)             on success (available)
+        (False, error_message)   on failure (duplicate found or DB error)
+    """
+    if not resource_id:
+        return False, "Please select a lesson before validating activity type."
+    if not activity_type:
+        return False, "Please select an activity type."
+
+    type_name = str(activity_type).strip()
+    taken = is_activity_type_taken_for_lesson(
+        resource_id, type_name, exclude_la_id=exclude_la_id, connection=connection
+    )
+    if taken is None:
+        return False, "Could not verify activity type uniqueness for this lesson. Please try again."
+    if taken:
+        return False, (
+            f"A {type_name} activity already exists for this lesson. "
+            f"Each lesson can only have one activity of each type (Multiple Choice, Fill in the Blanks, Flashcards)."
+        )
+
+    return True, None

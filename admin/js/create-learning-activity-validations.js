@@ -143,6 +143,76 @@
             runDuplicateCheck();
         });
 
+        // ------------------------------------------------------------
+        // Task #62: Lesson Activity Type Uniqueness Live Validation
+        // ------------------------------------------------------------
+        const lessonSelect = document.getElementById("lessonSelect");
+        const activityTypeSelect = document.getElementById("activityType");
+        const activityTypeError = document.getElementById("activityTypeError");
+
+        let lastTypeAvailable = true;
+        let lastTypeErrorMessage = "";
+
+        function showActivityTypeError(message) {
+            if (!activityTypeError) return;
+            activityTypeError.textContent = message;
+            activityTypeError.style.display = "block";
+        }
+
+        function clearActivityTypeError() {
+            if (!activityTypeError) return;
+            activityTypeError.textContent = "";
+            activityTypeError.style.display = "none";
+        }
+
+        async function checkLessonActivityTypeUniqueness() {
+            if (!lessonSelect || !activityTypeSelect) return;
+            const lessonId = lessonSelect.value;
+            const activityType = activityTypeSelect.value;
+
+            if (!lessonId || !activityType) {
+                lastTypeAvailable = true;
+                lastTypeErrorMessage = "";
+                clearActivityTypeError();
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams({
+                    lesson_id: lessonId,
+                    activity_type: activityType
+                });
+                if (activityIdInput && activityIdInput.value) {
+                    params.set("activity_id", activityIdInput.value);
+                }
+
+                const response = await fetch(
+                    `/admin/create-learning-activity/check-lesson-activity-type?${params.toString()}`,
+                    { credentials: "include" }
+                );
+                const result = await response.json();
+
+                if (!result.success || !result.available) {
+                    lastTypeAvailable = false;
+                    lastTypeErrorMessage = result.message || `A ${activityType} activity already exists for this lesson.`;
+                    showActivityTypeError(lastTypeErrorMessage);
+                } else {
+                    lastTypeAvailable = true;
+                    lastTypeErrorMessage = "";
+                    clearActivityTypeError();
+                }
+            } catch (err) {
+                // Best-effort client check - backend enforces authoritatively
+            }
+        }
+
+        if (lessonSelect) {
+            lessonSelect.addEventListener("change", checkLessonActivityTypeUniqueness);
+        }
+        if (activityTypeSelect) {
+            activityTypeSelect.addEventListener("change", checkLessonActivityTypeUniqueness);
+        }
+
         if (createActivityForm) {
             createActivityForm.addEventListener("submit", (e) => {
                 const value = activityTitleInput.value.trim();
@@ -163,6 +233,15 @@
                     e.preventDefault();
                     showActivityTitleError("An activity with this title already exists. Activity titles must be unique across the entire system.");
                     activityTitleInput.focus();
+                    return;
+                }
+
+                // Task #62: Block submission if activity type is already taken for this lesson
+                if (!lastTypeAvailable && lastTypeErrorMessage) {
+                    e.preventDefault();
+                    showActivityTypeError(lastTypeErrorMessage);
+                    if (activityTypeSelect) activityTypeSelect.focus();
+                    return;
                 }
             });
         }

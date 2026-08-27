@@ -51,7 +51,7 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
     archive_resource,  # NEW - Task #81: Manage Learning Resources ACTIONS -> Archive
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
-from activity_validation import validate_activity_title  # NEW - Task #53: activity name casing + global uniqueness
+from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1996,6 +1996,43 @@ def create_learning_activity_check_name():
         return jsonify({"success": True, "available": False, "message": result}), 200
 
     return jsonify({"success": True, "available": True, "normalized": result}), 200
+
+
+# ============================================================
+# ROUTE: TASK #62 - LIVE LESSON ACTIVITY TYPE UNIQUENESS CHECK
+# ============================================================
+@admin_bp.route('/create-learning-activity/check-lesson-activity-type')
+def create_learning_activity_check_lesson_activity_type():
+    """
+    Task #62: Live check to ensure that for any given lesson (resource_id),
+    only one active activity entry per unique activity type (Multiple Choice,
+    Fill in the Blanks, and Flashcards) can exist, preventing duplicate activity
+    creations.
+
+    Query params:
+      lesson_id     - selected learning_resources_tbl.resource_id
+      activity_type - selected activity type name (e.g. "Multiple Choice")
+      activity_id   - optional existing activity ID being edited (to exclude self)
+
+    Returns JSON:
+      { "success": true, "available": bool, "message": str | None }
+    """
+    lesson_id = request.args.get('lesson_id')
+    activity_type = request.args.get('activity_type')
+    activity_id = request.args.get('activity_id')
+
+    if not lesson_id or not activity_type:
+        return jsonify({"success": True, "available": True, "message": None}), 200
+
+    is_valid, error_message = validate_activity_type_for_lesson(
+        lesson_id, activity_type, exclude_la_id=activity_id
+    )
+
+    if not is_valid:
+        return jsonify({"success": True, "available": False, "message": error_message}), 200
+
+    return jsonify({"success": True, "available": True, "message": None}), 200
+
 
 # ============================================================
 # ROUTE: TASK #44 - SAVE UPLOAD RESOURCE FORM AS A DRAFT
