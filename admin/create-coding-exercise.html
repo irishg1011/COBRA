@@ -23,7 +23,7 @@
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <div class="header-nav-inline">
-                            <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn-back-custom">
+                            <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn-back-custom" id="backExerciseBtn">
                                 <i class="fa-solid fa-arrow-left"></i> Back
                             </a>
                             <h1>Create Coding Exercise</h1>
@@ -212,7 +212,7 @@
 
                     <!-- Bottom Form Actions Footer -->
                     <div class="form-actions-footer mt-24 accent-top">
-                        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn btn-secondary-custom">Cancel</a>
+                        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn btn-secondary-custom" id="cancelExerciseBtn">Cancel</a>
                         <button type="submit" class="btn btn-success-custom">
                             <i class="fa-solid fa-paper-plane"></i> Publish Exercise
                         </button>
@@ -223,6 +223,8 @@
             </div>
         </main>
     </div>
+
+    {% include 'unsaved-changes-modal.html' %}
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>

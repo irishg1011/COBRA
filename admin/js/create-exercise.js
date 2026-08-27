@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Task #70: Setup Category -> Module -> Lesson dependent dropdowns
     setupDependentDropdowns();
 
+    // Task #73: Setup Back / Cancel protective confirmation guard
+    setupBackCancelGuard();
+
     // Dynamic character counters setup
     setupCharacterCounter('exerciseInstruction', 'instructionCount', 1000);
     setupCharacterCounter('problemSituation', 'situationCount', 500);
@@ -40,8 +43,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 /* =================================================================
    Task #69 & Task #72: Live Text Fields Casing Normalization
-   (First letter uppercase, rest lowercase; excludes expected_answer
-   and test cases)
 ==================================================================== */
 function formatSentenceCaseLive(value) {
     if (!value) return value;
@@ -68,9 +69,136 @@ function setupFieldCasingNormalization(elementOrId) {
     });
 }
 
-// Backward compatibility alias for setupTitleCasingNormalization
 function setupTitleCasingNormalization(inputId) {
     setupFieldCasingNormalization(inputId);
+}
+
+/* =================================================================
+   Task #73: Back & Cancel Unsaved Changes Protective Guard
+==================================================================== */
+function hasPopulatedExerciseInputs() {
+    const title = (document.getElementById('exerciseTitle')?.value || '').trim();
+    const category = (document.getElementById('exerciseCategory')?.value || '').trim();
+    const moduleVal = (document.getElementById('exerciseModule')?.value || '').trim();
+    const lesson = (document.getElementById('exerciseLesson')?.value || '').trim();
+    const points = (document.getElementById('exercisePoints')?.value || '').trim();
+    const instruction = (document.getElementById('exerciseInstruction')?.value || '').trim();
+    const situation = (document.getElementById('problemSituation')?.value || '').trim();
+    const question = (document.getElementById('problemQuestion')?.value || '').trim();
+    const clue = (document.getElementById('problemClue')?.value || '').trim();
+    const expected = (document.getElementById('expectedAnswer')?.value || '').trim();
+    const feedback = (document.getElementById('correctFeedback')?.value || '').trim();
+
+    if (title || category || moduleVal || lesson || points || instruction || situation || question || clue || expected || feedback) {
+        return true;
+    }
+
+    // Check test cases
+    const testInputs = document.querySelectorAll('#testCasesContainer input');
+    for (const input of testInputs) {
+        if ((input.value || '').trim() !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function setupBackCancelGuard() {
+    const backBtn = document.getElementById('backExerciseBtn') || document.querySelector('.btn-back-custom');
+    const cancelBtn = document.getElementById('cancelExerciseBtn');
+    const form = document.getElementById('createExerciseForm');
+    const unsavedModal = document.getElementById('unsavedChangesModal');
+    const stayBtn = document.getElementById('unsavedStayBtn');
+    const leaveBtn = document.getElementById('unsavedLeaveBtn');
+    const saveAndLeaveBtn = document.getElementById('unsavedSaveAndLeaveBtn');
+
+    let pendingNavigation = null;
+    let isSubmitting = false;
+
+    if (form) {
+        form.addEventListener('submit', function () {
+            isSubmitting = true;
+        });
+    }
+
+    function showUnsavedWarning(targetUrl, e) {
+        if (!hasPopulatedExerciseInputs()) {
+            // No active input values - allow navigation directly
+            return true;
+        }
+
+        if (e) e.preventDefault();
+        pendingNavigation = targetUrl;
+
+        if (unsavedModal) {
+            unsavedModal.classList.remove('modal-hidden');
+        } else {
+            const confirmed = window.confirm("You have unsaved changes in this coding exercise. Are you sure you want to leave without saving?");
+            if (confirmed && targetUrl) {
+                window.location.href = targetUrl;
+            }
+        }
+        return false;
+    }
+
+    function hideUnsavedModal() {
+        if (unsavedModal) {
+            unsavedModal.classList.add('modal-hidden');
+        }
+        pendingNavigation = null;
+    }
+
+    if (backBtn) {
+        backBtn.addEventListener('click', function (e) {
+            showUnsavedWarning(backBtn.href, e);
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function (e) {
+            showUnsavedWarning(cancelBtn.href, e);
+        });
+    }
+
+    // Also guard sidebar link navigation while form is dirty
+    document.querySelectorAll('.admin-sidebar a, .sidebar-nav a').forEach(link => {
+        link.addEventListener('click', function (e) {
+            if (link.getAttribute('href') && !link.getAttribute('href').startsWith('#')) {
+                showUnsavedWarning(link.href, e);
+            }
+        });
+    });
+
+    if (stayBtn) {
+        stayBtn.addEventListener('click', function () {
+            hideUnsavedModal();
+        });
+    }
+
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', function () {
+            const target = pendingNavigation || '/admin/coding-exercises';
+            hideUnsavedModal();
+            window.location.href = target;
+        });
+    }
+
+    if (saveAndLeaveBtn) {
+        saveAndLeaveBtn.addEventListener('click', function () {
+            const target = saveAndLeaveBtn.dataset.redirectUrl || pendingNavigation || '/admin/coding-exercises';
+            hideUnsavedModal();
+            window.location.href = target;
+        });
+    }
+
+    window.addEventListener('beforeunload', function (e) {
+        if (isSubmitting) return;
+        if (hasPopulatedExerciseInputs()) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 }
 
 /* =================================================================
