@@ -356,7 +356,8 @@ def get_coding_exercise(exercise_id):
                 m.module_name,
                 c.cat_id,
                 c.category_name,
-                stats.la_stats_name AS stats_name
+                stats.la_stats_name AS stats_name,
+                stats.la_stats_name AS status
             FROM {CODING_EXERCISES_TABLE} ce
             LEFT JOIN {LEARNING_RESOURCES_TABLE} lr ON ce.resource_id = lr.resource_id
             LEFT JOIN {MODULES_TABLE} m ON lr.module_id = m.module_id
@@ -410,6 +411,171 @@ def delete_coding_exercise(exercise_id):
         connection.rollback()
         print(f"coding_exercises: failed to delete exercise {exercise_id}: {e}")
         return False, f"Failed to delete coding exercise: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def parse_test_cases_from_form(form_data):
+    """
+    Parses test_cases[0][input] and test_cases[0][output] from multipart form data.
+    """
+    import re
+    cases_dict = {}
+    for key, val in form_data.items():
+        if key.startswith('test_cases['):
+            m = re.match(r'test_cases\[(\d+)\]\[(\w+)\]', key)
+            if m:
+                idx = int(m.group(1))
+                field = m.group(2)
+                if idx not in cases_dict:
+                    cases_dict[idx] = {}
+                cases_dict[idx][field] = val
+
+    sorted_indices = sorted(cases_dict.keys())
+    result = []
+    for idx in sorted_indices:
+        item = cases_dict[idx]
+        input_val = (item.get('input') or '').strip()
+        output_val = (item.get('output') or '').strip()
+        if input_val or output_val:
+            result.append({
+                'input': input_val,
+                'output': output_val,
+            })
+    return result
+
+
+def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = None):
+    """
+    Task #76: Persists a coding exercise and its child test cases with
+    atomic transaction handling. Supports both Save Draft (status='Draft')
+    and Publish (status='Published').
+
+    Returns:
+        (success: bool, exercise_id: int | None, message: str)
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return False, None, "Database connection unavailable."
+
+    try:
+        ensure_exercise_stats(connection)
+        cursor = connection.cursor(dictionary=True)
+
+        exercise_id = data.get('exercise_id')
+        if exercise_id:
+            try:
+                exercise_id = int(exercise_id)
+            except (ValueError, TypeError):
+                exercise_id = None
+
+        raw_title = data.get('title') or data.get('exercise_title') or ''
+        is_valid, err_msg, formatted_title = validate_exercise_title(raw_title, exclude_exercise_id=exercise_id)
+        if not is_valid:
+            cursor.close()
+            return False, None, err_msg
+
+        resource_id = data.get('resource_id') or data.get('lesson_id')
+        if not resource_id:
+            cursor.close()
+            return False, None, "A valid Lesson must be selected."
+        try:
+            resource_id = int(resource_id)
+        except (ValueError, TypeError):
+            cursor.close()
+            return False, None, "Invalid Lesson ID."
+
+        points = data.get('points')
+        try:
+            points = max(1, int(points)) if points else 10
+        except (ValueError, TypeError):
+            points = 10
+
+        instruction = (data.get('instruction') or '').strip()
+        situation = (data.get('situation') or '').strip()
+        problem_question = (data.get('problem_question') or '').strip()
+        clue = (data.get('clue') or '').strip()
+        expected_answer = (data.get('expected_answer') or '').strip()
+        correct_feedback = (data.get('correct_feedback') or '').strip()
+
+        # Resolve status id
+        status_name = status if status in ('Draft', 'Published', 'Archived') else 'Draft'
+        cursor.execute(f"SELECT la_stats_id FROM {LA_STATS_TABLE} WHERE la_stats_name = %s", (status_name,))
+        stat_row = cursor.fetchone()
+        stats_id = stat_row['la_stats_id'] if stat_row else (1 if status_name == 'Draft' else 2)
+
+        # Fallback uploaded_by
+        uploader = uploaded_by or data.get('uploaded_by') or 'Admin'
+
+        if exercise_id:
+            update_sql = f"""
+                UPDATE {CODING_EXERCISES_TABLE}
+                SET
+                    exercise_title = %s,
+                    resource_id = %s,
+                    points = %s,
+                    exercise_stats_id = %s,
+                    instruction = %s,
+                    situation = %s,
+                    problem_question = %s,
+                    clue = %s,
+                    expected_answer = %s,
+                    correct_feedback = %s,
+                    updated_at = NOW()
+                WHERE exercise_id = %s
+            """
+            cursor.execute(update_sql, (
+                formatted_title, resource_id, points, stats_id,
+                instruction, situation, problem_question, clue,
+                expected_answer, correct_feedback, exercise_id
+            ))
+            # Clear old test cases
+            cursor.execute(f"DELETE FROM {TEST_CASES_TABLE} WHERE exercise_id = %s", (exercise_id,))
+        else:
+            insert_sql = f"""
+                INSERT INTO {CODING_EXERCISES_TABLE}
+                (
+                    exercise_title, resource_id, points, exercise_stats_id,
+                    instruction, situation, problem_question, clue,
+                    expected_answer, correct_feedback, uploaded_by,
+                    created_at, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            """
+            cursor.execute(insert_sql, (
+                formatted_title, resource_id, points, stats_id,
+                instruction, situation, problem_question, clue,
+                expected_answer, correct_feedback, uploader
+            ))
+            exercise_id = cursor.lastrowid
+
+        # Insert test cases
+        test_cases = data.get('test_cases') or []
+        if isinstance(test_cases, list):
+            for order, tc in enumerate(test_cases, start=1):
+                inp = str(tc.get('input', '')).strip()
+                out = str(tc.get('output', '')).strip()
+                if inp or out:
+                    cursor.execute(
+                        f"""
+                        INSERT INTO {TEST_CASES_TABLE}
+                        (exercise_id, test_order, test_input, expected_output)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (exercise_id, order, inp, out)
+                    )
+
+        connection.commit()
+        cursor.close()
+
+        action_msg = "published" if status_name == "Published" else "saved as draft"
+        return True, exercise_id, f"Coding exercise {action_msg} successfully!"
+
+    except Error as e:
+        connection.rollback()
+        print(f"coding_exercises: failed to save exercise: {e}")
+        return False, None, f"Database error while saving coding exercise: {e}"
     finally:
         if connection.is_connected():
             connection.close()

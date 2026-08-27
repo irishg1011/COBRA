@@ -52,9 +52,10 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
-from coding_exercises import (  # Task #66 & #74: Manage Coding Exercises DB integration
+from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB integration
     get_coding_exercises_overview, get_exercise_stats, delete_coding_exercise,
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
+    save_coding_exercise, parse_test_cases_from_form,
 )
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -2452,12 +2453,55 @@ def coding_exercises_check_title():
     }), 200
 
 
-@admin_bp.route('/coding-exercises/create', methods=['GET'])
+@admin_bp.route('/coding-exercises/create', methods=['GET', 'POST'])
 def create_coding_exercise():
     """
-    Task #70: Renders the Create Coding Exercise page with live Category options
-    and support for editing/preloading an existing exercise.
+    Task #70 & Task #76:
+    - GET: Renders the Create Coding Exercise page with live Category options
+      and support for editing/preloading an existing exercise.
+    - POST: Persists new or updated coding exercise into coding_exercises_tbl
+      and test_cases_tbl (Publish by default, or Draft if action=draft), then
+      redirects back to the Manage Coding Exercises overview page.
     """
+    if request.method == 'POST':
+        is_ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json'
+        data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
+
+        if not request.is_json:
+            data['test_cases'] = parse_test_cases_from_form(request.form)
+
+        action = (request.form.get('action') or (request.get_json(silent=True) or {}).get('action') or 'publish').lower()
+        target_status = 'Draft' if action in ('draft', 'save_draft') else 'Published'
+
+        admin_id = session.get('admin_id')
+        success, exercise_id, msg = save_coding_exercise(data, status=target_status, uploaded_by=admin_id)
+
+        if success:
+            flash(msg, 'success')
+            if is_ajax:
+                return jsonify({
+                    "success": True,
+                    "exercise_id": exercise_id,
+                    "message": msg,
+                    "redirect_url": url_for('admin_bp.coding_exercises')
+                }), 200
+            return redirect(url_for('admin_bp.coding_exercises'))
+        else:
+            flash(msg, 'danger')
+            if is_ajax:
+                return jsonify({
+                    "success": False,
+                    "message": msg
+                }), 400
+            # If standard POST failed, re-render form with categories
+            categories = get_categories()
+            return render_template(
+                'create-coding-exercise.html',
+                categories=categories,
+                existing_exercise=data,
+            ), 400
+
+    # GET request:
     exercise_id = request.args.get('exercise_id', type=int)
     existing_exercise = None
     if exercise_id:
@@ -2469,3 +2513,38 @@ def create_coding_exercise():
         categories=categories,
         existing_exercise=existing_exercise,
     )
+
+
+@admin_bp.route('/coding-exercises/save-draft', methods=['POST'])
+def save_coding_exercise_draft():
+    """
+    Task #76: Dedicated endpoint for Save Draft action.
+    Persists coding exercise with status='Draft' and returns redirect sync.
+    """
+    is_ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json'
+    data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
+
+    if not request.is_json:
+        data['test_cases'] = parse_test_cases_from_form(request.form)
+
+    admin_id = session.get('admin_id')
+    success, exercise_id, msg = save_coding_exercise(data, status='Draft', uploaded_by=admin_id)
+
+    if success:
+        flash(msg, 'success')
+        if is_ajax:
+            return jsonify({
+                "success": True,
+                "exercise_id": exercise_id,
+                "message": msg,
+                "redirect_url": url_for('admin_bp.coding_exercises')
+            }), 200
+        return redirect(url_for('admin_bp.coding_exercises'))
+    else:
+        flash(msg, 'danger')
+        if is_ajax:
+            return jsonify({
+                "success": False,
+                "message": msg
+            }), 400
+        return redirect(url_for('admin_bp.create_coding_exercise'))

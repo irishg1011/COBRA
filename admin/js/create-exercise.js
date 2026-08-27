@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Task #73: Setup Back / Cancel protective confirmation guard
     setupBackCancelGuard();
 
+    // Task #76: Setup Save Draft button handler
+    setupSaveDraftHandler();
+
     // Dynamic character counters setup
     setupCharacterCounter('exerciseInstruction', 'instructionCount', 1000);
     setupCharacterCounter('problemSituation', 'situationCount', 500);
@@ -171,6 +174,64 @@ function setupExerciseTitleValidation() {
 }
 
 /* =================================================================
+   Task #76: Save Draft Handler & Persistence Sync
+==================================================================== */
+function setupSaveDraftHandler() {
+    const saveDraftBtn = document.getElementById('saveDraftBtn');
+    const form = document.getElementById('createExerciseForm');
+    if (!saveDraftBtn || !form) return;
+
+    saveDraftBtn.addEventListener('click', async function (e) {
+        e.preventDefault();
+
+        const titleInput = document.getElementById('exerciseTitle');
+        const lessonSelect = document.getElementById('exerciseLesson');
+
+        if (!titleInput || !titleInput.value.trim()) {
+            alert('Please enter an Exercise Title before saving a draft.');
+            if (titleInput) titleInput.focus();
+            return;
+        }
+
+        if (!lessonSelect || !lessonSelect.value) {
+            alert('Please select Category, Module, and Lesson before saving a draft.');
+            return;
+        }
+
+        const formData = new FormData(form);
+        formData.append('action', 'draft');
+
+        try {
+            saveDraftBtn.disabled = true;
+            saveDraftBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+            const response = await fetch('/admin/coding-exercises/save-draft', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'include'
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                window.location.href = result.redirect_url || '/admin/coding-exercises';
+            } else {
+                alert(result.message || 'Failed to save draft.');
+                saveDraftBtn.disabled = false;
+                saveDraftBtn.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Save Draft';
+            }
+        } catch (err) {
+            console.error('Failed to save draft:', err);
+            alert('An unexpected error occurred while saving the draft.');
+            saveDraftBtn.disabled = false;
+            saveDraftBtn.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Save Draft';
+        }
+    });
+}
+
+/* =================================================================
    Task #73: Back & Cancel Unsaved Changes Protective Guard
 ==================================================================== */
 function hasPopulatedExerciseInputs() {
@@ -281,10 +342,42 @@ function setupBackCancelGuard() {
     }
 
     if (saveAndLeaveBtn) {
-        saveAndLeaveBtn.addEventListener('click', function () {
-            const target = saveAndLeaveBtn.dataset.redirectUrl || pendingNavigation || '/admin/coding-exercises';
-            hideUnsavedModal();
-            window.location.href = target;
+        saveAndLeaveBtn.addEventListener('click', async function () {
+            const titleInput = document.getElementById('exerciseTitle');
+            const lessonSelect = document.getElementById('exerciseLesson');
+            if (!titleInput || !titleInput.value.trim() || !lessonSelect || !lessonSelect.value) {
+                alert('Please enter an Exercise Title and Lesson before saving a draft.');
+                return;
+            }
+
+            if (!form) {
+                hideUnsavedModal();
+                window.location.href = '/admin/coding-exercises';
+                return;
+            }
+
+            const formData = new FormData(form);
+            formData.append('action', 'draft');
+
+            try {
+                const response = await fetch('/admin/coding-exercises/save-draft', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    hideUnsavedModal();
+                    window.location.href = result.redirect_url || '/admin/coding-exercises';
+                } else {
+                    alert(result.message || 'Failed to save draft.');
+                }
+            } catch (err) {
+                console.error('Failed to save draft & leave:', err);
+                hideUnsavedModal();
+                window.location.href = '/admin/coding-exercises';
+            }
         });
     }
 
