@@ -202,6 +202,9 @@
             </div>
         {% include 'unsaved-changes-modal-activity.html' %}
         {% include 'confirm-action-modal.html' %}
+        <script id="preloadedActivityData" type="application/json">
+            {{ existing_activity | tojson if existing_activity else '{}' }}
+        </script>
         </main>
     </div>
 

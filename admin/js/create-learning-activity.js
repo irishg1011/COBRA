@@ -759,10 +759,39 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Task #63: Load preloaded Section 2 content if reopening an existing saved draft
+    const preloadedScript = document.getElementById('preloadedActivityData');
+    if (preloadedScript) {
+        try {
+            const preloaded = JSON.parse(preloadedScript.textContent || '{}');
+            if (preloaded && preloaded.activity_type) {
+                if (preloaded.activity_type === 'Multiple Choice' && Array.isArray(preloaded.questions) && preloaded.questions.length > 0) {
+                    preloaded.questions.forEach(q => addNewQuestionCard(q));
+                } else if (preloaded.activity_type === 'Fill in the Blanks' && Array.isArray(preloaded.fill_blanks) && preloaded.fill_blanks.length > 0) {
+                    preloaded.fill_blanks.forEach(fb => addNewFillBlankCard(fb));
+                } else if (preloaded.activity_type === 'Flashcards' && Array.isArray(preloaded.flashcards) && preloaded.flashcards.length > 0) {
+                    preloaded.flashcards.forEach(fc => addNewFlashcardCard(fc));
+                }
+            }
+        } catch (e) {
+            console.error('Failed to parse preloaded activity data:', e);
+        }
+    }
+
     refreshActivityFieldTrackers(document);
     updatePointsTotal();
     updateAddButtonsState();
 });
+
+function escapeAttr(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
 
 // Function to update Points based on total item count for the active activity type
 function updatePointsTotal() {
@@ -802,6 +831,39 @@ function addNewQuestionCard(prefilledData = null) {
     card.dataset.questionIndex = qIndex;
     
     let questionTextVal = prefilledData ? prefilledData.text : '';
+
+    const optionsToRender = (prefilledData && Array.isArray(prefilledData.options) && prefilledData.options.length > 0)
+        ? prefilledData.options
+        : [
+            { text: '', feedback: '' },
+            { text: '', feedback: '' }
+        ];
+
+    let correctOptionIdx = (prefilledData && prefilledData.correct_option !== undefined && prefilledData.correct_option !== null)
+        ? Number(prefilledData.correct_option)
+        : 0;
+
+    let optionsRowsHtml = '';
+    optionsToRender.forEach((opt, optIdx) => {
+        const letter = String.fromCharCode(65 + optIdx);
+        const optText = opt.text || '';
+        const optFeedback = opt.feedback || '';
+        const isChecked = optIdx === correctOptionIdx ? 'checked' : '';
+
+        optionsRowsHtml += `
+            <div class="answer-row">
+                <div class="option-badge">${letter}</div>
+                <input type="text" name="questions[${qIndex}][options][${optIdx}][text]" class="form-control" placeholder="Answer option" value="${escapeAttr(optText)}" required>
+                <div class="text-center">
+                    <input type="radio" name="questions[${qIndex}][correct_option]" value="${optIdx}" class="custom-radio" ${isChecked}>
+                </div>
+                <input type="text" name="questions[${qIndex}][options][${optIdx}][feedback]" class="form-control" placeholder="Feedback" value="${escapeAttr(optFeedback)}">
+                <div class="text-center">
+                    <button type="button" class="icon-control-btn text-danger delete-option-btn" title="Remove Option" onclick="removeOptionRow(this)"><i class="fa-solid fa-minus"></i></button>
+                </div>
+            </div>
+        `;
+    });
     
     card.innerHTML = `
         <div class="question-card-header">
@@ -817,7 +879,7 @@ function addNewQuestionCard(prefilledData = null) {
         <div class="question-body-content">
             <div class="form-group mb-20" style="position: relative;">
                 <label class="form-label">Question *</label>
-                <textarea name="questions[${qIndex}][text]" class="form-control question-textarea" rows="2" placeholder="Type your question here..." required>${questionTextVal}</textarea>
+                <textarea name="questions[${qIndex}][text]" class="form-control question-textarea" rows="2" placeholder="Type your question here..." required>${escapeAttr(questionTextVal)}</textarea>
                 <span class="char-counter">${questionTextVal.length} / 1000</span>
             </div>
 
@@ -830,30 +892,7 @@ function addNewQuestionCard(prefilledData = null) {
                     <span class="text-center">Action</span>
                 </div>
 
-                <!-- Default 2 initial options upon question creation -->
-                <div class="answer-row">
-                    <div class="option-badge">A</div>
-                    <input type="text" name="questions[${qIndex}][options][0][text]" class="form-control" placeholder="Answer option" required>
-                    <div class="text-center">
-                        <input type="radio" name="questions[${qIndex}][correct_option]" value="0" class="custom-radio" checked>
-                    </div>
-                    <input type="text" name="questions[${qIndex}][options][0][feedback]" class="form-control" placeholder="Feedback">
-                    <div class="text-center">
-                        <button type="button" class="icon-control-btn text-danger delete-option-btn" title="Remove Option" onclick="removeOptionRow(this)"><i class="fa-solid fa-minus"></i></button>
-                    </div>
-                </div>
-
-                <div class="answer-row">
-                    <div class="option-badge">B</div>
-                    <input type="text" name="questions[${qIndex}][options][1][text]" class="form-control" placeholder="Answer option" required>
-                    <div class="text-center">
-                        <input type="radio" name="questions[${qIndex}][correct_option]" value="1" class="custom-radio">
-                    </div>
-                    <input type="text" name="questions[${qIndex}][options][1][feedback]" class="form-control" placeholder="Feedback">
-                    <div class="text-center">
-                        <button type="button" class="icon-control-btn text-danger delete-option-btn" title="Remove Option" onclick="removeOptionRow(this)"><i class="fa-solid fa-minus"></i></button>
-                    </div>
-                </div>
+                ${optionsRowsHtml}
             </div>
 
             <!-- INSIDE BUTTON: Add Option -->
@@ -1105,50 +1144,29 @@ function duplicateQuestionCard(btn) {
     const textarea = card.querySelector('.question-textarea');
     const textVal = textarea ? textarea.value : '';
 
-    addNewQuestionCard({ text: textVal });
-    
-    // Copy options data over to the newly appended duplicated card
-    const container = document.getElementById('questionsContainer');
-    const allCards = container.querySelectorAll('.question-card');
-    const newCard = allCards[allCards.length - 1];
-
-    // Remove default options of new card and replace with source card options
-    const newOptionsWrapper = newCard.querySelector('.answer-options-wrapper');
     const sourceOptionsWrapper = card.querySelector('.answer-options-wrapper');
+    const sourceRows = sourceOptionsWrapper ? sourceOptionsWrapper.querySelectorAll('.answer-row') : [];
     
-    const sourceRows = sourceOptionsWrapper.querySelectorAll('.answer-row');
-    const newQIndex = newCard.dataset.questionIndex;
-    
-    newOptionsWrapper.querySelectorAll('.answer-row').forEach(r => r.remove());
-
+    let correctOptionIdx = 0;
+    const options = [];
     sourceRows.forEach((sRow, sIdx) => {
-        const sText = sRow.querySelector('input[type="text"]:nth-of-type(1)').value;
-        const sIsChecked = sRow.querySelector('input[type="radio"]').checked;
-        const sFeedback = sRow.querySelector('input[type="text"]:nth-of-type(2)').value;
-        const letter = String.fromCharCode(65 + sIdx);
+        const textInput = sRow.querySelector('input[type="text"]:nth-of-type(1)');
+        const radioInput = sRow.querySelector('input[type="radio"]');
+        const feedbackInput = sRow.querySelector('input[type="text"]:nth-of-type(2)');
 
-        const clonedRow = document.createElement('div');
-        clonedRow.className = 'answer-row';
-        clonedRow.innerHTML = `
-            <div class="option-badge">${letter}</div>
-            <input type="text" name="questions[${newQIndex}][options][${sIdx}][text]" class="form-control" value="${sText}" placeholder="Answer option" required>
-            <div class="text-center">
-                <input type="radio" name="questions[${newQIndex}][correct_option]" value="${sIdx}" class="custom-radio" ${sIsChecked ? 'checked' : ''}>
-            </div>
-            <input type="text" name="questions[${newQIndex}][options][${sIdx}][feedback]" class="form-control" value="${sFeedback}" placeholder="Feedback">
-            <div class="text-center">
-                <button type="button" class="icon-control-btn text-danger delete-option-btn" title="Remove Option" onclick="removeOptionRow(this)"><i class="fa-solid fa-minus"></i></button>
-            </div>
-        `;
-        newOptionsWrapper.appendChild(clonedRow);
+        const sText = textInput ? textInput.value : '';
+        const sIsChecked = radioInput ? radioInput.checked : false;
+        const sFeedback = feedbackInput ? feedbackInput.value : '';
+
+        if (sIsChecked) correctOptionIdx = sIdx;
+        options.push({ text: sText, feedback: sFeedback });
     });
 
-    // Task #58 & Task #60: the duplicated options were just copied in with real
-    // values (not typed), so the clear-confirmation tracker must be
-    // refreshed AFTER copying - otherwise the very first attempt to
-    // clear a duplicated field wouldn't be recognized as "had data".
-    refreshActivityFieldTrackers(newCard);
-    updateAddButtonsState();
+    addNewQuestionCard({
+        text: textVal,
+        correct_option: correctOptionIdx,
+        options: options
+    });
 }
 
 // Add a brand new Fill in the Blank Card
