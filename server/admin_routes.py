@@ -52,6 +52,10 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
+from coding_exercises import (  # Task #66: Manage Coding Exercises DB integration
+    get_coding_exercises_overview, get_exercise_stats, delete_coding_exercise,
+    get_coding_exercise,
+)
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1791,9 +1795,98 @@ def delete_activity(activity_id):
     return redirect(url_for('admin_bp.learning_activities'))
 
 
+# ============================================================
+# ROUTE: MANAGE CODING EXERCISES (PAGE VIEW)
+# ============================================================
 @admin_bp.route('/coding-exercises')
 def coding_exercises():
-    return render_template('coding-exercises.html')
+    """
+    Task #66: Renders the Manage Coding Exercises page with LIVE data
+    joined from coding_exercises_tbl, learning_resources_tbl, modules_tbl,
+    category_tbl, learning_activities_stats_tbl, and profile_tbl.
+    """
+    search = request.args.get('q', '')
+    stats_filter = request.args.get('stats', '')
+    sort = request.args.get('sort', '')
+    page = request.args.get('page', 1, type=int)
+
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
+    overview = get_coding_exercises_overview(
+        search_query=search, stats_filter=stats_filter, page=page,
+        sort_by=sort,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
+    if overview is None:
+        overview = {"exercises": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
+
+    return render_template(
+        'coding-exercises.html',
+        exercises=overview["exercises"],
+        total_exercises=overview["total"],
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        exercise_stats=get_exercise_stats(),
+        created_from=created_from or '',
+        created_to=created_to or '',
+        updated_from=updated_from or '',
+        updated_to=updated_to or '',
+        sort=sort or '',
+        search=search or '',
+    )
+
+
+# ============================================================
+# ROUTE: LIVE CODING EXERCISES SEARCH + FILTER + SORT (JSON)
+# ============================================================
+@admin_bp.route('/coding-exercises/data')
+def coding_exercises_data():
+    """
+    Backend-driven live search/filter/sort/pagination for Manage Coding Exercises.
+    """
+    search = request.args.get('q', '')
+    stats_filter = request.args.get('stats', '')
+    sort = request.args.get('sort', '')
+    page = request.args.get('page', 1, type=int)
+
+    created_from = request.args.get('created_from', '') or None
+    created_to = request.args.get('created_to', '') or None
+    updated_from = request.args.get('updated_from', '') or None
+    updated_to = request.args.get('updated_to', '') or None
+
+    overview = get_coding_exercises_overview(
+        search_query=search, stats_filter=stats_filter, page=page,
+        sort_by=sort,
+        created_from=created_from, created_to=created_to,
+        updated_from=updated_from, updated_to=updated_to,
+    )
+    if overview is None:
+        return jsonify({"success": False, "exercises": [], "total": 0, "page": 1, "total_pages": 1}), 500
+
+    return jsonify({
+        "success": True,
+        "exercises": overview["exercises"],
+        "total": overview["total"],
+        "page": overview["page"],
+        "total_pages": overview["total_pages"],
+    }), 200
+
+
+# ============================================================
+# ROUTE: DELETE CODING EXERCISE
+# ============================================================
+@admin_bp.route('/coding-exercises/delete/<int:exercise_id>', methods=['POST'])
+def delete_exercise(exercise_id):
+    """
+    Task #66: Deletes a coding exercise and cascades associated test cases.
+    """
+    success, message = delete_coding_exercise(exercise_id)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_bp.coding_exercises'))
 
 
 @admin_bp.route('/coding-sandbox')

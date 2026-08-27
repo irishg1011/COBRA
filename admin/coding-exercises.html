@@ -48,53 +48,73 @@
                     <div class="table-toolbar">
                         <div class="header-search search-override">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input type="text" id="activitySearchInput" placeholder="Search exercises...">
+                            <input type="text" id="exerciseSearchInput" placeholder="Search exercises..." value="{{ search|default('') }}">
                         </div>
                         <div class="toolbar-filters">
-                            <select class="custom-select" id="activityTypeSelect">
-                                <option value="">All Difficulties</option>
-                                <option value="Easy">Easy</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Hard">Hard</option>
+                            <select class="custom-select" id="exerciseStatsSelect">
+                                <option value="">All Statuses</option>
+                                {% for stat in exercise_stats %}
+                                <option value="{{ stat.stats_id }}">{{ stat.stats_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="custom-select" id="exerciseSortSelect">
+                                <option value="created_desc" {{ 'selected' if sort|default('created_desc') == 'created_desc' }}>Newest First</option>
+                                <option value="created_asc" {{ 'selected' if sort|default('') == 'created_asc' }}>Oldest First</option>
+                                <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Recently Updated</option>
+                                <option value="title_asc" {{ 'selected' if sort|default('') == 'title_asc' }}>Title A-Z</option>
                             </select>
                         </div>
                     </div>
 
                     <!-- Exercises Table -->
-                    <table class="data-table">
+                    <table class="data-table" id="exercisesDataTable">
                         <thead>
                             <tr>
                                 <th>Exercise</th>
                                 <th>Category</th>
                                 <th>Module</th>
                                 <th>Lesson</th>
-                                <th>Created</th>
+                                <th>Stats</th>
+                                <th>Uploaded By</th>
+                                <th>Created At</th>
+                                <th>Updated At</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="activitiesTableBody">
+                        <tbody id="exercisesTableBody">
                             {% for exercise in exercises %}
-                            <tr>
+                            <tr data-exercise-id="{{ exercise.exercise_id }}">
                                 <td>
-                                    <strong class="table-item-title">{{ exercise.exercise_name }}</strong>
+                                    <strong class="table-item-title">{{ exercise.exercise_title }}</strong>
                                 </td>
-                                <td>{{ exercise.category }}</td>
+                                <td class="text-muted">{{ exercise.category }}</td>
                                 <td class="text-muted">{{ exercise.module }}</td>
                                 <td class="text-muted">{{ exercise.lesson }}</td>
+                                <td>
+                                    {% if exercise.status == 'Published' %}
+                                    <span class="badge badge-active">{{ exercise.status }}</span>
+                                    {% elif exercise.status == 'Archived' %}
+                                    <span class="badge badge-inactive">{{ exercise.status }}</span>
+                                    {% else %}
+                                    <span class="badge badge-draft">{{ exercise.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted">{{ exercise.uploaded_by }}</td>
                                 <td class="text-muted">{{ exercise.created_at }}</td>
+                                <td class="text-muted">{{ exercise.updated_at }}</td>
                                 <td class="text-right">
                                     <div class="table-actions-group">
-                                        <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <form action="{{ url_for('admin_bp.delete_exercise', exercise_id=exercise.exercise_id) }}" method="POST" class="inline-form">
-                                            <button type="submit" title="Delete" class="table-action-icon delete-action"><i class="fa-solid fa-trash"></i></button>
+                                        <a href="{{ url_for('admin_bp.create_coding_exercise') }}?exercise_id={{ exercise.exercise_id }}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <form action="{{ url_for('admin_bp.delete_exercise', exercise_id=exercise.exercise_id) }}" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this coding exercise?');">
+                                            <button type="submit" title="Delete" class="table-action-icon delete-action icon-button-reset"><i class="fa-solid fa-trash"></i></button>
                                         </form>
                                     </div>
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted table-empty-message">
-                                    No learning activities found.
+                                <td colspan="9" class="text-muted table-empty-message">
+                                    No coding exercises found.
                                 </td>
                             </tr>
                             {% endfor %}
@@ -103,8 +123,12 @@
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
-                        <span>Showing {{ exercises|length }} of {{ total_exercises|default(0) }} Exercises</span>
-                        <span>&lt; 1 of 1 &gt;</span>
+                        <span id="exercisesShowingCount">Showing {{ exercises|length }} of {{ total_exercises|default(0) }} Exercises</span>
+                        <div class="pagination-controls" style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" class="btn-pagination" id="exercisesPrevBtn" {{ 'disabled' if page <= 1 }} title="Previous Page">&lt;</button>
+                            <span id="exercisesPageLabel">{{ page }} of {{ total_pages }}</span>
+                            <button type="button" class="btn-pagination" id="exercisesNextBtn" {{ 'disabled' if page >= total_pages }} title="Next Page">&gt;</button>
+                        </div>
                     </div>
 
                 </div>
@@ -116,5 +140,6 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-coding-exercises.js') }}"></script>
 </body>
 </html>
