@@ -4,6 +4,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Task #69: Setup Exercise Title live casing normalization
     setupTitleCasingNormalization('exerciseTitle');
 
+    // Task #70: Setup Category -> Module -> Lesson dependent dropdowns
+    setupDependentDropdowns();
+
     // Dynamic character counters setup
     setupCharacterCounter('exerciseInstruction', 'instructionCount', 1000);
     setupCharacterCounter('problemSituation', 'situationCount', 500);
@@ -50,6 +53,124 @@ function setupTitleCasingNormalization(inputId) {
             input.setSelectionRange(start, end);
         }
     });
+}
+
+/* =================================================================
+   Task #70: Category -> Module -> Lesson Cascading Dependent Dropdowns
+==================================================================== */
+function setupDependentDropdowns() {
+    const categorySelect = document.getElementById('exerciseCategory');
+    const moduleSelect = document.getElementById('exerciseModule');
+    const lessonSelect = document.getElementById('exerciseLesson');
+
+    if (!categorySelect || !moduleSelect || !lessonSelect) return;
+
+    const MODULE_PLACEHOLDER_HTML = '<option value="" disabled selected>Select module</option>';
+    const LESSON_PLACEHOLDER_HTML = '<option value="" disabled selected>Select lesson</option>';
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+    }
+
+    function resetModuleDropdown() {
+        moduleSelect.innerHTML = MODULE_PLACEHOLDER_HTML;
+        moduleSelect.disabled = true;
+    }
+
+    function resetLessonDropdown() {
+        lessonSelect.innerHTML = LESSON_PLACEHOLDER_HTML;
+        lessonSelect.disabled = true;
+    }
+
+    async function loadLessonsForModule(moduleId, preselectResourceId = null) {
+        resetLessonDropdown();
+
+        if (!moduleId) return;
+
+        try {
+            const response = await fetch(
+                `/admin/coding-exercises/lessons-by-module?module_id=${encodeURIComponent(moduleId)}`,
+                { credentials: "include" }
+            );
+            const result = await response.json();
+
+            if (!result.success || !Array.isArray(result.lessons) || result.lessons.length === 0) {
+                resetLessonDropdown();
+                return;
+            }
+
+            const optionsHtml = result.lessons.map(lesson => {
+                const isSelected = preselectResourceId && String(lesson.resource_id) === String(preselectResourceId);
+                return `<option value="${escapeHtml(lesson.resource_id)}" ${isSelected ? 'selected' : ''}>${escapeHtml(lesson.resource_title)}</option>`;
+            }).join("");
+
+            lessonSelect.innerHTML = LESSON_PLACEHOLDER_HTML + optionsHtml;
+            lessonSelect.disabled = false;
+
+            if (preselectResourceId && lessonSelect.querySelector(`option[value="${preselectResourceId}"]`)) {
+                lessonSelect.value = String(preselectResourceId);
+            }
+        } catch (err) {
+            console.error("create-exercise: failed to load lessons for module:", err);
+            resetLessonDropdown();
+        }
+    }
+
+    async function loadModulesForCategory(catId, preselectModuleId = null, preselectResourceId = null) {
+        resetModuleDropdown();
+        resetLessonDropdown();
+
+        if (!catId) return;
+
+        try {
+            const response = await fetch(
+                `/admin/coding-exercises/modules-by-category?cat_id=${encodeURIComponent(catId)}`,
+                { credentials: "include" }
+            );
+            const result = await response.json();
+
+            if (!result.success || !Array.isArray(result.modules) || result.modules.length === 0) {
+                resetModuleDropdown();
+                return;
+            }
+
+            const optionsHtml = result.modules.map(mod => {
+                const isSelected = preselectModuleId && String(mod.module_id) === String(preselectModuleId);
+                return `<option value="${escapeHtml(mod.module_id)}" ${isSelected ? 'selected' : ''}>${escapeHtml(mod.module_name)}</option>`;
+            }).join("");
+
+            moduleSelect.innerHTML = MODULE_PLACEHOLDER_HTML + optionsHtml;
+            moduleSelect.disabled = false;
+
+            if (preselectModuleId && moduleSelect.querySelector(`option[value="${preselectModuleId}"]`)) {
+                moduleSelect.value = String(preselectModuleId);
+                await loadLessonsForModule(preselectModuleId, preselectResourceId);
+            }
+        } catch (err) {
+            console.error("create-exercise: failed to load modules for category:", err);
+            resetModuleDropdown();
+            resetLessonDropdown();
+        }
+    }
+
+    categorySelect.addEventListener('change', function () {
+        loadModulesForCategory(categorySelect.value);
+    });
+
+    moduleSelect.addEventListener('change', function () {
+        loadLessonsForModule(moduleSelect.value);
+    });
+
+    // Handle initial pre-selected values (e.g. Editing / reloading saved draft)
+    const initialCatId = categorySelect.value;
+    const preselectModuleId = moduleSelect.dataset.preselectModuleId || null;
+    const preselectResourceId = lessonSelect.dataset.preselectResourceId || null;
+
+    if (initialCatId) {
+        loadModulesForCategory(initialCatId, preselectModuleId, preselectResourceId);
+    }
 }
 
 function setupCharacterCounter(textareaId, counterId, maxLength) {

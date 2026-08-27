@@ -67,22 +67,22 @@
                                 <div>
                                     <label class="form-label" for="exerciseCategory">Category *</label>
                                     <select id="exerciseCategory" name="category" class="form-control-select" required>
-                                        <option value="" disabled selected>Select category</option>
-                                        <!-- Add category options here -->
+                                        <option value="" disabled {{ 'selected' if not existing_exercise }}>Select category</option>
+                                        {% for cat in categories %}
+                                        <option value="{{ cat.cat_id }}" {{ 'selected' if existing_exercise and existing_exercise.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                                 <div>
                                     <label class="form-label" for="exerciseModule">Module *</label>
-                                    <select id="exerciseModule" name="module_id" class="form-control-select" required>
+                                    <select id="exerciseModule" name="module_id" class="form-control-select" required disabled data-preselect-module-id="{{ existing_exercise.module_id if existing_exercise else '' }}">
                                         <option value="" disabled selected>Select module</option>
-                                        <!-- Add module options here -->
                                     </select>
                                 </div>
                                 <div>
                                     <label class="form-label" for="exerciseLesson">Lesson *</label>
-                                    <select id="exerciseLesson" name="lesson_id" class="form-control-select" required>
+                                    <select id="exerciseLesson" name="resource_id" class="form-control-select" required disabled data-preselect-resource-id="{{ existing_exercise.resource_id if existing_exercise else '' }}">
                                         <option value="" disabled selected>Select lesson</option>
-                                        <!-- Add lesson options here -->
                                     </select>
                                 </div>
                             </div>

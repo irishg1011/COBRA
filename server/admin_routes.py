@@ -2391,7 +2391,53 @@ def create_activity_submit():
 
     flash('Learning activity created and published successfully!', 'success')
     return redirect(url_for('admin_bp.learning_activities'))
-    #wew
+# ============================================================
+# ROUTE: CREATE CODING EXERCISE (PAGE VIEW) & DEPENDENT DROPDOWNS
+# ============================================================
+@admin_bp.route('/coding-exercises/modules-by-category')
+def coding_exercises_modules_by_category():
+    """
+    Task #70: backs the Create Coding Exercise form's dependent Module dropdown.
+    Takes a single query param, `cat_id`, and returns ONLY the modules
+    whose modules_tbl.cat_id matches it.
+    """
+    cat_id = request.args.get('cat_id', '', type=int)
+    if not cat_id:
+        return jsonify({"success": True, "modules": []}), 200
+
+    modules = get_modules_by_category(cat_id)
+    return jsonify({"success": True, "modules": modules}), 200
+
+
+@admin_bp.route('/coding-exercises/lessons-by-module')
+def coding_exercises_lessons_by_module():
+    """
+    Task #70: backs the Create Coding Exercise form's dependent Lesson dropdown.
+    Takes a single query param, `module_id`, and returns ONLY the lessons
+    (learning_resources_tbl rows) whose module_id matches it.
+    """
+    module_id = request.args.get('module_id', '', type=int)
+    if not module_id:
+        return jsonify({"success": True, "lessons": []}), 200
+
+    lessons = get_resources_by_module(module_id)
+    return jsonify({"success": True, "lessons": lessons}), 200
+
+
 @admin_bp.route('/coding-exercises/create', methods=['GET'])
 def create_coding_exercise():
-    return render_template('create-coding-exercise.html')
+    """
+    Task #70: Renders the Create Coding Exercise page with live Category options
+    and support for editing/preloading an existing exercise.
+    """
+    exercise_id = request.args.get('exercise_id', type=int)
+    existing_exercise = None
+    if exercise_id:
+        existing_exercise = get_coding_exercise(exercise_id)
+
+    categories = get_categories()
+    return render_template(
+        'create-coding-exercise.html',
+        categories=categories,
+        existing_exercise=existing_exercise,
+    )
