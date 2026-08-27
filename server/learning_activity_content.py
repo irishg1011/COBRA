@@ -46,6 +46,7 @@ orphaned content behind.
 """
 
 from mysql.connector import Error
+from text_formatting import format_display_name
 
 MCQ_QUESTIONS_TABLE = "mcq_questions_tbl"
 MCQ_OPTIONS_TABLE = "mcq_options_tbl"
@@ -76,15 +77,18 @@ def _save_questions(cursor, la_id, questions):
     question with no typed text, and an option row with no typed text -
     matches the frontend's own required-field markers, without
     rejecting the whole save over one blank/in-progress row.
+    Applies strict sentence-case formatting (Task #60).
     """
     for q in (questions or []):
         text = (q.get("text") or "").strip()
         if not text:
             continue
 
+        normalized_text = format_display_name(text)
+
         cursor.execute(
             f"INSERT INTO {MCQ_QUESTIONS_TABLE} (la_id, question_text) VALUES (%s, %s)",
-            (la_id, text)
+            (la_id, normalized_text)
         )
         q_id = cursor.lastrowid
 
@@ -97,50 +101,61 @@ def _save_questions(cursor, la_id, questions):
             opt_text = (opt.get("text") or "").strip()
             if not opt_text:
                 continue
+            normalized_opt_text = format_display_name(opt_text)
             letter = chr(65 + idx)  # 0 -> 'A', 1 -> 'B', ...
             is_correct = 1 if correct_index == idx else 0
-            feedback = (opt.get("feedback") or "").strip() or None
+            raw_feedback = (opt.get("feedback") or "").strip()
+            feedback = format_display_name(raw_feedback) if raw_feedback else None
             cursor.execute(
                 f"""INSERT INTO {MCQ_OPTIONS_TABLE}
                     (q_id, option_letter, option_text, is_correct, feedback)
                     VALUES (%s, %s, %s, %s, %s)""",
-                (q_id, letter, opt_text, is_correct, feedback)
+                (q_id, letter, normalized_opt_text, is_correct, feedback)
             )
 
 
 def _save_fill_blanks(cursor, la_id, fill_blanks):
     """Inserts every Fill in the Blanks item that has both content and
     a correct answer typed - an incomplete row is skipped, not saved
-    half-filled."""
+    half-filled. Applies strict sentence-case formatting (Task #60)."""
     for fb in (fill_blanks or []):
         content = (fb.get("content") or "").strip()
         answer = (fb.get("correct_answer") or "").strip()
         if not content or not answer:
             continue
-        correct_fb = (fb.get("correct_feedback") or "").strip() or None
-        incorrect_fb = (fb.get("incorrect_feedback") or "").strip() or None
+        normalized_content = format_display_name(content)
+        normalized_answer = format_display_name(answer)
+        raw_correct_fb = (fb.get("correct_feedback") or "").strip()
+        raw_incorrect_fb = (fb.get("incorrect_feedback") or "").strip()
+        correct_fb = format_display_name(raw_correct_fb) if raw_correct_fb else None
+        incorrect_fb = format_display_name(raw_incorrect_fb) if raw_incorrect_fb else None
         cursor.execute(
             f"""INSERT INTO {FILL_BLANKS_TABLE}
                 (la_id, content, correct_answer, correct_feedback, incorrect_feedback)
                 VALUES (%s, %s, %s, %s, %s)""",
-            (la_id, content, answer, correct_fb, incorrect_fb)
+            (la_id, normalized_content, normalized_answer, correct_fb, incorrect_fb)
         )
 
 
 def _save_flashcards(cursor, la_id, flashcards):
-    """Inserts every Flashcard that has both a front and a back typed."""
+    """Inserts every Flashcard that has both a front and a back typed.
+    Applies strict sentence-case formatting (Task #60)."""
     for fc in (flashcards or []):
         front = (fc.get("front") or "").strip()
         back = (fc.get("back") or "").strip()
         if not front or not back:
             continue
-        correct_fb = (fc.get("correct_feedback") or "").strip() or None
-        incorrect_fb = (fc.get("incorrect_feedback") or "").strip() or None
+        normalized_front = format_display_name(front)
+        normalized_back = format_display_name(back)
+        raw_correct_fb = (fc.get("correct_feedback") or "").strip()
+        raw_incorrect_fb = (fc.get("incorrect_feedback") or "").strip()
+        correct_fb = format_display_name(raw_correct_fb) if raw_correct_fb else None
+        incorrect_fb = format_display_name(raw_incorrect_fb) if raw_incorrect_fb else None
         cursor.execute(
             f"""INSERT INTO {FLASHCARDS_TABLE}
                 (la_id, front_text, back_text, correct_feedback, incorrect_feedback)
                 VALUES (%s, %s, %s, %s, %s)""",
-            (la_id, front, back, correct_fb, incorrect_fb)
+            (la_id, normalized_front, normalized_back, correct_fb, incorrect_fb)
         )
 
 

@@ -33,36 +33,43 @@
  */
 
 // ========================================================================
-// TASK #58: shared helpers - casing normalization, clear-confirmation,
-// and "is this question complete?" checks for the Multiple Choice
-// question builder (#questionsContainer).
+// TASK #58 & TASK #60: shared helpers - casing normalization,
+// clear-confirmation, deletion protection, and completeness checks across
+// Multiple Choice, Fill in the Blanks, and Flashcards builders.
 // ========================================================================
 
-// Tracks the last known value of every guarded field (Question text /
-// Answer Option text / Feedback text), keyed by the actual DOM element -
-// this is what lets us tell "the admin just cleared a field that had
-// text" apart from "this field has always been empty", without needing
-// a data-* attribute that would have to be kept in sync separately.
-const questionFieldValueTracker = new WeakMap();
+// Tracks the last known value of every guarded field across all activity builders,
+// keyed by the actual DOM element - this is what lets us tell "the admin just
+// cleared a field that had text" apart from "this field has always been empty",
+// without needing a data-* attribute that would have to be kept in sync separately.
+const activityFieldValueTracker = new WeakMap();
+// Alias for backward compatibility
+const questionFieldValueTracker = activityFieldValueTracker;
 
 /**
- * True for exactly the fields Task #58 governs: the Question textarea,
- * and any Answer Option "text" or "feedback" input - all scoped to
- * inside #questionsContainer (Multiple Choice only; Fill in the Blanks
- * and Flashcards are unaffected). Radios (the "Is Correct" column) are
- * explicitly excluded.
+ * True for all text inputs and textareas across the activity builder containers
+ * (Multiple Choice, Fill in the Blanks, Flashcards). Radios, hidden inputs,
+ * buttons, and Section 1 fields are explicitly excluded.
  */
-function isGuardedQuestionField(el) {
+function isGuardedActivityField(el) {
     if (!el || !el.tagName) return false;
     const tag = el.tagName.toUpperCase();
     if (tag !== 'TEXTAREA' && tag !== 'INPUT') return false;
-    if (tag === 'INPUT' && el.type === 'radio') return false;
-    if (!el.closest || !el.closest('#questionsContainer')) return false;
+    if (tag === 'INPUT' && (el.type === 'radio' || el.type === 'hidden' || el.type === 'button' || el.type === 'submit')) return false;
 
-    if (el.classList && el.classList.contains('question-textarea')) return true;
+    if (el.closest('#questionsContainer') || el.closest('#multipleChoiceSection') ||
+        el.closest('#fillBlanksContainer') || el.closest('#fillBlanksSection') ||
+        el.closest('#flashcardsContainer') || el.closest('#flashcardsSection') ||
+        el.closest('.tab-content-container')) {
+        return true;
+    }
 
-    const name = el.getAttribute('name') || '';
-    return /^questions\[\d+\]\[options\]\[\d+\]\[(text|feedback)\]$/.test(name);
+    return false;
+}
+
+// Alias for backward compatibility
+function isGuardedQuestionField(el) {
+    return isGuardedActivityField(el);
 }
 
 /**
@@ -70,21 +77,26 @@ function isGuardedQuestionField(el) {
  * exact same rule already used for Activity Title / Lesson Name /
  * Category Name elsewhere in this project.
  */
-function normalizeQuestionFieldCasing(value) {
+function normalizeActivityFieldCasing(value) {
     if (!value) return value;
     return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }
 
+// Alias for backward compatibility
+function normalizeQuestionFieldCasing(value) {
+    return normalizeActivityFieldCasing(value);
+}
+
 /**
- * Applies normalizeQuestionFieldCasing() to `el.value` in place, keeping
+ * Applies normalizeActivityFieldCasing() to `el.value` in place, keeping
  * the caret where the admin was typing (rather than jumping to the end
  * of the field) - same technique already used by
  * create-learning-activity-validations.js's Activity Title formatter.
  */
-function applyQuestionFieldCasing(el) {
+function applyActivityFieldCasing(el) {
     const start = el.selectionStart;
     const end = el.selectionEnd;
-    const normalized = normalizeQuestionFieldCasing(el.value);
+    const normalized = normalizeActivityFieldCasing(el.value);
     if (normalized === el.value) return;
     el.value = normalized;
     if (start !== null && end !== null && typeof el.setSelectionRange === 'function') {
@@ -92,37 +104,47 @@ function applyQuestionFieldCasing(el) {
     }
 }
 
+// Alias for backward compatibility
+function applyQuestionFieldCasing(el) {
+    applyActivityFieldCasing(el);
+}
+
 /**
  * (Re)synchronizes the tracker for every guarded field currently inside
  * `scopeEl` to that field's CURRENT value. Must be called right after a
- * question card is created or duplicated (including once its options
+ * card is created or duplicated (including once its options/inputs
  * have been copied over), so a freshly-duplicated field that already
  * has text is correctly recognized as "has data" the very first time
  * the admin tries to clear it - not just after they've typed into it
  * once themselves.
  */
-function refreshQuestionFieldTrackers(scopeEl) {
+function refreshActivityFieldTrackers(scopeEl) {
     if (!scopeEl || !scopeEl.querySelectorAll) return;
-    scopeEl.querySelectorAll('.question-textarea, input[type="text"]').forEach((el) => {
-        if (isGuardedQuestionField(el)) {
-            questionFieldValueTracker.set(el, el.value || '');
+    scopeEl.querySelectorAll('textarea, input[type="text"]').forEach((el) => {
+        if (isGuardedActivityField(el)) {
+            activityFieldValueTracker.set(el, el.value || '');
         }
     });
 }
 
+// Alias for backward compatibility
+function refreshQuestionFieldTrackers(scopeEl) {
+    refreshActivityFieldTrackers(scopeEl);
+}
+
 /**
- * Task #58, Requirement #1 (in-field clearing): fires on every input
- * event anywhere inside #questionsContainer. If a guarded field just
+ * Task #58 & Task #60, Requirement #1 (in-field clearing): fires on every input
+ * event anywhere inside the activity content builders. If a guarded field just
  * transitioned from having text to being completely empty, the admin is
  * asked to confirm; canceling restores the field to its previous value.
  * Otherwise (still has text, or was already empty), the field's casing
  * is normalized live (Requirement #2) and the tracker is updated.
  */
-function handleQuestionBuilderInput(e) {
+function handleActivityFieldInput(e) {
     const el = e.target;
-    if (!isGuardedQuestionField(el)) return;
+    if (!isGuardedActivityField(el)) return;
 
-    const previousValue = questionFieldValueTracker.has(el) ? questionFieldValueTracker.get(el) : '';
+    const previousValue = activityFieldValueTracker.has(el) ? activityFieldValueTracker.get(el) : '';
     const currentValue = el.value;
 
     if (previousValue.trim() !== '' && currentValue.trim() === '') {
@@ -131,19 +153,24 @@ function handleQuestionBuilderInput(e) {
         );
         if (!confirmed) {
             el.value = previousValue;
-            questionFieldValueTracker.set(el, previousValue);
+            activityFieldValueTracker.set(el, previousValue);
             if (typeof el.setSelectionRange === 'function') {
                 el.setSelectionRange(previousValue.length, previousValue.length);
             }
             return;
         }
         // Confirmed - the field is intentionally left empty.
-        questionFieldValueTracker.set(el, '');
+        activityFieldValueTracker.set(el, '');
         return;
     }
 
-    applyQuestionFieldCasing(el);
-    questionFieldValueTracker.set(el, el.value);
+    applyActivityFieldCasing(el);
+    activityFieldValueTracker.set(el, el.value);
+}
+
+// Alias for backward compatibility
+function handleQuestionBuilderInput(e) {
+    handleActivityFieldInput(e);
 }
 
 /**
@@ -152,18 +179,23 @@ function handleQuestionBuilderInput(e) {
  * 'input' event has had a chance to seed the tracker - e.g. focus,
  * select-all, delete, all before this field has been touched otherwise).
  */
-function initQuestionFieldTracking(e) {
+function initActivityFieldTracking(e) {
     const el = e.target;
-    if (!isGuardedQuestionField(el)) return;
-    if (!questionFieldValueTracker.has(el)) {
-        questionFieldValueTracker.set(el, el.value || '');
+    if (!isGuardedActivityField(el)) return;
+    if (!activityFieldValueTracker.has(el)) {
+        activityFieldValueTracker.set(el, el.value || '');
     }
 }
 
-document.addEventListener('input', handleQuestionBuilderInput);
+// Alias for backward compatibility
+function initQuestionFieldTracking(e) {
+    initActivityFieldTracking(e);
+}
+
+document.addEventListener('input', handleActivityFieldInput);
 // 'focus' does not bubble, so this listener must be registered in the
 // capture phase to reliably see focus events on nested inputs/textareas.
-document.addEventListener('focus', initQuestionFieldTracking, true);
+document.addEventListener('focus', initActivityFieldTracking, true);
 
 /**
  * True only if `card` has its Question text filled in AND every one of
@@ -254,6 +286,38 @@ function optionRowHasData(row) {
     const optionText = textInput ? textInput.value.trim() : '';
     const feedbackText = feedbackInput ? feedbackInput.value.trim() : '';
     return !!(optionText || feedbackText);
+}
+
+/**
+ * True if a Fill in the Blank card has ANY typed content - question content,
+ * correct answer, correct feedback, or incorrect feedback.
+ */
+function fillBlankCardHasData(card) {
+    if (!card) return false;
+    const textarea = card.querySelector('textarea');
+    if (textarea && textarea.value.trim() !== '') return true;
+    const inputs = card.querySelectorAll('input[type="text"]');
+    for (const input of inputs) {
+        if (input && input.value.trim() !== '') return true;
+    }
+    return false;
+}
+
+/**
+ * True if a Flashcard card has ANY typed content - front card, back card,
+ * correct feedback, or incorrect feedback.
+ */
+function flashcardCardHasData(card) {
+    if (!card) return false;
+    const textareas = card.querySelectorAll('textarea');
+    for (const ta of textareas) {
+        if (ta && ta.value.trim() !== '') return true;
+    }
+    const inputs = card.querySelectorAll('input[type="text"]');
+    for (const input of inputs) {
+        if (input && input.value.trim() !== '') return true;
+    }
+    return false;
 }
 
 // ========================================================================
@@ -527,6 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    refreshActivityFieldTrackers(document);
     updatePointsTotal();
 });
 
@@ -907,10 +972,11 @@ function duplicateQuestionCard(btn) {
         newOptionsWrapper.appendChild(clonedRow);
     });
 
-    // Task #58: the duplicated options were just copied in with real
+    // Task #58 & Task #60: the duplicated options were just copied in with real
     // values (not typed), so the clear-confirmation tracker must be
     // refreshed AFTER copying - otherwise the very first attempt to
     // clear a duplicated field wouldn't be recognized as "had data".
+    refreshActivityFieldTrackers(newCard);
 }
 
 // Add a brand new Fill in the Blank Card
@@ -968,12 +1034,23 @@ function addNewFillBlankCard(prefilledData = null) {
 
     container.appendChild(card);
     setupTextareaCounters(card);
+    refreshActivityFieldTrackers(card);
     updatePointsTotal();
 }
 
 // Remove Fill in the Blank Card
 function removeFillBlankCard(btn) {
     const card = btn.closest('.fill-blank-card');
+
+    // Task #60: Enforce confirmation before deleting a populated Fill in the Blank item
+    if (fillBlankCardHasData(card)) {
+        const confirmed = window.confirm(
+            'This fill-in-the-blank item contains data. Are you sure you want to delete it? ' +
+            'This action cannot be undone.'
+        );
+        if (!confirmed) return;
+    }
+
     card.remove();
 
     const container = document.getElementById('fillBlanksContainer');
@@ -1102,12 +1179,23 @@ function addNewFlashcardCard(prefilledData = null) {
 
     container.appendChild(card);
     setupTextareaCounters(card);
+    refreshActivityFieldTrackers(card);
     updatePointsTotal();
 }
 
 // Remove Flashcard Card
 function removeFlashcardCard(btn) {
     const card = btn.closest('.flashcard-card');
+
+    // Task #60: Enforce confirmation before deleting a populated Flashcard item
+    if (flashcardCardHasData(card)) {
+        const confirmed = window.confirm(
+            'This flashcard contains data. Are you sure you want to delete it? ' +
+            'This action cannot be undone.'
+        );
+        if (!confirmed) return;
+    }
+
     card.remove();
 
     const container = document.getElementById('flashcardsContainer');
