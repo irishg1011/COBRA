@@ -1,3 +1,6 @@
+// Global submission state flag to suppress beforeunload alert on intended saves/navigation
+let isSubmitting = false;
+
 document.addEventListener('DOMContentLoaded', function () {
     console.log("Create Exercise frontend script loaded successfully.");
 
@@ -10,19 +13,19 @@ document.addEventListener('DOMContentLoaded', function () {
     setupFieldCasingNormalization('correctFeedback');
     setupFieldCasingNormalization('incorrectFeedback');
 
-    // Task #74: Setup Exercise Title duplicate validation check
+    // Task #74 & Fix #2: Setup Exercise Title duplicate validation check
     setupExerciseTitleValidation();
 
-    // Task #70: Setup Category -> Module -> Lesson dependent dropdowns
+    // Task #70 & Fix #1: Setup Category -> Module -> Lesson dependent dropdowns
     setupDependentDropdowns();
 
-    // Task #73: Setup Back / Cancel protective confirmation guard
+    // Task #73 & Fix #3: Setup Back / Cancel protective confirmation guard
     setupBackCancelGuard();
 
-    // Task #76: Setup Save Draft button handler
+    // Task #76 & Fix #3: Setup Save Draft button handler
     setupSaveDraftHandler();
 
-    // Dynamic character counters setup
+    // Dynamic character counters setup with immediate count initialization (Fix #1)
     setupCharacterCounter('exerciseInstruction', 'instructionCount', 1000);
     setupCharacterCounter('problemSituation', 'situationCount', 500);
     setupCharacterCounter('problemQuestion', 'questionCount', 500);
@@ -30,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setupCharacterCounter('expectedAnswer', 'expectedAnswerCount', 1000);
     setupCharacterCounter('correctFeedback', 'correctFeedbackCount', 500);
 
-    // Initialize exactly ONE empty test case row if container is empty
+    // Initialize exactly ONE empty test case row IF container is currently empty
     const testCaseContainer = document.getElementById('testCasesContainer');
     if (testCaseContainer && testCaseContainer.children.length === 0) {
         addTestCaseRow('', '');
@@ -43,6 +46,14 @@ document.addEventListener('DOMContentLoaded', function () {
         addTestCaseBtn.addEventListener('click', function (e) {
             e.preventDefault();
             addTestCaseRow('', '');
+        });
+    }
+
+    // Form submit listener to set isSubmitting = true (Fix #3 & #4)
+    const form = document.getElementById('createExerciseForm');
+    if (form) {
+        form.addEventListener('submit', function () {
+            isSubmitting = true;
         });
     }
 });
@@ -80,7 +91,7 @@ function setupTitleCasingNormalization(inputId) {
 }
 
 /* =================================================================
-   Task #74: Exercise Title Global Duplication Prevention
+   Task #74 & Fix #2: Exercise Title Global Duplication Prevention
 ==================================================================== */
 function setupExerciseTitleValidation() {
     const titleInput = document.getElementById('exerciseTitle');
@@ -118,7 +129,7 @@ function setupExerciseTitleValidation() {
             return true;
         }
 
-        const excludeId = titleInput.dataset.exerciseId || '';
+        const excludeId = titleInput.dataset.exerciseId || document.getElementById('exerciseIdInput')?.value || '';
         isChecking = true;
 
         try {
@@ -174,7 +185,7 @@ function setupExerciseTitleValidation() {
 }
 
 /* =================================================================
-   Task #76: Save Draft Handler & Persistence Sync
+   Task #76 & Fix #3: Save Draft Handler & Persistence Sync
 ==================================================================== */
 function setupSaveDraftHandler() {
     const saveDraftBtn = document.getElementById('saveDraftBtn');
@@ -186,6 +197,7 @@ function setupSaveDraftHandler() {
 
         const titleInput = document.getElementById('exerciseTitle');
         const lessonSelect = document.getElementById('exerciseLesson');
+        const exerciseIdInput = document.getElementById('exerciseIdInput');
 
         if (!titleInput || !titleInput.value.trim()) {
             alert('Please enter an Exercise Title before saving a draft.');
@@ -216,6 +228,11 @@ function setupSaveDraftHandler() {
 
             const result = await response.json();
             if (result.success) {
+                isSubmitting = true; // Suppress beforeunload warning
+                if (result.exercise_id) {
+                    if (exerciseIdInput) exerciseIdInput.value = result.exercise_id;
+                    if (titleInput) titleInput.dataset.exerciseId = result.exercise_id;
+                }
                 window.location.href = result.redirect_url || '/admin/coding-exercises';
             } else {
                 alert(result.message || 'Failed to save draft.');
@@ -232,7 +249,7 @@ function setupSaveDraftHandler() {
 }
 
 /* =================================================================
-   Task #73: Back & Cancel Unsaved Changes Protective Guard
+   Task #73 & Fix #3: Back & Cancel Unsaved Changes Protective Guard
 ==================================================================== */
 function hasPopulatedExerciseInputs() {
     const title = (document.getElementById('exerciseTitle')?.value || '').trim();
@@ -272,7 +289,6 @@ function setupBackCancelGuard() {
     const saveAndLeaveBtn = document.getElementById('unsavedSaveAndLeaveBtn');
 
     let pendingNavigation = null;
-    let isSubmitting = false;
 
     if (form) {
         form.addEventListener('submit', function () {
@@ -293,6 +309,7 @@ function setupBackCancelGuard() {
         } else {
             const confirmed = window.confirm("You have unsaved changes in this coding exercise. Are you sure you want to leave without saving?");
             if (confirmed && targetUrl) {
+                isSubmitting = true;
                 window.location.href = targetUrl;
             }
         }
@@ -335,6 +352,7 @@ function setupBackCancelGuard() {
 
     if (leaveBtn) {
         leaveBtn.addEventListener('click', function () {
+            isSubmitting = true;
             const target = pendingNavigation || '/admin/coding-exercises';
             hideUnsavedModal();
             window.location.href = target;
@@ -351,6 +369,7 @@ function setupBackCancelGuard() {
             }
 
             if (!form) {
+                isSubmitting = true;
                 hideUnsavedModal();
                 window.location.href = '/admin/coding-exercises';
                 return;
@@ -368,6 +387,7 @@ function setupBackCancelGuard() {
                 });
                 const result = await response.json();
                 if (result.success) {
+                    isSubmitting = true;
                     hideUnsavedModal();
                     window.location.href = result.redirect_url || '/admin/coding-exercises';
                 } else {
@@ -375,6 +395,7 @@ function setupBackCancelGuard() {
                 }
             } catch (err) {
                 console.error('Failed to save draft & leave:', err);
+                isSubmitting = true;
                 hideUnsavedModal();
                 window.location.href = '/admin/coding-exercises';
             }
@@ -391,7 +412,7 @@ function setupBackCancelGuard() {
 }
 
 /* =================================================================
-   Task #70: Category -> Module -> Lesson Cascading Dependent Dropdowns
+   Task #70 & Fix #1: Category -> Module -> Lesson Cascading Dropdowns
 ==================================================================== */
 function setupDependentDropdowns() {
     const categorySelect = document.getElementById('exerciseCategory');
@@ -508,6 +529,9 @@ function setupDependentDropdowns() {
     }
 }
 
+/* =================================================================
+   Fix #1: Character Counter with Immediate Value Synchronization
+==================================================================== */
 function setupCharacterCounter(textareaId, counterId, maxLength) {
     const textarea = document.getElementById(textareaId);
     if (!textarea) return;
@@ -518,7 +542,7 @@ function setupCharacterCounter(textareaId, counterId, maxLength) {
     }
 
     if (textarea && counter) {
-        textarea.addEventListener('input', function () {
+        const updateCount = () => {
             const currentLength = textarea.value.length;
             counter.textContent = `${currentLength} / ${maxLength}`;
             if (currentLength >= maxLength) {
@@ -526,14 +550,17 @@ function setupCharacterCounter(textareaId, counterId, maxLength) {
             } else {
                 counter.style.color = '#94a3b8';
             }
-        });
+        };
+
+        // Initialize immediately with current/loaded value
+        updateCount();
+        textarea.addEventListener('input', updateCount);
     }
 }
 
 /* =================================================================
    Dynamic Test Cases Management Functions
 ==================================================================== */
-
 function addTestCaseRow(inputVal = '', outputVal = '') {
     const container = document.getElementById('testCasesContainer');
     if (!container) return;

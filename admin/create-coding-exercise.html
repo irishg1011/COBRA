@@ -47,6 +47,7 @@
                 </div>
 
                 <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST">
+                    <input type="hidden" name="exercise_id" id="exerciseIdInput" value="{{ existing_exercise.exercise_id if existing_exercise else '' }}">
                     
                     <!-- Section 1: Exercise Information -->
                     <div class="card-box padded-card mb-24">
@@ -110,7 +111,7 @@
                         <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Provide clear instructions on what the learner needs to do.</p>
 
                         <div class="form-group mb-0" style="position: relative;">
-                            <textarea id="exerciseInstruction" name="instruction" class="form-control question-textarea" rows="3" placeholder="Write instructions here..." required></textarea>
+                            <textarea id="exerciseInstruction" name="instruction" class="form-control question-textarea" rows="3" placeholder="Write instructions here..." required>{{ existing_exercise.instruction if existing_exercise else '' }}</textarea>
                             <span class="char-counter">0 / 1000</span>
                         </div>
                     </div>
@@ -126,17 +127,17 @@
                         <div class="form-grid-3">
                             <div class="form-group" style="position: relative;">
                                 <label class="form-label" for="problemSituation">Situation *</label>
-                                <textarea id="problemSituation" name="situation" class="form-control question-textarea" rows="3" placeholder="Describe the situation..." required></textarea>
+                                <textarea id="problemSituation" name="situation" class="form-control question-textarea" rows="3" placeholder="Describe the situation..." required>{{ existing_exercise.situation if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                             <div class="form-group" style="position: relative;">
                                 <label class="form-label" for="problemQuestion">Question *</label>
-                                <textarea id="problemQuestion" name="problem_question" class="form-control question-textarea" rows="3" placeholder="State the question..." required></textarea>
+                                <textarea id="problemQuestion" name="problem_question" class="form-control question-textarea" rows="3" placeholder="State the question..." required>{{ existing_exercise.problem_question if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                             <div class="form-group" style="position: relative;">
                                 <label class="form-label" for="problemClue">Clue (hint) *</label>
-                                <textarea id="problemClue" name="clue" class="form-control question-textarea" rows="3" placeholder="Provide a helpful hint..." required></textarea>
+                                <textarea id="problemClue" name="clue" class="form-control question-textarea" rows="3" placeholder="Provide a helpful hint..." required>{{ existing_exercise.clue if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                         </div>
@@ -181,7 +182,24 @@
 
                         <!-- Test Cases Container -->
                         <div id="testCasesContainer" class="test-cases-list-wrapper mb-20">
-                            <!-- Dynamic Test Case Rows Will Be Appended Here -->
+                            {% if existing_exercise and existing_exercise.test_cases %}
+                                {% for tc in existing_exercise.test_cases %}
+                                <div class="test-case-row" data-index="{{ loop.index0 }}" style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px; background: #ffffff; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                                    <div class="test-case-badge" style="font-weight: 500; color: #64748b; min-width: 20px; text-align: center; font-size: 14px;">{{ loop.index }}</div>
+                                    <div style="flex: 1;">
+                                        <label class="form-label" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display: block;">Input</label>
+                                        <input type="text" name="test_cases[{{ loop.index0 }}][input]" class="form-control" value="{{ tc.test_input }}" placeholder="e.g., 5" required>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <label class="form-label" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display: block;">Expected Output</label>
+                                        <input type="text" name="test_cases[{{ loop.index0 }}][output]" class="form-control" value="{{ tc.expected_output }}" placeholder="e.g., Positive" required>
+                                    </div>
+                                    <div style="display: flex; align-items: center; padding-top: 20px;">
+                                        <button type="button" class="icon-control-btn text-danger" title="Delete" onclick="removeTestCaseRow(this)" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 15px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'"><i class="fa-solid fa-trash-can"></i></button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
                         </div>
 
                         <!-- Add Test Case Button with explicit inline fallback handler -->
