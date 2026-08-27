@@ -52,9 +52,9 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
-from coding_exercises import (  # Task #66: Manage Coding Exercises DB integration
+from coding_exercises import (  # Task #66 & #74: Manage Coding Exercises DB integration
     get_coding_exercises_overview, get_exercise_stats, delete_coding_exercise,
-    get_coding_exercise,
+    get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
 )
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -2422,6 +2422,34 @@ def coding_exercises_lessons_by_module():
 
     lessons = get_resources_by_module(module_id)
     return jsonify({"success": True, "lessons": lessons}), 200
+
+
+@admin_bp.route('/coding-exercises/check-title', methods=['GET', 'POST'])
+def coding_exercises_check_title():
+    """
+    Task #74: AJAX duplicate check for Coding Exercise Title.
+    Checks whether the title already exists globally in coding_exercises_tbl.
+    """
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or request.form
+        title = data.get('title', '')
+        exclude_id = data.get('exclude_exercise_id')
+        if exclude_id is not None:
+            try:
+                exclude_id = int(exclude_id)
+            except (ValueError, TypeError):
+                exclude_id = None
+    else:
+        title = request.args.get('title', '')
+        exclude_id = request.args.get('exclude_exercise_id', type=int)
+
+    is_valid, error_msg, formatted_title = validate_exercise_title(title, exclude_exercise_id=exclude_id)
+    return jsonify({
+        "success": True,
+        "available": is_valid,
+        "formatted_title": formatted_title,
+        "message": error_msg or "Exercise title is available."
+    }), 200
 
 
 @admin_bp.route('/coding-exercises/create', methods=['GET'])

@@ -10,6 +10,9 @@ document.addEventListener('DOMContentLoaded', function () {
     setupFieldCasingNormalization('correctFeedback');
     setupFieldCasingNormalization('incorrectFeedback');
 
+    // Task #74: Setup Exercise Title duplicate validation check
+    setupExerciseTitleValidation();
+
     // Task #70: Setup Category -> Module -> Lesson dependent dropdowns
     setupDependentDropdowns();
 
@@ -74,6 +77,100 @@ function setupTitleCasingNormalization(inputId) {
 }
 
 /* =================================================================
+   Task #74: Exercise Title Global Duplication Prevention
+==================================================================== */
+function setupExerciseTitleValidation() {
+    const titleInput = document.getElementById('exerciseTitle');
+    const titleError = document.getElementById('exerciseTitleError');
+    const form = document.getElementById('createExerciseForm');
+
+    if (!titleInput) return;
+
+    let debounceTimer = null;
+    let isTitleTaken = false;
+    let isChecking = false;
+
+    function showTitleError(message) {
+        if (titleError) {
+            titleError.textContent = message;
+            titleError.style.display = 'block';
+        }
+        titleInput.style.borderColor = '#ef4444';
+        isTitleTaken = true;
+    }
+
+    function clearTitleError() {
+        if (titleError) {
+            titleError.textContent = '';
+            titleError.style.display = 'none';
+        }
+        titleInput.style.borderColor = '';
+        isTitleTaken = false;
+    }
+
+    async function checkTitleAvailability() {
+        const rawTitle = titleInput.value.trim();
+        if (!rawTitle) {
+            clearTitleError();
+            return true;
+        }
+
+        const excludeId = titleInput.dataset.exerciseId || '';
+        isChecking = true;
+
+        try {
+            const url = `/admin/coding-exercises/check-title?title=${encodeURIComponent(rawTitle)}&exclude_exercise_id=${encodeURIComponent(excludeId)}`;
+            const response = await fetch(url, { credentials: 'include' });
+            const data = await response.json();
+
+            if (!data.available) {
+                showTitleError(data.message || 'A coding exercise with this title already exists.');
+                return false;
+            } else {
+                clearTitleError();
+                return true;
+            }
+        } catch (err) {
+            console.error('create-exercise: failed to check title availability:', err);
+            return true; // Allow submission on network error or fail-safe
+        } finally {
+            isChecking = false;
+        }
+    }
+
+    titleInput.addEventListener('input', function () {
+        clearTitleError();
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            checkTitleAvailability();
+        }, 300);
+    });
+
+    titleInput.addEventListener('blur', function () {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        checkTitleAvailability();
+    });
+
+    if (form) {
+        form.addEventListener('submit', async function (e) {
+            if (isTitleTaken) {
+                e.preventDefault();
+                titleInput.focus();
+                showTitleError('A coding exercise with this title already exists. Exercise titles must be unique across the entire system.');
+                return false;
+            }
+
+            const isAvailable = await checkTitleAvailability();
+            if (!isAvailable) {
+                e.preventDefault();
+                titleInput.focus();
+                return false;
+            }
+        });
+    }
+}
+
+/* =================================================================
    Task #73: Back & Cancel Unsaved Changes Protective Guard
 ==================================================================== */
 function hasPopulatedExerciseInputs() {
@@ -124,7 +221,6 @@ function setupBackCancelGuard() {
 
     function showUnsavedWarning(targetUrl, e) {
         if (!hasPopulatedExerciseInputs()) {
-            // No active input values - allow navigation directly
             return true;
         }
 

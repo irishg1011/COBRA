@@ -72,6 +72,63 @@ def format_exercise_title(title: str) -> str:
     return lower[0].upper() + lower[1:]
 
 
+def is_exercise_title_taken(title: str, exclude_exercise_id=None):
+    """
+    Task #74: Checks whether `title` already exists globally in coding_exercises_tbl
+    (case-insensitive comparison).
+    """
+    formatted = format_exercise_title(title)
+    if not formatted:
+        return False
+
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        cursor = connection.cursor()
+        query = f"SELECT exercise_id FROM {CODING_EXERCISES_TABLE} WHERE LOWER(exercise_title) = LOWER(%s)"
+        params = [formatted]
+
+        if exclude_exercise_id:
+            query += " AND exercise_id != %s"
+            params.append(exclude_exercise_id)
+
+        query += " LIMIT 1"
+        cursor.execute(query, tuple(params))
+        row = cursor.fetchone()
+        cursor.close()
+        return row is not None
+    except Error as e:
+        print(f"coding_exercises: error checking exercise title uniqueness: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def validate_exercise_title(title: str, exclude_exercise_id=None):
+    """
+    Task #74: Validates exercise title presence and global uniqueness.
+    Returns:
+        (is_valid: bool, error_message: str | None, formatted_title: str)
+    """
+    cleaned = (title or "").strip()
+    if not cleaned:
+        return False, "Exercise title is required.", ""
+
+    formatted = format_exercise_title(cleaned)
+    taken = is_exercise_title_taken(formatted, exclude_exercise_id=exclude_exercise_id)
+
+    if taken is None:
+        return False, "Database connection unavailable. Could not verify title uniqueness.", formatted
+
+    if taken:
+        return False, f"A coding exercise with the title '{formatted}' already exists. Exercise titles must be unique across the entire system.", formatted
+
+    return True, None, formatted
+
+
 def _fmt_date(dt):
     """e.g. 'Aug 26, 2026'."""
     if not dt:

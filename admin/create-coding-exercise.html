@@ -59,7 +59,8 @@
                             <!-- Row 1: Exercise Title -->
                             <div class="mb-20 accent-top">
                                 <label class="form-label" for="exerciseTitle">Exercise Title *</label>
-                                <input type="text" id="exerciseTitle" name="title" class="form-control" placeholder="Enter exercise title..." required>
+                                <input type="text" id="exerciseTitle" name="title" class="form-control" placeholder="Enter exercise title..." value="{{ existing_exercise.exercise_title if existing_exercise else '' }}" data-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}" required autocomplete="off">
+                                <span id="exerciseTitleError" class="field-error-message" style="display: none; color: #ef4444; font-size: 12px; margin-top: 4px; font-weight: 500;"></span>
                             </div>
 
                             <!-- Row 2: Category, Module, and Lesson in the same line -->
