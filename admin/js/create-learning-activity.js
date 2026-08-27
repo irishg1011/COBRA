@@ -256,42 +256,247 @@ function optionRowHasData(row) {
     return !!(optionText || feedbackText);
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Activity Type Dropdown Change Logic
-    const activityTypeSelect = document.getElementById('activityType');
-    
-    // Containers for different activity types
+// ========================================================================
+// TASK #59: Activity Type Switch Confirmation Guard & Layout Management
+// ========================================================================
+
+/**
+ * Checks if the activity content builder contains any populated item cards
+ * or active typed input/textarea values.
+ * If a specific `type` is passed ('Multiple Choice', 'Fill in the Blanks',
+ * 'Flashcards'), checks that type's builder. If no type is passed, checks
+ * across all activity builder containers.
+ */
+function hasPopulatedActivityContent(type) {
+    if (!type || type === 'Multiple Choice') {
+        const mcContainer = document.getElementById('questionsContainer');
+        if (mcContainer && mcContainer.querySelectorAll('.question-card').length > 0) {
+            return true;
+        }
+        const mcSection = document.getElementById('multipleChoiceSection');
+        if (mcSection) {
+            const inputs = mcSection.querySelectorAll('input[type="text"], textarea');
+            for (const el of inputs) {
+                if (el.value && el.value.trim() !== '') return true;
+            }
+        }
+    }
+
+    if (!type || type === 'Fill in the Blanks') {
+        const fbContainer = document.getElementById('fillBlanksContainer');
+        if (fbContainer && fbContainer.querySelectorAll('.fill-blank-card').length > 0) {
+            return true;
+        }
+        const fbSection = document.getElementById('fillBlanksSection');
+        if (fbSection) {
+            const inputs = fbSection.querySelectorAll('input[type="text"], textarea');
+            for (const el of inputs) {
+                if (el.value && el.value.trim() !== '') return true;
+            }
+        }
+    }
+
+    if (!type || type === 'Flashcards') {
+        const fcContainer = document.getElementById('flashcardsContainer');
+        if (fcContainer && fcContainer.querySelectorAll('.flashcard-card').length > 0) {
+            return true;
+        }
+        const fcSection = document.getElementById('flashcardsSection');
+        if (fcSection) {
+            const inputs = fcSection.querySelectorAll('input[type="text"], textarea');
+            for (const el of inputs) {
+                if (el.value && el.value.trim() !== '') return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Resets all dynamic builder containers cleanly to their default empty
+ * placeholder states and updates points to 0.
+ */
+function resetActivityContent() {
+    const questionsContainer = document.getElementById('questionsContainer');
+    if (questionsContainer) {
+        questionsContainer.innerHTML = `
+            <div class="text-muted text-center placeholder-box" id="noQuestionsMessage">
+                No questions added yet. Click the button below to add your first question.
+            </div>
+        `;
+    }
+
+    const fillBlanksContainer = document.getElementById('fillBlanksContainer');
+    if (fillBlanksContainer) {
+        fillBlanksContainer.innerHTML = `
+            <div class="text-muted text-center placeholder-box" id="noFillBlanksMessage">
+                No fill-in-the-blank items added yet. Click the button below to add your first item.
+            </div>
+        `;
+    }
+
+    const flashcardsContainer = document.getElementById('flashcardsContainer');
+    if (flashcardsContainer) {
+        flashcardsContainer.innerHTML = `
+            <div class="text-muted text-center placeholder-box" id="noFlashcardsMessage">
+                No flashcards added yet. Click the button below to add your first flashcard.
+            </div>
+        `;
+    }
+
+    updatePointsTotal();
+}
+
+/**
+ * Updates the visible builder section and sub-instructions corresponding to
+ * the selected activity type.
+ */
+function updateActivityTypeView(selectedType) {
     const multipleChoiceSection = document.getElementById('multipleChoiceSection');
     const fillBlanksSection = document.getElementById('fillBlanksSection');
     const flashcardsSection = document.getElementById('flashcardsSection');
-    
     const instructionLabel = document.querySelector('.sub-instruction strong');
     const instructionDesc = document.querySelector('.sub-instruction p');
 
+    // Hide all sections first
+    if (multipleChoiceSection) {
+        multipleChoiceSection.classList.add('d-none');
+        multipleChoiceSection.style.display = 'none';
+    }
+    if (fillBlanksSection) {
+        fillBlanksSection.classList.add('d-none');
+        fillBlanksSection.style.display = 'none';
+    }
+    if (flashcardsSection) {
+        flashcardsSection.classList.add('d-none');
+        flashcardsSection.style.display = 'none';
+    }
+
+    // Show selected section and set instructions
+    if (selectedType === 'Multiple Choice') {
+        if (multipleChoiceSection) {
+            multipleChoiceSection.classList.remove('d-none');
+            multipleChoiceSection.style.display = 'block';
+        }
+        if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
+        if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
+    } else if (selectedType === 'Fill in the Blanks') {
+        if (fillBlanksSection) {
+            fillBlanksSection.classList.remove('d-none');
+            fillBlanksSection.style.display = 'block';
+        }
+        if (instructionLabel) instructionLabel.textContent = 'FILL IN THE BLANKS';
+        if (instructionDesc) instructionDesc.textContent = 'Create sentences or statements with missing words. Add the correct answers and feedback for each response.';
+    } else if (selectedType === 'Flashcards') {
+        if (flashcardsSection) {
+            flashcardsSection.classList.remove('d-none');
+            flashcardsSection.style.display = 'block';
+        }
+        if (instructionLabel) instructionLabel.textContent = 'FLASHCARDS';
+        if (instructionDesc) instructionDesc.textContent = 'Create front and back flashcard terms for studying.';
+    }
+
+    updatePointsTotal();
+}
+
+/**
+ * Shows the protective confirmation modal (#confirmActionModal) or falls
+ * back to window.confirm. Invokes onConfirm() only on explicit confirmation,
+ * and onCancel() if canceled or dismissed.
+ */
+function showActivityTypeConfirmModal(message, onConfirm, onCancel, title) {
+    const modal = document.getElementById('confirmActionModal');
+    const modalTitle = document.getElementById('confirmActionTitle');
+    const modalText = document.getElementById('confirmActionText');
+    const cancelBtn = document.getElementById('confirmActionCancelBtn');
+    const confirmBtn = document.getElementById('confirmActionConfirmBtn');
+
+    if (!modal || !cancelBtn || !confirmBtn) {
+        if (window.confirm(message)) {
+            if (typeof onConfirm === 'function') onConfirm();
+        } else {
+            if (typeof onCancel === 'function') onCancel();
+        }
+        return;
+    }
+
+    if (modalTitle) modalTitle.textContent = title || 'Change Activity Type?';
+    if (modalText) modalText.textContent = message;
+
+    function cleanup() {
+        cancelBtn.removeEventListener('click', handleCancel);
+        confirmBtn.removeEventListener('click', handleConfirm);
+        modal.removeEventListener('click', handleBackdropClick);
+        modal.style.display = 'none';
+        modal.classList.add('modal-hidden');
+    }
+
+    function handleConfirm() {
+        cleanup();
+        if (typeof onConfirm === 'function') onConfirm();
+    }
+
+    function handleCancel() {
+        cleanup();
+        if (typeof onCancel === 'function') onCancel();
+    }
+
+    function handleBackdropClick(e) {
+        if (e.target === modal) {
+            cleanup();
+            if (typeof onCancel === 'function') onCancel();
+        }
+    }
+
+    cancelBtn.addEventListener('click', handleCancel);
+    confirmBtn.addEventListener('click', handleConfirm);
+    modal.addEventListener('click', handleBackdropClick);
+
+    modal.classList.remove('modal-hidden');
+    modal.style.display = 'flex';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Activity Type Dropdown Change Logic with Task #59 Protective Confirmation Guard
+    const activityTypeSelect = document.getElementById('activityType');
+
+    // Track the active Activity Type continuously
+    let previousActivityType = activityTypeSelect ? activityTypeSelect.value : 'Multiple Choice';
+
+    // Synchronize initial view with whatever activity type is currently selected
     if (activityTypeSelect) {
+        updateActivityTypeView(previousActivityType);
+
         activityTypeSelect.addEventListener('change', function() {
-            const selectedType = this.value;
+            const targetType = this.value;
+            if (targetType === previousActivityType) return;
 
-            // Hide all sections using d-none
-            if (multipleChoiceSection) multipleChoiceSection.classList.add('d-none');
-            if (fillBlanksSection) fillBlanksSection.classList.add('d-none');
-            if (flashcardsSection) flashcardsSection.classList.add('d-none');
+            // Task #59: Check if active input values or populated items exist in the builder
+            const hasData = hasPopulatedActivityContent(previousActivityType) || hasPopulatedActivityContent();
 
-            // Show selected section and update instructions
-            if (selectedType === 'Multiple Choice') {
-                if (multipleChoiceSection) multipleChoiceSection.classList.remove('d-none');
-                if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
-                if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
-            } else if (selectedType === 'Fill in the Blanks') {
-                if (fillBlanksSection) fillBlanksSection.classList.remove('d-none');
-                if (instructionLabel) instructionLabel.textContent = 'FILL IN THE BLANKS';
-                if (instructionDesc) instructionDesc.textContent = 'Create sentences with missing words. Use [_____] to indicate where the blank space goes in the sentence.';
-            } else if (selectedType === 'Flashcards') {
-                if (flashcardsSection) flashcardsSection.classList.remove('d-none');
-                if (instructionLabel) instructionLabel.textContent = 'FLASHCARDS';
-                if (instructionDesc) instructionDesc.textContent = 'Create front and back flashcard terms for studying.';
+            if (hasData) {
+                const message = 'Changing the activity type will reset all existing items and content in the builder. Are you sure you want to proceed?';
+                const title = 'Change Activity Type?';
+
+                showActivityTypeConfirmModal(
+                    message,
+                    function onConfirm() {
+                        previousActivityType = targetType;
+                        activityTypeSelect.value = targetType;
+                        resetActivityContent();
+                        updateActivityTypeView(targetType);
+                    },
+                    function onCancel() {
+                        activityTypeSelect.value = previousActivityType;
+                    },
+                    title
+                );
+            } else {
+                // No active data to lose - switch cleanly
+                previousActivityType = targetType;
+                updateActivityTypeView(targetType);
             }
-            updatePointsTotal();
         });
     }
 
@@ -305,15 +510,46 @@ document.addEventListener('DOMContentLoaded', function() {
             addNewQuestionCard();
         });
     }
+
+    // OUTSIDE BUTTON: Add a brand new Fill in the Blank Item
+    const addFillBlankMainBtn = document.getElementById('addFillBlankMainBtn');
+    if (addFillBlankMainBtn) {
+        addFillBlankMainBtn.addEventListener('click', function() {
+            addNewFillBlankCard();
+        });
+    }
+
+    // OUTSIDE BUTTON: Add a brand new Flashcard Item
+    const addFlashcardMainBtn = document.getElementById('addFlashcardMainBtn');
+    if (addFlashcardMainBtn) {
+        addFlashcardMainBtn.addEventListener('click', function() {
+            addNewFlashcardCard();
+        });
+    }
+
+    updatePointsTotal();
 });
 
-// Function to update Points based on total question count
+// Function to update Points based on total item count for the active activity type
 function updatePointsTotal() {
-    const container = document.getElementById('questionsContainer');
-    const questionCards = container.querySelectorAll('.question-card');
+    const activityTypeSelect = document.getElementById('activityType');
+    const activityType = activityTypeSelect ? activityTypeSelect.value : 'Multiple Choice';
+    let totalItems = 0;
+
+    if (activityType === 'Multiple Choice') {
+        const container = document.getElementById('questionsContainer');
+        totalItems = container ? container.querySelectorAll('.question-card').length : 0;
+    } else if (activityType === 'Fill in the Blanks') {
+        const container = document.getElementById('fillBlanksContainer');
+        totalItems = container ? container.querySelectorAll('.fill-blank-card').length : 0;
+    } else if (activityType === 'Flashcards') {
+        const container = document.getElementById('flashcardsContainer');
+        totalItems = container ? container.querySelectorAll('.flashcard-card').length : 0;
+    }
+
     const pointsInput = document.getElementById('activityPoints');
     if (pointsInput) {
-        pointsInput.value = questionCards.length;
+        pointsInput.value = totalItems;
     }
 }
 
@@ -675,71 +911,6 @@ function duplicateQuestionCard(btn) {
     // values (not typed), so the clear-confirmation tracker must be
     // refreshed AFTER copying - otherwise the very first attempt to
     // clear a duplicated field wouldn't be recognized as "had data".
-    refreshQuestionFieldTrackers(newCard);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    // ... existing initialization code ...
-
-    // OUTSIDE BUTTON: Add a brand new Fill in the Blank Item
-    const addFillBlankMainBtn = document.getElementById('addFillBlankMainBtn');
-    if (addFillBlankMainBtn) {
-        addFillBlankMainBtn.addEventListener('click', function() {
-            addNewFillBlankCard();
-        });
-    }
-
-    // Update Activity Type change listener to calculate points based on active section
-    const activityTypeSelect = document.getElementById('activityType');
-    const multipleChoiceSection = document.getElementById('multipleChoiceSection');
-    const fillBlanksSection = document.getElementById('fillBlanksSection');
-    const flashcardsSection = document.getElementById('flashcardsSection');
-    const instructionLabel = document.querySelector('.sub-instruction strong');
-    const instructionDesc = document.querySelector('.sub-instruction p');
-
-    if (activityTypeSelect) {
-        activityTypeSelect.addEventListener('change', function() {
-            const selectedType = this.value;
-
-            if (multipleChoiceSection) multipleChoiceSection.style.display = 'none';
-            if (fillBlanksSection) fillBlanksSection.style.display = 'none';
-            if (flashcardsSection) flashcardsSection.style.display = 'none';
-
-            if (selectedType === 'Multiple Choice') {
-                if (multipleChoiceSection) multipleChoiceSection.style.display = 'block';
-                if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
-                if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
-            } else if (selectedType === 'Fill in the Blanks') {
-                if (fillBlanksSection) fillBlanksSection.style.display = 'block';
-                if (instructionLabel) instructionLabel.textContent = 'FILL IN THE BLANKS';
-                if (instructionDesc) instructionDesc.textContent = 'Create sentences or statements with missing words. Add the correct answers and feedback for each response.';
-            } else if (selectedType === 'Flashcards') {
-                if (flashcardsSection) flashcardsSection.style.display = 'block';
-                if (instructionLabel) instructionLabel.textContent = 'FLASHCARDS';
-                if (instructionDesc) instructionDesc.textContent = 'Create front and back flashcard terms for studying.';
-            }
-            updatePointsTotal();
-        });
-    }
-});
-
-// Update dynamic points calculation to support multiple activity types
-function updatePointsTotal() {
-    const activityType = document.getElementById('activityType').value;
-    let totalItems = 0;
-
-    if (activityType === 'Multiple Choice') {
-        const container = document.getElementById('questionsContainer');
-        totalItems = container.querySelectorAll('.question-card').length;
-    } else if (activityType === 'Fill in the Blanks') {
-        const container = document.getElementById('fillBlanksContainer');
-        totalItems = container.querySelectorAll('.fill-blank-card').length;
-    }
-
-    const pointsInput = document.getElementById('activityPoints');
-    if (pointsInput) {
-        pointsInput.value = totalItems;
-    }
 }
 
 // Add a brand new Fill in the Blank Card
@@ -872,71 +1043,6 @@ function reindexAllFillBlanks() {
         if (inputs[1]) inputs[1].name = `fill_blanks[${idx}][correct_feedback]`;
         if (inputs[2]) inputs[2].name = `fill_blanks[${idx}][incorrect_feedback]`;
     });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    // OUTSIDE BUTTON: Add a brand new Flashcard Item
-    const addFlashcardMainBtn = document.getElementById('addFlashcardMainBtn');
-    if (addFlashcardMainBtn) {
-        addFlashcardMainBtn.addEventListener('click', function() {
-            addNewFlashcardCard();
-        });
-    }
-
-    // Update Activity Type change listener to support flashcards view
-    const activityTypeSelect = document.getElementById('activityType');
-    const flashcardsSection = document.getElementById('flashcardsSection');
-    const multipleChoiceSection = document.getElementById('multipleChoiceSection');
-    const fillBlanksSection = document.getElementById('fillBlanksSection');
-    const instructionLabel = document.querySelector('.sub-instruction strong');
-    const instructionDesc = document.querySelector('.sub-instruction p');
-
-    if (activityTypeSelect) {
-        activityTypeSelect.addEventListener('change', function() {
-            const selectedType = this.value;
-
-            if (multipleChoiceSection) multipleChoiceSection.style.display = 'none';
-            if (fillBlanksSection) fillBlanksSection.style.display = 'none';
-            if (flashcardsSection) flashcardsSection.style.display = 'none';
-
-            if (selectedType === 'Multiple Choice') {
-                if (multipleChoiceSection) multipleChoiceSection.style.display = 'block';
-                if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
-                if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
-            } else if (selectedType === 'Fill in the Blanks') {
-                if (fillBlanksSection) fillBlanksSection.style.display = 'block';
-                if (instructionLabel) instructionLabel.textContent = 'FILL IN THE BLANKS';
-                if (instructionDesc) instructionDesc.textContent = 'Create sentences or statements with missing words. Add the correct answers and feedback for each response.';
-            } else if (selectedType === 'Flashcards') {
-                if (flashcardsSection) flashcardsSection.style.display = 'block';
-                if (instructionLabel) instructionLabel.textContent = 'FLASHCARDS';
-                if (instructionDesc) instructionDesc.textContent = 'Create front and back flashcard terms for studying.';
-            }
-            updatePointsTotal();
-        });
-    }
-});
-
-// Update dynamic points calculation to include Flashcards
-function updatePointsTotal() {
-    const activityType = document.getElementById('activityType').value;
-    let totalItems = 0;
-
-    if (activityType === 'Multiple Choice') {
-        const container = document.getElementById('questionsContainer');
-        totalItems = container.querySelectorAll('.question-card').length;
-    } else if (activityType === 'Fill in the Blanks') {
-        const container = document.getElementById('fillBlanksContainer');
-        totalItems = container.querySelectorAll('.fill-blank-card').length;
-    } else if (activityType === 'Flashcards') {
-        const container = document.getElementById('flashcardsContainer');
-        totalItems = container.querySelectorAll('.flashcard-card').length;
-    }
-
-    const pointsInput = document.getElementById('activityPoints');
-    if (pointsInput) {
-        pointsInput.value = totalItems;
-    }
 }
 
 // Add a brand new Flashcard Card

@@ -66,6 +66,7 @@
         let isSubmitting = false;
         let pendingNavigation = null;
         let pendingConfirmAction = null;
+        let pendingConfirmCancelAction = null;
         let publishConfirmed = false;
 
         // --------------------------------------------------------
@@ -206,12 +207,21 @@
         // --------------------------------------------------------
         // Save Draft / Publish confirmation modal
         // --------------------------------------------------------
-        function showConfirmModal(message, onConfirm, title) {
+        function showConfirmModal(message, onConfirm, onCancel, title) {
+            if (typeof onCancel === "string" && typeof title === "undefined") {
+                title = onCancel;
+                onCancel = null;
+            }
             if (!confirmActionModal) {
-                if (window.confirm(message)) onConfirm();
+                if (window.confirm(message)) {
+                    if (typeof onConfirm === "function") onConfirm();
+                } else {
+                    if (typeof onCancel === "function") onCancel();
+                }
                 return;
             }
             pendingConfirmAction = onConfirm;
+            pendingConfirmCancelAction = onCancel;
             if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
             if (confirmActionText) confirmActionText.textContent = message;
             confirmActionModal.style.display = "flex";
@@ -220,21 +230,30 @@
         function closeConfirmModal() {
             if (confirmActionModal) confirmActionModal.style.display = "none";
             pendingConfirmAction = null;
+            pendingConfirmCancelAction = null;
         }
 
         if (confirmActionCancelBtn) {
-            confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+            confirmActionCancelBtn.addEventListener("click", () => {
+                const cancelAction = pendingConfirmCancelAction;
+                closeConfirmModal();
+                if (typeof cancelAction === "function") cancelAction();
+            });
         }
         if (confirmActionConfirmBtn) {
             confirmActionConfirmBtn.addEventListener("click", () => {
                 const action = pendingConfirmAction;
                 closeConfirmModal();
-                if (action) action();
+                if (typeof action === "function") action();
             });
         }
         if (confirmActionModal) {
             confirmActionModal.addEventListener("click", (e) => {
-                if (e.target === confirmActionModal) closeConfirmModal();
+                if (e.target === confirmActionModal) {
+                    const cancelAction = pendingConfirmCancelAction;
+                    closeConfirmModal();
+                    if (typeof cancelAction === "function") cancelAction();
+                }
             });
         }
 
