@@ -1,8 +1,14 @@
 document.addEventListener('DOMContentLoaded', function () {
     console.log("Create Exercise frontend script loaded successfully.");
 
-    // Task #69: Setup Exercise Title live casing normalization
-    setupTitleCasingNormalization('exerciseTitle');
+    // Task #69 & Task #72: Setup live casing normalization on specified text fields
+    setupFieldCasingNormalization('exerciseTitle');
+    setupFieldCasingNormalization('exerciseInstruction');
+    setupFieldCasingNormalization('problemSituation');
+    setupFieldCasingNormalization('problemQuestion');
+    setupFieldCasingNormalization('problemClue');
+    setupFieldCasingNormalization('correctFeedback');
+    setupFieldCasingNormalization('incorrectFeedback');
 
     // Task #70: Setup Category -> Module -> Lesson dependent dropdowns
     setupDependentDropdowns();
@@ -12,6 +18,8 @@ document.addEventListener('DOMContentLoaded', function () {
     setupCharacterCounter('problemSituation', 'situationCount', 500);
     setupCharacterCounter('problemQuestion', 'questionCount', 500);
     setupCharacterCounter('problemClue', 'clueCount', 500);
+    setupCharacterCounter('expectedAnswer', 'expectedAnswerCount', 1000);
+    setupCharacterCounter('correctFeedback', 'correctFeedbackCount', 500);
 
     // Initialize exactly ONE empty test case row if container is empty
     const testCaseContainer = document.getElementById('testCasesContainer');
@@ -31,7 +39,9 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 /* =================================================================
-   Task #69: Live Exercise Title Casing Normalization
+   Task #69 & Task #72: Live Text Fields Casing Normalization
+   (First letter uppercase, rest lowercase; excludes expected_answer
+   and test cases)
 ==================================================================== */
 function formatSentenceCaseLive(value) {
     if (!value) return value;
@@ -39,8 +49,11 @@ function formatSentenceCaseLive(value) {
     return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
-function setupTitleCasingNormalization(inputId) {
-    const input = document.getElementById(inputId);
+function setupFieldCasingNormalization(elementOrId) {
+    const input = (typeof elementOrId === 'string')
+        ? (document.getElementById(elementOrId) || document.querySelector(`[name="${elementOrId}"]`))
+        : elementOrId;
+
     if (!input) return;
 
     input.addEventListener('input', function () {
@@ -53,6 +66,11 @@ function setupTitleCasingNormalization(inputId) {
             input.setSelectionRange(start, end);
         }
     });
+}
+
+// Backward compatibility alias for setupTitleCasingNormalization
+function setupTitleCasingNormalization(inputId) {
+    setupFieldCasingNormalization(inputId);
 }
 
 /* =================================================================

@@ -151,7 +151,7 @@
                             <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">The correct output / behavior expected from the learner's code.</p>
                             
                             <div class="form-group mb-0" style="position: relative;">
-                                <textarea name="expected_answer" class="form-control question-textarea" rows="3" placeholder="Expected output..." required></textarea>
+                                <textarea id="expectedAnswer" name="expected_answer" class="form-control question-textarea" rows="3" placeholder="Expected output..." required>{{ existing_exercise.expected_answer if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 1000</span>
                             </div>
                         </div>
@@ -164,7 +164,7 @@
                             <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Feedback shown when the solution is correct.</p>
                             
                             <div class="form-group mb-0" style="position: relative;">
-                                <textarea name="correct_feedback" class="form-control question-textarea" rows="3" placeholder="Feedback message..." required></textarea>
+                                <textarea id="correctFeedback" name="correct_feedback" class="form-control question-textarea" rows="3" placeholder="Feedback message..." required>{{ existing_exercise.correct_feedback if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                         </div>
