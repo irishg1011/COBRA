@@ -157,15 +157,18 @@ function handleActivityFieldInput(e) {
             if (typeof el.setSelectionRange === 'function') {
                 el.setSelectionRange(previousValue.length, previousValue.length);
             }
+            updateAddButtonsState();
             return;
         }
         // Confirmed - the field is intentionally left empty.
         activityFieldValueTracker.set(el, '');
+        updateAddButtonsState();
         return;
     }
 
     applyActivityFieldCasing(el);
     activityFieldValueTracker.set(el, el.value);
+    updateAddButtonsState();
 }
 
 // Alias for backward compatibility
@@ -226,13 +229,17 @@ function isQuestionCardComplete(card) {
 }
 
 /**
- * Task #58, Requirement #3: gate for both "Add Question" and "Duplicate
- * Question". Returns true (and does nothing else) when there is no
- * existing question yet, or the current LAST question card is fully
- * complete. Otherwise alerts the admin with the reason and returns
- * false, so the caller can abort before appending/duplicating anything.
+ * Task #58 & #61: gate for both "Add Question" and "Duplicate Question".
+ * Returns true when there is no existing question yet, or the current
+ * LAST question card is fully complete (and sourceCard is complete if duplicating).
+ * Otherwise alerts the admin with helpful validation feedback and returns false.
  */
-function canAddNewQuestion() {
+function canAddNewQuestion(sourceCard = null) {
+    if (sourceCard && !isQuestionCardComplete(sourceCard)) {
+        alert('Please complete this question first before duplicating it.');
+        return false;
+    }
+
     const container = document.getElementById('questionsContainer');
     if (!container) return true;
 
@@ -250,6 +257,162 @@ function canAddNewQuestion() {
     }
 
     return true;
+}
+
+/**
+ * Task #61: True only if `card` has both Question/Content and Correct Answer
+ * filled in (required fields for Fill in the Blanks items).
+ */
+function isFillBlankCardComplete(card) {
+    if (!card) return false;
+
+    const textarea = card.querySelector('textarea');
+    const content = textarea ? textarea.value.trim() : '';
+    if (!content) return false;
+
+    const answerInput = card.querySelector('input[name*="[correct_answer]"]');
+    const answer = answerInput ? answerInput.value.trim() : '';
+    if (!answer) return false;
+
+    return true;
+}
+
+/**
+ * Task #61: gate for both "Add Blank Item" and "Duplicate Item".
+ * Returns true when there is no existing item yet, or the current
+ * LAST blank item is fully complete (and sourceCard is complete if duplicating).
+ * Otherwise alerts the admin with helpful validation feedback and returns false.
+ */
+function canAddNewFillBlank(sourceCard = null) {
+    if (sourceCard && !isFillBlankCardComplete(sourceCard)) {
+        alert('Please complete this item first before duplicating it.');
+        return false;
+    }
+
+    const container = document.getElementById('fillBlanksContainer');
+    if (!container) return true;
+
+    const cards = container.querySelectorAll('.fill-blank-card');
+    if (cards.length === 0) return true;
+
+    const lastCard = cards[cards.length - 1];
+    if (!isFillBlankCardComplete(lastCard)) {
+        alert(
+            'Please complete the current item first - the question/content and ' +
+            'correct answer are required before adding or duplicating another item.'
+        );
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Task #61: True only if `card` has both Front Card and Back Card
+ * filled in (required fields for Flashcards).
+ */
+function isFlashcardCardComplete(card) {
+    if (!card) return false;
+
+    const frontTextarea = card.querySelector('textarea[name*="[front]"]');
+    const backTextarea = card.querySelector('textarea[name*="[back]"]');
+    const front = frontTextarea ? frontTextarea.value.trim() : '';
+    const back = backTextarea ? backTextarea.value.trim() : '';
+    if (!front || !back) return false;
+
+    return true;
+}
+
+/**
+ * Task #61: gate for both "Add Flashcard" and "Duplicate Flashcard".
+ * Returns true when there is no existing flashcard yet, or the current
+ * LAST flashcard is fully complete (and sourceCard is complete if duplicating).
+ * Otherwise alerts the admin with helpful validation feedback and returns false.
+ */
+function canAddNewFlashcard(sourceCard = null) {
+    if (sourceCard && !isFlashcardCardComplete(sourceCard)) {
+        alert('Please complete this flashcard first before duplicating it.');
+        return false;
+    }
+
+    const container = document.getElementById('flashcardsContainer');
+    if (!container) return true;
+
+    const cards = container.querySelectorAll('.flashcard-card');
+    if (cards.length === 0) return true;
+
+    const lastCard = cards[cards.length - 1];
+    if (!isFlashcardCardComplete(lastCard)) {
+        alert(
+            'Please complete the current flashcard first - the front and ' +
+            'back card texts are required before adding or duplicating another flashcard.'
+        );
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Task #61: Adapts the visual state (opacity, cursor, title) of "+ Add Question",
+ * "+ Add Blank Item", "+ Add Flashcard" and duplication controls dynamically
+ * based on the completion status of the current/last cards.
+ */
+function updateAddButtonsState() {
+    // 1. Multiple Choice
+    const mcContainer = document.getElementById('questionsContainer');
+    const addQuestionBtn = document.getElementById('addQuestionMainBtn');
+    if (mcContainer && addQuestionBtn) {
+        const cards = mcContainer.querySelectorAll('.question-card');
+        const canAdd = cards.length === 0 || isQuestionCardComplete(cards[cards.length - 1]);
+        addQuestionBtn.style.opacity = canAdd ? '1' : '0.65';
+        addQuestionBtn.title = canAdd ? 'Add a new question' : 'Complete the current question first';
+    }
+
+    // 2. Fill in the Blanks
+    const fbContainer = document.getElementById('fillBlanksContainer');
+    const addFillBlankBtn = document.getElementById('addFillBlankMainBtn');
+    if (fbContainer && addFillBlankBtn) {
+        const cards = fbContainer.querySelectorAll('.fill-blank-card');
+        const canAdd = cards.length === 0 || isFillBlankCardComplete(cards[cards.length - 1]);
+        addFillBlankBtn.style.opacity = canAdd ? '1' : '0.65';
+        addFillBlankBtn.title = canAdd ? 'Add a new blank item' : 'Complete the current item first';
+    }
+
+    // 3. Flashcards
+    const fcContainer = document.getElementById('flashcardsContainer');
+    const addFlashcardBtn = document.getElementById('addFlashcardMainBtn');
+    if (fcContainer && addFlashcardBtn) {
+        const cards = fcContainer.querySelectorAll('.flashcard-card');
+        const canAdd = cards.length === 0 || isFlashcardCardComplete(cards[cards.length - 1]);
+        addFlashcardBtn.style.opacity = canAdd ? '1' : '0.65';
+        addFlashcardBtn.title = canAdd ? 'Add a new flashcard' : 'Complete the current flashcard first';
+    }
+
+    // 4. Duplication controls on individual cards
+    document.querySelectorAll('.question-card').forEach((card) => {
+        const dupBtn = card.querySelector('button[title*="Duplicate"]');
+        if (dupBtn) {
+            const canDup = isQuestionCardComplete(card);
+            dupBtn.style.opacity = canDup ? '1' : '0.45';
+        }
+    });
+
+    document.querySelectorAll('.fill-blank-card').forEach((card) => {
+        const dupBtn = card.querySelector('button[title*="Duplicate"]');
+        if (dupBtn) {
+            const canDup = isFillBlankCardComplete(card);
+            dupBtn.style.opacity = canDup ? '1' : '0.45';
+        }
+    });
+
+    document.querySelectorAll('.flashcard-card').forEach((card) => {
+        const dupBtn = card.querySelector('button[title*="Duplicate"]');
+        if (dupBtn) {
+            const canDup = isFlashcardCardComplete(card);
+            dupBtn.style.opacity = canDup ? '1' : '0.45';
+        }
+    });
 }
 
 /**
@@ -462,6 +625,7 @@ function updateActivityTypeView(selectedType) {
     }
 
     updatePointsTotal();
+    updateAddButtonsState();
 }
 
 /**
@@ -579,6 +743,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const addFillBlankMainBtn = document.getElementById('addFillBlankMainBtn');
     if (addFillBlankMainBtn) {
         addFillBlankMainBtn.addEventListener('click', function() {
+            // Task #61: never append a new item while the current last one is incomplete
+            if (!canAddNewFillBlank()) return;
             addNewFillBlankCard();
         });
     }
@@ -587,12 +753,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const addFlashcardMainBtn = document.getElementById('addFlashcardMainBtn');
     if (addFlashcardMainBtn) {
         addFlashcardMainBtn.addEventListener('click', function() {
+            // Task #61: never append a new flashcard while the current last one is incomplete
+            if (!canAddNewFlashcard()) return;
             addNewFlashcardCard();
         });
     }
 
     refreshActivityFieldTrackers(document);
     updatePointsTotal();
+    updateAddButtonsState();
 });
 
 // Function to update Points based on total item count for the active activity type
@@ -703,6 +872,7 @@ function addNewQuestionCard(prefilledData = null) {
     // the tracker itself once that's done).
     refreshQuestionFieldTrackers(card);
     updatePointsTotal();
+    updateAddButtonsState();
 }
 
 // Setup character counters for textareas dynamically
@@ -744,6 +914,7 @@ function addOptionRow(btn, qIndex) {
     // Task #58: a freshly-added option row starts empty - track it from
     // the start so clearing it later behaves consistently.
     refreshQuestionFieldTrackers(newRow);
+    updateAddButtonsState();
 }
 
 // Delete an option row with the minus button
@@ -789,6 +960,7 @@ function removeOptionRow(btn) {
             radioInput.checked = wasChecked;
         }
     });
+    updateAddButtonsState();
 }
 
 // Delete an entire question card
@@ -820,6 +992,7 @@ function removeQuestionCard(btn) {
         reindexAllQuestions();
     }
     updatePointsTotal();
+    updateAddButtonsState();
 }
 
 // Re-sequence all question numbers and indices
@@ -924,13 +1097,11 @@ function moveQuestionDown(btn) {
 
 // 3. Duplicate Question Card
 function duplicateQuestionCard(btn) {
-    // Task #58, Requirement #3: never duplicate while the current last
-    // question is still incomplete - a duplicate always gets appended
-    // to the end, so this is the same completeness gate as "Add
-    // Question".
-    if (!canAddNewQuestion()) return;
-
+    // Task #58 & #61: never duplicate while the source question or
+    // current last question is incomplete.
     const card = btn.closest('.question-card');
+    if (!canAddNewQuestion(card)) return;
+
     const textarea = card.querySelector('.question-textarea');
     const textVal = textarea ? textarea.value : '';
 
@@ -977,6 +1148,7 @@ function duplicateQuestionCard(btn) {
     // refreshed AFTER copying - otherwise the very first attempt to
     // clear a duplicated field wouldn't be recognized as "had data".
     refreshActivityFieldTrackers(newCard);
+    updateAddButtonsState();
 }
 
 // Add a brand new Fill in the Blank Card
@@ -1036,6 +1208,7 @@ function addNewFillBlankCard(prefilledData = null) {
     setupTextareaCounters(card);
     refreshActivityFieldTrackers(card);
     updatePointsTotal();
+    updateAddButtonsState();
 }
 
 // Remove Fill in the Blank Card
@@ -1066,11 +1239,14 @@ function removeFillBlankCard(btn) {
         reindexAllFillBlanks();
     }
     updatePointsTotal();
+    updateAddButtonsState();
 }
 
 // Duplicate Fill in the Blank Card
 function duplicateFillBlankCard(btn) {
     const card = btn.closest('.fill-blank-card');
+    if (!canAddNewFillBlank(card)) return;
+
     const textarea = card.querySelector('textarea');
     const inputs = card.querySelectorAll('input[type="text"]');
 
@@ -1181,6 +1357,7 @@ function addNewFlashcardCard(prefilledData = null) {
     setupTextareaCounters(card);
     refreshActivityFieldTrackers(card);
     updatePointsTotal();
+    updateAddButtonsState();
 }
 
 // Remove Flashcard Card
@@ -1211,6 +1388,7 @@ function removeFlashcardCard(btn) {
         reindexAllFlashcards();
     }
     updatePointsTotal();
+    updateAddButtonsState();
 }
 
 // Re-sequence Flashcard items and fields
@@ -1235,6 +1413,8 @@ function reindexAllFlashcards() {
 // Duplicate Flashcard Card
 function duplicateFlashcardCard(btn) {
     const card = btn.closest('.flashcard-card');
+    if (!canAddNewFlashcard(card)) return;
+
     const textareas = card.querySelectorAll('textarea');
     const inputs = card.querySelectorAll('input[type="text"]');
 
