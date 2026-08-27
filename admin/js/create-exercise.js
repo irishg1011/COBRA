@@ -1,6 +1,9 @@
 document.addEventListener('DOMContentLoaded', function () {
     console.log("Create Exercise frontend script loaded successfully.");
 
+    // Task #69: Setup Exercise Title live casing normalization
+    setupTitleCasingNormalization('exerciseTitle');
+
     // Dynamic character counters setup
     setupCharacterCounter('exerciseInstruction', 'instructionCount', 1000);
     setupCharacterCounter('problemSituation', 'situationCount', 500);
@@ -23,6 +26,31 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+
+/* =================================================================
+   Task #69: Live Exercise Title Casing Normalization
+==================================================================== */
+function formatSentenceCaseLive(value) {
+    if (!value) return value;
+    const lower = value.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+function setupTitleCasingNormalization(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    input.addEventListener('input', function () {
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+
+        input.value = formatSentenceCaseLive(input.value);
+
+        if (start !== null && end !== null) {
+            input.setSelectionRange(start, end);
+        }
+    });
+}
 
 function setupCharacterCounter(textareaId, counterId, maxLength) {
     const textarea = document.getElementById(textareaId);

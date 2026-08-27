@@ -60,6 +60,18 @@ def ensure_exercise_stats(connection):
         print(f"coding_exercises: failed to seed {LA_STATS_TABLE}: {e}")
 
 
+def format_exercise_title(title: str) -> str:
+    """
+    Task #69: Sentence-case formatting for exercise titles -
+    first letter uppercase, rest lowercase.
+    """
+    cleaned = (title or "").strip()
+    if not cleaned:
+        return ""
+    lower = cleaned.lower()
+    return lower[0].upper() + lower[1:]
+
+
 def _fmt_date(dt):
     """e.g. 'Aug 26, 2026'."""
     if not dt:
