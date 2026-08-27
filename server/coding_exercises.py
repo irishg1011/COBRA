@@ -143,11 +143,13 @@ def get_coding_exercises_overview(search_query=None, stats_filter=None, page=1, 
                     OR LOWER(lr.resource_title) LIKE %s
                     OR LOWER(m.module_name) LIKE %s
                     OR LOWER(c.category_name) LIKE %s
+                    OR LOWER(COALESCE(stats.la_stats_name, '')) LIKE %s
                     OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s
+                    OR LOWER(COALESCE(ce.uploaded_by, '')) LIKE %s
                 )
             """
             like_term = f"%{term.lower()}%"
-            params.extend([like_term] * 5)
+            params.extend([like_term] * 7)
 
         stats_val = (str(stats_filter).strip() if stats_filter not in (None, "") else "")
         if stats_val:
