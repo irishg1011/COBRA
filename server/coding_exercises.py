@@ -25,7 +25,11 @@ CE_SORT_CLAUSES = {
     "created_desc": "ce.created_at DESC",
     "created_asc": "ce.created_at ASC",
     "updated_desc": "ce.updated_at DESC",
+    "updated_asc": "ce.updated_at ASC",
+    "status_asc": "stats.la_stats_name ASC, ce.created_at DESC",
+    "status_desc": "stats.la_stats_name DESC, ce.created_at DESC",
     "title_asc": "ce.exercise_title ASC",
+    "title_desc": "ce.exercise_title DESC",
 }
 DEFAULT_CE_SORT_KEY = "created_desc"
 
@@ -145,10 +149,14 @@ def get_coding_exercises_overview(search_query=None, stats_filter=None, page=1, 
             like_term = f"%{term.lower()}%"
             params.extend([like_term] * 5)
 
-        stats_id = (str(stats_filter).strip() if stats_filter not in (None, "") else "")
-        if stats_id:
-            base_query += " AND ce.exercise_stats_id = %s"
-            params.append(stats_id)
+        stats_val = (str(stats_filter).strip() if stats_filter not in (None, "") else "")
+        if stats_val:
+            if stats_val.isdigit():
+                base_query += " AND ce.exercise_stats_id = %s"
+                params.append(int(stats_val))
+            else:
+                base_query += " AND LOWER(stats.la_stats_name) = %s"
+                params.append(stats_val.lower())
 
         if created_from:
             base_query += " AND DATE(ce.created_at) >= %s"

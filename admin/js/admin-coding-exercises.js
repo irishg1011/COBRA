@@ -1,10 +1,10 @@
 /**
- * admin-coding-exercises.js - Multi-Field Search + Stats Filter +
+ * admin-coding-exercises.js - Multi-Field Search + Status Filter +
  * Date Sorting/Filtering for Manage Coding Exercises
  * --------------------------------------------------------------------
  * Wires up the Manage Coding Exercises toolbar - the search box, the
- * database-driven "All Statuses" dropdown, the Sort dropdown (Newest
- * First / Oldest First / Recently Updated / Title A-Z), and pagination
+ * database-driven "All Statuses" dropdown, the Sort dropdown (Created At /
+ * Updated At / Status / Title), and Created At / Updated At date filters
  * to the backend endpoint (/admin/coding-exercises/data) so the table
  * updates live with no page reload.
  */
@@ -25,10 +25,58 @@
 
         if (!tableBody) return;
 
+        const createdFromInput = document.getElementById("exerciseCreatedFromInput");
+        const createdToInput = document.getElementById("exerciseCreatedToInput");
+        const createdRangeToggle = document.getElementById("exerciseCreatedRangeToggle");
+        const clearCreatedDateBtn = document.getElementById("clearExerciseCreatedDateBtn");
+        const updatedFromInput = document.getElementById("exerciseUpdatedFromInput");
+        const updatedToInput = document.getElementById("exerciseUpdatedToInput");
+        const updatedRangeToggle = document.getElementById("exerciseUpdatedRangeToggle");
+        const clearUpdatedDateBtn = document.getElementById("clearExerciseUpdatedDateBtn");
+        const dateFilterError = document.getElementById("exerciseDateFilterError");
+
         let currentPage = 1;
         let totalPages = 1;
         let debounceTimer = null;
         let activeRequestId = 0;
+
+        function showDateFilterError(message) {
+            if (!dateFilterError) { alert(message); return; }
+            dateFilterError.textContent = message;
+            dateFilterError.style.display = "block";
+        }
+
+        function clearDateFilterError() {
+            if (!dateFilterError) return;
+            dateFilterError.textContent = "";
+            dateFilterError.style.display = "none";
+        }
+
+        function getEffectiveDateRange(fromInput, toInput, rangeToggle) {
+            const from = fromInput ? fromInput.value : "";
+            if (!from) return { from: "", to: "" };
+            const isRange = !!(rangeToggle && rangeToggle.checked);
+            const to = (isRange && toInput) ? toInput.value : from;
+            return { from, to };
+        }
+
+        function validateDateRanges() {
+            clearDateFilterError();
+
+            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            if (created.from && created.to && created.from > created.to) {
+                showDateFilterError("Created At: end date must be on or after the start date.");
+                return false;
+            }
+
+            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            if (updated.from && updated.to && updated.from > updated.to) {
+                showDateFilterError("Updated At: end date must be on or after the start date.");
+                return false;
+            }
+
+            return true;
+        }
 
         function escapeHtml(str) {
             const div = document.createElement("div");
@@ -100,6 +148,8 @@
         }
 
         async function fetchExercises(page = 1) {
+            if (!validateDateRanges()) return;
+
             const requestId = ++activeRequestId;
 
             const params = new URLSearchParams();
@@ -111,6 +161,14 @@
             if (stats) params.set("stats", stats);
             if (sort) params.set("sort", sort);
             params.set("page", String(page));
+
+            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            if (created.from) params.set("created_from", created.from);
+            if (created.to) params.set("created_to", created.to);
+
+            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            if (updated.from) params.set("updated_from", updated.from);
+            if (updated.to) params.set("updated_to", updated.to);
 
             try {
                 const response = await fetch(`/admin/coding-exercises/data?${params.toString()}`, {
@@ -145,6 +203,42 @@
         if (sortSelect) {
             sortSelect.addEventListener("change", () => fetchExercises(1));
         }
+
+        function setupDateFilterEvents(fromInput, toInput, rangeToggle, clearBtn) {
+            if (fromInput) {
+                fromInput.addEventListener("change", () => {
+                    if (toInput && (!rangeToggle || !rangeToggle.checked)) {
+                        toInput.value = fromInput.value;
+                    }
+                    fetchExercises(1);
+                });
+            }
+            if (toInput) {
+                toInput.addEventListener("change", () => fetchExercises(1));
+            }
+            if (rangeToggle) {
+                rangeToggle.addEventListener("change", () => {
+                    if (rangeToggle.checked) {
+                        const today = new Date().toISOString().split("T")[0];
+                        if (fromInput) fromInput.value = today;
+                        if (toInput) toInput.value = today;
+                    }
+                    fetchExercises(1);
+                });
+            }
+            if (clearBtn) {
+                clearBtn.addEventListener("click", () => {
+                    if (fromInput) fromInput.value = "";
+                    if (toInput) toInput.value = "";
+                    if (rangeToggle) rangeToggle.checked = false;
+                    clearDateFilterError();
+                    fetchExercises(1);
+                });
+            }
+        }
+
+        setupDateFilterEvents(createdFromInput, createdToInput, createdRangeToggle, clearCreatedDateBtn);
+        setupDateFilterEvents(updatedFromInput, updatedToInput, updatedRangeToggle, clearUpdatedDateBtn);
 
         if (prevBtn) {
             prevBtn.addEventListener("click", () => {

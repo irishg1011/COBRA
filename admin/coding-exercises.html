@@ -54,17 +54,47 @@
                             <select class="custom-select" id="exerciseStatsSelect">
                                 <option value="">All Statuses</option>
                                 {% for stat in exercise_stats %}
-                                <option value="{{ stat.stats_id }}">{{ stat.stats_name }}</option>
+                                <option value="{{ stat.stats_id }}" {{ 'selected' if stats_filter|default('')|string == stat.stats_id|string }}>{{ stat.stats_name }}</option>
                                 {% endfor %}
                             </select>
+
                             <select class="custom-select" id="exerciseSortSelect">
-                                <option value="created_desc" {{ 'selected' if sort|default('created_desc') == 'created_desc' }}>Newest First</option>
-                                <option value="created_asc" {{ 'selected' if sort|default('') == 'created_asc' }}>Oldest First</option>
-                                <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Recently Updated</option>
-                                <option value="title_asc" {{ 'selected' if sort|default('') == 'title_asc' }}>Title A-Z</option>
+                                <option value="created_desc" {{ 'selected' if sort|default('created_desc') == 'created_desc' }}>Created At: Newest First</option>
+                                <option value="created_asc" {{ 'selected' if sort|default('') == 'created_asc' }}>Created At: Oldest First</option>
+                                <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Updated At: Recently Updated</option>
+                                <option value="updated_asc" {{ 'selected' if sort|default('') == 'updated_asc' }}>Updated At: Oldest Updated</option>
+                                <option value="status_asc" {{ 'selected' if sort|default('') == 'status_asc' }}>Status: A to Z</option>
+                                <option value="status_desc" {{ 'selected' if sort|default('') == 'status_desc' }}>Status: Z to A</option>
+                                <option value="title_asc" {{ 'selected' if sort|default('') == 'title_asc' }}>Exercise Title: A to Z</option>
+                                <option value="title_desc" {{ 'selected' if sort|default('') == 'title_desc' }}>Exercise Title: Z to A</option>
                             </select>
+
+                            <div class="date-filter-group" id="exerciseCreatedDateGroup">
+                                <span class="date-filter-label">Created At</span>
+                                <input type="date" class="custom-select" id="exerciseCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="exerciseCreatedToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="exerciseCreatedRangeToggle"> Today
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearExerciseCreatedDateBtn" title="Clear Created At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+
+                            <div class="date-filter-group" id="exerciseUpdatedDateGroup">
+                                <span class="date-filter-label">Updated At</span>
+                                <input type="date" class="custom-select" id="exerciseUpdatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
+                                <input type="date" class="custom-select date-range-end" id="exerciseUpdatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
+                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                    <input type="checkbox" id="exerciseUpdatedRangeToggle"> Today
+                                </label>
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearExerciseUpdatedDateBtn" title="Clear Updated At filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
+                    <p id="exerciseDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
 
                     <!-- Exercises Table -->
                     <table class="data-table" id="exercisesDataTable">
