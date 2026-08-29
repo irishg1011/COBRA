@@ -1,9 +1,10 @@
 /**
- * admin-manage-course.js - Task #24, #27, #77, #80 & #87
+ * admin-manage-course.js - Task #24, #27, #77, #80, #87, #89 & #90
  * ------------------------------------------------------------------
  * Handles Manage Course table (search/status filter/date filter/pagination),
- * standalone Create Module & Create Category modals with cancel confirmation
- * guards, Categories list modal, and Unified Archives modal (Modules & Categories).
+ * row-level Publish/Unpublish toggle, standalone Create Module & Create Category
+ * modals with cancel confirmation guards, Edit Module change confirmation &
+ * "Changes Saved" popup notifications, Categories list modal, and Unified Archives.
  */
 (function () {
     "use strict";
@@ -37,6 +38,52 @@
             if (ch === ".") capitalizeNextAlpha = true;
         }
         return chars.join("");
+    }
+
+    // ------------------------------------------------------------
+    // Task #90: Temporary Popup Notification ("Changes Saved")
+    // ------------------------------------------------------------
+    let toastTimeout = null;
+    function showChangesSavedToast(message = "Changes Saved") {
+        let toast = document.getElementById("changesSavedToast");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "changesSavedToast";
+            toast.className = "changes-saved-toast";
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${escapeHtml(message)}</span>`;
+        toast.classList.add("show");
+
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove("show");
+        }, 2000);
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+    }
+
+    function statusBadgeHtml(status) {
+        const cls = status === "Published" ? "badge-success-log"
+            : status === "Draft" ? "badge-draft" : "badge-inactive";
+        return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+    }
+
+    function publishButtonHtml(moduleId, status) {
+        const isPublished = status === "Published";
+        const label = isPublished ? "Unpublish" : "Publish";
+        const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+        return `
+            <button type="button"
+                    class="btn ${btnClass} js-toggle-publish-module-btn"
+                    data-module-id="${moduleId}"
+                    data-status="${escapeHtml(status || "Draft")}">
+                ${label}
+            </button>`;
     }
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -103,22 +150,10 @@
             return true;
         }
 
-        function escapeHtml(str) {
-            const div = document.createElement("div");
-            div.textContent = str == null ? "" : String(str);
-            return div.innerHTML;
-        }
-
-        function statusBadgeHtml(status) {
-            const cls = status === "Published" ? "badge-success-log"
-                : status === "Draft" ? "badge-draft" : "badge-inactive";
-            return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
-        }
-
         function renderModules(modules) {
             if (!tableBody) return;
             if (!modules || modules.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" class="text-muted table-empty-message">No modules found.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="7" class="text-muted table-empty-message">No modules found.</td></tr>`;
                 return;
             }
             tableBody.innerHTML = modules.map(m => `
@@ -128,7 +163,7 @@
                         <small class="text-muted">${escapeHtml(m.description)}</small>
                     </td>
                     <td class="text-muted">${escapeHtml(m.category)}</td>
-                    <td>${statusBadgeHtml(m.status)}</td>
+                    <td class="js-status-cell">${statusBadgeHtml(m.status)}</td>
                     <td class="text-muted">${escapeHtml(m.created_at)}</td>
                     <td class="text-muted">${escapeHtml(m.updated_at)}</td>
                     <td class="text-right">
@@ -136,6 +171,9 @@
                             <a href="#" title="Edit" class="table-action-icon js-edit-module" data-id="${m.module_id}"><i class="fa-solid fa-pen-to-square"></i></a>
                             <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="${m.module_id}"><i class="fa-solid fa-box-archive"></i></a>
                         </div>
+                    </td>
+                    <td class="text-right">
+                        ${publishButtonHtml(m.module_id, m.status)}
                     </td>
                 </tr>
             `).join("");
@@ -173,7 +211,7 @@
                         showDateFilterError(result.message);
                         return;
                     }
-                    tableBody.innerHTML = `<tr><td colspan="6" class="text-muted table-empty-message">Could not load modules.</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="7" class="text-muted table-empty-message">Could not load modules.</td></tr>`;
                     return;
                 }
 
@@ -188,7 +226,7 @@
                 if (nextBtn) nextBtn.disabled = result.page >= result.total_pages;
             } catch (err) {
                 if (requestId !== activeRequestId) return;
-                tableBody.innerHTML = `<tr><td colspan="6" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="7" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
             }
         }
 
@@ -251,11 +289,12 @@
             });
         }
 
-        // Active Table Actions: Edit / Archive module
+        // Active Table Actions: Edit / Archive module / Publish / Unpublish
         if (tableBody) {
             tableBody.addEventListener("click", async (e) => {
                 const editBtn = e.target.closest(".js-edit-module");
                 const delBtn = e.target.closest(".js-delete-module");
+                const togglePublishBtn = e.target.closest(".js-toggle-publish-module-btn");
 
                 if (editBtn) {
                     e.preventDefault();
@@ -264,6 +303,7 @@
                     const currentName = row.querySelector(".table-item-title").textContent;
                     const currentDesc = row.querySelector("small").textContent;
                     openEditModuleModal(id, currentName, currentDesc);
+                    return;
                 }
 
                 if (delBtn) {
@@ -281,6 +321,61 @@
                     }
                     loadModules();
                     refreshCategoriesModal();
+                    return;
+                }
+
+                if (togglePublishBtn) {
+                    e.preventDefault();
+                    const id = togglePublishBtn.dataset.moduleId;
+                    const currentStatus = togglePublishBtn.dataset.status || "Draft";
+                    const isPublished = currentStatus === "Published";
+
+                    const promptMsg = isPublished
+                        ? "Are you sure you want to unpublish this module? It will be moved back to Draft and hidden from learners."
+                        : "Are you sure you want to publish this module? It will become visible to learners.";
+
+                    if (!confirm(promptMsg)) return;
+
+                    togglePublishBtn.disabled = true;
+                    const originalText = togglePublishBtn.textContent;
+                    togglePublishBtn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+
+                    try {
+                        const endpoint = isPublished
+                            ? `/admin/manage-course/modules/${id}/unpublish`
+                            : `/admin/manage-course/modules/${id}/publish`;
+
+                        const resp = await fetch(endpoint, { method: "POST", credentials: "include" });
+                        const result = await resp.json();
+
+                        if (!result.success) {
+                            alert(result.message || "Could not update module status.");
+                            togglePublishBtn.disabled = false;
+                            togglePublishBtn.textContent = originalText;
+                            return;
+                        }
+
+                        const newStatus = isPublished ? "Draft" : "Published";
+                        togglePublishBtn.dataset.status = newStatus;
+                        togglePublishBtn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
+                        togglePublishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom");
+                        togglePublishBtn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                        togglePublishBtn.disabled = false;
+
+                        const row = togglePublishBtn.closest("tr");
+                        const statusCell = row ? row.querySelector(".js-status-cell") : null;
+                        if (statusCell) {
+                            statusCell.innerHTML = statusBadgeHtml(newStatus);
+                        }
+
+                        refreshCategoriesModal();
+                        showChangesSavedToast("Changes Saved");
+                    } catch (err) {
+                        alert("Could not reach the server. Please try again.");
+                        togglePublishBtn.disabled = false;
+                        togglePublishBtn.textContent = originalText;
+                    }
+                    return;
                 }
             });
         }
@@ -429,9 +524,8 @@
                     createModuleModal.style.display = "none";
                     createModuleForm.reset();
                     loadModules();
-                    if (categoriesModal && categoriesModal.style.display === "flex") {
-                        refreshCategoriesModal();
-                    }
+                    refreshCategoriesModal();
+                    showChangesSavedToast("Changes Saved");
                 } finally {
                     submittingCreateModule = false;
                 }
@@ -508,9 +602,8 @@
                     createCategoryModal.style.display = "none";
                     createCategoryForm.reset();
                     loadModules();
-                    if (categoriesModal && categoriesModal.style.display === "flex") {
-                        refreshCategoriesModal();
-                    }
+                    refreshCategoriesModal();
+                    showChangesSavedToast("Changes Saved");
                 } finally {
                     submittingCreateCategory = false;
                 }
@@ -642,7 +735,7 @@
         }
 
         // ------------------------------------------------------------
-        // Edit Module Modal
+        // Edit Module Modal (Task #90: Confirmation & Changes Saved Toast)
         // ------------------------------------------------------------
         const editModuleModal = document.getElementById("editModuleModal");
         const closeEditModuleModalBtn = document.getElementById("closeEditModuleModal");
@@ -651,36 +744,46 @@
         const editModuleNameInput = document.getElementById("editModuleName");
         const editModuleDescInput = document.getElementById("editModuleDesc");
         const editModuleCategorySelect = document.getElementById("editModuleCategory");
-        const editModuleStatusSelect = document.getElementById("editModuleStatus");
+
+        let initialEditModuleData = { name: "", desc: "", catId: "" };
 
         async function openEditModuleModal(id, currentName, currentDesc) {
             if (!editModuleModal) return;
 
             editModuleIdInput.value = id;
-            editModuleNameInput.value = currentName.trim();
-            editModuleDescInput.value = currentDesc.trim();
+            const formattedName = currentName.trim();
+            const formattedDesc = currentDesc.trim();
+            editModuleNameInput.value = formattedName;
+            editModuleDescInput.value = formattedDesc;
 
-            const [categories, statuses] = await Promise.all([fetchCategories(), fetchStatuses()]);
+            const categories = await fetchCategories();
 
             editModuleCategorySelect.innerHTML = `<option value="" disabled>Select Category</option>` +
                 categories.map(c => `<option value="${c.cat_id}">${c.category_name}</option>`).join("");
-            editModuleStatusSelect.innerHTML = `<option value="" disabled>Select Status</option>` +
-                statuses.map(s => `<option value="${s.module_stats_id}">${s.module_stats_name}</option>`).join("");
 
             const row = document.querySelector(`tr[data-module-id="${id}"]`);
+            let selectedCatId = "";
             if (row) {
                 const catText = row.children[1] ? row.children[1].textContent.trim() : "";
-                const statusBadge = row.querySelector(".badge");
-                const statusText = statusBadge ? statusBadge.textContent.trim() : "";
-
                 const catOption = [...editModuleCategorySelect.options].find(o => o.textContent === catText);
-                if (catOption) catOption.selected = true;
-
-                const statusOption = [...editModuleStatusSelect.options].find(o => o.textContent === statusText);
-                if (statusOption) statusOption.selected = true;
+                if (catOption) {
+                    catOption.selected = true;
+                    selectedCatId = catOption.value;
+                }
+            }
+            if (!selectedCatId && editModuleCategorySelect.options.length > 1) {
+                selectedCatId = editModuleCategorySelect.options[1].value;
+                editModuleCategorySelect.value = selectedCatId;
             }
 
+            initialEditModuleData = {
+                name: formattedName,
+                desc: formattedDesc,
+                catId: String(selectedCatId)
+            };
+
             editModuleModal.style.display = "flex";
+            if (editModuleNameInput) editModuleNameInput.focus();
         }
 
         function closeEditModuleModal() {
@@ -705,28 +808,63 @@
             });
         }
 
+        let submittingEditModule = false;
         if (editModuleForm) {
             editModuleForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
+                if (submittingEditModule) return;
+
                 const id = editModuleIdInput.value;
-                const body = new URLSearchParams({
-                    module_name: formatSentenceCase(editModuleNameInput.value),
-                    description: formatSentenceCase(editModuleDescInput.value),
-                    cat_id: editModuleCategorySelect.value,
-                    module_stats_id: editModuleStatusSelect.value
-                });
-                const resp = await fetch(`/admin/manage-course/modules/${id}/update`, {
-                    method: "POST", credentials: "include", body
-                });
-                const result = await resp.json();
-                if (!result.success) {
-                    alert(result.message);
+                const formattedName = formatSentenceCase(editModuleNameInput.value);
+                const formattedDesc = formatSentenceCase(editModuleDescInput.value);
+                const catId = editModuleCategorySelect.value;
+
+                if (!formattedName || !formattedDesc || !catId) {
+                    alert("Module name, description, and category are all required.");
                     return;
                 }
-                closeEditModuleModal();
-                loadModules();
-                if (categoriesModal && categoriesModal.style.display === "flex") {
+
+                // Task #90: Check if actual edits were made
+                const hasChanges = (
+                    formattedName !== initialEditModuleData.name ||
+                    formattedDesc !== initialEditModuleData.desc ||
+                    String(catId) !== String(initialEditModuleData.catId)
+                );
+
+                if (!hasChanges) {
+                    // No changes occurred - bypass warning and close modal
+                    closeEditModuleModal();
+                    return;
+                }
+
+                // Changes occurred - prompt confirmation alert
+                const confirmed = confirm("Are you sure you want to save the changes to this module?");
+                if (!confirmed) return;
+
+                submittingEditModule = true;
+                try {
+                    const body = new URLSearchParams({
+                        module_name: formattedName,
+                        description: formattedDesc,
+                        cat_id: catId
+                    });
+                    const resp = await fetch(`/admin/manage-course/modules/${id}/update`, {
+                        method: "POST", credentials: "include", body
+                    });
+                    const result = await resp.json();
+                    if (!result.success) {
+                        alert(result.message || "Could not update module.");
+                        return;
+                    }
+
+                    closeEditModuleModal();
+                    loadModules();
                     refreshCategoriesModal();
+                    showChangesSavedToast("Changes Saved");
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
+                } finally {
+                    submittingEditModule = false;
                 }
             });
         }
@@ -778,6 +916,7 @@
                 closeEditCategoryModal();
                 refreshCategoriesModal();
                 loadModules();
+                showChangesSavedToast("Changes Saved");
             });
         }
 

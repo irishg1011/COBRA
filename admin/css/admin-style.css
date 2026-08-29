@@ -687,7 +687,9 @@ body {
    the exact same internal flex layout (icon/label gap, centering) while
    letting the surrounding td's text-align position the button itself.
    ========================================================================== */
-#resourcesDataTable .js-toggle-publish-btn {
+#resourcesDataTable .js-toggle-publish-btn,
+.js-toggle-publish-module-btn,
+.data-table .js-toggle-publish-btn {
     display: inline-flex;
 }
 
@@ -1891,4 +1893,43 @@ textarea.form-control-custom {
 
 .archive-toggle-btn.active i {
     color: #ffffff !important;
+}
+
+/* ==========================================================================
+   TASK #90: TEMPORARY POPUP NOTIFICATION ("Changes Saved") & TABLE SPACING
+   ========================================================================== */
+.changes-saved-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: #09B300;
+    color: #ffffff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+}
+
+.changes-saved-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.changes-saved-toast i {
+    font-size: 1.1rem;
+    color: #ffffff;
+}
+
+.main-content .data-table th:nth-last-child(2),
+.main-content .data-table td:nth-last-child(2) {
+    padding-right: 28px;
 }

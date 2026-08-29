@@ -32,6 +32,7 @@ from manage_course import (
     get_modules_by_category,  # NEW - Task #41: dependent Module dropdown lookup
     permanently_delete_module,  # NEW - Task #80: Archived Modules permanent delete
     archive_category, restore_category, permanently_delete_category, get_archived_categories,  # NEW - Task #87: Unified Archives
+    publish_module, unpublish_module,  # NEW - Task #90: Module Publish/Unpublish
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -1457,6 +1458,20 @@ def manage_course_delete_module(module_id):
     changed from DELETE to UPDATE ... SET is_archived = 1.
     """
     success, message = archive_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/publish', methods=['POST'])
+def manage_course_publish_module(module_id):
+    """Task #90: Publish a module (sets status to Published)."""
+    success, message = publish_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/unpublish', methods=['POST'])
+def manage_course_unpublish_module(module_id):
+    """Task #90: Unpublish a module (sets status to Draft)."""
+    success, message = unpublish_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 

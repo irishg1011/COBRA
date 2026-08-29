@@ -563,7 +563,7 @@ def create_module(module_name, description, cat_id, module_stats_id):
             connection.close()
 
 
-def update_module(module_id, module_name, description, cat_id, module_stats_id):
+def update_module(module_id, module_name, description, cat_id, module_stats_id=None):
     # Task #77: same period-aware sentence-case formatting as
     # create_module() above, so editing an existing Module always ends
     # up in the same normalized form (e.g. "INTRODUCTION TO PYTHON. THIS
@@ -578,8 +578,6 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id):
         return False, "Description is required."
     if not cat_id:
         return False, "Category is required."
-    if not module_stats_id:
-        return False, "Status is required."
 
     connection = get_db_connection()
     if connection is None:
@@ -588,19 +586,114 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id):
     try:
         cursor = connection.cursor()
         # updated_at bumped, created_at intentionally left untouched.
-        cursor.execute(
-            f"""UPDATE {MODULES_TABLE}
-                SET module_name = %s, description = %s, cat_id = %s,
-                    module_stats_id = %s, updated_at = NOW()
-                WHERE module_id = %s""",
-            (name, desc, cat_id, module_stats_id, module_id)
-        )
+        if module_stats_id:
+            cursor.execute(
+                f"""UPDATE {MODULES_TABLE}
+                    SET module_name = %s, description = %s, cat_id = %s,
+                        module_stats_id = %s, updated_at = NOW()
+                    WHERE module_id = %s""",
+                (name, desc, cat_id, module_stats_id, module_id)
+            )
+        else:
+            cursor.execute(
+                f"""UPDATE {MODULES_TABLE}
+                    SET module_name = %s, description = %s, cat_id = %s,
+                        updated_at = NOW()
+                    WHERE module_id = %s""",
+                (name, desc, cat_id, module_id)
+            )
         connection.commit()
         cursor.close()
         return True, "Module updated successfully."
     except Error as e:
         connection.rollback()
         print(f"manage_course: failed to update module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def publish_module(module_id):
+    """
+    Task #90: Sets a module's status to 'Published'.
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_module_stats(connection)
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Published' LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Published status not found."
+        published_id = row[0]
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET module_stats_id = %s, is_archived = 0, updated_at = NOW()
+                WHERE module_id = %s""",
+            (published_id, module_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Module published successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to publish module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unpublish_module(module_id):
+    """
+    Task #90: Sets a module's status to 'Draft'.
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_module_stats(connection)
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Draft' LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Draft status not found."
+        draft_id = row[0]
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET module_stats_id = %s, updated_at = NOW()
+                WHERE module_id = %s""",
+            (draft_id, module_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Module unpublished successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to unpublish module: {e}")
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():

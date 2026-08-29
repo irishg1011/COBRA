@@ -128,6 +128,7 @@
                                 <th>Created</th>
                                 <th>Updated</th>
                                 <th class="text-right">Actions</th>
+                                <th class="text-right">Publish Status</th>
                             </tr>
                         </thead>
                         <tbody id="modulesTableBody">
@@ -138,7 +139,7 @@
                                     <small class="text-muted">{{ module.description }}</small>
                                 </td>
                                 <td class="text-muted">{{ module.category }}</td>
-                                <td>
+                                <td class="js-status-cell">
                                     {% if module.status == 'Published' %}
                                     <span class="badge badge-success-log">Published</span>
                                     {% elif module.status == 'Draft' %}
@@ -155,10 +156,18 @@
                                         <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="{{ module.module_id }}"><i class="fa-solid fa-box-archive"></i></a>
                                     </div>
                                 </td>
+                                <td class="text-right">
+                                    <button type="button"
+                                            class="btn {{ 'btn-unpublish-custom' if module.status == 'Published' else 'btn-success-custom' }} js-toggle-publish-module-btn"
+                                            data-module-id="{{ module.module_id }}"
+                                            data-status="{{ module.status }}">
+                                        {{ 'Unpublish' if module.status == 'Published' else 'Publish' }}
+                                    </button>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted table-empty-message">
+                                <td colspan="7" class="text-muted table-empty-message">
                                     No modules found.
                                 </td>
                             </tr>
