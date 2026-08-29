@@ -55,17 +55,6 @@
                     </div>
                 </div>
 
-                <!-- Task #82: this row is now used ONLY for the Save Draft /
-                     Publish-triggered notice ("Draft saved successfully.",
-                     "Please enter a lesson name before saving a draft.",
-                     etc. - see upload-resource-draft-guard.js's
-                     showDraftNotice()). The live Lesson Name duplicate-check
-                     message moved back beside the "Lesson Name" label below,
-                     so the two never overlap/concatenate in the same spot. -->
-                <div class="top-bar-validation-row">
-                    <span class="js-draft-notice top-bar-inline-message" style="display: none;"></span>
-                </div>
-
                 <!--
                     Task: flash messages surface validation results from
                     the /admin/upload-resource POST route (e.g. Task #42's
@@ -98,17 +87,7 @@
                     <!-- 4-Column Horizontal Fields: Lesson Name, Category, Module, Status -->
                     <div class="lesson-meta-grid">
                         <div class="form-group lesson-name-group-override">
-                            <!-- Task #82: Lesson Name label + its live
-                                 duplicate-check message (#lessonNameError,
-                                 from upload-resource.js) sit in one row, so
-                                 the message reads as "Lesson Name: <msg>"
-                                 beside the label - never underneath the
-                                 input, and never in the same spot as the
-                                 Save Draft notice above. -->
-                            <div class="lesson-name-label-row">
-                                <label for="lessonNameInput">Lesson Name</label>
-                                <span id="lessonNameError" class="js-error-message lesson-name-inline-message" style="display: none;"></span>
-                            </div>
+                            <label for="lessonNameInput">Lesson Name</label>
                             <input type="text" id="lessonNameInput" name="lesson_name" class="form-control" placeholder="e.g. Introduction to Python" autocomplete="off" value="{{ existing_resource.lesson_name if existing_resource else '' }}" required>
                         </div>
 
@@ -214,10 +193,6 @@
 
                     </div>
                     </div>
-
-                    <p id="lessonContentError" class="js-error-message" style="display: none; color: #e02424; font-size: 13px; margin-top: 8px;"></p>
-
-                    </form>
                 </form>
 
             </div>

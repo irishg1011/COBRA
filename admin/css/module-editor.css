@@ -706,28 +706,56 @@ select.form-control {
 }
 
 .lesson-name-inline-message {
-    color: #e02424;
-    font-size: 0.75rem;
-    font-weight: 500;
-    line-height: 1.3;
+    display: none !important;
 }
 
 .top-bar-validation-row {
+    display: none !important;
+}
+
+/* ==========================================================================
+   TASK #93: INPUT FIELD ERROR HIGHLIGHTING & VALIDATION POPUP
+   ========================================================================== */
+.field-error,
+.form-control.field-error,
+.form-control-select.field-error,
+.form-textarea.field-error,
+.editor-body.field-error {
+    border-color: #e02424 !important;
+    box-shadow: 0 0 0 1px #e02424 !important;
+}
+
+.resource-popup-alert {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: #e02424;
+    color: #ffffff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
     display: flex;
-    justify-content: flex-end;
-    margin-top: 6px;
-    margin-bottom: 4px;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
 }
 
-.top-bar-inline-message {
-    color: #e02424;
-    font-size: 0.8rem;
-    font-weight: 500;
-    line-height: 1.3;
+.resource-popup-alert.show {
+    opacity: 1;
+    transform: translateY(0);
 }
 
-@media (max-width: 900px) {
-    .top-bar-validation-row {
-        justify-content: flex-start;
-    }
+.resource-popup-alert.success {
+    background: #09B300;
+}
+
+.resource-popup-alert i {
+    font-size: 1.1rem;
+    color: #ffffff;
 }

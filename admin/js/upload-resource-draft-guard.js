@@ -1,46 +1,66 @@
 /**
- * upload-resource-draft-guard.js - Task #44: Unsaved Changes Detection
- * + Draft Autosave for Upload Resource
+ * upload-resource-draft-guard.js - Task #44, #83, #84 & #93
  * --------------------------------------------------------------------
- * Watches Lesson Name / Category / Module / the rich-text editor for
- * changes and:
- *   - Shows a native browser warning (beforeunload) on tab close,
- *     refresh, or a typed/bookmarked URL navigation while there are
- *     unsaved changes.
- *   - Intercepts in-app link clicks (sidebar nav, the header "Back"
- *     link, etc.) and shows a custom modal instead of navigating
- *     immediately, offering "Stay", "Leave Without Saving", or
- *     "Save Draft & Leave".
- *   - Wires the "Save Draft" button to POST the current form state to
- *     /admin/upload-resource/save-draft (see admin_routes.py ->
- *     resource_draft.py), storing the returned resource_id in a hidden
- *     field so every later save updates the SAME row instead of
- *     creating duplicates.
- *   - Clears the unsaved-changes flag the moment a draft save OR the
- *     real Publish submission succeeds.
- *
- * Task #82: showDraftNotice() below renders in .top-bar-validation-row
- * (under the Preview Lesson / Save Draft / Publish buttons) - a
- * DIFFERENT spot than #lessonNameError, which lives beside the "Lesson
- * Name" label (see upload-resource.html / upload-resource.js). The two
- * message sources are kept fully separate so they never land in the
- * same element and visually run together.
- *
- * Only present on pages that have #uploadModuleForm (currently just
- * upload-resource.html), so this is safe to include as a shared
- * script without guard checks elsewhere.
+ * Handles:
+ *   - Unsaved changes detection and exit confirmations.
+ *   - Save Draft & Publish workflows with shared confirmation modals.
+ *   - Task #93: Form validation with red field borders (.field-error),
+ *     zero inline layout distortion, popup alerts, and real-time error
+ *     clearing upon typing/selection.
  */
 (function () {
     "use strict";
 
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+    }
+
+    // --------------------------------------------------------
+    // Task #93: Popup Alerts (zero inline layout shifting)
+    // --------------------------------------------------------
+    let popupAlertTimeout = null;
+
+    function showPopupAlert(message, type = "error") {
+        let popup = document.getElementById("resourcePopupAlert");
+        if (!popup) {
+            popup = document.createElement("div");
+            popup.id = "resourcePopupAlert";
+            document.body.appendChild(popup);
+        }
+        const icon = type === "success" ? "fa-circle-check" : "fa-circle-exclamation";
+        popup.className = `resource-popup-alert ${type === "success" ? "success" : "error"}`;
+        popup.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${escapeHtml(message)}</span>`;
+        popup.classList.add("show");
+
+        if (popupAlertTimeout) clearTimeout(popupAlertTimeout);
+        popupAlertTimeout = setTimeout(() => {
+            hidePopupAlert();
+        }, 3000);
+    }
+
+    function hidePopupAlert() {
+        const popup = document.getElementById("resourcePopupAlert");
+        if (popup) popup.classList.remove("show");
+        if (popupAlertTimeout) {
+            clearTimeout(popupAlertTimeout);
+            popupAlertTimeout = null;
+        }
+    }
+
+    window.cobraByteShowResourcePopupAlert = showPopupAlert;
+    window.cobraByteHideResourcePopupAlert = hidePopupAlert;
+
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("uploadModuleForm");
-        if (!form) return; // not on this page
+        if (!form) return;
 
         const lessonNameInput = document.getElementById("lessonNameInput");
         const categorySelect = document.getElementById("categorySelect");
         const moduleSelect = document.getElementById("moduleSelect");
         const editor = document.getElementById("editorContent");
+        const editorBody = document.querySelector(".editor-body");
         const hiddenContent = document.getElementById("hiddenModuleContent");
         const resourceIdInput = document.getElementById("resourceIdInput");
         const saveDraftBtn = document.getElementById("saveDraftBtn");
@@ -49,16 +69,8 @@
         const stayBtn = document.getElementById("unsavedStayBtn");
         const leaveBtn = document.getElementById("unsavedLeaveBtn");
         const saveAndLeaveBtn = document.getElementById("unsavedSaveAndLeaveBtn");
-        // Task #84: in-modal error slot + the Manage Learning Resources
-        // redirect target (rendered server-side onto the button itself via
-        // url_for('admin_bp.learning_resources') - see
-        // unsaved-changes-modal.html).
         const unsavedSaveError = document.getElementById("unsavedSaveError");
 
-        // Task #83: shared Save Draft / Publish confirmation modal (see
-        // confirm-action-modal.html). One generic Yes/No modal reused by
-        // both actions - showConfirmModal() below sets its title/message
-        // and what runs on Confirm.
         const confirmActionModal = document.getElementById("confirmActionModal");
         const confirmActionTitle = document.getElementById("confirmActionTitle");
         const confirmActionText = document.getElementById("confirmActionText");
@@ -66,32 +78,57 @@
         const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
 
         let isDirty = false;
-        let isSubmitting = false; // true once the real Publish form is actually submitting
-        let pendingNavigation = null; // function to run once the admin confirms leaving
-        let pendingConfirmAction = null; // function to run once the admin confirms Save Draft/Publish
-        let publishConfirmed = false; // true once the admin has confirmed Publish for the in-flight submit
+        let isSubmitting = false;
+        let pendingNavigation = null;
+        let pendingConfirmAction = null;
+        let publishConfirmed = false;
 
         // --------------------------------------------------------
-        // Dirty-state tracking
+        // Dirty-state tracking & Real-time Error Clearing
         // --------------------------------------------------------
         function markDirty() {
             isDirty = true;
         }
 
-        [lessonNameInput, categorySelect, moduleSelect].forEach((el) => {
+        function clearFieldError(el) {
             if (!el) return;
-            el.addEventListener("input", markDirty);
-            el.addEventListener("change", markDirty);
-        });
+            el.classList.remove("field-error");
+            if (el === editor && editorBody) {
+                editorBody.classList.remove("field-error");
+            }
+            hidePopupAlert();
+        }
+
+        if (lessonNameInput) {
+            lessonNameInput.addEventListener("input", () => {
+                markDirty();
+                clearFieldError(lessonNameInput);
+            });
+        }
+        if (categorySelect) {
+            categorySelect.addEventListener("change", () => {
+                markDirty();
+                clearFieldError(categorySelect);
+            });
+        }
+        if (moduleSelect) {
+            moduleSelect.addEventListener("change", () => {
+                markDirty();
+                clearFieldError(moduleSelect);
+            });
+        }
         if (editor) {
-            editor.addEventListener("input", markDirty);
+            editor.addEventListener("input", () => {
+                markDirty();
+                clearFieldError(editor);
+            });
         }
 
         function clearDirty() {
             isDirty = false;
         }
 
-        // Native warning for tab close / refresh / typed URL navigation.
+        // Native warning for tab close / refresh
         window.addEventListener("beforeunload", (e) => {
             if (!isDirty || isSubmitting) return;
             e.preventDefault();
@@ -99,12 +136,85 @@
         });
 
         // --------------------------------------------------------
-        // Custom modal
+        // Task #93: Form Validation with Red Border Highlighting
         // --------------------------------------------------------
-        // Task #84: shows/clears the in-modal "why didn't this save"
-        // message. Uses the existing .modal-hidden class (admin-style.css)
-        // rather than touching inline style, and falls back to alert()
-        // only in the unlikely case the element itself is missing.
+        function validateResourceForm(isPublish = false) {
+            let isValid = true;
+            let firstErrorMsg = "";
+            let firstErrorField = null;
+
+            // 1. Lesson Name
+            const nameVal = lessonNameInput ? lessonNameInput.value.trim() : "";
+            if (!nameVal) {
+                isValid = false;
+                if (lessonNameInput) lessonNameInput.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please enter a lesson name before publishing."
+                        : "Please enter a lesson name before saving a draft.";
+                    firstErrorField = lessonNameInput;
+                }
+            } else {
+                if (lessonNameInput) lessonNameInput.classList.remove("field-error");
+            }
+
+            // 2. Category
+            const catVal = categorySelect ? categorySelect.value : "";
+            if (!catVal) {
+                isValid = false;
+                if (categorySelect) categorySelect.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please select a category before publishing."
+                        : "Please select a category before saving a draft.";
+                    firstErrorField = categorySelect;
+                }
+            } else {
+                if (categorySelect) categorySelect.classList.remove("field-error");
+            }
+
+            // 3. Module
+            const modVal = moduleSelect ? moduleSelect.value : "";
+            if (!modVal) {
+                isValid = false;
+                if (moduleSelect) moduleSelect.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please select a module before publishing."
+                        : "Please select a module before saving a draft.";
+                    firstErrorField = moduleSelect;
+                }
+            } else {
+                if (moduleSelect) moduleSelect.classList.remove("field-error");
+            }
+
+            // 4. Content Validation
+            if (typeof window.cobraByteValidateLessonContent === "function") {
+                const contentCheck = window.cobraByteValidateLessonContent();
+                const targetEditorBox = editorBody || editor;
+                if (!contentCheck.valid) {
+                    isValid = false;
+                    if (targetEditorBox) targetEditorBox.classList.add("field-error");
+                    if (!firstErrorMsg) {
+                        firstErrorMsg = contentCheck.message;
+                        firstErrorField = editor;
+                    }
+                } else {
+                    if (targetEditorBox) targetEditorBox.classList.remove("field-error");
+                }
+            }
+
+            if (!isValid) {
+                showPopupAlert(firstErrorMsg, "error");
+                if (firstErrorField) firstErrorField.focus();
+            }
+
+            return isValid;
+        }
+
+        // --------------------------------------------------------
+        // Unsaved Changes Modal
+        // --------------------------------------------------------
         function showUnsavedSaveError(message) {
             if (!unsavedSaveError) {
                 if (message) alert(message);
@@ -134,16 +244,47 @@
 
         if (stayBtn) stayBtn.addEventListener("click", closeUnsavedModal);
 
+        if (leaveBtn) {
+            leaveBtn.addEventListener("click", () => {
+                clearDirty();
+                const action = pendingNavigation;
+                closeUnsavedModal();
+                if (typeof action === "function") action();
+            });
+        }
+
+        if (saveAndLeaveBtn) {
+            saveAndLeaveBtn.addEventListener("click", async () => {
+                const redirectUrl = saveAndLeaveBtn.dataset.redirectUrl || "";
+                const fallbackAction = pendingNavigation;
+
+                saveAndLeaveBtn.disabled = true;
+                if (stayBtn) stayBtn.disabled = true;
+                if (leaveBtn) leaveBtn.disabled = true;
+
+                const ok = await performSaveDraft();
+
+                saveAndLeaveBtn.disabled = false;
+                if (stayBtn) stayBtn.disabled = false;
+                if (leaveBtn) leaveBtn.disabled = false;
+
+                if (!ok) {
+                    showUnsavedSaveError("Could not save this draft. Please check the required fields.");
+                    return;
+                }
+
+                closeUnsavedModal();
+                if (redirectUrl) {
+                    window.location.href = redirectUrl;
+                } else if (fallbackAction) {
+                    fallbackAction();
+                }
+            });
+        }
+
         // --------------------------------------------------------
-        // Task #83: Save Draft / Publish confirmation modal
+        // Confirmation Modal (Task #83)
         // --------------------------------------------------------
-        // Shows the shared confirm modal with a given title/message and
-        // runs `onConfirm` only if the admin actually clicks Confirm.
-        // Cancel (or clicking outside the card) simply closes the modal -
-        // no form data is touched either way, and `onConfirm` never runs.
-        // Falls back to a native confirm() if the modal markup isn't on
-        // the page for some reason, so this never silently breaks the
-        // Save Draft/Publish flow.
         function showConfirmModal(message, onConfirm, title) {
             if (!confirmActionModal) {
                 if (window.confirm(message)) onConfirm();
@@ -160,157 +301,28 @@
             pendingConfirmAction = null;
         }
 
-        if (confirmActionCancelBtn) {
-            confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+        if (confirmActionModal) {
+            confirmActionModal.addEventListener("click", (e) => {
+                if (e.target === confirmActionModal) closeConfirmModal();
+            });
         }
         if (confirmActionConfirmBtn) {
             confirmActionConfirmBtn.addEventListener("click", () => {
                 const action = pendingConfirmAction;
                 closeConfirmModal();
-                if (action) action();
-            });
-        }
-        if (confirmActionModal) {
-            // Click outside the card closes it too, matching every other
-            // modal's own outside-click behavior on this page.
-            confirmActionModal.addEventListener("click", (e) => {
-                if (e.target === confirmActionModal) closeConfirmModal();
-            });
-        }
-
-        if (leaveBtn) {
-            leaveBtn.addEventListener("click", () => {
-                const action = pendingNavigation;
-                clearDirty();
-                closeUnsavedModal();
-                if (action) action();
-            });
-        }
-
-        if (saveAndLeaveBtn) {
-            saveAndLeaveBtn.addEventListener("click", async () => {
-                clearUnsavedSaveError();
-
-                // Captured up front: pendingNavigation gets cleared the
-                // moment closeUnsavedModal() runs, and the real target
-                // (Manage Learning Resources) lives on the button itself,
-                // rendered server-side - see unsaved-changes-modal.html.
-                const fallbackAction = pendingNavigation;
-                const redirectUrl = saveAndLeaveBtn.dataset.redirectUrl || "";
-
-                // Task #84: guard against double-clicks and keep the other
-                // two options from being used mid-save.
-                saveAndLeaveBtn.disabled = true;
-                if (stayBtn) stayBtn.disabled = true;
-                if (leaveBtn) leaveBtn.disabled = true;
-
-                // Reuses the exact same save-draft logic/route the header
-                // "Save Draft" button already uses (Task #44) - never a
-                // second copy of the validation or the fetch() call.
-                const ok = await performSaveDraft();
-
-                saveAndLeaveBtn.disabled = false;
-                if (stayBtn) stayBtn.disabled = false;
-                if (leaveBtn) leaveBtn.disabled = false;
-
-                if (!ok) {
-                    // Task #84: a required field (Lesson Name, Category,
-                    // Module, or lesson content length) is still missing -
-                    // performSaveDraft() already surfaced the exact reason
-                    // via showDraftNotice() (top-bar notice, hidden behind
-                    // this modal's overlay). Mirror that same message
-                    // inside the modal itself and KEEP IT OPEN, instead of
-                    // closing it and leaving the admin wondering why
-                    // nothing happened - they can fix the field and click
-                    // Save Draft & Leave again without losing their intent
-                    // to leave.
-                    const notice = document.querySelector(".top-bar-validation-row .js-draft-notice");
-                    const message = (notice && notice.textContent)
-                        ? notice.textContent
-                        : "Could not save this draft. Please check the form and try again.";
-                    showUnsavedSaveError(message);
-                    return;
-                }
-
-                // Success: the draft is saved (performSaveDraft() already
-                // cleared the unsaved-changes flag) - close this modal and
-                // always return to the Manage Learning Resources list,
-                // regardless of which link originally opened this modal,
-                // per Task #84's expected result. Falls back to whatever
-                // link was originally clicked only if the redirect URL is
-                // somehow missing from the button.
-                closeUnsavedModal();
-
-                if (redirectUrl) {
-                    window.location.href = redirectUrl;
-                } else if (fallbackAction) {
-                    fallbackAction();
-                }
+                if (typeof action === "function") action();
             });
         }
 
         // --------------------------------------------------------
-        // Task #82: Draft save notice ("Draft saved successfully." /
-        // "Please enter a lesson name before saving a draft.", etc.)
-        // renders inside .top-bar-validation-row, under the Preview
-        // Lesson / Save Draft / Publish buttons - completely separate
-        // from #lessonNameError (which sits beside the Lesson Name
-        // label instead).
-        // --------------------------------------------------------
-        function showDraftNotice(message, isError) {
-            const anchor = document.querySelector(".top-bar-validation-row");
-            if (!anchor) { if (isError) alert(message); return; }
-            let notice = anchor.querySelector(".js-draft-notice");
-            if (!notice) {
-                notice = document.createElement("span");
-                notice.className = "js-draft-notice top-bar-inline-message";
-                anchor.appendChild(notice);
-            }
-            notice.textContent = message;
-            notice.style.display = "inline";
-            notice.style.color = isError ? "#e02424" : "#09B300";
-        }
-
-        function clearDraftNotice() {
-            const anchor = document.querySelector(".top-bar-validation-row");
-            const notice = anchor ? anchor.querySelector(".js-draft-notice") : null;
-            if (notice) {
-                notice.textContent = "";
-                notice.style.display = "none";
-            }
-        }
-
-        // --------------------------------------------------------
-        // Save Draft (POST /admin/upload-resource/save-draft)
+        // Save Draft Logic
         // --------------------------------------------------------
         async function performSaveDraft() {
-            if (!lessonNameInput || !lessonNameInput.value.trim()) {
-                showDraftNotice("Please enter a lesson name before saving a draft.", true);
-                if (lessonNameInput) lessonNameInput.focus();
+            if (!validateResourceForm(false)) {
                 return false;
             }
-            if (!categorySelect || !categorySelect.value) {
-                showDraftNotice("Please select a category before saving a draft.", true);
-                return false;
-            }
-            if (!moduleSelect || !moduleSelect.value) {
-                showDraftNotice("Please select a module before saving a draft.", true);
-                return false;
-            }
-                    if (!moduleSelect || !moduleSelect.value) {
-            showDraftNotice("Please select a module before saving a draft.", true);
-            return false;
-        }
 
-        // NEW: same Lesson Message minimum-length rule Publish enforces
-        // (editor-toolbar.js), reused here instead of a second copy.
-        if (typeof window.cobraByteValidateLessonContent === "function") {
-            const contentCheck = window.cobraByteValidateLessonContent();
-            if (!contentCheck.valid) {
-                showDraftNotice(contentCheck.message, true);
-                return false;
-            }
-        }
             const originalHtml = saveDraftBtn ? saveDraftBtn.innerHTML : "";
             if (saveDraftBtn) {
                 saveDraftBtn.disabled = true;
@@ -318,13 +330,6 @@
             }
 
             try {
-                // Task #45: same fix as the real Publish submit (see
-                // editor-toolbar.js's syncInteractiveBlockValues()) -
-                // without this, a filename typed or a mode dropdown
-                // changed inside a code/terminal block would silently
-                // vanish from the draft the moment it's saved, since
-                // those live values never make it into editor.innerHTML
-                // on their own.
                 if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
                     window.cobraByteSyncInteractiveBlocks();
                 }
@@ -345,7 +350,7 @@
                 const result = await response.json();
 
                 if (!result.success) {
-                    showDraftNotice(result.message || "Could not save draft.", true);
+                    showPopupAlert(result.message || "Could not save draft.", "error");
                     return false;
                 }
 
@@ -353,10 +358,10 @@
                     resourceIdInput.value = result.resource_id;
                 }
                 clearDirty();
-                showDraftNotice(result.message || "Draft saved successfully.", false);
+                showPopupAlert(result.message || "Draft saved successfully.", "success");
                 return true;
             } catch (err) {
-                showDraftNotice("Could not reach the server. Please try again.", true);
+                showPopupAlert("Could not reach the server. Please try again.", "error");
                 return false;
             } finally {
                 if (saveDraftBtn) {
@@ -366,13 +371,11 @@
             }
         }
 
-        // Task #83: confirm before actually saving a draft. Cancel closes
-        // the modal and leaves every field exactly as typed; Confirm runs
-        // the existing performSaveDraft() flow unchanged (including its
-        // own required-field/content-length validation).
         if (saveDraftBtn) {
             saveDraftBtn.addEventListener("click", (e) => {
                 e.preventDefault();
+                if (!validateResourceForm(false)) return;
+
                 showConfirmModal(
                     "Are you sure you want to save this draft?",
                     () => { performSaveDraft(); },
@@ -382,10 +385,7 @@
         }
 
         // --------------------------------------------------------
-        // Intercept in-app link navigation (sidebar, header Back link,
-        // etc.) while there are unsaved changes. Excludes the admin
-        // logout link and disabled placeholder nav items, which already
-        // have their own dedicated click handlers/modals elsewhere.
+        // In-app Link Interception
         // --------------------------------------------------------
         document.querySelectorAll('a[href]:not([href="#"])').forEach((link) => {
             if (link.id === "adminLogoutBtn") return;
@@ -399,58 +399,14 @@
             });
         });
 
-        function showLessonContentError(message) {
-            const errorEl = document.getElementById("lessonContentError");
-            if (!errorEl) { alert(message); return; }
-            errorEl.textContent = message;
-            errorEl.style.display = "block";
-        }
-
-        function clearLessonContentError() {
-            const errorEl = document.getElementById("lessonContentError");
-            if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
-        }
-
-        if (editor) editor.addEventListener("input", clearLessonContentError);
-
         // --------------------------------------------------------
-        // Publish submit handling (Task #83, plus a fix for a pre-existing
-        // bug): the Publish button is a real type="submit" control, so the
-        // browser's own required-field validation (Lesson Name, Category,
-        // Module all have `required`) already runs BEFORE this listener
-        // ever fires - that behavior is untouched here.
-        //
-        // Once the native required-field check passes:
-        //   1. Content-length is checked via the SAME shared validator
-        //      Save Draft already uses (window.cobraByteValidateLessonContent,
-        //      defined once in editor-toolbar.js) - previously this file had
-        //      its own broken copy of this check (referencing functions/
-        //      variables that don't exist in this file's scope), which threw
-        //      an error on every single Publish click. That broken copy is
-        //      removed; this is now the one place this rule is enforced for
-        //      Publish.
-        //   2. If content is valid and the admin hasn't confirmed yet, the
-        //      real submission is paused (preventDefault) and the shared
-        //      confirm modal is shown. Cancel leaves the form exactly as it
-        //      was - nothing is submitted, nothing is lost.
-        //   3. On Confirm, the same interactive-block sync Publish always
-        //      needed (Task #45) is performed, then the form is submitted
-        //      for real via form.requestSubmit() - which re-runs this exact
-        //      listener, but `publishConfirmed` is now true, so it falls
-        //      through to the real, unblocked submission instead of asking
-        //      again.
+        // Publish Submission Handling
+        // --------------------------------------------------------
         form.addEventListener("submit", function (e) {
-            const check = typeof window.cobraByteValidateLessonContent === "function"
-                ? window.cobraByteValidateLessonContent()
-                : { valid: true, message: "" };
-
-            if (!check.valid) {
+            if (!validateResourceForm(true)) {
                 e.preventDefault();
-                showLessonContentError(check.message);
-                if (editor) editor.focus();
                 return;
             }
-            clearLessonContentError();
 
             if (!publishConfirmed) {
                 e.preventDefault();
@@ -460,10 +416,6 @@
                         publishConfirmed = true;
                         isSubmitting = true;
                         clearDirty();
-                        // Task #45: must run BEFORE reading editor.innerHTML,
-                        // or any filename typed / dropdown chosen inside a
-                        // code/terminal block would silently be dropped from
-                        // what actually gets published.
                         if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
                             window.cobraByteSyncInteractiveBlocks();
                         }
@@ -475,7 +427,6 @@
                 return;
             }
 
-            // Already confirmed - this is the real, final submission.
             isSubmitting = true;
             clearDirty();
         });
