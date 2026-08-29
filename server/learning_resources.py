@@ -191,8 +191,12 @@ def get_resources_by_module(module_id):
             SELECT lr.resource_id, lr.resource_title
             FROM {LEARNING_RESOURCES_TABLE} lr
             LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            INNER JOIN {MODULES_TABLE} m ON lr.module_id = m.module_id
+            LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
             WHERE lr.module_id = %s
               AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')
+              AND COALESCE(m.is_archived, 0) = 0
+              AND (c.cat_id IS NULL OR COALESCE(c.is_archived, 0) = 0)
             ORDER BY lr.resource_title ASC
             """,
             (module_id,)

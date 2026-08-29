@@ -14,6 +14,8 @@ from text_formatting import format_display_name, format_sentence_case  # NEW: se
 CATEGORY_TABLE = "category_tbl"
 MODULES_TABLE = "modules_tbl"
 MODULE_STATS_TABLE = "module_stats_tbl"
+LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
+LR_STATS_TABLE = "learning_resources_stats_tbl"
 
 # Task requirement: these three statuses must exist in module_stats_tbl.
 # Never hardcoded anywhere else in the app - every other file reads them
@@ -807,6 +809,23 @@ def archive_module(module_id):
                 "module status to Draft first."
             )
 
+        # Task #91: Check if there are active learning resources attached to this module
+        cursor.execute(
+            f"""SELECT COUNT(*)
+                FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.module_id = %s
+                  AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')""",
+            (module_id,)
+        )
+        (resource_count,) = cursor.fetchone()
+        if resource_count > 0:
+            cursor.close()
+            return False, (
+                "Cannot archive this module because it has attached learning resources. "
+                "Please delete or reassign the resources first."
+            )
+
         cursor.execute(
             f"""UPDATE {MODULES_TABLE}
                 SET is_archived = 1, updated_at = NOW()
@@ -1182,12 +1201,15 @@ def get_modules_by_category(cat_id):
         return []
     try:
         ensure_is_archived_column(connection)
+        ensure_category_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             f"""SELECT m.module_id, m.module_name FROM {MODULES_TABLE} m
+                INNER JOIN {CATEGORY_TABLE} c ON m.cat_id = c.cat_id
                 LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
                 WHERE m.cat_id = %s
                   AND COALESCE(m.is_archived, 0) = 0
+                  AND COALESCE(c.is_archived, 0) = 0
                   AND COALESCE(ms.module_stats_name, '') != 'Archived'
                 ORDER BY m.module_name ASC""",
             (cat_id,)
