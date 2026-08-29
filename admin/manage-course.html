@@ -34,15 +34,18 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="header-actions">
-                            <!-- Task #27: Soft Delete / Archive - lets the
-                                 admin view and restore archived modules
-                                 without touching the existing "View
-                                 Categories" control or overall layout. -->
-                            <button id="openArchivedModulesBtn" class="btn btn-primary-custom">
-                                <i class="fa-solid fa-box-archive"></i> Archived Modules
-                            </button>
+                            <!-- Task #87: Header Button Layout: [+ module] [+ category] [archive icon] [eye icon] -->
                             <button id="openCreateModuleBtn" class="btn btn-success-custom">
-                                View Categories
+                                <i class="fa-solid fa-plus"></i> Module
+                            </button>
+                            <button id="openCreateCategoryBtn" class="btn btn-success-custom">
+                                <i class="fa-solid fa-plus"></i> Category
+                            </button>
+                            <button id="openArchivedModulesBtn" class="btn btn-icon-custom" title="Archived Items">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </button>
+                            <button id="openViewCategoriesBtn" class="btn btn-icon-custom" title="View Categories">
+                                <i class="fa-solid fa-eye"></i>
                             </button>
                         </div>
                     </div>
@@ -178,6 +181,8 @@
             </div>
         </main>
     </div>
+    {% include 'create-module-modal.html' %}
+    {% include 'create-category-modal.html' %}
     {% include 'categories-modal.html' %}
     {% include 'edit-module-modal.html' %}
     {% include 'edit-category-modal.html' %}

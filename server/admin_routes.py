@@ -31,6 +31,7 @@ from manage_course import (
     archive_module, restore_module,  # NEW - Task #27: soft delete/archive
     get_modules_by_category,  # NEW - Task #41: dependent Module dropdown lookup
     permanently_delete_module,  # NEW - Task #80: Archived Modules permanent delete
+    archive_category, restore_category, permanently_delete_category, get_archived_categories,  # NEW - Task #87: Unified Archives
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -1460,16 +1461,12 @@ def manage_course_delete_module(module_id):
 
 
 # ============================================================
-# Task #27: ARCHIVED MODULES - list + restore
+# Task #27 & #87: UNIFIED ARCHIVES - Modules & Categories
 # ============================================================
 @admin_bp.route('/manage-course/modules/archived')
 def manage_course_archived_modules():
     """
-    Live search/pagination for the Archived Modules view - mirrors
-    manage_course_data() exactly, just scoped to is_archived = 1
-    (via get_modules_overview(archived=True)) instead of the active
-    (is_archived = 0) list. No status filter param here since the
-    Archived Modules view doesn't expose a status dropdown of its own.
+    Live search/pagination for the Archived Modules view.
     """
     search = request.args.get('q', '')
     page = request.args.get('page', 1, type=int)
@@ -1483,10 +1480,7 @@ def manage_course_archived_modules():
 @admin_bp.route('/manage-course/modules/<int:module_id>/restore', methods=['POST'])
 def manage_course_restore_module(module_id):
     """
-    Task #27: flips a module's is_archived flag back to 0 so it
-    reappears in the normal active Manage Course list. Never creates a
-    new module row - the exact same module_id, name, description,
-    category, and publication status are preserved.
+    Task #27: flips a module's is_archived flag back to 0.
     """
     success, message = restore_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
@@ -1495,19 +1489,52 @@ def manage_course_restore_module(module_id):
 @admin_bp.route('/manage-course/modules/<int:module_id>/permanent-delete', methods=['POST'])
 def manage_course_permanently_delete_module(module_id):
     """
-    Task #80: permanently removes an archived module from the database -
-    a real DELETE, never another archive/status flip. Thin HTTP wrapper
-    only (matches this project's convention - see
-    manage_course_restore_module()/manage_course_delete_module() above);
-    all validation (module must exist and already be archived) and the
-    foreign-key/referential-integrity safety check live in
-    manage_course.permanently_delete_module().
-
-    Only reachable from the Archived Modules view - there is no
-    equivalent route for the active Manage Course table.
+    Task #80: permanently removes an archived module from the database.
     """
     success, message = permanently_delete_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/archived')
+def manage_course_archived_categories():
+    """
+    Task #87: Live search/pagination for the Archived Categories view.
+    """
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    overview = get_archived_categories(search_query=search, page=page)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/archive', methods=['POST'])
+def manage_course_archive_category(cat_id):
+    """
+    Task #87: Soft-archives a category (is_archived = 1).
+    """
+    success, message = archive_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/restore', methods=['POST'])
+def manage_course_restore_category(cat_id):
+    """
+    Task #87: Flips a category's is_archived flag back to 0.
+    """
+    success, message = restore_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/permanent-delete', methods=['POST'])
+def manage_course_permanently_delete_category(cat_id):
+    """
+    Task #87: Permanently deletes an archived category from the database.
+    """
+    success, message = permanently_delete_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
 
 # ------------------------------------------------------------------
 # Task #19: Placeholder ("Under Construction") pages

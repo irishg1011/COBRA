@@ -605,6 +605,31 @@ body {
     color: #ffffff !important;
 }
 
+.btn-icon-custom {
+    background: #09B300;
+    color: #ffffff !important;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none !important;
+    font-size: 1rem;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.btn-icon-custom:hover,
+.btn-icon-custom:focus,
+.btn-icon-custom:active {
+    background: #079600;
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+
 /* ==========================================================================
    TASK #81: HIGH-CONTRAST UNPUBLISH BUTTON
    Replaces the previous ".btn-secondary-custom" usage for Unpublish,
@@ -1822,10 +1847,48 @@ textarea.form-control-custom {
     padding-right: 20px;
 }
 
-#archivedModulesModal .data-table th:last-child {
-    text-align: right;
-}
-
 #archivedModulesModal .data-table .table-actions-group {
     gap: 12px;
 }
+
+/* ==========================================================================
+   TASK #87: UNIFIED ARCHIVES TOGGLE SWITCHER
+   ========================================================================== */
+.archive-toggle-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: 8px;
+    width: fit-content;
+}
+
+.archive-toggle-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #4b5563;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.archive-toggle-btn:hover {
+    color: #111827;
+}
+
+.archive-toggle-btn.active {
+    background: #09B300;
+    color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.archive-toggle-btn.active i {
+    color: #ffffff !important;
+}
