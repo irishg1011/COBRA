@@ -6,75 +6,13 @@
             <button type="button" class="categories-close-btn" id="closeCategoriesModal">&times;</button>
         </div>
         
-        <!-- Relative container to trap the drawers inside the body bounds -->
+        <!-- Scrollable Categories List Container -->
         <div class="modal-body-relative">
-            
-            <!-- 1. Scrollable Categories List -->
             <div class="custom-modal-body categories-scroll-body">
-                <!--
-                    Task #24: This used to be static demo markup. It is now
-                    populated live by admin-manage-course.js's
-                    refreshCategoriesModal() / renderCategoriesAccordion(),
-                    fetched from GET /admin/manage-course/categories
-                    (category_tbl JOINed with modules_tbl + module_stats_tbl).
-                -->
                 <div id="categoriesListView">
                     <p class="text-muted" style="padding: 16px 0;">Loading categories&hellip;</p>
                 </div>
             </div>
-
-            <!-- 2. SLIDING BOTTOM DRAWER: Add Category Form -->
-            <div id="addCategoryDrawer" class="slide-up-drawer" style="display: none;">
-                <div class="drawer-header close-drawer-btn">
-                    <i class="fa-solid fa-chevron-up"></i>
-                    <span class="drawer-title">Add Category</span>
-                </div>
-                <div class="drawer-body">
-                    <div class="form-group-custom">
-                        <label class="form-label-custom">ADD NEW CATEGORY</label>
-                        <input type="text" id="newCategoryNameInput" class="form-control-custom" placeholder="New Category Name">
-                    </div>
-                    <div class="drawer-actions">
-                        <button type="button" class="btn btn-success-custom" id="submitCreateCategoryBtn">Create Category</button>
-                        <button type="button" class="btn-cancel-custom cancel-drawer-btn">Cancel</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. SLIDING BOTTOM DRAWER: Add Module Form -->
-            <div id="addModuleDrawer" class="slide-up-drawer" style="display: none;">
-                <div class="drawer-header close-drawer-btn">
-                    <i class="fa-solid fa-chevron-up"></i>
-                    <span class="drawer-title">Add Module</span>
-                </div>
-                <div class="drawer-body">
-                    <div class="form-group-custom">
-                        <label class="form-label-custom">ADD NEW MODULE</label>
-                        <input type="text" id="newModuleNameInput" class="form-control-custom module-name-input" placeholder="Enter Module Name">
-                        <textarea id="newModuleDescInput" class="form-control-custom module-desc-input" placeholder="Description..." rows="2"></textarea>
-                    </div>
-                    <div class="form-group-custom module-category-group">
-                        <label class="form-label-custom">CATEGORY</label>
-                        <div class="select-wrapper-custom">
-                            <!--
-                                Task #24: options are populated live by
-                                admin-manage-course.js's
-                                populateModuleCategorySelect(), fetched from
-                                category_tbl - never hardcoded values like
-                                "basics"/"control-flow" anymore.
-                            -->
-                            <select id="newModuleCategorySelect" class="form-control-custom module-select-custom">
-                                <option value="" disabled selected>Select Category</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="drawer-actions">
-                        <button type="button" class="btn btn-success-custom" id="submitCreateModuleBtn">Create Module</button>
-                        <button type="button" class="btn-cancel-custom cancel-drawer-btn">Cancel</button>
-                    </div>
-                </div>
-            </div>
-
         </div>
 
         <!-- Modal Footer Actions (Centered) -->
