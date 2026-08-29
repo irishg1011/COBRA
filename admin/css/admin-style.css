@@ -1411,9 +1411,17 @@ body {
 
 .modal-confirm-icon {
     margin-bottom: 16px;
-    color: #e02424;
+    color: #09B300;
     display: flex;
     justify-content: center;
+}
+
+.modal-confirm-icon.modal-confirm-icon-info {
+    color: #09B300;
+}
+
+.modal-confirm-icon.modal-confirm-icon-danger {
+    color: #e02424;
 }
 
 .modal-confirm-icon-svg {
