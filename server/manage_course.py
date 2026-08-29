@@ -139,7 +139,7 @@ def get_categories(include_archived=False):
     try:
         ensure_category_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
-        where_clause = "" if include_archived else "WHERE is_archived = 0"
+        where_clause = "" if include_archived else "WHERE COALESCE(is_archived, 0) = 0"
         cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} {where_clause} ORDER BY category_name ASC")
         rows = cursor.fetchall()
         cursor.close()
@@ -165,7 +165,7 @@ def get_categories_with_modules(include_archived=False):
         ensure_category_is_archived_column(connection)
         ensure_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
-        where_clause = "" if include_archived else "WHERE is_archived = 0"
+        where_clause = "" if include_archived else "WHERE COALESCE(is_archived, 0) = 0"
         cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} {where_clause} ORDER BY category_name ASC")
         categories = cursor.fetchall()
 
@@ -175,7 +175,8 @@ def get_categories_with_modules(include_archived=False):
                    COALESCE(ms.module_stats_name, 'Draft') AS status_name
             FROM {MODULES_TABLE} m
             LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
-            WHERE m.is_archived = 0
+            WHERE COALESCE(m.is_archived, 0) = 0
+              AND COALESCE(ms.module_stats_name, '') != 'Archived'
             ORDER BY m.module_id ASC
             """
         )
@@ -716,7 +717,7 @@ def archive_module(module_id):
         cursor.execute(
             f"""UPDATE {MODULES_TABLE}
                 SET is_archived = 1, updated_at = NOW()
-                WHERE module_id = %s AND is_archived = 0""",
+                WHERE module_id = %s AND COALESCE(is_archived, 0) = 0""",
             (module_id,)
         )
         connection.commit()
@@ -753,19 +754,32 @@ def restore_module(module_id):
         ensure_is_archived_column(connection)
         cursor = connection.cursor()
 
-        cursor.execute(f"SELECT is_archived FROM {MODULES_TABLE} WHERE module_id = %s", (module_id,))
+        cursor.execute(
+            f"""SELECT m.is_archived, ms.module_stats_name
+                FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.module_id = %s""",
+            (module_id,)
+        )
         row = cursor.fetchone()
         if row is None:
             cursor.close()
             return False, "Module not found."
-        if not row[0]:
+        is_archived, status_name = row
+        if not is_archived and status_name != "Archived":
             cursor.close()
             return False, "This module is not archived."
 
         cursor.execute(
             f"""UPDATE {MODULES_TABLE}
-                SET is_archived = 0, updated_at = NOW()
-                WHERE module_id = %s AND is_archived = 1""",
+                SET is_archived = 0,
+                    module_stats_id = CASE
+                        WHEN module_stats_id = (SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Archived' LIMIT 1)
+                        THEN (SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Draft' LIMIT 1)
+                        ELSE module_stats_id
+                    END,
+                    updated_at = NOW()
+                WHERE module_id = %s""",
             (module_id,)
         )
         connection.commit()
@@ -932,13 +946,24 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
         ensure_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
 
-        base_query = """
-            FROM {modules} m
-            LEFT JOIN {categories} c ON m.cat_id = c.cat_id
-            LEFT JOIN {statuses} ms ON m.module_stats_id = ms.module_stats_id
-            WHERE m.is_archived = %s
-        """.format(modules=MODULES_TABLE, categories=CATEGORY_TABLE, statuses=MODULE_STATS_TABLE)
-        params = [1 if archived else 0]
+        if archived:
+            base_query = """
+                FROM {modules} m
+                LEFT JOIN {categories} c ON m.cat_id = c.cat_id
+                LEFT JOIN {statuses} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE (COALESCE(m.is_archived, 0) = 1 OR ms.module_stats_name = 'Archived')
+            """.format(modules=MODULES_TABLE, categories=CATEGORY_TABLE, statuses=MODULE_STATS_TABLE)
+            params = []
+        else:
+            base_query = """
+                FROM {modules} m
+                LEFT JOIN {categories} c ON m.cat_id = c.cat_id
+                LEFT JOIN {statuses} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE COALESCE(m.is_archived, 0) = 0
+                  AND COALESCE(ms.module_stats_name, '') != 'Archived'
+                  AND (COALESCE(c.is_archived, 0) = 0 OR c.cat_id IS NULL)
+            """.format(modules=MODULES_TABLE, categories=CATEGORY_TABLE, statuses=MODULE_STATS_TABLE)
+            params = []
 
         term = (search_query or "").strip()
         if term:
@@ -1066,9 +1091,12 @@ def get_modules_by_category(cat_id):
         ensure_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            f"""SELECT module_id, module_name FROM {MODULES_TABLE}
-                WHERE cat_id = %s AND is_archived = 0
-                ORDER BY module_name ASC""",
+            f"""SELECT m.module_id, m.module_name FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.cat_id = %s
+                  AND COALESCE(m.is_archived, 0) = 0
+                  AND COALESCE(ms.module_stats_name, '') != 'Archived'
+                ORDER BY m.module_name ASC""",
             (cat_id,)
         )
         rows = cursor.fetchall()

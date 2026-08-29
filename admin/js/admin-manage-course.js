@@ -280,9 +280,7 @@
                         alert("Module archived successfully.");
                     }
                     loadModules();
-                    if (categoriesModal && categoriesModal.style.display === "flex") {
-                        refreshCategoriesModal();
-                    }
+                    refreshCategoriesModal();
                 }
             });
         }
@@ -1028,6 +1026,7 @@
                     }
                     loadArchivedModules();
                     loadModules();
+                    refreshCategoriesModal();
                     return;
                 }
 
