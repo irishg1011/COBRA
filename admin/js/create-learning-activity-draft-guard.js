@@ -314,67 +314,117 @@
                 if (activityTypeSelect) activityTypeSelect.classList.remove("field-error");
             }
 
-            // 6. Section 2 Content Validation if publishing
-            if (isPublish) {
-                const selectedType = activityTypeSelect ? activityTypeSelect.value : "Multiple Choice";
-                if (selectedType === "Multiple Choice") {
-                    const cards = document.querySelectorAll("#questionsContainer .question-card");
-                    if (!cards || cards.length === 0) {
-                        isValid = false;
-                        if (!firstErrorMsg) {
-                            firstErrorMsg = "Please add at least one question before publishing.";
-                            firstErrorField = document.getElementById("addQuestionMainBtn");
+            // 6. Section 2 Content Validation (MCQ duplicate options & answer/feedback match)
+            const selectedType = activityTypeSelect ? activityTypeSelect.value : "Multiple Choice";
+            if (selectedType === "Multiple Choice") {
+                const cards = document.querySelectorAll("#questionsContainer .question-card");
+                if (isPublish && (!cards || cards.length === 0)) {
+                    isValid = false;
+                    if (!firstErrorMsg) {
+                        firstErrorMsg = "Please add at least one question before publishing.";
+                        firstErrorField = document.getElementById("addQuestionMainBtn");
+                    }
+                } else if (cards && cards.length > 0) {
+                    cards.forEach((card, cIdx) => {
+                        const textarea = card.querySelector(".question-textarea");
+                        if (isPublish && textarea && !textarea.value.trim()) {
+                            isValid = false;
+                            textarea.classList.add("field-error");
+                            if (!firstErrorMsg) {
+                                firstErrorMsg = `Question #${cIdx + 1} text is required.`;
+                                firstErrorField = textarea;
+                            }
                         }
-                    } else {
-                        cards.forEach((card, cIdx) => {
-                            const textarea = card.querySelector(".question-textarea");
-                            if (textarea && !textarea.value.trim()) {
+
+                        const rows = card.querySelectorAll(".answer-row");
+                        const seenAnswers = new Map();
+
+                        rows.forEach((row, rIdx) => {
+                            const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
+                            const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
+                            const optText = textInput ? textInput.value.trim() : "";
+                            const fbText = feedbackInput ? feedbackInput.value.trim() : "";
+                            const letter = String.fromCharCode(65 + rIdx);
+
+                            if (isPublish && textInput && !optText) {
                                 isValid = false;
-                                textarea.classList.add("field-error");
+                                textInput.classList.add("field-error");
                                 if (!firstErrorMsg) {
-                                    firstErrorMsg = `Question #${cIdx + 1} text is required.`;
-                                    firstErrorField = textarea;
+                                    firstErrorMsg = `Answer option in Question #${cIdx + 1} is required.`;
+                                    firstErrorField = textInput;
                                 }
                             }
-                            card.querySelectorAll(".answer-row").forEach((row) => {
-                                const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
-                                const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
-                                if (textInput && !textInput.value.trim()) {
-                                    isValid = false;
-                                    textInput.classList.add("field-error");
-                                    if (!firstErrorMsg) {
-                                        firstErrorMsg = `Answer option in Question #${cIdx + 1} is required.`;
-                                        firstErrorField = textInput;
-                                    }
+                            if (isPublish && feedbackInput && !fbText) {
+                                isValid = false;
+                                feedbackInput.classList.add("field-error");
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Feedback in Question #${cIdx + 1} is required.`;
+                                    firstErrorField = feedbackInput;
                                 }
-                                if (feedbackInput && !feedbackInput.value.trim()) {
-                                    isValid = false;
-                                    feedbackInput.classList.add("field-error");
-                                    if (!firstErrorMsg) {
-                                        firstErrorMsg = `Feedback in Question #${cIdx + 1} is required.`;
-                                        firstErrorField = feedbackInput;
-                                    }
+                            }
+
+                            // Task #103: Duplicate answer check within the same question
+                            if (optText) {
+                                const lowerOpt = optText.toLowerCase();
+                                if (!seenAnswers.has(lowerOpt)) {
+                                    seenAnswers.set(lowerOpt, []);
                                 }
-                            });
+                                seenAnswers.get(lowerOpt).push(textInput);
+                            }
+
+                            // Task #103: Answer vs Feedback cannot be identical
+                            if (optText && fbText && optText.toLowerCase() === fbText.toLowerCase()) {
+                                isValid = false;
+                                if (textInput) textInput.classList.add("field-error");
+                                if (feedbackInput) feedbackInput.classList.add("field-error");
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Answer and Feedback for Learner cannot be identical in Question #${cIdx + 1} (Option ${letter}).`;
+                                    firstErrorField = feedbackInput;
+                                }
+                            }
                         });
-                    }
-                } else if (selectedType === "Fill in the Blanks") {
-                    const cards = document.querySelectorAll("#fillBlanksContainer .fill-blank-card");
-                    if (!cards || cards.length === 0) {
-                        isValid = false;
-                        if (!firstErrorMsg) {
-                            firstErrorMsg = "Please add at least one sentence before publishing.";
-                            firstErrorField = document.getElementById("addFillBlankMainBtn");
+
+                        // Highlight duplicate answer options
+                        for (const [ansKey, inputs] of seenAnswers.entries()) {
+                            if (inputs.length > 1) {
+                                isValid = false;
+                                inputs.forEach((inp) => inp.classList.add("field-error"));
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Duplicate answer option "${inputs[0].value.trim()}" found in Question #${cIdx + 1}. Each option must have a unique answer.`;
+                                    firstErrorField = inputs[1] || inputs[0];
+                                }
+                            }
                         }
-                    }
-                } else if (selectedType === "Flashcards") {
-                    const cards = document.querySelectorAll("#flashcardsContainer .flashcard-card");
-                    if (!cards || cards.length === 0) {
-                        isValid = false;
-                        if (!firstErrorMsg) {
-                            firstErrorMsg = "Please add at least one flashcard before publishing.";
-                            firstErrorField = document.getElementById("addFlashcardMainBtn");
+
+                        // Check correct radio option when publishing
+                        if (isPublish && rows.length > 0) {
+                            const checkedRadio = card.querySelector('input[type="radio"]:checked');
+                            if (!checkedRadio) {
+                                isValid = false;
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Please select the correct answer for Question #${cIdx + 1}.`;
+                                    firstErrorField = card.querySelector('input[type="radio"]');
+                                }
+                            }
                         }
+                    });
+                }
+            } else if (isPublish && selectedType === "Fill in the Blanks") {
+                const cards = document.querySelectorAll("#fillBlanksContainer .fill-blank-card");
+                if (!cards || cards.length === 0) {
+                    isValid = false;
+                    if (!firstErrorMsg) {
+                        firstErrorMsg = "Please add at least one sentence before publishing.";
+                        firstErrorField = document.getElementById("addFillBlankMainBtn");
+                    }
+                }
+            } else if (isPublish && selectedType === "Flashcards") {
+                const cards = document.querySelectorAll("#flashcardsContainer .flashcard-card");
+                if (!cards || cards.length === 0) {
+                    isValid = false;
+                    if (!firstErrorMsg) {
+                        firstErrorMsg = "Please add at least one flashcard before publishing.";
+                        firstErrorField = document.getElementById("addFlashcardMainBtn");
                     }
                 }
             }

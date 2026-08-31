@@ -204,7 +204,8 @@ document.addEventListener('focus', initActivityFieldTracking, true);
  * True only if `card` has its Question text filled in AND every one of
  * its current Answer Options has BOTH an answer and a feedback message
  * filled in (matches the "Feedback for Learner *" required column shown
- * in the builder). A question with fewer than 2 options is treated as
+ * in the builder), with NO duplicate option answers and NO matching
+ * answer/feedback pairs. A question with fewer than 2 options is treated as
  * incomplete, since Multiple Choice always requires at least 2.
  */
 function isQuestionCardComplete(card) {
@@ -217,43 +218,134 @@ function isQuestionCardComplete(card) {
     const rows = card.querySelectorAll('.answer-row');
     if (rows.length < 2) return false;
 
+    const seenAnswers = new Set();
     for (const row of rows) {
         const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
         const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
         const optionText = textInput ? textInput.value.trim() : '';
         const feedbackText = feedbackInput ? feedbackInput.value.trim() : '';
         if (!optionText || !feedbackText) return false;
+
+        const lowerOpt = optionText.toLowerCase();
+        if (seenAnswers.has(lowerOpt)) return false;
+        seenAnswers.add(lowerOpt);
+
+        if (lowerOpt === feedbackText.toLowerCase()) return false;
     }
 
     return true;
 }
 
 /**
- * Task #58 & #61: gate for both "Add Question" and "Duplicate Question".
+ * Task #58, #61 & #103: gate for both "Add Question" and "Duplicate Question".
  * Returns true when there is no existing question yet, or the current
- * LAST question card is fully complete (and sourceCard is complete if duplicating).
+ * LAST question card is fully complete with valid unique options and differentiated feedback.
  * Otherwise alerts the admin with helpful validation feedback and returns false.
  */
 function canAddNewQuestion(sourceCard = null) {
-    if (sourceCard && !isQuestionCardComplete(sourceCard)) {
-        alert('Please complete this question first before duplicating it.');
+    const targetCard = sourceCard || (function () {
+        const container = document.getElementById('questionsContainer');
+        if (!container) return null;
+        const cards = container.querySelectorAll('.question-card');
+        return cards.length > 0 ? cards[cards.length - 1] : null;
+    })();
+
+    if (!targetCard) return true;
+
+    const textarea = targetCard.querySelector('.question-textarea');
+    const questionText = textarea ? textarea.value.trim() : '';
+    if (!questionText) {
+        const msg = sourceCard
+            ? 'Please enter the question text before duplicating this question.'
+            : 'Please enter the question text for the current question before adding another.';
+        if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
+            window.cobraByteShowActivityPopupAlert(msg, 'error');
+        } else {
+            alert(msg);
+        }
+        if (textarea) {
+            textarea.classList.add('field-error');
+            textarea.focus();
+        }
         return false;
     }
 
-    const container = document.getElementById('questionsContainer');
-    if (!container) return true;
-
-    const cards = container.querySelectorAll('.question-card');
-    if (cards.length === 0) return true;
-
-    const lastCard = cards[cards.length - 1];
-    if (!isQuestionCardComplete(lastCard)) {
-        alert(
-            'Please complete the current question first - the question text, ' +
-            'every answer option, and every feedback field are all required ' +
-            'before adding or duplicating another question.'
-        );
+    const rows = targetCard.querySelectorAll('.answer-row');
+    if (rows.length < 2) {
+        const msg = 'Multiple choice questions must have at least 2 options.';
+        if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
+            window.cobraByteShowActivityPopupAlert(msg, 'error');
+        } else {
+            alert(msg);
+        }
         return false;
+    }
+
+    const seenAnswers = new Map();
+    for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+        const row = rows[rIdx];
+        const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
+        const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
+        const optionText = textInput ? textInput.value.trim() : '';
+        const feedbackText = feedbackInput ? feedbackInput.value.trim() : '';
+        const letter = String.fromCharCode(65 + rIdx);
+
+        if (!optionText) {
+            const msg = `Please enter the answer for Option ${letter} before proceeding.`;
+            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
+                window.cobraByteShowActivityPopupAlert(msg, 'error');
+            } else {
+                alert(msg);
+            }
+            if (textInput) {
+                textInput.classList.add('field-error');
+                textInput.focus();
+            }
+            return false;
+        }
+
+        if (!feedbackText) {
+            const msg = `Please enter the feedback for Option ${letter} before proceeding.`;
+            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
+                window.cobraByteShowActivityPopupAlert(msg, 'error');
+            } else {
+                alert(msg);
+            }
+            if (feedbackInput) {
+                feedbackInput.classList.add('field-error');
+                feedbackInput.focus();
+            }
+            return false;
+        }
+
+        const lowerOpt = optionText.toLowerCase();
+        if (seenAnswers.has(lowerOpt)) {
+            if (textInput) textInput.classList.add('field-error');
+            const prevInput = seenAnswers.get(lowerOpt);
+            if (prevInput) prevInput.classList.add('field-error');
+            const msg = `Duplicate answer option "${optionText}" found. Each option must have a unique answer.`;
+            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
+                window.cobraByteShowActivityPopupAlert(msg, 'error');
+            } else {
+                alert(msg);
+            }
+            if (textInput) textInput.focus();
+            return false;
+        }
+        seenAnswers.set(lowerOpt, textInput);
+
+        if (lowerOpt === feedbackText.toLowerCase()) {
+            if (textInput) textInput.classList.add('field-error');
+            if (feedbackInput) feedbackInput.classList.add('field-error');
+            const msg = `Answer and Feedback for Learner cannot be identical (Option ${letter}).`;
+            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
+                window.cobraByteShowActivityPopupAlert(msg, 'error');
+            } else {
+                alert(msg);
+            }
+            if (feedbackInput) feedbackInput.focus();
+            return false;
+        }
     }
 
     return true;
