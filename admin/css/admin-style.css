@@ -1403,7 +1403,7 @@ body {
     padding: 28px 24px;
     border-radius: 12px;
     width: 100%;
-    max-width: 380px;
+    max-width: 500px;
     text-align: center;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     font-family: 'Inter', sans-serif;
@@ -1472,12 +1472,43 @@ body {
 }
 
 /* ==========================================================================
-   TASK #44: Unsaved Changes Modal (upload-resource.html:
-   #unsavedChangesModal) - three-action variant of the logout confirm
-   modal (Stay / Leave Without Saving / Save Draft & Leave).
+   TASK #44 & #97: Unsaved Changes Modal (upload-resource.html:
+   #unsavedChangesModal, create-learning-activity.html: #unsavedChangesModal)
+   - three-action variant (Stay / Leave Without Saving / Save Draft & Leave).
+   Aligned neatly in a single horizontal line.
    ========================================================================== */
 .modal-confirm-actions-triple {
-    flex-wrap: wrap;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+.modal-confirm-actions-triple .modal-btn-cancel,
+.modal-confirm-actions-triple .modal-btn-danger,
+.modal-confirm-actions-triple .modal-btn-save {
+    padding: 10px 12px;
+    font-size: 13.5px;
+    white-space: nowrap;
+    flex: 1 1 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+@media (max-width: 540px) {
+    .modal-confirm-actions-triple {
+        flex-wrap: wrap;
+    }
+    .modal-confirm-actions-triple .modal-btn-cancel,
+    .modal-confirm-actions-triple .modal-btn-danger,
+    .modal-confirm-actions-triple .modal-btn-save {
+        flex: 1 1 auto;
+        width: 100%;
+    }
 }
 
 .modal-btn-save {
