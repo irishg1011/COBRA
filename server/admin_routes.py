@@ -46,7 +46,7 @@ from learning_activity_draft import save_activity_draft, get_activity_draft  # N
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
     parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
 )
-from learning_activity_publishing import publish_activity  # NEW - Task #57: flips a saved activity's status to "Published", mirroring resource_publishing.publish_resource()'s two-step pattern
+from learning_activity_publishing import publish_activity, unpublish_activity  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
@@ -1821,6 +1821,39 @@ def learning_activities_data():
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500
     return jsonify({"success": True, **overview}), 200
+
+
+# ============================================================
+# ROUTE: TASK #107 - QUICK PUBLISH / UNPUBLISH A LEARNING ACTIVITY
+# ============================================================
+@admin_bp.route('/learning-activities/<int:activity_id>/publish', methods=['POST'])
+def publish_learning_activity(activity_id):
+    """
+    Task #107: flips a learning activity's status to "Published" directly
+    from the Manage Learning Activities table's row-level toggle - no need
+    to open the full Create/Edit Learning Activity screen first. Thin HTTP
+    wrapper only, matching this project's existing convention (see
+    publish_learning_resource() above) - all real logic lives in
+    learning_activity_publishing.publish_activity().
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = publish_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/unpublish', methods=['POST'])
+def unpublish_learning_activity(activity_id):
+    """
+    Task #107: flips a learning activity's status back to "Draft" directly
+    from the Manage Learning Activities table's row-level toggle. Thin
+    HTTP wrapper only - all real logic lives in
+    learning_activity_publishing.unpublish_activity().
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = unpublish_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
 # ============================================================

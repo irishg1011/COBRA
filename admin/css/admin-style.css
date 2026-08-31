@@ -2031,3 +2031,43 @@ textarea.form-control-custom {
 .activity-flash-messages {
     display: none !important;
 }
+
+/* ==========================================================================
+   MANAGE LEARNING ACTIVITIES - PUBLISH STATUS COLUMN
+   ========================================================================== */
+
+#activitiesDataTable th.publish-status-column,
+#activitiesDataTable td.publish-status-column {
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+#activitiesDataTable th.publish-status-column {
+    width: 140px;
+    min-width: 140px;
+}
+
+#activitiesDataTable td.publish-status-column .js-toggle-activity-publish-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    min-width: 100px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   MANAGE LEARNING ACTIVITIES - ACTIONS COLUMN SPACING
+   ========================================================================== */
+
+#activitiesDataTable td.activity-actions-column {
+    padding-right: 28px;
+}
+
+#activitiesDataTable th.activity-actions-column {
+    padding-right: 28px;
+}
