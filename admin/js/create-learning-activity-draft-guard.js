@@ -430,10 +430,11 @@
             }
 
             if (!isValid) {
-                showPopupAlert(firstErrorMsg, "error");
-                if (firstErrorField && typeof firstErrorField.focus === "function") {
-                    firstErrorField.focus();
-                }
+                showInfoModal(firstErrorMsg, "Required Field Missing", () => {
+                    if (firstErrorField && typeof firstErrorField.focus === "function") {
+                        firstErrorField.focus();
+                    }
+                });
             }
 
             return isValid;
@@ -506,6 +507,66 @@
         if (stayBtn) stayBtn.addEventListener("click", closeUnsavedModal);
 
         // --------------------------------------------------------
+        // --------------------------------------------------------
+        // Task #115: Custom Info Alert Modal (Reuses #confirmActionModal)
+        // --------------------------------------------------------
+        function showInfoModal(message, title = "Required Field Missing", onOk = null) {
+            if (!confirmActionModal) {
+                alert(message);
+                if (typeof onOk === "function") onOk();
+                return;
+            }
+
+            if (confirmActionTitle) confirmActionTitle.textContent = title;
+            if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "none";
+            if (confirmActionConfirmBtn) {
+                confirmActionConfirmBtn.textContent = "OK";
+                confirmActionConfirmBtn.className = "modal-btn-save";
+            }
+
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+
+            function cleanup() {
+                confirmActionModal.classList.add("modal-hidden");
+                confirmActionModal.style.display = "none";
+                if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+                if (confirmActionConfirmBtn) {
+                    confirmActionConfirmBtn.removeEventListener("click", handleOk);
+                    confirmActionConfirmBtn.textContent = "Confirm";
+                }
+                confirmActionModal.removeEventListener("click", handleOverlay);
+                document.removeEventListener("keydown", handleKeydown);
+            }
+
+            function handleOk() {
+                cleanup();
+                if (typeof onOk === "function") onOk();
+            }
+
+            function handleOverlay(e) {
+                if (e.target === confirmActionModal) {
+                    cleanup();
+                    if (typeof onOk === "function") onOk();
+                }
+            }
+
+            function handleKeydown(e) {
+                if (e.key === "Escape" || e.key === "Enter") {
+                    cleanup();
+                    if (typeof onOk === "function") onOk();
+                }
+            }
+
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.addEventListener("click", handleOk);
+            confirmActionModal.addEventListener("click", handleOverlay);
+            document.addEventListener("keydown", handleKeydown);
+        }
+
+        window.cobraByteShowActivityInfoModal = showInfoModal;
+
+        // --------------------------------------------------------
         // Save Draft / Publish confirmation modal
         // --------------------------------------------------------
         function showConfirmModal(message, onConfirm, onCancel, title) {
@@ -525,6 +586,12 @@
             pendingConfirmCancelAction = onCancel;
             if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
             if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            if (confirmActionConfirmBtn) {
+                confirmActionConfirmBtn.textContent = "Confirm";
+                confirmActionConfirmBtn.className = "modal-btn-save";
+            }
+            confirmActionModal.classList.remove("modal-hidden");
             confirmActionModal.style.display = "flex";
         }
 

@@ -58,6 +58,16 @@
 // removeFillBlankCard, removeFlashcardCard).
 // ========================================================================
 
+function showActivityAlert(msg, title = "Required Field Missing") {
+    if (typeof window.cobraByteShowActivityInfoModal === 'function') {
+        window.cobraByteShowActivityInfoModal(msg, title);
+    } else if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
+        window.cobraByteShowActivityPopupAlert(msg, 'error');
+    } else {
+        alert(msg);
+    }
+}
+
 /**
  * True for all text inputs and textareas across the activity builder containers
  * (Multiple Choice, Fill in the Blanks, Flashcards). Radios, hidden inputs,
@@ -204,11 +214,7 @@ function canAddNewQuestion(sourceCard = null) {
         const msg = sourceCard
             ? 'Please enter the question text before duplicating this question.'
             : 'Please enter the question text for the current question before adding another.';
-        if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
-            window.cobraByteShowActivityPopupAlert(msg, 'error');
-        } else {
-            alert(msg);
-        }
+        showActivityAlert(msg, 'Incomplete Question');
         if (textarea) {
             textarea.classList.add('field-error');
             textarea.focus();
@@ -219,11 +225,7 @@ function canAddNewQuestion(sourceCard = null) {
     const rows = targetCard.querySelectorAll('.answer-row');
     if (rows.length < 2) {
         const msg = 'Multiple choice questions must have at least 2 options.';
-        if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
-            window.cobraByteShowActivityPopupAlert(msg, 'error');
-        } else {
-            alert(msg);
-        }
+        showActivityAlert(msg, 'Validation Error');
         return false;
     }
 
@@ -238,11 +240,7 @@ function canAddNewQuestion(sourceCard = null) {
 
         if (!optionText) {
             const msg = `Please enter the answer for Option ${letter} before proceeding.`;
-            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
-                window.cobraByteShowActivityPopupAlert(msg, 'error');
-            } else {
-                alert(msg);
-            }
+            showActivityAlert(msg, 'Incomplete Option');
             if (textInput) {
                 textInput.classList.add('field-error');
                 textInput.focus();
@@ -252,11 +250,7 @@ function canAddNewQuestion(sourceCard = null) {
 
         if (!feedbackText) {
             const msg = `Please enter the feedback for Option ${letter} before proceeding.`;
-            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
-                window.cobraByteShowActivityPopupAlert(msg, 'error');
-            } else {
-                alert(msg);
-            }
+            showActivityAlert(msg, 'Incomplete Feedback');
             if (feedbackInput) {
                 feedbackInput.classList.add('field-error');
                 feedbackInput.focus();
@@ -270,11 +264,7 @@ function canAddNewQuestion(sourceCard = null) {
             const prevInput = seenAnswers.get(lowerOpt);
             if (prevInput) prevInput.classList.add('field-error');
             const msg = `Duplicate answer option "${optionText}" found. Each option must have a unique answer.`;
-            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
-                window.cobraByteShowActivityPopupAlert(msg, 'error');
-            } else {
-                alert(msg);
-            }
+            showActivityAlert(msg, 'Duplicate Option');
             if (textInput) textInput.focus();
             return false;
         }
@@ -284,11 +274,7 @@ function canAddNewQuestion(sourceCard = null) {
             if (textInput) textInput.classList.add('field-error');
             if (feedbackInput) feedbackInput.classList.add('field-error');
             const msg = `Answer and Feedback for Learner cannot be identical (Option ${letter}).`;
-            if (typeof window.cobraByteShowActivityPopupAlert === 'function') {
-                window.cobraByteShowActivityPopupAlert(msg, 'error');
-            } else {
-                alert(msg);
-            }
+            showActivityAlert(msg, 'Validation Error');
             if (feedbackInput) feedbackInput.focus();
             return false;
         }
@@ -323,7 +309,7 @@ function isFillBlankCardComplete(card) {
  */
 function canAddNewFillBlank(sourceCard = null) {
     if (sourceCard && !isFillBlankCardComplete(sourceCard)) {
-        alert('Please complete this item first before duplicating it.');
+        showActivityAlert('Please complete this item first before duplicating it.', 'Incomplete Item');
         return false;
     }
 
@@ -335,9 +321,10 @@ function canAddNewFillBlank(sourceCard = null) {
 
     const lastCard = cards[cards.length - 1];
     if (!isFillBlankCardComplete(lastCard)) {
-        alert(
+        showActivityAlert(
             'Please complete the current item first - the question/content and ' +
-            'correct answer are required before adding or duplicating another item.'
+            'correct answer are required before adding or duplicating another item.',
+            'Incomplete Item'
         );
         return false;
     }
@@ -369,7 +356,7 @@ function isFlashcardCardComplete(card) {
  */
 function canAddNewFlashcard(sourceCard = null) {
     if (sourceCard && !isFlashcardCardComplete(sourceCard)) {
-        alert('Please complete this flashcard first before duplicating it.');
+        showActivityAlert('Please complete this flashcard first before duplicating it.', 'Incomplete Flashcard');
         return false;
     }
 
@@ -381,9 +368,10 @@ function canAddNewFlashcard(sourceCard = null) {
 
     const lastCard = cards[cards.length - 1];
     if (!isFlashcardCardComplete(lastCard)) {
-        alert(
+        showActivityAlert(
             'Please complete the current flashcard first - the front and ' +
-            'back card texts are required before adding or duplicating another flashcard.'
+            'back card texts are required before adding or duplicating another flashcard.',
+            'Incomplete Flashcard'
         );
         return false;
     }
@@ -1000,7 +988,7 @@ function removeOptionRow(btn) {
     const wrapper = row.closest('.answer-options-wrapper');
     
     if (wrapper.querySelectorAll('.answer-row').length <= 2) {
-        alert('Multiple choice questions must have at least 2 options.');
+        showActivityAlert('Multiple choice questions must have at least 2 options.', 'Option Limit');
         return;
     }
 

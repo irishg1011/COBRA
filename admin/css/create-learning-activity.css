@@ -526,3 +526,16 @@
     justify-content: center !important;
     margin-top: 14px;
 }
+
+/* Task #115: Red border highlighting for invalid / empty required fields and dropdowns */
+.field-error,
+.form-control.field-error,
+.form-control-select.field-error,
+.custom-select.field-error,
+.question-textarea.field-error,
+input.field-error,
+select.field-error,
+textarea.field-error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 1px #ef4444 !important;
+}

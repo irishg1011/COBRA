@@ -73,7 +73,7 @@
                     {% endif %}
                 {% endwith %}
 
-                <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST">
+                <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST" novalidate>
                     <input type="hidden" name="activity_id" id="activityIdInput" value="{{ existing_activity.la_id if existing_activity else '' }}">
                     <!-- Section 1: Activity Information -->
                     <div class="card-box padded-card mb-24">

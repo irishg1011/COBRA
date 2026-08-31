@@ -28,7 +28,9 @@
 
         function showTitleError(message) {
             if (activityTitleInput) activityTitleInput.classList.add("field-error");
-            if (typeof window.cobraByteShowActivityPopupAlert === "function") {
+            if (typeof window.cobraByteShowActivityInfoModal === "function") {
+                window.cobraByteShowActivityInfoModal(message, "Activity Title Missing");
+            } else if (typeof window.cobraByteShowActivityPopupAlert === "function") {
                 window.cobraByteShowActivityPopupAlert(message, "error");
             }
         }
@@ -117,7 +119,9 @@
 
         function showTypeError(message) {
             if (activityTypeSelect) activityTypeSelect.classList.add("field-error");
-            if (typeof window.cobraByteShowActivityPopupAlert === "function") {
+            if (typeof window.cobraByteShowActivityInfoModal === "function") {
+                window.cobraByteShowActivityInfoModal(message, "Activity Type Error");
+            } else if (typeof window.cobraByteShowActivityPopupAlert === "function") {
                 window.cobraByteShowActivityPopupAlert(message, "error");
             }
         }
