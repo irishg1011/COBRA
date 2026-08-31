@@ -130,7 +130,7 @@
                                 <td class="text-muted">{{ activity.updated_at }}</td>
                                 <td class="text-right">
                                     <div class="table-actions-group">
-                                        <a href="#" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <a href="{{ url_for('admin_bp.create_learning_activity_page', activity_id=activity.activity_id) }}" title="Edit" class="table-action-icon js-edit-activity-btn" data-activity-id="{{ activity.activity_id }}"><i class="fa-solid fa-pen-to-square"></i></a>
                                         <form action="{{ url_for('admin_bp.delete_activity', activity_id=activity.activity_id) }}" method="POST" class="inline-form">
                                             <button type="submit" title="Delete" class="table-action-icon delete-action icon-button-reset"><i class="fa-solid fa-trash"></i></button>
                                         </form>
