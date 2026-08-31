@@ -2183,6 +2183,7 @@ def upload_resource_save_draft():
     Returns JSON: { "success": bool, "message": str, "resource_id": int | None }
     """
     data = request.get_json(silent=True) or {}
+    preserve_status = bool(data.get('preserve_status', False))
 
     success, message, saved_resource_id = save_lesson_draft(
         resource_id=data.get('resource_id'),
@@ -2191,6 +2192,7 @@ def upload_resource_save_draft():
         module_id=data.get('module_id'),
         content_html=data.get('module_content') or '',
         uploaded_by=session.get('admin_id'),
+        preserve_status=preserve_status,
     )
     return jsonify({
         "success": success,

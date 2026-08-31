@@ -96,6 +96,7 @@
         const resourceIdInput = document.getElementById("resourceIdInput");
         const saveDraftBtn = document.getElementById("saveDraftBtn");
         const publishBtn = document.getElementById("publishResourceBtn");
+        const unpublishBtn = document.getElementById("unpublishResourceBtn");
 
         const unsavedModal = document.getElementById("unsavedChangesModal");
         const stayBtn = document.getElementById("unsavedStayBtn");
@@ -362,7 +363,7 @@
         }
 
         // --------------------------------------------------------
-        // Save Draft Logic
+        // Save / Save Draft Logic
         // --------------------------------------------------------
         async function performSaveDraft() {
             if (!validateResourceForm(false)) {
@@ -374,6 +375,8 @@
                 saveDraftBtn.disabled = true;
                 saveDraftBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
+
+            const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
 
             try {
                 if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
@@ -391,12 +394,13 @@
                         category_id: categorySelect.value,
                         module_id: moduleSelect.value,
                         module_content: hiddenContent ? hiddenContent.value : "",
+                        preserve_status: isPublished,
                     }),
                 });
                 const result = await response.json();
 
                 if (!result.success) {
-                    showPopupAlert(result.message || "Could not save draft.", "error");
+                    showPopupAlert(result.message || "Could not save.", "error");
                     return false;
                 }
 
@@ -404,7 +408,7 @@
                     resourceIdInput.value = result.resource_id;
                 }
                 clearDirty();
-                showPopupAlert(result.message || "Draft saved successfully.", "success");
+                showPopupAlert(result.message || (isPublished ? "Resource saved successfully." : "Draft saved successfully."), "success");
                 return true;
             } catch (err) {
                 showPopupAlert("Could not reach the server. Please try again.", "error");
@@ -422,10 +426,76 @@
                 e.preventDefault();
                 if (!validateResourceForm(false)) return;
 
+                const isPublished = saveDraftBtn.dataset.isPublished === "true";
+                const confirmMsg = isPublished
+                    ? "Are you sure you want to save changes to this resource?"
+                    : "Are you sure you want to save this draft?";
+                const confirmTitle = isPublished ? "Save Changes?" : "Save Draft?";
+
                 showConfirmModal(
-                    "Are you sure you want to save this draft?",
+                    confirmMsg,
                     () => { performSaveDraft(); },
-                    "Save Draft?"
+                    confirmTitle
+                );
+            });
+        }
+
+        // --------------------------------------------------------
+        // Task #99: Unpublish Logic (from within editor)
+        // --------------------------------------------------------
+        async function performUnpublish() {
+            const resourceId = (resourceIdInput && resourceIdInput.value)
+                ? resourceIdInput.value
+                : (unpublishBtn ? unpublishBtn.dataset.resourceId : null);
+
+            if (!resourceId) {
+                showPopupAlert("Could not find resource ID to unpublish.", "error");
+                return false;
+            }
+
+            const originalHtml = unpublishBtn ? unpublishBtn.innerHTML : "";
+            if (unpublishBtn) {
+                unpublishBtn.disabled = true;
+                unpublishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Unpublishing...';
+            }
+
+            try {
+                const response = await fetch(`/admin/learning-resources/${resourceId}/unpublish`, {
+                    method: "POST",
+                    credentials: "include",
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    showPopupAlert(result.message || "Could not unpublish this resource.", "error");
+                    return false;
+                }
+
+                clearDirty();
+                isSubmitting = true;
+                showSuccessToast(result.message || "Resource unpublished successfully.");
+                setTimeout(() => {
+                    window.location.href = "/admin/learning-resources";
+                }, TOAST_DURATION_MS);
+                return true;
+            } catch (err) {
+                showPopupAlert("Could not reach the server. Please try again.", "error");
+                return false;
+            } finally {
+                if (unpublishBtn && !isSubmitting) {
+                    unpublishBtn.disabled = false;
+                    unpublishBtn.innerHTML = originalHtml;
+                }
+            }
+        }
+
+        if (unpublishBtn) {
+            unpublishBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                showConfirmModal(
+                    "Are you sure you want to unpublish this resource? It will be moved back to Draft and will no longer be visible to learners.",
+                    () => { performUnpublish(); },
+                    "Unpublish Resource?"
                 );
             });
         }
