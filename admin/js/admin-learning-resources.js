@@ -161,15 +161,15 @@
             return "";
         }
 
-        // Task #81: ACTIONS column (Edit/Archive) markup - falls back to
+        // Task #81 & #98: ACTIONS column (Edit/Archive) markup - falls back to
         // just an Edit link if admin-resource-actions.js hasn't loaded
         // for some reason (script tag order/load failure), so the table
         // still shows a usable action instead of throwing.
-        function actionsHtml(resourceId) {
+        function actionsHtml(resourceId, status) {
             if (window.cobraByteResourceActions) {
-                return window.cobraByteResourceActions.actionsHtml(resourceId);
+                return window.cobraByteResourceActions.actionsHtml(resourceId, null, status);
             }
-            return `<a href="/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>`;
+            return `<a href="/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}" title="Edit" class="table-action-icon js-edit-resource-btn" data-resource-id="${resourceId}" data-status="${escapeHtml(status || '')}"><i class="fa-solid fa-pen-to-square"></i></a>`;
         }
 
         function renderRows(resources) {
@@ -201,7 +201,7 @@
                     <td class="text-muted js-status-cell">${statusBadgeHtml(r.status)}</td>
                     <td class="text-muted">${escapeHtml(r.created_at)}</td>
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>
-                    <td class="text-right">${actionsHtml(r.resource_id)}</td>
+                    <td class="text-right">${actionsHtml(r.resource_id, r.status)}</td>
                     <td class="text-right">${publishButtonHtml(r.resource_id, r.status, r.module_status)}</td>
                 </tr>
             `).join("");
