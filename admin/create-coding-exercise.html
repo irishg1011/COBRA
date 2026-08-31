@@ -58,7 +58,7 @@
                     </div>
                 </div>
 
-                <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST">
+                <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST" novalidate>
                     <input type="hidden" name="exercise_id" id="exerciseIdInput" value="{{ existing_exercise.exercise_id if existing_exercise else '' }}">
                     
                     <!-- Section 1: Exercise Information -->
