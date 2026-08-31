@@ -2,15 +2,21 @@
  * create-learning-activity.js
  * --------------------------------------------------------------------
  * Task #58 additions (Multiple Choice question builder only - Section 2
- * of Create Learning Activity):
+ * of Create Learning Activity), as amended by Task #108:
  *
- *   1. Confirmation warning before any question-builder field (Question
- *      text, an Answer Option, or a Feedback field) is CLEARED from
- *      having text to being empty - covers both manual clearing (select
- *      all + delete/backspace) and clicking a trash/delete icon
- *      (removeQuestionCard / removeOptionRow) on a question/option that
- *      still has typed data. Canceling restores the previous value
- *      (for in-field clears) or aborts the removal (for delete icons).
+ *   1. TASK #108 UPDATE: the original "Are you sure you want to clear
+ *      it?" confirmation that used to fire the moment a Question /
+ *      Answer Option / Feedback field went from having text to being
+ *      empty (including plain backspacing/typing) has been REMOVED
+ *      entirely, across every activity type (Multiple Choice, Fill in
+ *      the Blanks, Flashcards). Typing, editing, and deleting text
+ *      inside any builder input/textarea is now completely
+ *      uninterrupted. Confirmation dialogs are now triggered EXCLUSIVELY
+ *      by an explicit delete/remove action - the option row's minus (-)
+ *      button (removeOptionRow), a question's trash icon
+ *      (removeQuestionCard), a Fill in the Blanks item's trash icon
+ *      (removeFillBlankCard), or a Flashcard's trash icon
+ *      (removeFlashcardCard) - never by editing a field's text.
  *
  *   2. Live casing normalization on every Question / Answer Option /
  *      Feedback field: first character uppercase, every other character
@@ -18,33 +24,39 @@
  *      for Activity/Lesson/Category names (text_formatting.py,
  *      lesson_validation.py, activity_validation.py) and client-side in
  *      create-learning-activity-validations.js for the Activity Title
- *      field, just applied here to the Section 2 builder fields.
+ *      field, just applied here to the Section 2 builder fields. This
+ *      still runs on every keystroke - only the clear-confirmation
+ *      behavior above was removed.
  *
  *   3. "Add Question" / "Duplicate Question" are blocked (with an
  *      explanatory alert) unless the CURRENT last question card already
  *      has its Question text, every Answer Option, and every Feedback
  *      field filled in - so a new/duplicated card can never be appended
- *      while the previous one is still incomplete.
+ *      while the previous one is still incomplete. Unaffected by Task
+ *      #108 - this is a completeness gate on Add/Duplicate, not a
+ *      confirmation on typing.
  *
- * All three behaviors are implemented via event delegation scoped to
- * #questionsContainer, so they apply uniformly to every question card -
- * including ones added, duplicated, moved, or reindexed after page
- * load - without needing to re-bind anything per card.
+ * These behaviors are implemented via event delegation scoped to the
+ * activity builder containers, so they apply uniformly to every
+ * question/item card - including ones added, duplicated, moved, or
+ * reindexed after page load - without needing to re-bind anything per
+ * card.
  */
 
 // ========================================================================
-// TASK #58 & TASK #60: shared helpers - casing normalization,
-// clear-confirmation, deletion protection, and completeness checks across
-// Multiple Choice, Fill in the Blanks, and Flashcards builders.
+// TASK #58 & TASK #60 (as amended by TASK #108): shared helpers - casing
+// normalization and completeness checks across Multiple Choice, Fill in
+// the Blanks, and Flashcards builders.
+//
+// TASK #108: the per-field "value tracker" that used to power an
+// in-field "Are you sure you want to clear it?" confirmation (fired on
+// backspace/typing/select-all-delete, not just on an explicit delete
+// button) has been removed entirely. Typing and editing inside any
+// builder field is now always uninterrupted; confirmation prompts are
+// exclusively wired to the explicit delete/remove action buttons further
+// down this file (removeOptionRow, removeQuestionCard,
+// removeFillBlankCard, removeFlashcardCard).
 // ========================================================================
-
-// Tracks the last known value of every guarded field across all activity builders,
-// keyed by the actual DOM element - this is what lets us tell "the admin just
-// cleared a field that had text" apart from "this field has always been empty",
-// without needing a data-* attribute that would have to be kept in sync separately.
-const activityFieldValueTracker = new WeakMap();
-// Alias for backward compatibility
-const questionFieldValueTracker = activityFieldValueTracker;
 
 /**
  * True for all text inputs and textareas across the activity builder containers
@@ -67,11 +79,6 @@ function isGuardedActivityField(el) {
     return false;
 }
 
-// Alias for backward compatibility
-function isGuardedQuestionField(el) {
-    return isGuardedActivityField(el);
-}
-
 /**
  * "First character uppercase, every other character lowercase" - the
  * exact same rule already used for Activity Title / Lesson Name /
@@ -80,11 +87,6 @@ function isGuardedQuestionField(el) {
 function normalizeActivityFieldCasing(value) {
     if (!value) return value;
     return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-}
-
-// Alias for backward compatibility
-function normalizeQuestionFieldCasing(value) {
-    return normalizeActivityFieldCasing(value);
 }
 
 /**
@@ -104,101 +106,45 @@ function applyActivityFieldCasing(el) {
     }
 }
 
-// Alias for backward compatibility
-function applyQuestionFieldCasing(el) {
-    applyActivityFieldCasing(el);
-}
-
 /**
- * (Re)synchronizes the tracker for every guarded field currently inside
- * `scopeEl` to that field's CURRENT value. Must be called right after a
- * card is created or duplicated (including once its options/inputs
- * have been copied over), so a freshly-duplicated field that already
- * has text is correctly recognized as "has data" the very first time
- * the admin tries to clear it - not just after they've typed into it
- * once themselves.
+ * TASK #108: kept as a no-op (rather than removed outright) purely so
+ * existing call sites (addNewQuestionCard, addOptionRow,
+ * addNewFillBlankCard, addNewFlashcardCard, and the DOMContentLoaded
+ * initializer further down) don't each need their own follow-up edit.
+ * Previously this seeded a per-field value tracker used to detect "the
+ * admin just cleared a field that had text" so an in-field clear could
+ * be intercepted with a confirmation prompt - that tracking (and the
+ * prompt it powered) is removed entirely per Task #108, so there is
+ * nothing left for this function to do.
  */
 function refreshActivityFieldTrackers(scopeEl) {
-    if (!scopeEl || !scopeEl.querySelectorAll) return;
-    scopeEl.querySelectorAll('textarea, input[type="text"]').forEach((el) => {
-        if (isGuardedActivityField(el)) {
-            activityFieldValueTracker.set(el, el.value || '');
-        }
-    });
+    // Intentionally empty - see docstring above.
 }
 
-// Alias for backward compatibility
+// Alias for backward compatibility with existing call sites.
 function refreshQuestionFieldTrackers(scopeEl) {
     refreshActivityFieldTrackers(scopeEl);
 }
 
 /**
- * Task #58 & Task #60, Requirement #1 (in-field clearing): fires on every input
- * event anywhere inside the activity content builders. If a guarded field just
- * transitioned from having text to being completely empty, the admin is
- * asked to confirm; canceling restores the field to its previous value.
- * Otherwise (still has text, or was already empty), the field's casing
- * is normalized live (Requirement #2) and the tracker is updated.
+ * TASK #108: fires on every input event anywhere inside the activity
+ * content builders (Multiple Choice, Fill in the Blanks, Flashcards).
+ * Typing, editing, and deleting/backspacing text no longer triggers any
+ * confirmation dialog - this only ever applies live casing
+ * normalization and refreshes the Add/Duplicate button completeness
+ * state. Deletion confirmations live exclusively on the explicit
+ * delete/remove action buttons (removeOptionRow, removeQuestionCard,
+ * removeFillBlankCard, removeFlashcardCard).
  */
 function handleActivityFieldInput(e) {
     const el = e.target;
     if (!isGuardedActivityField(el)) return;
 
-    const previousValue = activityFieldValueTracker.has(el) ? activityFieldValueTracker.get(el) : '';
-    const currentValue = el.value;
-
-    if (previousValue.trim() !== '' && currentValue.trim() === '') {
-        const confirmed = window.confirm(
-            'This field contains data. Are you sure you want to clear it?'
-        );
-        if (!confirmed) {
-            el.value = previousValue;
-            activityFieldValueTracker.set(el, previousValue);
-            if (typeof el.setSelectionRange === 'function') {
-                el.setSelectionRange(previousValue.length, previousValue.length);
-            }
-            updateAddButtonsState();
-            return;
-        }
-        // Confirmed - the field is intentionally left empty.
-        activityFieldValueTracker.set(el, '');
-        updateAddButtonsState();
-        return;
-    }
-
     applyActivityFieldCasing(el);
-    activityFieldValueTracker.set(el, el.value);
     updateAddButtonsState();
 }
 
-// Alias for backward compatibility
-function handleQuestionBuilderInput(e) {
-    handleActivityFieldInput(e);
-}
-
-/**
- * Initializes tracking for a guarded field the first time it's ever
- * focused (covers a field that's focused and then cleared before any
- * 'input' event has had a chance to seed the tracker - e.g. focus,
- * select-all, delete, all before this field has been touched otherwise).
- */
-function initActivityFieldTracking(e) {
-    const el = e.target;
-    if (!isGuardedActivityField(el)) return;
-    if (!activityFieldValueTracker.has(el)) {
-        activityFieldValueTracker.set(el, el.value || '');
-    }
-}
-
-// Alias for backward compatibility
-function initQuestionFieldTracking(e) {
-    initActivityFieldTracking(e);
-}
-
 document.addEventListener('input', handleActivityFieldInput);
-// 'focus' does not bubble, so this listener must be registered in the
-// capture phase to reliably see focus events on nested inputs/textareas.
-document.addEventListener('focus', initActivityFieldTracking, true);
 
 /**
  * True only if `card` has its Question text filled in AND every one of
