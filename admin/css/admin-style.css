@@ -2071,3 +2071,36 @@ textarea.form-control-custom {
 #activitiesDataTable th.activity-actions-column {
     padding-right: 28px;
 }
+
+/* ==========================================================================
+   MANAGE CODING EXERCISES - PUBLISH STATUS & ACTIONS COLUMN SPACING
+   ========================================================================== */
+
+#exercisesDataTable th.publish-status-column,
+#exercisesDataTable td.publish-status-column {
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+#exercisesDataTable th.publish-status-column {
+    width: 140px;
+    min-width: 140px;
+}
+
+#exercisesDataTable td.publish-status-column .js-toggle-exercise-publish-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    min-width: 100px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+#exercisesDataTable td.exercise-actions-column,
+#exercisesDataTable th.exercise-actions-column {
+    padding-right: 28px;
+}

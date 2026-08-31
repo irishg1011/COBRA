@@ -94,7 +94,7 @@
             if (!exercises || exercises.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="9" class="text-muted table-empty-message">
+                        <td colspan="10" class="text-muted table-empty-message">
                             No coding exercises found.
                         </td>
                     </tr>
@@ -102,7 +102,11 @@
                 return;
             }
 
-            tableBody.innerHTML = exercises.map(ex => `
+            tableBody.innerHTML = exercises.map(ex => {
+                const isPublished = ex.status === "Published";
+                const btnLabel = isPublished ? "Unpublish" : "Publish";
+                const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+                return `
                 <tr data-exercise-id="${escapeHtml(ex.exercise_id)}">
                     <td>
                         <strong class="table-item-title">${escapeHtml(ex.exercise_title)}</strong>
@@ -110,11 +114,11 @@
                     <td class="text-muted">${escapeHtml(ex.category)}</td>
                     <td class="text-muted">${escapeHtml(ex.module)}</td>
                     <td class="text-muted">${escapeHtml(ex.lesson)}</td>
-                    <td>${statusBadgeHtml(ex.status)}</td>
+                    <td class="js-status-cell">${statusBadgeHtml(ex.status)}</td>
                     <td class="text-muted">${escapeHtml(ex.uploaded_by)}</td>
                     <td class="text-muted">${escapeHtml(ex.created_at)}</td>
                     <td class="text-muted">${escapeHtml(ex.updated_at)}</td>
-                    <td class="text-right">
+                    <td class="text-right exercise-actions-column">
                         <div class="table-actions-group">
                             <a href="/admin/coding-exercises/create?exercise_id=${escapeHtml(ex.exercise_id)}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
                             <form action="/admin/coding-exercises/delete/${escapeHtml(ex.exercise_id)}" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this coding exercise?');">
@@ -122,8 +126,16 @@
                             </form>
                         </div>
                     </td>
+                    <td class="publish-status-column">
+                        <button type="button"
+                                class="btn ${btnClass} js-toggle-exercise-publish-btn"
+                                data-exercise-id="${escapeHtml(ex.exercise_id)}"
+                                data-status="${escapeHtml(ex.status || 'Draft')}">
+                            ${btnLabel}
+                        </button>
+                    </td>
                 </tr>
-            `).join("");
+            `}).join("");
         }
 
         function updatePagination(total, page, pages) {

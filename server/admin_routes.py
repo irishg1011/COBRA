@@ -60,6 +60,7 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
     save_coding_exercise, parse_test_cases_from_form,
 )
+from coding_exercise_publishing import publish_exercise, unpublish_exercise  # Task #111: Publish & Unpublish Coding Exercises
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1966,6 +1967,31 @@ def delete_exercise(exercise_id):
     return redirect(url_for('admin_bp.coding_exercises'))
 
 
+# ============================================================
+# ROUTE: PUBLISH / UNPUBLISH CODING EXERCISE
+# ============================================================
+@admin_bp.route('/coding-exercises/<int:exercise_id>/publish', methods=['POST'])
+def publish_coding_exercise(exercise_id):
+    """
+    Task #111: flips a coding exercise's status to "Published" directly
+    from the Manage Coding Exercises table's row-level toggle.
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = publish_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/coding-exercises/<int:exercise_id>/unpublish', methods=['POST'])
+def unpublish_coding_exercise(exercise_id):
+    """
+    Task #111: flips a coding exercise's status back to "Draft" directly
+    from the Manage Coding Exercises table's row-level toggle or editor header.
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = unpublish_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
 @admin_bp.route('/coding-sandbox')
 def coding_sandbox():
     return render_placeholder("Coding Sandbox")
@@ -2631,8 +2657,11 @@ def save_coding_exercise_draft():
     if not request.is_json:
         data['test_cases'] = parse_test_cases_from_form(request.form)
 
+    preserve = data.get('preserve_status') in (True, 'true', '1') or data.get('action') == 'save'
+    target_status = 'Published' if (preserve and data.get('status') == 'Published') else 'Draft'
+
     admin_id = session.get('admin_id')
-    success, exercise_id, msg = save_coding_exercise(data, status='Draft', uploaded_by=admin_id)
+    success, exercise_id, msg = save_coding_exercise(data, status=target_status, uploaded_by=admin_id)
 
     if success:
         flash(msg, 'success')

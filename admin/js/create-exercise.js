@@ -25,6 +25,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Task #76 & Fix #3: Setup Save Draft button handler
     setupSaveDraftHandler();
 
+    // Task #111: Setup Unpublish button handler & confirmation modal
+    setupUnpublishHandler();
+
     // Dynamic character counters setup with immediate count initialization (Fix #1)
     setupCharacterCounter('exerciseInstruction', 'instructionCount', 1000);
     setupCharacterCounter('problemSituation', 'situationCount', 500);
@@ -185,7 +188,7 @@ function setupExerciseTitleValidation() {
 }
 
 /* =================================================================
-   Task #76 & Fix #3: Save Draft Handler & Persistence Sync
+   Task #76, #111 & Fix #3: Save / Save Draft Handler & Persistence Sync
 ==================================================================== */
 function setupSaveDraftHandler() {
     const saveDraftBtn = document.getElementById('saveDraftBtn');
@@ -195,23 +198,27 @@ function setupSaveDraftHandler() {
     saveDraftBtn.addEventListener('click', async function (e) {
         e.preventDefault();
 
+        const isPublished = saveDraftBtn.dataset.isPublished === "true";
         const titleInput = document.getElementById('exerciseTitle');
         const lessonSelect = document.getElementById('exerciseLesson');
         const exerciseIdInput = document.getElementById('exerciseIdInput');
 
         if (!titleInput || !titleInput.value.trim()) {
-            alert('Please enter an Exercise Title before saving a draft.');
+            alert(`Please enter an Exercise Title before ${isPublished ? 'saving' : 'saving a draft'}.`);
             if (titleInput) titleInput.focus();
             return;
         }
 
         if (!lessonSelect || !lessonSelect.value) {
-            alert('Please select Category, Module, and Lesson before saving a draft.');
+            alert(`Please select Category, Module, and Lesson before ${isPublished ? 'saving' : 'saving a draft'}.`);
             return;
         }
 
         const formData = new FormData(form);
-        formData.append('action', 'draft');
+        formData.append('action', isPublished ? 'save' : 'draft');
+        formData.append('preserve_status', isPublished ? 'true' : 'false');
+
+        const originalHtml = saveDraftBtn.innerHTML;
 
         try {
             saveDraftBtn.disabled = true;
@@ -235,16 +242,111 @@ function setupSaveDraftHandler() {
                 }
                 window.location.href = result.redirect_url || '/admin/coding-exercises';
             } else {
-                alert(result.message || 'Failed to save draft.');
+                alert(result.message || (isPublished ? 'Failed to save coding exercise.' : 'Failed to save draft.'));
                 saveDraftBtn.disabled = false;
-                saveDraftBtn.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Save Draft';
+                saveDraftBtn.innerHTML = originalHtml;
             }
         } catch (err) {
-            console.error('Failed to save draft:', err);
-            alert('An unexpected error occurred while saving the draft.');
+            console.error('Failed to save exercise:', err);
+            alert('An unexpected error occurred while saving.');
             saveDraftBtn.disabled = false;
-            saveDraftBtn.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Save Draft';
+            saveDraftBtn.innerHTML = originalHtml;
         }
+    });
+}
+
+/* =================================================================
+   Task #111: Unpublish Exercise Handler & Confirmation Modal
+==================================================================== */
+function setupUnpublishHandler() {
+    const unpublishBtn = document.getElementById('unpublishExerciseBtn');
+    const exerciseIdInput = document.getElementById('exerciseIdInput');
+    const confirmActionModal = document.getElementById('confirmActionModal');
+    const confirmActionTitle = document.getElementById('confirmActionTitle');
+    const confirmActionText = document.getElementById('confirmActionText');
+    const confirmActionCancelBtn = document.getElementById('confirmActionCancelBtn');
+    const confirmActionConfirmBtn = document.getElementById('confirmActionConfirmBtn');
+
+    if (!unpublishBtn) return;
+
+    function showConfirmModal(message, onConfirm, title) {
+        if (!confirmActionModal) {
+            if (window.confirm(message)) onConfirm();
+            return;
+        }
+        if (confirmActionTitle) confirmActionTitle.textContent = title || "Unpublish Coding Exercise?";
+        if (confirmActionText) confirmActionText.textContent = message;
+        confirmActionModal.classList.remove('modal-hidden');
+        confirmActionModal.style.display = 'flex';
+
+        function cleanup() {
+            confirmActionModal.classList.add('modal-hidden');
+            confirmActionModal.style.display = 'none';
+            if (confirmActionCancelBtn) confirmActionCancelBtn.removeEventListener('click', onCancel);
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.removeEventListener('click', onOk);
+            confirmActionModal.removeEventListener('click', onOverlay);
+        }
+
+        function onCancel() {
+            cleanup();
+        }
+
+        function onOk() {
+            cleanup();
+            onConfirm();
+        }
+
+        function onOverlay(e) {
+            if (e.target === confirmActionModal) cleanup();
+        }
+
+        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener('click', onCancel);
+        if (confirmActionConfirmBtn) confirmActionConfirmBtn.addEventListener('click', onOk);
+        confirmActionModal.addEventListener('click', onOverlay);
+    }
+
+    unpublishBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+
+        const exerciseId = unpublishBtn.dataset.exerciseId || (exerciseIdInput ? exerciseIdInput.value : '');
+        if (!exerciseId) {
+            alert('Could not find exercise ID to unpublish.');
+            return;
+        }
+
+        showConfirmModal(
+            'Are you sure you want to unpublish this coding exercise? It will be moved back to Draft and will no longer be visible to learners.',
+            async function () {
+                const originalHtml = unpublishBtn.innerHTML;
+                unpublishBtn.disabled = true;
+                unpublishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Unpublishing...';
+
+                try {
+                    const response = await fetch(`/admin/coding-exercises/${exerciseId}/unpublish`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        isSubmitting = true;
+                        window.location.href = '/admin/coding-exercises';
+                    } else {
+                        alert(result.message || 'Failed to unpublish coding exercise.');
+                        unpublishBtn.disabled = false;
+                        unpublishBtn.innerHTML = originalHtml;
+                    }
+                } catch (err) {
+                    console.error('Failed to unpublish exercise:', err);
+                    alert('An unexpected error occurred while unpublishing the exercise.');
+                    unpublishBtn.disabled = false;
+                    unpublishBtn.innerHTML = originalHtml;
+                }
+            },
+            'Unpublish Coding Exercise?'
+        );
     });
 }
 
@@ -363,8 +465,11 @@ function setupBackCancelGuard() {
         saveAndLeaveBtn.addEventListener('click', async function () {
             const titleInput = document.getElementById('exerciseTitle');
             const lessonSelect = document.getElementById('exerciseLesson');
+            const saveDraftBtn = document.getElementById('saveDraftBtn');
+            const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
+
             if (!titleInput || !titleInput.value.trim() || !lessonSelect || !lessonSelect.value) {
-                alert('Please enter an Exercise Title and Lesson before saving a draft.');
+                alert(`Please enter an Exercise Title and Lesson before ${isPublished ? 'saving' : 'saving a draft'}.`);
                 return;
             }
 
@@ -376,7 +481,8 @@ function setupBackCancelGuard() {
             }
 
             const formData = new FormData(form);
-            formData.append('action', 'draft');
+            formData.append('action', isPublished ? 'save' : 'draft');
+            formData.append('preserve_status', isPublished ? 'true' : 'false');
 
             try {
                 const response = await fetch('/admin/coding-exercises/save-draft', {
@@ -391,10 +497,10 @@ function setupBackCancelGuard() {
                     hideUnsavedModal();
                     window.location.href = result.redirect_url || '/admin/coding-exercises';
                 } else {
-                    alert(result.message || 'Failed to save draft.');
+                    alert(result.message || (isPublished ? 'Failed to save.' : 'Failed to save draft.'));
                 }
             } catch (err) {
-                console.error('Failed to save draft & leave:', err);
+                console.error('Failed to save & leave:', err);
                 isSubmitting = true;
                 hideUnsavedModal();
                 window.location.href = '/admin/coding-exercises';
