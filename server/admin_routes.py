@@ -60,7 +60,7 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
     save_coding_exercise, parse_test_cases_from_form,
 )
-from coding_exercise_publishing import publish_exercise, unpublish_exercise  # Task #111: Publish & Unpublish Coding Exercises
+from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise  # Task #111 & #112
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1990,6 +1990,26 @@ def unpublish_coding_exercise(exercise_id):
     """
     success, message = unpublish_exercise(exercise_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# ROUTE: ARCHIVE CODING EXERCISE
+# ============================================================
+@admin_bp.route('/coding-exercises/<int:exercise_id>/archive', methods=['POST'])
+def archive_coding_exercise(exercise_id):
+    """
+    Task #112: Soft-archives a coding exercise (is_archived = 1, status = 'Archived').
+    Preserves database records and associated test cases.
+    Returns JSON: { "success": bool, "message": str }
+    """
+    is_ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json'
+    success, message = archive_exercise(exercise_id)
+
+    if is_ajax:
+        return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_bp.coding_exercises'))
 
 
 @admin_bp.route('/coding-sandbox')

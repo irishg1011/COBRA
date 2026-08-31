@@ -121,9 +121,11 @@
                     <td class="text-right exercise-actions-column">
                         <div class="table-actions-group">
                             <a href="/admin/coding-exercises/create?exercise_id=${escapeHtml(ex.exercise_id)}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
-                            <form action="/admin/coding-exercises/delete/${escapeHtml(ex.exercise_id)}" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this coding exercise?');">
-                                <button type="submit" title="Delete" class="table-action-icon delete-action icon-button-reset"><i class="fa-solid fa-trash"></i></button>
-                            </form>
+                            <a href="#" title="Archive"
+                               class="table-action-icon delete-action js-archive-exercise-btn"
+                               data-exercise-id="${escapeHtml(ex.exercise_id)}">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </a>
                         </div>
                     </td>
                     <td class="publish-status-column">

@@ -165,5 +165,74 @@
                 }
             }, confirmTitle);
         });
+
+        // Task #112: Archive Coding Exercise Click Handler
+        tableBody.addEventListener("click", (e) => {
+            const archiveBtn = e.target.closest(".js-archive-exercise-btn");
+            if (!archiveBtn) return;
+            e.preventDefault();
+
+            const exerciseId = archiveBtn.dataset.exerciseId;
+            if (!exerciseId) return;
+
+            const confirmMsg = "Are you sure you want to archive this coding exercise? It will be removed from active use, but its content is preserved.";
+            const confirmTitle = "Archive Coding Exercise?";
+
+            showConfirmModal(confirmMsg, async () => {
+                const icon = archiveBtn.querySelector("i");
+                const originalClass = icon ? icon.className : "";
+                if (icon) icon.className = "fa-solid fa-spinner fa-spin";
+                archiveBtn.style.pointerEvents = "none";
+
+                try {
+                    const response = await fetch(`/admin/coding-exercises/${exerciseId}/archive`, {
+                        method: "POST",
+                        credentials: "include",
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    });
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        alert(result.message || "Could not archive this coding exercise.");
+                        if (icon) icon.className = originalClass;
+                        archiveBtn.style.pointerEvents = "";
+                        return;
+                    }
+
+                    // Remove row in place
+                    const row = archiveBtn.closest("tr");
+                    if (row) row.remove();
+
+                    // Update showing count or show empty state if empty
+                    const remainingRows = tableBody.querySelectorAll("tr:not(:has(.table-empty-message))");
+                    if (remainingRows.length === 0) {
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="10" class="text-muted table-empty-message">
+                                    No coding exercises found.
+                                </td>
+                            </tr>`;
+                    }
+                    const showingCount = document.getElementById("exercisesShowingCount");
+                    if (showingCount) {
+                        const countText = showingCount.textContent;
+                        const match = countText.match(/Showing\s+(\d+)\s+of\s+(\d+)/i);
+                        if (match) {
+                            const newCount = Math.max(0, parseInt(match[1], 10) - 1);
+                            const newTotal = Math.max(0, parseInt(match[2], 10) - 1);
+                            showingCount.textContent = `Showing ${newCount} of ${newTotal} Exercises`;
+                        }
+                    }
+
+                    showSuccessToast(result.message || "Coding exercise archived successfully.");
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
+                    if (icon) icon.className = originalClass;
+                    archiveBtn.style.pointerEvents = "";
+                }
+            }, confirmTitle);
+        });
     });
 })();

@@ -20,6 +20,7 @@ MODULES_TABLE = "modules_tbl"
 
 DEFAULT_EXERCISE_STATUSES = ["Draft", "Published", "Archived"]
 _stats_ensured = False
+_is_archived_column_ensured = False
 
 CE_SORT_CLAUSES = {
     "created_desc": "ce.created_at DESC",
@@ -34,12 +35,33 @@ CE_SORT_CLAUSES = {
 DEFAULT_CE_SORT_KEY = "created_desc"
 
 
+def ensure_exercise_is_archived_column(connection):
+    """
+    Task #112: ensures coding_exercises_tbl has an is_archived TINYINT(1) column.
+    """
+    global _is_archived_column_ensured
+    if _is_archived_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {CODING_EXERCISES_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"is_archived TINYINT(1) NOT NULL DEFAULT 0"
+        )
+        connection.commit()
+        cursor.close()
+        _is_archived_column_ensured = True
+    except Error as e:
+        print(f"coding_exercises: failed to ensure {CODING_EXERCISES_TABLE}.is_archived: {e}")
+
+
 def ensure_exercise_stats(connection):
     """
     Ensures that default exercise statuses exist in learning_activities_stats_tbl.
     Idempotent and runs once per process lifetime.
     """
     global _stats_ensured
+    ensure_exercise_is_archived_column(connection)
     if _stats_ensured:
         return
     try:
@@ -200,7 +222,10 @@ def get_coding_exercises_overview(search_query=None, stats_filter=None, page=1, 
             LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
             LEFT JOIN {LA_STATS_TABLE} stats ON ce.exercise_stats_id = stats.la_stats_id
             LEFT JOIN {PROFILE_TABLE} p ON ce.uploaded_by = p.acc_id
-            WHERE 1 = 1
+            WHERE (stats.la_stats_name IS NULL OR stats.la_stats_name != 'Archived')
+              AND (COALESCE(ce.is_archived, 0) = 0)
+              AND (c.cat_id IS NULL OR COALESCE(c.is_archived, 0) = 0)
+              AND (m.module_id IS NULL OR COALESCE(m.is_archived, 0) = 0)
         """
         params = []
 
