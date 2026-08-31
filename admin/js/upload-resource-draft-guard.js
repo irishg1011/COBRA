@@ -260,8 +260,11 @@
         }
 
         // --------------------------------------------------------
-        // Unsaved Changes Modal
+        // Unsaved Changes Modal (Task #44, #84, #100)
         // --------------------------------------------------------
+        const unsavedModalDesc = document.getElementById("unsavedModalDesc") ||
+            (unsavedModal ? unsavedModal.querySelector(".modal-confirm-text:not(.modal-error-text)") : null);
+
         function showUnsavedSaveError(message) {
             if (!unsavedSaveError) {
                 if (message) alert(message);
@@ -280,6 +283,19 @@
         function openUnsavedModal(navigateAction) {
             pendingNavigation = navigateAction;
             clearUnsavedSaveError();
+
+            const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
+            if (unsavedModalDesc) {
+                unsavedModalDesc.textContent = isPublished
+                    ? "You have unsaved changes to this lesson. Save your changes, or leave and lose your changes."
+                    : "You have unsaved changes to this lesson. Save your work as a draft, or leave and lose your changes.";
+            }
+            if (saveAndLeaveBtn) {
+                saveAndLeaveBtn.innerHTML = isPublished
+                    ? '<i class="fa-regular fa-floppy-disk"></i> Save &amp; Leave'
+                    : '<i class="fa-regular fa-floppy-disk"></i> Save Draft &amp; Leave';
+            }
+
             if (unsavedModal) unsavedModal.style.display = "flex";
         }
 
@@ -316,7 +332,12 @@
                 if (leaveBtn) leaveBtn.disabled = false;
 
                 if (!ok) {
-                    showUnsavedSaveError("Could not save this draft. Please check the required fields.");
+                    const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
+                    showUnsavedSaveError(
+                        isPublished
+                            ? "Could not save changes. Please check the required fields."
+                            : "Could not save this draft. Please check the required fields."
+                    );
                     return;
                 }
 

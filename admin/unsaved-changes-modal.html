@@ -15,7 +15,11 @@
             </svg>
         </div>
         <h3 class="modal-confirm-title">Leave without saving?</h3>
-        <p class="modal-confirm-text">You have unsaved changes to this lesson. Save your work as a draft, or leave and lose your changes.</p>
+        {% if existing_resource and existing_resource.status == 'Published' %}
+        <p id="unsavedModalDesc" class="modal-confirm-text">You have unsaved changes to this lesson. Save your changes, or leave and lose your changes.</p>
+        {% else %}
+        <p id="unsavedModalDesc" class="modal-confirm-text">You have unsaved changes to this lesson. Save your work as a draft, or leave and lose your changes.</p>
+        {% endif %}
         <!-- Task #84: shown only if Save Draft & Leave's save attempt fails
              (e.g. Lesson Name/Category/Module still empty) - keeps the
              admin inside this modal with a clear reason instead of the
@@ -27,14 +31,14 @@
             <button type="button" id="unsavedStayBtn" class="modal-btn-cancel">Stay on Page</button>
             <button type="button" id="unsavedLeaveBtn" class="modal-btn-danger">Leave Without Saving</button>
             <!--
-                Task #84: data-redirect-url is rendered server-side from the
+                Task #84 & #100: data-redirect-url is rendered server-side from the
                 real admin_bp.learning_resources route (the Manage Learning
-                Resources list), so Save Draft & Leave always lands there
+                Resources list), so Save / Save Draft & Leave always lands there
                 after a successful save - reusing the existing route
                 instead of hardcoding a URL string in JS.
             -->
             <button type="button" id="unsavedSaveAndLeaveBtn" class="modal-btn-save" data-redirect-url="{{ url_for('admin_bp.learning_resources') }}">
-                <i class="fa-regular fa-floppy-disk"></i> Save Draft &amp; Leave
+                <i class="fa-regular fa-floppy-disk"></i> {{ 'Save & Leave' if existing_resource and existing_resource.status == 'Published' else 'Save Draft & Leave' }}
             </button>
         </div>
     </div>
