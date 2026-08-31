@@ -373,6 +373,8 @@ select.form-control {
     font-family: inherit;
     white-space: pre-wrap;   /* NEW - preserves newlines from captured output */
     word-break: break-all;   /* NEW - matches .editor-terminal-box wrapping */
+    cursor: default;
+    user-select: text;
 }
 
 .editor-console-box:empty:before {
@@ -496,22 +498,8 @@ select.form-control {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    min-height: 28px;
     margin-bottom: 4px;
-}
-
-.editor-output-mode-select {
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    background: #ffffff;
-    color: #374151;
-    outline: none;
-    cursor: pointer;
-}
-
-.editor-output-mode-select:focus {
-    border-color: #06b6d4;
 }
 
 .editor-terminal-container {
