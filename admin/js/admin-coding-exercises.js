@@ -1,12 +1,11 @@
 /**
  * admin-coding-exercises.js - Multi-Field Search + Status Filter +
- * Date Sorting/Filtering for Manage Coding Exercises
+ * Date Filtering for Manage Coding Exercises (Task #114)
  * --------------------------------------------------------------------
  * Wires up the Manage Coding Exercises toolbar - the search box, the
- * database-driven "All Statuses" dropdown, the Sort dropdown (Created At /
- * Updated At / Status / Title), and Created At / Updated At date filters
- * to the backend endpoint (/admin/coding-exercises/data) so the table
- * updates live with no page reload.
+ * database-driven "All Statuses" dropdown, and Created At / Updated At date
+ * filters to the backend endpoint (/admin/coding-exercises/data) so the
+ * table updates live with no page reload.
  */
 (function () {
     "use strict";

@@ -58,17 +58,6 @@
                                 {% endfor %}
                             </select>
 
-                            <select class="custom-select" id="exerciseSortSelect">
-                                <option value="created_desc" {{ 'selected' if sort|default('created_desc') == 'created_desc' }}>Created At: Newest First</option>
-                                <option value="created_asc" {{ 'selected' if sort|default('') == 'created_asc' }}>Created At: Oldest First</option>
-                                <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Updated At: Recently Updated</option>
-                                <option value="updated_asc" {{ 'selected' if sort|default('') == 'updated_asc' }}>Updated At: Oldest Updated</option>
-                                <option value="status_asc" {{ 'selected' if sort|default('') == 'status_asc' }}>Status: A to Z</option>
-                                <option value="status_desc" {{ 'selected' if sort|default('') == 'status_desc' }}>Status: Z to A</option>
-                                <option value="title_asc" {{ 'selected' if sort|default('') == 'title_asc' }}>Exercise Title: A to Z</option>
-                                <option value="title_desc" {{ 'selected' if sort|default('') == 'title_desc' }}>Exercise Title: Z to A</option>
-                            </select>
-
                             <div class="date-filter-group" id="exerciseCreatedDateGroup">
                                 <span class="date-filter-label">Created At</span>
                                 <input type="date" class="custom-select" id="exerciseCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
