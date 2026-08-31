@@ -41,6 +41,24 @@
                             <button type="button" class="btn btn-success-custom" id="saveDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
+                            <!--
+                                Task #104: relocated here from the bottom
+                                form-actions-footer, so all three primary
+                                actions sit together in the header (Preview
+                                Activity -> Save Draft -> Publish Activity).
+                                Uses form="createActivityForm" (the same
+                                pattern already used by upload-resource.html's
+                                header Publish button) so this still submits
+                                the SAME <form id="createActivityForm"> below
+                                despite living outside of it - the submit
+                                event still fires on that form exactly as
+                                before, so create-learning-activity-draft-
+                                guard.js's existing form.addEventListener("submit", ...)
+                                validation/confirmation flow needs no changes.
+                            -->
+                            <button type="submit" form="createActivityForm" class="btn btn-success-custom" id="publishActivityBtn">
+                                <i class="fa-solid fa-paper-plane"></i> Publish Activity
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -189,14 +207,6 @@
 
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Bottom Form Actions Footer -->
-                    <div class="form-actions-footer mt-24">
-                        <a href="{{ url_for('admin_bp.learning_activities') }}" class="btn btn-secondary-custom">Cancel</a>
-                        <button type="submit" class="btn btn-success-custom">
-                            <i class="fa-solid fa-paper-plane"></i> Publish Activity
-                        </button>
                     </div>
 
                 </form>

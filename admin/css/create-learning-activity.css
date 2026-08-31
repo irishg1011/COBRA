@@ -2,6 +2,16 @@
    Create Learning Activity Styles
    ========================================== */
 
+/* Task #104: Preview Activity / Save Draft / Publish Activity now sit
+   together in the top header. Scoped to this page only (not the shared
+   .header-actions rule in admin-style.css) so the three buttons wrap
+   onto a second line instead of overflowing/breaking layout on
+   narrower viewports. */
+.dashboard-top-bar .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .card-box {
     background: #ffffff;
     border-radius: 12px;
