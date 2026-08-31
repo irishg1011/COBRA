@@ -53,6 +53,7 @@ from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unp
     archive_resource,  # NEW - Task #81: Manage Learning Resources ACTIONS -> Archive
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
+from resource_form_publish import save_and_publish_lesson  # NEW - Task #95: shared save-then-publish for New Lesson
 from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
 from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB integration
     get_coding_exercises_overview, get_exercise_stats, delete_coding_exercise,
@@ -2009,7 +2010,7 @@ def upload_resource():
         module_content = request.form.get('module_content') or ''
         resource_id = request.form.get('resource_id') or None
 
-        success, message, saved_resource_id = save_lesson_draft(
+        success, message, saved_resource_id = save_and_publish_lesson(
             resource_id=resource_id,
             lesson_name=lesson_name,
             cat_id=cat_id,
@@ -2028,16 +2029,7 @@ def upload_resource():
                 return redirect(url_for('admin_bp.upload_resource', resource_id=redirect_resource_id))
             return redirect(url_for('admin_bp.upload_resource'))
 
-        publish_success, publish_message = publish_resource(saved_resource_id)
-        if not publish_success:
-            # The lesson itself saved successfully - only the "go live"
-            # step was blocked (most commonly: the parent module isn't
-            # Published yet). Say so plainly instead of a generic
-            # failure message, and stay on this same resource.
-            flash(f"Lesson saved as a draft, but could not publish it: {publish_message}", 'error')
-            return redirect(url_for('admin_bp.upload_resource', resource_id=saved_resource_id))
-
-        flash('Lesson published successfully.', 'success')
+        flash(message, 'success')
         return redirect(url_for('admin_bp.learning_resources'))
 
     # Task #41: Category dropdown is rendered server-side from real
@@ -2205,6 +2197,41 @@ def upload_resource_save_draft():
         "message": message,
         "resource_id": saved_resource_id,
     }), (200 if success else 400)
+
+
+# ============================================================
+# ROUTE: TASK #95 - PUBLISH UPLOAD RESOURCE (JSON)
+# ============================================================
+@admin_bp.route('/upload-resource/publish', methods=['POST'])
+def upload_resource_publish():
+    """
+    Task #95: JSON Publish for the New Lesson form so the frontend can
+    show a floating success toast before leaving the page. Same
+    save-then-publish path as the HTML POST on /admin/upload-resource
+    (resource_form_publish.save_and_publish_lesson). This route is a
+    thin HTTP wrapper only.
+
+    Expects JSON body: { resource_id, lesson_name, category_id, module_id, module_content }
+
+    Returns JSON: { "success": bool, "message": str, "resource_id": int | None }
+    """
+    data = request.get_json(silent=True) or {}
+
+    success, message, saved_resource_id = save_and_publish_lesson(
+        resource_id=data.get('resource_id'),
+        lesson_name=data.get('lesson_name'),
+        cat_id=data.get('category_id'),
+        module_id=data.get('module_id'),
+        content_html=data.get('module_content') or '',
+        uploaded_by=session.get('admin_id'),
+    )
+    return jsonify({
+        "success": success,
+        "message": message,
+        "resource_id": saved_resource_id,
+    }), (200 if success else 400)
+
+
 # ============================================================
 # ROUTE: TASK #41 - MODULES DEPENDENT ON SELECTED CATEGORY
 # ============================================================

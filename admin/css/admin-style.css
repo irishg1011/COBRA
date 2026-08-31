@@ -1904,7 +1904,9 @@ textarea.form-control-custom {
 }
 
 /* ==========================================================================
-   TASK #90: TEMPORARY POPUP NOTIFICATION ("Changes Saved") & TABLE SPACING
+   TASK #90 / #95: TEMPORARY POPUP NOTIFICATION (toast) & TABLE SPACING
+   Shared success toast for Manage Course ("Changes Saved") and the
+   New Lesson Save Draft / Publish flow. Auto-dismiss is 2s in JS.
    ========================================================================== */
 .changes-saved-toast {
     position: fixed;
@@ -1987,4 +1989,9 @@ textarea.form-control-custom {
 .resource-popup-alert i {
     font-size: 1.1rem;
     color: #ffffff;
-}
+}
+
+/* Task #95: never show Flask flashes inline on New Lesson; JS toasts them. */
+.upload-resource-flash-messages {
+    display: none !important;
+}

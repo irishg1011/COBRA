@@ -759,3 +759,8 @@ select.form-control {
     font-size: 1.1rem;
     color: #ffffff;
 }
+
+/* Task #95: never show Flask flashes inline on New Lesson; JS toasts them. */
+.upload-resource-flash-messages {
+    display: none !important;
+}

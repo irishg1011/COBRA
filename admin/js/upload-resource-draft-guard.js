@@ -1,5 +1,5 @@
 /**
- * upload-resource-draft-guard.js - Task #44, #83, #84 & #93
+ * upload-resource-draft-guard.js - Task #44, #83, #84, #93 & #95
  * --------------------------------------------------------------------
  * Handles:
  *   - Unsaved changes detection and exit confirmations.
@@ -7,9 +7,14 @@
  *   - Task #93: Form validation with red field borders (.field-error),
  *     zero inline layout distortion, popup alerts, and real-time error
  *     clearing upon typing/selection.
+ *   - Task #95: Success feedback uses the same floating toast as
+ *     Manage Course (changes-saved-toast), auto-dismissed after 2s.
+ *     Inline / flash success text is never shown in the form header.
  */
 (function () {
     "use strict";
+
+    const TOAST_DURATION_MS = 2000;
 
     function escapeHtml(str) {
         const div = document.createElement("div");
@@ -18,26 +23,52 @@
     }
 
     // --------------------------------------------------------
-    // Task #93: Popup Alerts (zero inline layout shifting)
+    // Task #95: Success toast (matches Task #90's changes-saved-toast)
+    // --------------------------------------------------------
+    let successToastTimeout = null;
+
+    function showSuccessToast(message) {
+        let toast = document.getElementById("changesSavedToast");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "changesSavedToast";
+            toast.className = "changes-saved-toast";
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${escapeHtml(message)}</span>`;
+        toast.classList.add("show");
+
+        if (successToastTimeout) clearTimeout(successToastTimeout);
+        successToastTimeout = setTimeout(() => {
+            toast.classList.remove("show");
+        }, TOAST_DURATION_MS);
+    }
+
+    // --------------------------------------------------------
+    // Task #93: Error popup alerts (zero inline layout shifting)
     // --------------------------------------------------------
     let popupAlertTimeout = null;
 
     function showPopupAlert(message, type = "error") {
+        if (type === "success") {
+            showSuccessToast(message);
+            return;
+        }
+
         let popup = document.getElementById("resourcePopupAlert");
         if (!popup) {
             popup = document.createElement("div");
             popup.id = "resourcePopupAlert";
             document.body.appendChild(popup);
         }
-        const icon = type === "success" ? "fa-circle-check" : "fa-circle-exclamation";
-        popup.className = `resource-popup-alert ${type === "success" ? "success" : "error"}`;
-        popup.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${escapeHtml(message)}</span>`;
+        popup.className = "resource-popup-alert error";
+        popup.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <span>${escapeHtml(message)}</span>`;
         popup.classList.add("show");
 
         if (popupAlertTimeout) clearTimeout(popupAlertTimeout);
         popupAlertTimeout = setTimeout(() => {
             hidePopupAlert();
-        }, 3000);
+        }, TOAST_DURATION_MS);
     }
 
     function hidePopupAlert() {
@@ -64,6 +95,7 @@
         const hiddenContent = document.getElementById("hiddenModuleContent");
         const resourceIdInput = document.getElementById("resourceIdInput");
         const saveDraftBtn = document.getElementById("saveDraftBtn");
+        const publishBtn = document.getElementById("publishResourceBtn");
 
         const unsavedModal = document.getElementById("unsavedChangesModal");
         const stayBtn = document.getElementById("unsavedStayBtn");
@@ -82,6 +114,20 @@
         let pendingNavigation = null;
         let pendingConfirmAction = null;
         let publishConfirmed = false;
+
+        // Task #95: Flask flash markup is kept only as a data source for
+        // the toast (non-JS POST fallback). Never leave it visible inline.
+        (function consumeFlashMessages() {
+            const container = document.querySelector(".upload-resource-flash-messages");
+            if (!container) return;
+            container.querySelectorAll(".flash-message").forEach((el) => {
+                const text = (el.textContent || "").trim();
+                if (!text) return;
+                const isError = el.classList.contains("flash-error");
+                showPopupAlert(text, isError ? "error" : "success");
+            });
+            container.remove();
+        })();
 
         // --------------------------------------------------------
         // Dirty-state tracking & Real-time Error Clearing
@@ -400,35 +446,88 @@
         });
 
         // --------------------------------------------------------
-        // Publish Submission Handling
+        // Publish (JSON) — toast on success, then return to the list
         // --------------------------------------------------------
-        form.addEventListener("submit", function (e) {
+        async function performPublish() {
             if (!validateResourceForm(true)) {
-                e.preventDefault();
+                return false;
+            }
+
+            const originalHtml = publishBtn ? publishBtn.innerHTML : "";
+            if (publishBtn) {
+                publishBtn.disabled = true;
+                publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing...';
+            }
+
+            try {
+                if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
+                    window.cobraByteSyncInteractiveBlocks();
+                }
+                if (hiddenContent && editor) hiddenContent.value = editor.innerHTML;
+
+                const response = await fetch("/admin/upload-resource/publish", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        resource_id: resourceIdInput ? (resourceIdInput.value || null) : null,
+                        lesson_name: lessonNameInput.value.trim(),
+                        category_id: categorySelect.value,
+                        module_id: moduleSelect.value,
+                        module_content: hiddenContent ? hiddenContent.value : "",
+                    }),
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    if (resourceIdInput && result.resource_id) {
+                        resourceIdInput.value = result.resource_id;
+                    }
+                    showPopupAlert(result.message || "Could not publish this resource.", "error");
+                    return false;
+                }
+
+                if (resourceIdInput && result.resource_id) {
+                    resourceIdInput.value = result.resource_id;
+                }
+                clearDirty();
+                isSubmitting = true;
+                showSuccessToast(result.message || "Lesson published successfully.");
+                setTimeout(() => {
+                    window.location.href = "/admin/learning-resources";
+                }, TOAST_DURATION_MS);
+                return true;
+            } catch (err) {
+                showPopupAlert("Could not reach the server. Please try again.", "error");
+                return false;
+            } finally {
+                if (publishBtn && !isSubmitting) {
+                    publishBtn.disabled = false;
+                    publishBtn.innerHTML = originalHtml;
+                }
+            }
+        }
+
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            if (!validateResourceForm(true)) {
                 return;
             }
 
             if (!publishConfirmed) {
-                e.preventDefault();
                 showConfirmModal(
                     "Are you sure you want to publish this resource?",
                     () => {
                         publishConfirmed = true;
-                        isSubmitting = true;
-                        clearDirty();
-                        if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
-                            window.cobraByteSyncInteractiveBlocks();
-                        }
-                        if (hiddenContent && editor) hiddenContent.value = editor.innerHTML;
-                        form.requestSubmit();
+                        performPublish();
                     },
                     "Publish Resource?"
                 );
                 return;
             }
 
-            isSubmitting = true;
-            clearDirty();
+            performPublish();
         });
     });
 })();

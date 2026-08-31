@@ -47,7 +47,7 @@
                             <button type="button" class="btn btn-light-custom" id="saveDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
-                            <button type="submit" form="uploadModuleForm" class="btn btn-success-custom">
+                            <button type="submit" form="uploadModuleForm" class="btn btn-success-custom" id="publishResourceBtn">
                                 <i class="fa-solid fa-paper-plane"></i> Publish
                             </button>
                             
@@ -56,19 +56,15 @@
                 </div>
 
                 <!--
-                    Task: flash messages surface validation results from
-                    the /admin/upload-resource POST route (e.g. Task #42's
-                    "A lesson with this name already exists..." error, or
-                    the success confirmation) without needing a dedicated
-                    JS-rendered banner for the non-JS/redirect fallback
-                    path. upload-resource.js still layers a live, inline
-                    error under the Lesson Name field for instant feedback
-                    while typing - this block simply covers the case where
-                    the form is actually submitted.
+                    Task #95: flash messages from the non-JS POST fallback
+                    are hidden in CSS and consumed by
+                    upload-resource-draft-guard.js, which shows the same
+                    floating toast used on Save Draft / Publish. They are
+                    never rendered as static inline text in the header.
                 -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
-                        <div class="upload-resource-flash-messages">
+                        <div class="upload-resource-flash-messages" hidden>
                             {% for category, message in messages %}
                                 <p class="flash-message flash-{{ category }}">{{ message }}</p>
                             {% endfor %}
