@@ -702,13 +702,15 @@ select.form-control {
 }
 
 /* ==========================================================================
-   TASK #93: INPUT FIELD ERROR HIGHLIGHTING & VALIDATION POPUP
+   TASK #93 & #102: INPUT FIELD ERROR HIGHLIGHTING & VALIDATION POPUP
    ========================================================================== */
 .field-error,
 .form-control.field-error,
 .form-control-select.field-error,
+.custom-select.field-error,
 .form-textarea.field-error,
-.editor-body.field-error {
+.editor-body.field-error,
+.question-input.field-error {
     border-color: #e02424 !important;
     box-shadow: 0 0 0 1px #e02424 !important;
 }
