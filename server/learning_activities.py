@@ -275,7 +275,9 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
             LEFT JOIN {CATEGORY_TABLE} c ON la.cat_id = c.cat_id
             LEFT JOIN {MODULES_TABLE} m ON la.module_id = m.module_id
             LEFT JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
-            WHERE 1 = 1
+            WHERE (last.la_stats_name IS NULL OR last.la_stats_name != 'Archived')
+              AND (c.cat_id IS NULL OR COALESCE(c.is_archived, 0) = 0)
+              AND (m.module_id IS NULL OR COALESCE(m.is_archived, 0) = 0)
         """
         params = []
 
