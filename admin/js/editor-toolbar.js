@@ -1335,13 +1335,9 @@ function blockHasUserInput(wrapper) {
                 <div class="editor-code-card-body">
                     <div class="editor-code-title-row">
                         <div class="editor-code-title"><i class="fa-solid fa-terminal"></i> Expected Output</div>
-                        <select class="editor-output-mode-select" title="Expected Output Mode">
-                            <option value="manual" selected>Manual Input</option>
-                            <option value="auto">Auto-Evaluate from Code</option>
-                        </select>
                     </div>
-                    <p class="editor-code-desc output-desc-text">Set the expected output manually.</p>
-                    <div class="editor-output-box" contenteditable="true" placeholder="Enter expected output..."></div>
+                    <p class="editor-code-desc output-desc-text">Output is dynamically generated based on code execution.</p>
+                    <div class="editor-output-box" contenteditable="false" placeholder="Output will be automatically evaluated from code execution..."></div>
                 </div>
             </div>
         `;
@@ -1364,16 +1360,9 @@ function blockHasUserInput(wrapper) {
         keepPlaceholderPermanent(wrapper.querySelector(".editor-output-box"));
         wireRunButton(wrapper);
 
-        // Task #86: Component Type (Interactive Exercise vs Code Example
-        // Only) and the Expected Output evaluation mode (Manual vs Auto)
-        // are two INDEPENDENT controls - wireCodeComponentMode() /
-        // wireOutputEvaluationMode() below are the single source of truth
-        // for both, shared with wireCodeContainer() (used when a saved
-        // lesson is reopened) so a reloaded block behaves identically to
-        // a freshly-inserted one, and so switching one control can never
-        // reset or remove the other.
+        // Task #86: Component Type (Interactive Exercise vs Code Example Only)
+        // single source of truth for both freshly-inserted and reloaded blocks.
         wireCodeComponentMode(wrapper);
-        wireOutputEvaluationMode(wrapper);
 
         range.deleteContents();
         range.insertNode(wrapper);
@@ -1429,8 +1418,7 @@ function blockHasUserInput(wrapper) {
     //     - typed content DOES serialize into editor.innerHTML for free,
     //       since it's real DOM content.
     //   - real form controls (<input class="editor-code-filename">,
-    //     <select class="editor-code-mode-select">,
-    //     <select class="editor-output-mode-select">) - typing/selecting
+    //     <select class="editor-code-mode-select">) - typing/selecting
     //     updates their live DOM .value, but that does NOT get reflected
     //     back into the `value=""` / `selected` HTML attributes, which is
     //     the only thing editor.innerHTML actually serializes for form
@@ -1451,7 +1439,7 @@ function blockHasUserInput(wrapper) {
         editor.querySelectorAll(".editor-code-filename").forEach((input) => {
             input.setAttribute("value", input.value || "");
         });
-        editor.querySelectorAll(".editor-code-mode-select, .editor-output-mode-select").forEach((select) => {
+        editor.querySelectorAll(".editor-code-mode-select").forEach((select) => {
             Array.from(select.options).forEach((opt) => {
                 if (opt.value === select.value) {
                     opt.setAttribute("selected", "selected");
@@ -1477,12 +1465,7 @@ function blockHasUserInput(wrapper) {
     // only ever got attached at the moment a NEW block was inserted via
     // insertCodeBlockTemplate()/insertTerminalBlockTemplate() during
     // this same page session, never for markup that arrived already
-    // sitting in the DOM on page load. Without this, a reloaded code
-    // block's mode dropdown would LOOK right (selected value restored)
-    // but silently do nothing when changed, and its delete button
-    // wouldn't work either - exactly the "retrieved resource content
-    // renders fully with all integrated functions ... intact"
-    // requirement this task calls out.
+    // sitting in the DOM on page load.
     function wireDeleteButton(wrapper) {
         const btn = wrapper.querySelector(".editor-delete-block-btn");
         if (btn) {
@@ -1500,11 +1483,7 @@ function blockHasUserInput(wrapper) {
     // the Expected Output pane and the Run button entirely - a plain
     // code snippet never needs or requires an expected output - and lets
     // the Console pane fill the full row width; switching back to
-    // "Interactive Exercise" restores both. This never touches the
-    // Expected Output evaluation mode select (wireOutputEvaluationMode
-    // below) - the two controls are completely independent, per Task
-    // #86's requirement that changing one can never remove/affect the
-    // other.
+    // "Interactive Exercise" restores both.
     function wireCodeComponentMode(wrapper) {
         const modeSelect = wrapper.querySelector(".editor-code-mode-select");
         if (!modeSelect) return;
@@ -1524,65 +1503,33 @@ function blockHasUserInput(wrapper) {
         modeSelect.addEventListener("change", applyMode);
     }
 
-    // Task #86: shared Expected Output evaluation-mode wiring (Manual
-    // Input vs Auto-Evaluate from Code) - independent of
-    // wireCodeComponentMode() above. Manual keeps the Expected Output box
-    // freely editable; Auto turns it into a read-only, auto-populated
-    // terminal that Run fills in (see wireRunButton()).
-    function wireOutputEvaluationMode(wrapper) {
-        const outputModeSelect = wrapper.querySelector(".editor-output-mode-select");
-        const outputBox = wrapper.querySelector(".editor-output-box");
-        const outputDesc = wrapper.querySelector(".output-desc-text");
-        if (!outputModeSelect || !outputBox) return;
+    function wireCodeContainer(wrapper) {
+        wireDeleteButton(wrapper);
+        wireRunButton(wrapper);
+        keepPlaceholderPermanent(wrapper.querySelector(".editor-console-box"));
+        keepPlaceholderPermanent(wrapper.querySelector(".editor-output-box"));
 
-        function applyMode() {
-            if (outputModeSelect.value === "auto") {
-                outputBox.setAttribute("contenteditable", "false");
-                outputBox.classList.add("editor-output-terminal");
-                outputBox.style.background = "#f3f4f6";
-                outputBox.style.color = "#6b7280";
-                // Empty DOM + placeholder attribute instead of real
-                // textContent - this message is purely a CSS-drawn
-                // placeholder (module-editor.css's :empty:before) and is
-                // never part of editor.innerHTML, so it can never be
-                // saved as actual lesson content.
-                outputBox.innerHTML = "";
-                outputBox.setAttribute("placeholder", "Output will be automatically evaluated from code execution...");
-                if (outputDesc) outputDesc.textContent = "Output is dynamically generated based on code execution.";
-            } else {
-                outputBox.setAttribute("contenteditable", "true");
-                outputBox.classList.remove("editor-output-terminal");
-                outputBox.style.background = "#ffffff";
-                outputBox.style.color = "#374151";
-                outputBox.setAttribute("placeholder", "e.g. Hello, World!");
-                if (outputDesc) outputDesc.textContent = "Set the expected output manually.";
+        const outputBox = wrapper.querySelector(".editor-output-box");
+        if (outputBox) {
+            outputBox.setAttribute("contenteditable", "false");
+        }
+
+        const outputPane = wrapper.querySelector(".output-card-pane");
+        if (outputPane) {
+            const desc = outputPane.querySelector(".editor-code-desc");
+            if (desc && desc.textContent.includes("manually")) {
+                desc.textContent = "Output is dynamically generated based on code execution.";
             }
         }
 
-        applyMode();
-        outputModeSelect.addEventListener("change", applyMode);
+        // Task #96: remove any legacy Expected Output mode select if present
+        const legacyOutputModeSelect = wrapper.querySelector(".editor-output-mode-select");
+        if (legacyOutputModeSelect) {
+            legacyOutputModeSelect.remove();
+        }
+
+        wireCodeComponentMode(wrapper);
     }
-
-function wireCodeContainer(wrapper) {
-    wireDeleteButton(wrapper);
-    wireRunButton(wrapper);
-    keepPlaceholderPermanent(wrapper.querySelector(".editor-console-box"));
-    keepPlaceholderPermanent(wrapper.querySelector(".editor-output-box"));
-
-    // Task #86: rewire (never remove) the Component Type (Interactive
-    // Exercise vs Code Example Only) and Expected Output evaluation mode
-    // (Manual vs Auto) selects on a block reloaded from a saved draft/
-    // lesson. These used to be stripped out here ("Remove legacy mode
-    // controls if they still exist"), which is exactly what made "Code
-    // Example Only (Console)" disappear from a lesson the moment it was
-    // reopened for editing. Their `selected` option is already restored
-    // from the saved content_body (see syncInteractiveBlockValues()), so
-    // applying the CURRENT selection here - not defaulting back to
-    // "interactive"/"manual" - is what makes a saved Code-Example-Only
-    // block reopen as Code-Example-Only instead of silently reverting.
-    wireCodeComponentMode(wrapper);
-    wireOutputEvaluationMode(wrapper);
-}
 
     function wireTerminalContainer(wrapper) {
         wireDeleteButton(wrapper);

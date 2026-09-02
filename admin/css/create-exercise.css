@@ -2,6 +2,14 @@
    Create Coding Exercise Styles (Polished UI)
    ========================================== */
 
+/* Task #110: Preview Exercise / Save Draft / Publish Exercise now sit
+   together in the top header. Scoped to this page so the three buttons wrap
+   onto a second line instead of overflowing/breaking layout on narrower viewports. */
+.dashboard-top-bar .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .card-box {
     background: #ffffff !important;
     border-radius: 12px !important;
@@ -258,4 +266,58 @@
 
 .card-box.padded-card.accent-top {
     border-top: 4px solid #06b6d4 !important;
+}
+
+/* Task #111: Unsaved Changes Modal - single horizontal line triple action buttons */
+.modal-card-confirm {
+    max-width: 520px !important;
+    width: 100% !important;
+}
+
+.modal-confirm-actions-triple {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    justify-content: center !important;
+    align-items: stretch !important;
+    width: 100% !important;
+}
+
+.modal-confirm-actions-triple .modal-btn-cancel,
+.modal-confirm-actions-triple .modal-btn-danger,
+.modal-confirm-actions-triple .modal-btn-save {
+    padding: 10px 10px !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+}
+
+@media (max-width: 540px) {
+    .modal-confirm-actions-triple {
+        flex-wrap: wrap !important;
+    }
+    .modal-confirm-actions-triple .modal-btn-cancel,
+    .modal-confirm-actions-triple .modal-btn-danger,
+    .modal-confirm-actions-triple .modal-btn-save {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+    }
+}
+
+/* Task #113: Red border highlighting for invalid / empty required fields */
+.field-error,
+.form-control.field-error,
+.form-control-select.field-error,
+.question-textarea.field-error,
+input.field-error,
+select.field-error,
+textarea.field-error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 1px #ef4444 !important;
 }

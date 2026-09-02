@@ -1,0 +1,44 @@
+<!-- admin/create-module-modal.html
+     Task #87: Standalone Create Module Modal - replaces the drawer-based
+     module creation inside the categories modal. Opens directly from the
+     "+ Module" header button or "+ Add Module" triggers. Includes a cancel
+     confirmation warning if input data is present. -->
+<div id="createModuleModal" class="modal-overlay modal-hidden" style="display: none;">
+    <div class="modal-card create-admin-card edit-module-card">
+        <button type="button" class="modal-close-btn" id="closeCreateModuleModalBtn">&times;</button>
+
+        <div class="modal-header-section">
+            <div class="modal-icon-glow">
+                <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <h2>Create New Module</h2>
+            <p>Fill in the details to create a new module.</p>
+        </div>
+
+        <form id="createModuleForm">
+            <div class="form-group">
+                <label for="newModuleName">Module Name</label>
+                <input type="text" id="newModuleName" placeholder="Enter Module Name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="newModuleDesc">Description</label>
+                <textarea id="newModuleDesc" rows="3" placeholder="Description..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="newModuleCategory">Category</label>
+                <select id="newModuleCategory" class="custom-select" required>
+                    <option value="" disabled selected>Select Category</option>
+                </select>
+            </div>
+
+            <div class="modal-footer-actions" style="gap: 12px;">
+                <button type="button" class="btn-cancel-custom" id="cancelCreateModuleBtn">Cancel</button>
+                <button type="submit" class="btn btn-create-account" id="submitCreateModuleBtn">
+                    <i class="fa-solid fa-plus"></i> Create Module
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

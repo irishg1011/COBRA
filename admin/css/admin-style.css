@@ -605,6 +605,31 @@ body {
     color: #ffffff !important;
 }
 
+.btn-icon-custom {
+    background: #09B300;
+    color: #ffffff !important;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none !important;
+    font-size: 1rem;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.btn-icon-custom:hover,
+.btn-icon-custom:focus,
+.btn-icon-custom:active {
+    background: #079600;
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+
 /* ==========================================================================
    TASK #81: HIGH-CONTRAST UNPUBLISH BUTTON
    Replaces the previous ".btn-secondary-custom" usage for Unpublish,
@@ -662,7 +687,9 @@ body {
    the exact same internal flex layout (icon/label gap, centering) while
    letting the surrounding td's text-align position the button itself.
    ========================================================================== */
-#resourcesDataTable .js-toggle-publish-btn {
+#resourcesDataTable .js-toggle-publish-btn,
+.js-toggle-publish-module-btn,
+.data-table .js-toggle-publish-btn {
     display: inline-flex;
 }
 
@@ -1376,7 +1403,7 @@ body {
     padding: 28px 24px;
     border-radius: 12px;
     width: 100%;
-    max-width: 380px;
+    max-width: 520px;
     text-align: center;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     font-family: 'Inter', sans-serif;
@@ -1384,9 +1411,17 @@ body {
 
 .modal-confirm-icon {
     margin-bottom: 16px;
-    color: #e02424;
+    color: #09B300;
     display: flex;
     justify-content: center;
+}
+
+.modal-confirm-icon.modal-confirm-icon-info {
+    color: #09B300;
+}
+
+.modal-confirm-icon.modal-confirm-icon-danger {
+    color: #e02424;
 }
 
 .modal-confirm-icon-svg {
@@ -1437,12 +1472,45 @@ body {
 }
 
 /* ==========================================================================
-   TASK #44: Unsaved Changes Modal (upload-resource.html:
-   #unsavedChangesModal) - three-action variant of the logout confirm
-   modal (Stay / Leave Without Saving / Save Draft & Leave).
+   TASK #44, #97 & #100: Unsaved Changes Modal (upload-resource.html:
+   #unsavedChangesModal, create-learning-activity.html: #unsavedChangesModal)
+   - three-action variant (Stay / Leave Without Saving / Save & Leave).
+   Aligned strictly in a single horizontal line.
    ========================================================================== */
 .modal-confirm-actions-triple {
-    flex-wrap: wrap;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: stretch;
+    width: 100%;
+}
+
+.modal-confirm-actions-triple .modal-btn-cancel,
+.modal-confirm-actions-triple .modal-btn-danger,
+.modal-confirm-actions-triple .modal-btn-save {
+    padding: 10px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+@media (max-width: 540px) {
+    .modal-confirm-actions-triple {
+        flex-wrap: wrap;
+    }
+    .modal-confirm-actions-triple .modal-btn-cancel,
+    .modal-confirm-actions-triple .modal-btn-danger,
+    .modal-confirm-actions-triple .modal-btn-save {
+        flex: 1 1 auto;
+        width: 100%;
+    }
 }
 
 .modal-btn-save {
@@ -1822,10 +1890,217 @@ textarea.form-control-custom {
     padding-right: 20px;
 }
 
-#archivedModulesModal .data-table th:last-child {
-    text-align: right;
-}
-
 #archivedModulesModal .data-table .table-actions-group {
     gap: 12px;
+}
+
+/* ==========================================================================
+   TASK #87: UNIFIED ARCHIVES TOGGLE SWITCHER
+   ========================================================================== */
+.archive-toggle-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: 8px;
+    width: fit-content;
+}
+
+.archive-toggle-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #4b5563;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.archive-toggle-btn:hover {
+    color: #111827;
+}
+
+.archive-toggle-btn.active {
+    background: #09B300;
+    color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.archive-toggle-btn.active i {
+    color: #ffffff !important;
+}
+
+/* ==========================================================================
+   TASK #90 / #95: TEMPORARY POPUP NOTIFICATION (toast) & TABLE SPACING
+   Shared success toast for Manage Course ("Changes Saved") and the
+   New Lesson Save Draft / Publish flow. Auto-dismiss is 2s in JS.
+   ========================================================================== */
+.changes-saved-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: #09B300;
+    color: #ffffff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+}
+
+.changes-saved-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.changes-saved-toast i {
+    font-size: 1.1rem;
+    color: #ffffff;
+}
+
+.main-content .data-table th:nth-last-child(2),
+.main-content .data-table td:nth-last-child(2) {
+    padding-right: 28px;
+}
+
+/* ==========================================================================
+   TASK #93 & #102: INPUT FIELD ERROR HIGHLIGHTING & VALIDATION POPUP
+   ========================================================================== */
+.field-error,
+.form-control.field-error,
+.form-control-select.field-error,
+.custom-select.field-error,
+.form-textarea.field-error,
+.editor-body.field-error,
+.question-input.field-error {
+    border-color: #e02424 !important;
+    box-shadow: 0 0 0 1px #e02424 !important;
+}
+
+.resource-popup-alert {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: #e02424;
+    color: #ffffff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+}
+
+.resource-popup-alert.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.resource-popup-alert.success {
+    background: #09B300;
+}
+
+.resource-popup-alert i {
+    font-size: 1.1rem;
+    color: #ffffff;
+}
+
+/* Task #95 & #102: never show Flask flashes inline; JS toasts them. */
+.upload-resource-flash-messages,
+.activity-flash-messages {
+    display: none !important;
+}
+
+/* ==========================================================================
+   MANAGE LEARNING ACTIVITIES - PUBLISH STATUS COLUMN
+   ========================================================================== */
+
+#activitiesDataTable th.publish-status-column,
+#activitiesDataTable td.publish-status-column {
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+#activitiesDataTable th.publish-status-column {
+    width: 140px;
+    min-width: 140px;
+}
+
+#activitiesDataTable td.publish-status-column .js-toggle-activity-publish-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    min-width: 100px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   MANAGE LEARNING ACTIVITIES - ACTIONS COLUMN SPACING
+   ========================================================================== */
+
+#activitiesDataTable td.activity-actions-column {
+    padding-right: 28px;
+}
+
+#activitiesDataTable th.activity-actions-column {
+    padding-right: 28px;
+}
+
+/* ==========================================================================
+   MANAGE CODING EXERCISES - PUBLISH STATUS & ACTIONS COLUMN SPACING
+   ========================================================================== */
+
+#exercisesDataTable th.publish-status-column,
+#exercisesDataTable td.publish-status-column {
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+#exercisesDataTable th.publish-status-column {
+    width: 140px;
+    min-width: 140px;
+}
+
+#exercisesDataTable td.publish-status-column .js-toggle-exercise-publish-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    min-width: 100px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+#exercisesDataTable td.exercise-actions-column,
+#exercisesDataTable th.exercise-actions-column {
+    padding-right: 28px;
 }

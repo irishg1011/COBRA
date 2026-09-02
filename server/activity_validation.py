@@ -163,6 +163,7 @@ def validate_activity_title(title, exclude_la_id=None):
 
 
 ACTIVITY_TYPES_TABLE = "activity_types_tbl"
+LA_STATS_TABLE = "learning_activities_stats_tbl"
 
 
 def is_activity_type_taken_for_lesson(resource_id, activity_type, exclude_la_id=None, connection=None):
@@ -215,8 +216,10 @@ def is_activity_type_taken_for_lesson(resource_id, activity_type, exclude_la_id=
                 f"""SELECT la.la_id, la.activity_title
                     FROM {LEARNING_ACTIVITIES_TABLE} la
                     LEFT JOIN {ACTIVITY_TYPES_TABLE} at ON la.activity_type_id = at.activity_type_id
+                    LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
                     WHERE la.resource_id = %s
                       AND (at.activity_type_name = %s OR la.activity_type_id = %s)
+                      AND (last.la_stats_name IS NULL OR last.la_stats_name != 'Archived')
                       AND la.la_id != %s
                     LIMIT 1""",
                 (res_id, type_str, type_str, exclude_id)
@@ -226,8 +229,10 @@ def is_activity_type_taken_for_lesson(resource_id, activity_type, exclude_la_id=
                 f"""SELECT la.la_id, la.activity_title
                     FROM {LEARNING_ACTIVITIES_TABLE} la
                     LEFT JOIN {ACTIVITY_TYPES_TABLE} at ON la.activity_type_id = at.activity_type_id
+                    LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
                     WHERE la.resource_id = %s
                       AND (at.activity_type_name = %s OR la.activity_type_id = %s)
+                      AND (last.la_stats_name IS NULL OR last.la_stats_name != 'Archived')
                     LIMIT 1""",
                 (res_id, type_str, type_str)
             )

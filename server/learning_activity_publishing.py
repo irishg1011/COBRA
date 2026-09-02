@@ -65,6 +65,20 @@ def get_published_status_id(connection):
     return _get_status_id(connection, "Published")
 
 
+def get_draft_status_id(connection):
+    """
+    Task #107: returns the la_stats_id for "Draft" - the status a
+    quick-unpublish from the Manage Learning Activities table flips an
+    activity back to. Mirrors resource_publishing.get_draft_status_id()'s
+    exact role for Learning Resources, just reusing the caller's
+    already-open connection (see unpublish_activity() below) rather than
+    opening its own, since this is only ever called from inside another
+    function that already has one.
+    """
+    ensure_la_stats(connection)
+    return _get_status_id(connection, "Draft")
+
+
 def publish_activity(activity_id):
     """
     Task #57: flips a previously-saved learning activity's status to
@@ -121,6 +135,68 @@ def publish_activity(activity_id):
         if connection.is_connected():
             connection.rollback()
         print(f"learning_activity_publishing: failed to publish activity {activity_id}: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unpublish_activity(activity_id):
+    """
+    Task #107: reverses publish_activity() - flips a previously-published
+    learning activity's status back to "Draft" directly from the Manage
+    Learning Activities table's quick Publish/Unpublish toggle. No
+    parent-status gate is needed to unpublish (unlike publishing) -
+    taking an activity offline is always allowed, mirroring
+    resource_publishing.unpublish_resource()'s exact convention for
+    Learning Resources.
+
+    Args:
+        activity_id (int | str): the learning_activities_tbl.la_id to
+            unpublish.
+
+    Returns:
+        (bool, str): (success, message) - same (success, message)
+        convention as publish_activity() above, so admin_routes.py can
+        handle both the exact same way.
+    """
+    if not activity_id:
+        return False, "Activity ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_la_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
+            (activity_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Learning activity not found."
+
+        draft_id = get_draft_status_id(connection)
+        if not draft_id:
+            cursor.close()
+            return False, "Could not resolve the Draft status."
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_ACTIVITIES_TABLE}
+                SET la_stats_id = %s, updated_at = NOW()
+                WHERE la_id = %s""",
+            (draft_id, activity_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Learning activity moved back to Draft."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"learning_activity_publishing: failed to unpublish activity {activity_id}: {e}")
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():

@@ -44,42 +44,35 @@
                             <button type="button" class="btn btn-light-custom">
                                 <i class="fa-regular fa-eye"></i> Preview Lesson
                             </button>
-                            <button type="button" class="btn btn-light-custom" id="saveDraftBtn">
+                            {% if existing_resource and existing_resource.status == 'Published' %}
+                            <button type="button" class="btn btn-light-custom" id="saveDraftBtn" data-is-published="true">
+                                <i class="fa-regular fa-floppy-disk"></i> Save
+                            </button>
+                            <button type="button" class="btn btn-unpublish-custom" id="unpublishResourceBtn" data-resource-id="{{ existing_resource.resource_id }}">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-light-custom" id="saveDraftBtn" data-is-published="false">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
-                            <button type="submit" form="uploadModuleForm" class="btn btn-success-custom">
+                            <button type="submit" form="uploadModuleForm" class="btn btn-success-custom" id="publishResourceBtn">
                                 <i class="fa-solid fa-paper-plane"></i> Publish
                             </button>
-                            
+                            {% endif %}
                         </div>
                     </div>
                 </div>
 
-                <!-- Task #82: this row is now used ONLY for the Save Draft /
-                     Publish-triggered notice ("Draft saved successfully.",
-                     "Please enter a lesson name before saving a draft.",
-                     etc. - see upload-resource-draft-guard.js's
-                     showDraftNotice()). The live Lesson Name duplicate-check
-                     message moved back beside the "Lesson Name" label below,
-                     so the two never overlap/concatenate in the same spot. -->
-                <div class="top-bar-validation-row">
-                    <span class="js-draft-notice top-bar-inline-message" style="display: none;"></span>
-                </div>
-
                 <!--
-                    Task: flash messages surface validation results from
-                    the /admin/upload-resource POST route (e.g. Task #42's
-                    "A lesson with this name already exists..." error, or
-                    the success confirmation) without needing a dedicated
-                    JS-rendered banner for the non-JS/redirect fallback
-                    path. upload-resource.js still layers a live, inline
-                    error under the Lesson Name field for instant feedback
-                    while typing - this block simply covers the case where
-                    the form is actually submitted.
+                    Task #95: flash messages from the non-JS POST fallback
+                    are hidden in CSS and consumed by
+                    upload-resource-draft-guard.js, which shows the same
+                    floating toast used on Save Draft / Publish. They are
+                    never rendered as static inline text in the header.
                 -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
-                        <div class="upload-resource-flash-messages">
+                        <div class="upload-resource-flash-messages" hidden>
                             {% for category, message in messages %}
                                 <p class="flash-message flash-{{ category }}">{{ message }}</p>
                             {% endfor %}
@@ -98,17 +91,7 @@
                     <!-- 4-Column Horizontal Fields: Lesson Name, Category, Module, Status -->
                     <div class="lesson-meta-grid">
                         <div class="form-group lesson-name-group-override">
-                            <!-- Task #82: Lesson Name label + its live
-                                 duplicate-check message (#lessonNameError,
-                                 from upload-resource.js) sit in one row, so
-                                 the message reads as "Lesson Name: <msg>"
-                                 beside the label - never underneath the
-                                 input, and never in the same spot as the
-                                 Save Draft notice above. -->
-                            <div class="lesson-name-label-row">
-                                <label for="lessonNameInput">Lesson Name</label>
-                                <span id="lessonNameError" class="js-error-message lesson-name-inline-message" style="display: none;"></span>
-                            </div>
+                            <label for="lessonNameInput">Lesson Name</label>
                             <input type="text" id="lessonNameInput" name="lesson_name" class="form-control" placeholder="e.g. Introduction to Python" autocomplete="off" value="{{ existing_resource.lesson_name if existing_resource else '' }}" required>
                         </div>
 
@@ -214,10 +197,6 @@
 
                     </div>
                     </div>
-
-                    <p id="lessonContentError" class="js-error-message" style="display: none; color: #e02424; font-size: 13px; margin-top: 8px;"></p>
-
-                    </form>
                 </form>
 
             </div>

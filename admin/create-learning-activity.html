@@ -41,17 +41,39 @@
                             <button type="button" class="btn btn-success-custom" id="saveDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
+                            <!--
+                                Task #104: relocated here from the bottom
+                                form-actions-footer, so all three primary
+                                actions sit together in the header (Preview
+                                Activity -> Save Draft -> Publish Activity).
+                                Uses form="createActivityForm" (the same
+                                pattern already used by upload-resource.html's
+                                header Publish button) so this still submits
+                                the SAME <form id="createActivityForm"> below
+                                despite living outside of it - the submit
+                                event still fires on that form exactly as
+                                before, so create-learning-activity-draft-
+                                guard.js's existing form.addEventListener("submit", ...)
+                                validation/confirmation flow needs no changes.
+                            -->
+                            <button type="submit" form="createActivityForm" class="btn btn-success-custom" id="publishActivityBtn">
+                                <i class="fa-solid fa-paper-plane"></i> Publish Activity
+                            </button>
                         </div>
                     </div>
                 </div>
-                <!-- ✅ validation row is now a SIBLING, outside dashboard-top-bar entirely -->
-                <div class="top-bar-validation-row">
-                    <span class="js-draft-notice top-bar-inline-message" style="display: none;"></span>
-                </div>
 
                 {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="activity-flash-messages" hidden>
+                            {% for category, message in messages %}
+                                <p class="flash-message flash-{{ category }}">{{ message }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 {% endwith %}
-                <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST">
+
+                <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST" novalidate>
                     <input type="hidden" name="activity_id" id="activityIdInput" value="{{ existing_activity.la_id if existing_activity else '' }}">
                     <!-- Section 1: Activity Information -->
                     <div class="card-box padded-card mb-24">
@@ -62,8 +84,7 @@
 
                         <div class="form-group mb-20">
                             <label class="form-label" for="activityTitle">Activity Title *</label>
-                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." value="{{ existing_activity.activity_title if existing_activity else '' }}" required>
-                            <span id="activityTitleError" class="js-error-message" style="display: none; color: #e02424; font-size: 12px; margin-top: 6px;"></span>
+                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." value="{{ existing_activity.activity_title if existing_activity else '' }}">
                         </div>
 
                         <div class="form-grid-3">
@@ -76,7 +97,7 @@
                                     route) - value is the real cat_id, label is the
                                     real category_name. No hardcoded categories or IDs.
                                 -->
-                                <select id="courseSelect" name="course_id" class="custom-select form-control-select" required>
+                                <select id="courseSelect" name="course_id" class="custom-select form-control-select">
                                     <option value="" disabled {{ 'selected' if not existing_activity }}>Select category</option>
                                     {% for cat in categories %}
                                     <option value="{{ cat.cat_id }}" {{ 'selected' if existing_activity and existing_activity.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
@@ -93,7 +114,7 @@
                                     Category is picked, mirroring upload-resource.js's
                                     Category -> Module dependency (Task #41).
                                 -->
-                                <select id="moduleSelect" name="module_id" class="custom-select form-control-select" required disabled data-preselect-module-id="{{ existing_activity.module_id if existing_activity else '' }}">
+                                <select id="moduleSelect" name="module_id" class="custom-select form-control-select" disabled data-preselect-module-id="{{ existing_activity.module_id if existing_activity else '' }}">
                                     <option value="" disabled selected>Select module</option>
                                 </select>
                             </div>
@@ -106,7 +127,7 @@
                                     Module's module_id), mapping each resource_id to its
                                     resource_title.
                                 -->
-                                <select id="lessonSelect" name="lesson_id" class="custom-select form-control-select" required disabled data-preselect-resource-id="{{ existing_activity.resource_id if existing_activity else '' }}">
+                                <select id="lessonSelect" name="lesson_id" class="custom-select form-control-select" disabled data-preselect-resource-id="{{ existing_activity.resource_id if existing_activity else '' }}">
                                     <option value="" disabled selected>Select lesson</option>
                                 </select>
                             </div>
@@ -115,20 +136,19 @@
                         <div class="form-grid-3 mt-20">
                             <div class="form-group">
                                 <label class="form-label" for="activityType">Activity Type *</label>
-<select id="activityType" name="activity_type" class="custom-select form-control-select" required>
-    <option value="Multiple Choice" {{ 'selected' if not existing_activity or existing_activity.activity_type == 'Multiple Choice' }}>Multiple Choice</option>
-    <option value="Fill in the Blanks" {{ 'selected' if existing_activity and existing_activity.activity_type == 'Fill in the Blanks' }}>Fill in the Blanks</option>
-    <option value="Flashcards" {{ 'selected' if existing_activity and existing_activity.activity_type == 'Flashcards' }}>Flashcards</option>
-</select>
-<span id="activityTypeError" class="js-error-message" style="display: none; color: #e02424; font-size: 12px; margin-top: 6px;"></span>
+                                <select id="activityType" name="activity_type" class="custom-select form-control-select">
+                                    <option value="Multiple Choice" {{ 'selected' if not existing_activity or existing_activity.activity_type == 'Multiple Choice' }}>Multiple Choice</option>
+                                    <option value="Fill in the Blanks" {{ 'selected' if existing_activity and existing_activity.activity_type == 'Fill in the Blanks' }}>Fill in the Blanks</option>
+                                    <option value="Flashcards" {{ 'selected' if existing_activity and existing_activity.activity_type == 'Flashcards' }}>Flashcards</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="activityPoints">Points *</label>
-                                <input type="number" id="activityPoints" name="points" class="form-control" value="0" min="1" readonly required>
+                                <input type="number" id="activityPoints" name="points" class="form-control" value="0" min="1" readonly>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="activityStatus">Status *</label>
-                                <input type="text" id="activityStatus" name="status" class="form-control" value="Draft" readonly required>
+                                <input type="text" id="activityStatus" name="status" class="form-control" value="Draft" readonly>
                             </div>
                         </div>
                     </div>
@@ -187,14 +207,6 @@
 
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Bottom Form Actions Footer -->
-                    <div class="form-actions-footer mt-24">
-                        <a href="{{ url_for('admin_bp.learning_activities') }}" class="btn btn-secondary-custom">Cancel</a>
-                        <button type="submit" class="btn btn-success-custom">
-                            <i class="fa-solid fa-paper-plane"></i> Publish Activity
-                        </button>
                     </div>
 
                 </form>

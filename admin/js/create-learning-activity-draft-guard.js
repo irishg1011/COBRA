@@ -1,38 +1,86 @@
 /**
- * create-learning-activity-draft-guard.js - Unsaved Changes Protection
- * & Navigation Alert for Create Learning Activity
+ * create-learning-activity-draft-guard.js - Task #56, #83, #84, #102
  * --------------------------------------------------------------------
- * Watches Activity Title / Category / Module / Lesson / Activity Type /
- * Points AND every dynamically-added question / fill-blank / flashcard
- * field (Section 2) for changes, and:
- *   - Shows a native browser warning (beforeunload) on tab close,
- *     refresh, or a typed/bookmarked URL navigation while there are
- *     unsaved changes.
- *   - Intercepts in-app link clicks (sidebar nav, the header "Back"
- *     link, etc.) and shows a custom modal instead of navigating
- *     immediately, offering "Stay", "Leave Without Saving", or
- *     "Save Draft & Leave".
- *   - Wires the "Save Draft" button to POST the current Activity
- *     Information fields AND the current Section 2 content (Task #56)
- *     to /admin/create-learning-activity/save-draft (see
- *     admin_routes.py -> learning_activity_draft.py ->
- *     learning_activity_content.py), storing the returned activity_id
- *     in a hidden field so every later save updates the SAME row
- *     instead of creating duplicates, and syncing the read-only Points
- *     field from the server's own computed value (never trusting the
- *     client's own running count as the value that gets saved).
- *   - Clears the unsaved-changes flag the moment a draft save OR the
- *     real Publish submission succeeds.
- *
- * Mirrors upload-resource-draft-guard.js's pattern exactly (Task #44),
- * for workflow parity between the two content-creation pages.
- *
- * Only present on pages that have #createActivityForm (currently just
- * create-learning-activity.html), so this is safe to include as a
- * shared script without guard checks elsewhere.
+ * Handles:
+ *   - Form validation with red field borders (.field-error), zero
+ *     inline layout distortion, popup alerts, and real-time error
+ *     clearing upon typing/selection.
+ *   - Unsaved changes detection and exit confirmations.
+ *   - Save Draft & Publish workflows with confirmation modals.
+ *   - Success feedback uses floating toasts (changes-saved-toast),
+ *     auto-dismissed after 2s.
  */
 (function () {
     "use strict";
+
+    const TOAST_DURATION_MS = 2000;
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+    }
+
+    // --------------------------------------------------------
+    // Success toast (matches changes-saved-toast)
+    // --------------------------------------------------------
+    let successToastTimeout = null;
+
+    function showSuccessToast(message) {
+        let toast = document.getElementById("changesSavedToast");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "changesSavedToast";
+            toast.className = "changes-saved-toast";
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${escapeHtml(message)}</span>`;
+        toast.classList.add("show");
+
+        if (successToastTimeout) clearTimeout(successToastTimeout);
+        successToastTimeout = setTimeout(() => {
+            toast.classList.remove("show");
+        }, TOAST_DURATION_MS);
+    }
+
+    // --------------------------------------------------------
+    // Error popup alerts (zero inline layout shifting)
+    // --------------------------------------------------------
+    let popupAlertTimeout = null;
+
+    function showPopupAlert(message, type = "error") {
+        if (type === "success") {
+            showSuccessToast(message);
+            return;
+        }
+
+        let popup = document.getElementById("resourcePopupAlert");
+        if (!popup) {
+            popup = document.createElement("div");
+            popup.id = "resourcePopupAlert";
+            document.body.appendChild(popup);
+        }
+        popup.className = "resource-popup-alert error";
+        popup.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <span>${escapeHtml(message)}</span>`;
+        popup.classList.add("show");
+
+        if (popupAlertTimeout) clearTimeout(popupAlertTimeout);
+        popupAlertTimeout = setTimeout(() => {
+            hidePopupAlert();
+        }, TOAST_DURATION_MS);
+    }
+
+    function hidePopupAlert() {
+        const popup = document.getElementById("resourcePopupAlert");
+        if (popup) popup.classList.remove("show");
+        if (popupAlertTimeout) {
+            clearTimeout(popupAlertTimeout);
+            popupAlertTimeout = null;
+        }
+    }
+
+    window.cobraByteShowActivityPopupAlert = showPopupAlert;
+    window.cobraByteHideActivityPopupAlert = hidePopupAlert;
 
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("createActivityForm");
@@ -53,9 +101,7 @@
         const saveAndLeaveBtn = document.getElementById("unsavedSaveAndLeaveBtn");
         const unsavedSaveError = document.getElementById("unsavedSaveError");
 
-        // Shared Save Draft / Publish confirmation modal (see
-        // confirm-action-modal.html) - same generic Yes/No modal
-        // upload-resource.html already uses.
+        // Shared Save Draft / Publish confirmation modal
         const confirmActionModal = document.getElementById("confirmActionModal");
         const confirmActionTitle = document.getElementById("confirmActionTitle");
         const confirmActionText = document.getElementById("confirmActionText");
@@ -68,6 +114,19 @@
         let pendingConfirmAction = null;
         let pendingConfirmCancelAction = null;
         let publishConfirmed = false;
+
+        // Flash message handling
+        (function consumeFlashMessages() {
+            const container = document.querySelector(".activity-flash-messages");
+            if (!container) return;
+            container.querySelectorAll(".flash-message").forEach((el) => {
+                const text = (el.textContent || "").trim();
+                if (!text) return;
+                const isError = el.classList.contains("flash-error");
+                showPopupAlert(text, isError ? "error" : "success");
+            });
+            container.remove();
+        })();
 
         // --------------------------------------------------------
         // Task #56: Section 2 collectors - read the CURRENT DOM state
@@ -140,19 +199,262 @@
             isDirty = true;
         }
 
+        // --------------------------------------------------------
+        // Real-time error clearing
+        // --------------------------------------------------------
+        function clearFieldError(el) {
+            if (!el) return;
+            el.classList.remove("field-error");
+            hidePopupAlert();
+        }
+
+        [activityTitleInput, courseSelect, moduleSelect, lessonSelect, activityTypeSelect].forEach((el) => {
+            if (!el) return;
+            el.addEventListener("input", () => {
+                markDirty();
+                clearFieldError(el);
+            });
+            el.addEventListener("change", () => {
+                markDirty();
+                clearFieldError(el);
+            });
+        });
+
+        document.addEventListener("input", (e) => {
+            if (e.target && e.target.classList.contains("field-error")) {
+                clearFieldError(e.target);
+            }
+        });
+        document.addEventListener("change", (e) => {
+            if (e.target && e.target.classList.contains("field-error")) {
+                clearFieldError(e.target);
+            }
+        });
+
+        // --------------------------------------------------------
+        // Task #102: Form Validation with Red Border Highlighting
+        // --------------------------------------------------------
+        function validateActivityForm(isPublish = false) {
+            let isValid = true;
+            let firstErrorMsg = "";
+            let firstErrorField = null;
+
+            // 1. Activity Title
+            const titleVal = activityTitleInput ? activityTitleInput.value.trim() : "";
+            if (!titleVal) {
+                isValid = false;
+                if (activityTitleInput) activityTitleInput.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please enter an activity title before publishing."
+                        : "Please enter an activity title before saving a draft.";
+                    firstErrorField = activityTitleInput;
+                }
+            } else {
+                if (activityTitleInput) activityTitleInput.classList.remove("field-error");
+            }
+
+            // 2. Category
+            const catVal = courseSelect ? courseSelect.value : "";
+            if (!catVal) {
+                isValid = false;
+                if (courseSelect) courseSelect.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please select a category before publishing."
+                        : "Please select a category before saving a draft.";
+                    firstErrorField = courseSelect;
+                }
+            } else {
+                if (courseSelect) courseSelect.classList.remove("field-error");
+            }
+
+            // 3. Module
+            const modVal = moduleSelect ? moduleSelect.value : "";
+            if (!modVal) {
+                isValid = false;
+                if (moduleSelect) moduleSelect.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please select a module before publishing."
+                        : "Please select a module before saving a draft.";
+                    firstErrorField = moduleSelect;
+                }
+            } else {
+                if (moduleSelect) moduleSelect.classList.remove("field-error");
+            }
+
+            // 4. Lesson
+            const lessonVal = lessonSelect ? lessonSelect.value : "";
+            if (!lessonVal) {
+                isValid = false;
+                if (lessonSelect) lessonSelect.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please select a lesson before publishing."
+                        : "Please select a lesson before saving a draft.";
+                    firstErrorField = lessonSelect;
+                }
+            } else {
+                if (lessonSelect) lessonSelect.classList.remove("field-error");
+            }
+
+            // 5. Activity Type
+            const typeVal = activityTypeSelect ? activityTypeSelect.value : "";
+            if (!typeVal) {
+                isValid = false;
+                if (activityTypeSelect) activityTypeSelect.classList.add("field-error");
+                if (!firstErrorMsg) {
+                    firstErrorMsg = isPublish
+                        ? "Please select an activity type before publishing."
+                        : "Please select an activity type before saving a draft.";
+                    firstErrorField = activityTypeSelect;
+                }
+            } else {
+                if (activityTypeSelect) activityTypeSelect.classList.remove("field-error");
+            }
+
+            // 6. Section 2 Content Validation (MCQ duplicate options & answer/feedback match)
+            const selectedType = activityTypeSelect ? activityTypeSelect.value : "Multiple Choice";
+            if (selectedType === "Multiple Choice") {
+                const cards = document.querySelectorAll("#questionsContainer .question-card");
+                if (isPublish && (!cards || cards.length === 0)) {
+                    isValid = false;
+                    if (!firstErrorMsg) {
+                        firstErrorMsg = "Please add at least one question before publishing.";
+                        firstErrorField = document.getElementById("addQuestionMainBtn");
+                    }
+                } else if (cards && cards.length > 0) {
+                    cards.forEach((card, cIdx) => {
+                        const textarea = card.querySelector(".question-textarea");
+                        if (isPublish && textarea && !textarea.value.trim()) {
+                            isValid = false;
+                            textarea.classList.add("field-error");
+                            if (!firstErrorMsg) {
+                                firstErrorMsg = `Question #${cIdx + 1} text is required.`;
+                                firstErrorField = textarea;
+                            }
+                        }
+
+                        const rows = card.querySelectorAll(".answer-row");
+                        const seenAnswers = new Map();
+
+                        rows.forEach((row, rIdx) => {
+                            const textInput = row.querySelector('input[type="text"]:nth-of-type(1)');
+                            const feedbackInput = row.querySelector('input[type="text"]:nth-of-type(2)');
+                            const optText = textInput ? textInput.value.trim() : "";
+                            const fbText = feedbackInput ? feedbackInput.value.trim() : "";
+                            const letter = String.fromCharCode(65 + rIdx);
+
+                            if (isPublish && textInput && !optText) {
+                                isValid = false;
+                                textInput.classList.add("field-error");
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Answer option in Question #${cIdx + 1} is required.`;
+                                    firstErrorField = textInput;
+                                }
+                            }
+                            if (isPublish && feedbackInput && !fbText) {
+                                isValid = false;
+                                feedbackInput.classList.add("field-error");
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Feedback in Question #${cIdx + 1} is required.`;
+                                    firstErrorField = feedbackInput;
+                                }
+                            }
+
+                            // Task #103: Duplicate answer check within the same question
+                            if (optText) {
+                                const lowerOpt = optText.toLowerCase();
+                                if (!seenAnswers.has(lowerOpt)) {
+                                    seenAnswers.set(lowerOpt, []);
+                                }
+                                seenAnswers.get(lowerOpt).push(textInput);
+                            }
+
+                            // Task #103: Answer vs Feedback cannot be identical
+                            if (optText && fbText && optText.toLowerCase() === fbText.toLowerCase()) {
+                                isValid = false;
+                                if (textInput) textInput.classList.add("field-error");
+                                if (feedbackInput) feedbackInput.classList.add("field-error");
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Answer and Feedback for Learner cannot be identical in Question #${cIdx + 1} (Option ${letter}).`;
+                                    firstErrorField = feedbackInput;
+                                }
+                            }
+                        });
+
+                        // Highlight duplicate answer options
+                        for (const [ansKey, inputs] of seenAnswers.entries()) {
+                            if (inputs.length > 1) {
+                                isValid = false;
+                                inputs.forEach((inp) => inp.classList.add("field-error"));
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Duplicate answer option "${inputs[0].value.trim()}" found in Question #${cIdx + 1}. Each option must have a unique answer.`;
+                                    firstErrorField = inputs[1] || inputs[0];
+                                }
+                            }
+                        }
+
+                        // Check correct radio option when publishing
+                        if (isPublish && rows.length > 0) {
+                            const checkedRadio = card.querySelector('input[type="radio"]:checked');
+                            if (!checkedRadio) {
+                                isValid = false;
+                                if (!firstErrorMsg) {
+                                    firstErrorMsg = `Please select the correct answer for Question #${cIdx + 1}.`;
+                                    firstErrorField = card.querySelector('input[type="radio"]');
+                                }
+                            }
+                        }
+                    });
+                }
+            } else if (isPublish && selectedType === "Fill in the Blanks") {
+                const cards = document.querySelectorAll("#fillBlanksContainer .fill-blank-card");
+                if (!cards || cards.length === 0) {
+                    isValid = false;
+                    if (!firstErrorMsg) {
+                        firstErrorMsg = "Please add at least one sentence before publishing.";
+                        firstErrorField = document.getElementById("addFillBlankMainBtn");
+                    }
+                }
+            } else if (isPublish && selectedType === "Flashcards") {
+                const cards = document.querySelectorAll("#flashcardsContainer .flashcard-card");
+                if (!cards || cards.length === 0) {
+                    isValid = false;
+                    if (!firstErrorMsg) {
+                        firstErrorMsg = "Please add at least one flashcard before publishing.";
+                        firstErrorField = document.getElementById("addFlashcardMainBtn");
+                    }
+                }
+            }
+
+            if (!isValid) {
+                showInfoModal(firstErrorMsg, "Required Field Missing", () => {
+                    if (firstErrorField && typeof firstErrorField.focus === "function") {
+                        firstErrorField.focus();
+                    }
+                });
+            }
+
+            return isValid;
+        }
+
+        // --------------------------------------------------------
+        // Dirty-state tracking
+        // --------------------------------------------------------
+        function markDirty() {
+            isDirty = true;
+        }
+
         [activityTitleInput, courseSelect, moduleSelect, lessonSelect, activityTypeSelect, pointsInput].forEach((el) => {
             if (!el) return;
             el.addEventListener("input", markDirty);
             el.addEventListener("change", markDirty);
         });
 
-        // Section 2's question/fill-blank/flashcard cards are added
-        // dynamically (create-learning-activity.js) - event delegation
-        // on the whole form catches typing/changes inside any of them
-        // (including ones added after this listener was attached)
-        // without needing to re-bind per card.
         form.addEventListener("input", (e) => {
-            if (e.target === activityTitleInput || e.target === pointsInput) return; // already handled above
+            if (e.target === activityTitleInput || e.target === pointsInput) return;
             markDirty();
         });
         form.addEventListener("change", (e) => {
@@ -177,7 +479,7 @@
         // --------------------------------------------------------
         function showUnsavedSaveError(message) {
             if (!unsavedSaveError) {
-                if (message) alert(message);
+                if (message) showPopupAlert(message, "error");
                 return;
             }
             unsavedSaveError.textContent = message;
@@ -205,6 +507,66 @@
         if (stayBtn) stayBtn.addEventListener("click", closeUnsavedModal);
 
         // --------------------------------------------------------
+        // --------------------------------------------------------
+        // Task #115: Custom Info Alert Modal (Reuses #confirmActionModal)
+        // --------------------------------------------------------
+        function showInfoModal(message, title = "Required Field Missing", onOk = null) {
+            if (!confirmActionModal) {
+                alert(message);
+                if (typeof onOk === "function") onOk();
+                return;
+            }
+
+            if (confirmActionTitle) confirmActionTitle.textContent = title;
+            if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "none";
+            if (confirmActionConfirmBtn) {
+                confirmActionConfirmBtn.textContent = "OK";
+                confirmActionConfirmBtn.className = "modal-btn-save";
+            }
+
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+
+            function cleanup() {
+                confirmActionModal.classList.add("modal-hidden");
+                confirmActionModal.style.display = "none";
+                if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+                if (confirmActionConfirmBtn) {
+                    confirmActionConfirmBtn.removeEventListener("click", handleOk);
+                    confirmActionConfirmBtn.textContent = "Confirm";
+                }
+                confirmActionModal.removeEventListener("click", handleOverlay);
+                document.removeEventListener("keydown", handleKeydown);
+            }
+
+            function handleOk() {
+                cleanup();
+                if (typeof onOk === "function") onOk();
+            }
+
+            function handleOverlay(e) {
+                if (e.target === confirmActionModal) {
+                    cleanup();
+                    if (typeof onOk === "function") onOk();
+                }
+            }
+
+            function handleKeydown(e) {
+                if (e.key === "Escape" || e.key === "Enter") {
+                    cleanup();
+                    if (typeof onOk === "function") onOk();
+                }
+            }
+
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.addEventListener("click", handleOk);
+            confirmActionModal.addEventListener("click", handleOverlay);
+            document.addEventListener("keydown", handleKeydown);
+        }
+
+        window.cobraByteShowActivityInfoModal = showInfoModal;
+
+        // --------------------------------------------------------
         // Save Draft / Publish confirmation modal
         // --------------------------------------------------------
         function showConfirmModal(message, onConfirm, onCancel, title) {
@@ -224,6 +586,12 @@
             pendingConfirmCancelAction = onCancel;
             if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
             if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            if (confirmActionConfirmBtn) {
+                confirmActionConfirmBtn.textContent = "Confirm";
+                confirmActionConfirmBtn.className = "modal-btn-save";
+            }
+            confirmActionModal.classList.remove("modal-hidden");
             confirmActionModal.style.display = "flex";
         }
 
@@ -262,20 +630,23 @@
                 const action = pendingNavigation;
                 clearDirty();
                 closeUnsavedModal();
-                if (action) action();
+                if (typeof action === "function") action();
             });
         }
 
         if (saveAndLeaveBtn) {
             saveAndLeaveBtn.addEventListener("click", async () => {
-                clearUnsavedSaveError();
-
-                const fallbackAction = pendingNavigation;
-                const redirectUrl = saveAndLeaveBtn.dataset.redirectUrl || "";
+                if (!validateActivityForm(false)) {
+                    showUnsavedSaveError("Please fill in all required activity information fields before saving.");
+                    return;
+                }
 
                 saveAndLeaveBtn.disabled = true;
                 if (stayBtn) stayBtn.disabled = true;
                 if (leaveBtn) leaveBtn.disabled = true;
+
+                const redirectUrl = typeof pendingNavigation === "string" ? pendingNavigation : null;
+                const fallbackAction = typeof pendingNavigation === "function" ? pendingNavigation : null;
 
                 const ok = await performSaveDraft();
 
@@ -284,11 +655,7 @@
                 if (leaveBtn) leaveBtn.disabled = false;
 
                 if (!ok) {
-                    const notice = document.querySelector(".top-bar-validation-row .js-draft-notice");
-                    const message = (notice && notice.textContent)
-                        ? notice.textContent
-                        : "Could not save this draft. Please check the form and try again.";
-                    showUnsavedSaveError(message);
+                    showUnsavedSaveError("Could not save this draft. Please check the form and try again.");
                     return;
                 }
 
@@ -303,47 +670,10 @@
         }
 
         // --------------------------------------------------------
-        // Draft save notice - renders beside the Save Draft button's
-        // row if a .top-bar-validation-row element exists on this page;
-        // otherwise falls back to alert() for errors only.
-        // --------------------------------------------------------
-        function showDraftNotice(message, isError) {
-            const anchor = document.querySelector(".top-bar-validation-row");
-            if (!anchor) { if (isError) alert(message); return; }
-            let notice = anchor.querySelector(".js-draft-notice");
-            if (!notice) {
-                notice = document.createElement("span");
-                notice.className = "js-draft-notice top-bar-inline-message";
-                anchor.appendChild(notice);
-            }
-            notice.textContent = message;
-            notice.style.display = "inline";
-            notice.style.color = isError ? "#e02424" : "#09B300";
-        }
-
-        // --------------------------------------------------------
         // Save Draft (POST /admin/create-learning-activity/save-draft)
         // --------------------------------------------------------
         async function performSaveDraft() {
-            if (!activityTitleInput || !activityTitleInput.value.trim()) {
-                showDraftNotice("Please enter an activity title before saving a draft.", true);
-                if (activityTitleInput) activityTitleInput.focus();
-                return false;
-            }
-            if (!courseSelect || !courseSelect.value) {
-                showDraftNotice("Please select a category before saving a draft.", true);
-                return false;
-            }
-            if (!moduleSelect || !moduleSelect.value) {
-                showDraftNotice("Please select a module before saving a draft.", true);
-                return false;
-            }
-            if (!lessonSelect || !lessonSelect.value) {
-                showDraftNotice("Please select a lesson before saving a draft.", true);
-                return false;
-            }
-            if (!activityTypeSelect || !activityTypeSelect.value) {
-                showDraftNotice("Please select an activity type before saving a draft.", true);
+            if (!validateActivityForm(false)) {
                 return false;
             }
 
@@ -353,11 +683,6 @@
                 saveDraftBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
 
-            // Task #56: only the section matching the currently-selected
-            // Activity Type is actually collected/sent - matches
-            // activity_points.py's own "one list per activity_type" rule,
-            // and keeps the request from carrying stale content left over
-            // from a type the admin has since switched away from.
             const selectedType = activityTypeSelect.value;
 
             try {
@@ -380,24 +705,21 @@
                 const result = await response.json();
 
                 if (!result.success) {
-                    showDraftNotice(result.message || "Could not save draft.", true);
+                    showPopupAlert(result.message || "Could not save draft.", "error");
                     return false;
                 }
 
                 if (activityIdInput && result.activity_id) {
                     activityIdInput.value = result.activity_id;
                 }
-                // Task #56: reflect the server's own computed points back
-                // into the read-only field - this (not the client's own
-                // running tally) is what was actually persisted.
                 if (pointsInput && typeof result.points !== "undefined" && result.points !== null) {
                     pointsInput.value = result.points;
                 }
                 clearDirty();
-                showDraftNotice(result.message || "Draft saved successfully.", false);
+                showSuccessToast(result.message || "Draft saved successfully.");
                 return true;
             } catch (err) {
-                showDraftNotice("Could not reach the server. Please try again.", true);
+                showPopupAlert("Could not reach the server. Please try again.", "error");
                 return false;
             } finally {
                 if (saveDraftBtn) {
@@ -407,11 +729,12 @@
             }
         }
 
-        // Confirm before actually saving a draft - matches Publish's
-        // own confirm-then-save flow below.
+        // Confirm before saving draft
         if (saveDraftBtn) {
             saveDraftBtn.addEventListener("click", (e) => {
                 e.preventDefault();
+                if (!validateActivityForm(false)) return;
+
                 showConfirmModal(
                     "Are you sure you want to save this activity as a draft?",
                     () => { performSaveDraft(); },
@@ -420,12 +743,7 @@
             });
         }
 
-        // --------------------------------------------------------
-        // Intercept in-app link navigation (sidebar, header Back link,
-        // etc.) while there are unsaved changes. Excludes the admin
-        // logout link and disabled placeholder nav items, which already
-        // have their own dedicated click handlers/modals elsewhere.
-        // --------------------------------------------------------
+        // Intercept in-app link navigation
         document.querySelectorAll('a[href]:not([href="#"])').forEach((link) => {
             if (link.id === "adminLogoutBtn") return;
             if (link.dataset.disabled === "true") return;
@@ -439,10 +757,14 @@
         });
 
         // --------------------------------------------------------
-        // Publish submit handling - confirm before the real submission,
-        // matching upload-resource-draft-guard.js's exact pattern.
+        // Publish submit handling
         // --------------------------------------------------------
         form.addEventListener("submit", function (e) {
+            if (!validateActivityForm(true)) {
+                e.preventDefault();
+                return;
+            }
+
             if (!publishConfirmed) {
                 e.preventDefault();
                 showConfirmModal(
@@ -451,7 +773,7 @@
                         publishConfirmed = true;
                         isSubmitting = true;
                         clearDirty();
-                        form.requestSubmit();
+                        form.submit();
                     },
                     "Publish Activity?"
                 );

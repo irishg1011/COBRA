@@ -34,15 +34,18 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="header-actions">
-                            <!-- Task #27: Soft Delete / Archive - lets the
-                                 admin view and restore archived modules
-                                 without touching the existing "View
-                                 Categories" control or overall layout. -->
-                            <button id="openArchivedModulesBtn" class="btn btn-primary-custom">
-                                <i class="fa-solid fa-box-archive"></i> Archived Modules
-                            </button>
+                            <!-- Task #87: Header Button Layout: [+ module] [+ category] [archive icon] [eye icon] -->
                             <button id="openCreateModuleBtn" class="btn btn-success-custom">
-                                View Categories
+                                <i class="fa-solid fa-plus"></i> Module
+                            </button>
+                            <button id="openCreateCategoryBtn" class="btn btn-success-custom">
+                                <i class="fa-solid fa-plus"></i> Category
+                            </button>
+                            <button id="openArchivedModulesBtn" class="btn btn-icon-custom" title="Archived Items">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </button>
+                            <button id="openViewCategoriesBtn" class="btn btn-icon-custom" title="View Categories">
+                                <i class="fa-solid fa-eye"></i>
                             </button>
                         </div>
                     </div>
@@ -125,6 +128,7 @@
                                 <th>Created</th>
                                 <th>Updated</th>
                                 <th class="text-right">Actions</th>
+                                <th class="text-right">Publish Status</th>
                             </tr>
                         </thead>
                         <tbody id="modulesTableBody">
@@ -135,7 +139,7 @@
                                     <small class="text-muted">{{ module.description }}</small>
                                 </td>
                                 <td class="text-muted">{{ module.category }}</td>
-                                <td>
+                                <td class="js-status-cell">
                                     {% if module.status == 'Published' %}
                                     <span class="badge badge-success-log">Published</span>
                                     {% elif module.status == 'Draft' %}
@@ -152,10 +156,18 @@
                                         <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="{{ module.module_id }}"><i class="fa-solid fa-box-archive"></i></a>
                                     </div>
                                 </td>
+                                <td class="text-right">
+                                    <button type="button"
+                                            class="btn {{ 'btn-unpublish-custom' if module.status == 'Published' else 'btn-success-custom' }} js-toggle-publish-module-btn"
+                                            data-module-id="{{ module.module_id }}"
+                                            data-status="{{ module.status }}">
+                                        {{ 'Unpublish' if module.status == 'Published' else 'Publish' }}
+                                    </button>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-muted table-empty-message">
+                                <td colspan="7" class="text-muted table-empty-message">
                                     No modules found.
                                 </td>
                             </tr>
@@ -178,6 +190,8 @@
             </div>
         </main>
     </div>
+    {% include 'create-module-modal.html' %}
+    {% include 'create-category-modal.html' %}
     {% include 'categories-modal.html' %}
     {% include 'edit-module-modal.html' %}
     {% include 'edit-category-modal.html' %}

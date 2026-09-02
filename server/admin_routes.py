@@ -31,6 +31,8 @@ from manage_course import (
     archive_module, restore_module,  # NEW - Task #27: soft delete/archive
     get_modules_by_category,  # NEW - Task #41: dependent Module dropdown lookup
     permanently_delete_module,  # NEW - Task #80: Archived Modules permanent delete
+    archive_category, restore_category, permanently_delete_category, get_archived_categories,  # NEW - Task #87: Unified Archives
+    publish_module, unpublish_module,  # NEW - Task #90: Module Publish/Unpublish
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -44,19 +46,21 @@ from learning_activity_draft import save_activity_draft, get_activity_draft  # N
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
     parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
 )
-from learning_activity_publishing import publish_activity  # NEW - Task #57: flips a saved activity's status to "Published", mirroring resource_publishing.publish_resource()'s two-step pattern
+from learning_activity_publishing import publish_activity, unpublish_activity  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
     archive_resource,  # NEW - Task #81: Manage Learning Resources ACTIONS -> Archive
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
+from resource_form_publish import save_and_publish_lesson  # NEW - Task #95: shared save-then-publish for New Lesson
 from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
 from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB integration
     get_coding_exercises_overview, get_exercise_stats, delete_coding_exercise,
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
     save_coding_exercise, parse_test_cases_from_form,
 )
+from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise  # Task #111 & #112
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1459,17 +1463,27 @@ def manage_course_delete_module(module_id):
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
+@admin_bp.route('/manage-course/modules/<int:module_id>/publish', methods=['POST'])
+def manage_course_publish_module(module_id):
+    """Task #90: Publish a module (sets status to Published)."""
+    success, message = publish_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/unpublish', methods=['POST'])
+def manage_course_unpublish_module(module_id):
+    """Task #90: Unpublish a module (sets status to Draft)."""
+    success, message = unpublish_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
 # ============================================================
-# Task #27: ARCHIVED MODULES - list + restore
+# Task #27 & #87: UNIFIED ARCHIVES - Modules & Categories
 # ============================================================
 @admin_bp.route('/manage-course/modules/archived')
 def manage_course_archived_modules():
     """
-    Live search/pagination for the Archived Modules view - mirrors
-    manage_course_data() exactly, just scoped to is_archived = 1
-    (via get_modules_overview(archived=True)) instead of the active
-    (is_archived = 0) list. No status filter param here since the
-    Archived Modules view doesn't expose a status dropdown of its own.
+    Live search/pagination for the Archived Modules view.
     """
     search = request.args.get('q', '')
     page = request.args.get('page', 1, type=int)
@@ -1483,10 +1497,7 @@ def manage_course_archived_modules():
 @admin_bp.route('/manage-course/modules/<int:module_id>/restore', methods=['POST'])
 def manage_course_restore_module(module_id):
     """
-    Task #27: flips a module's is_archived flag back to 0 so it
-    reappears in the normal active Manage Course list. Never creates a
-    new module row - the exact same module_id, name, description,
-    category, and publication status are preserved.
+    Task #27: flips a module's is_archived flag back to 0.
     """
     success, message = restore_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
@@ -1495,19 +1506,52 @@ def manage_course_restore_module(module_id):
 @admin_bp.route('/manage-course/modules/<int:module_id>/permanent-delete', methods=['POST'])
 def manage_course_permanently_delete_module(module_id):
     """
-    Task #80: permanently removes an archived module from the database -
-    a real DELETE, never another archive/status flip. Thin HTTP wrapper
-    only (matches this project's convention - see
-    manage_course_restore_module()/manage_course_delete_module() above);
-    all validation (module must exist and already be archived) and the
-    foreign-key/referential-integrity safety check live in
-    manage_course.permanently_delete_module().
-
-    Only reachable from the Archived Modules view - there is no
-    equivalent route for the active Manage Course table.
+    Task #80: permanently removes an archived module from the database.
     """
     success, message = permanently_delete_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/archived')
+def manage_course_archived_categories():
+    """
+    Task #87: Live search/pagination for the Archived Categories view.
+    """
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    overview = get_archived_categories(search_query=search, page=page)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/archive', methods=['POST'])
+def manage_course_archive_category(cat_id):
+    """
+    Task #87: Soft-archives a category (is_archived = 1).
+    """
+    success, message = archive_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/restore', methods=['POST'])
+def manage_course_restore_category(cat_id):
+    """
+    Task #87: Flips a category's is_archived flag back to 0.
+    """
+    success, message = restore_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/permanent-delete', methods=['POST'])
+def manage_course_permanently_delete_category(cat_id):
+    """
+    Task #87: Permanently deletes an archived category from the database.
+    """
+    success, message = permanently_delete_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
 
 # ------------------------------------------------------------------
 # Task #19: Placeholder ("Under Construction") pages
@@ -1781,6 +1825,39 @@ def learning_activities_data():
 
 
 # ============================================================
+# ROUTE: TASK #107 - QUICK PUBLISH / UNPUBLISH A LEARNING ACTIVITY
+# ============================================================
+@admin_bp.route('/learning-activities/<int:activity_id>/publish', methods=['POST'])
+def publish_learning_activity(activity_id):
+    """
+    Task #107: flips a learning activity's status to "Published" directly
+    from the Manage Learning Activities table's row-level toggle - no need
+    to open the full Create/Edit Learning Activity screen first. Thin HTTP
+    wrapper only, matching this project's existing convention (see
+    publish_learning_resource() above) - all real logic lives in
+    learning_activity_publishing.publish_activity().
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = publish_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/unpublish', methods=['POST'])
+def unpublish_learning_activity(activity_id):
+    """
+    Task #107: flips a learning activity's status back to "Draft" directly
+    from the Manage Learning Activities table's row-level toggle. Thin
+    HTTP wrapper only - all real logic lives in
+    learning_activity_publishing.unpublish_activity().
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = unpublish_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
 # ROUTE: DELETE LEARNING ACTIVITY
 # ============================================================
 @admin_bp.route('/learning-activities/<int:activity_id>/delete', methods=['POST'])
@@ -1890,6 +1967,51 @@ def delete_exercise(exercise_id):
     return redirect(url_for('admin_bp.coding_exercises'))
 
 
+# ============================================================
+# ROUTE: PUBLISH / UNPUBLISH CODING EXERCISE
+# ============================================================
+@admin_bp.route('/coding-exercises/<int:exercise_id>/publish', methods=['POST'])
+def publish_coding_exercise(exercise_id):
+    """
+    Task #111: flips a coding exercise's status to "Published" directly
+    from the Manage Coding Exercises table's row-level toggle.
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = publish_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/coding-exercises/<int:exercise_id>/unpublish', methods=['POST'])
+def unpublish_coding_exercise(exercise_id):
+    """
+    Task #111: flips a coding exercise's status back to "Draft" directly
+    from the Manage Coding Exercises table's row-level toggle or editor header.
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = unpublish_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# ROUTE: ARCHIVE CODING EXERCISE
+# ============================================================
+@admin_bp.route('/coding-exercises/<int:exercise_id>/archive', methods=['POST'])
+def archive_coding_exercise(exercise_id):
+    """
+    Task #112: Soft-archives a coding exercise (is_archived = 1, status = 'Archived').
+    Preserves database records and associated test cases.
+    Returns JSON: { "success": bool, "message": str }
+    """
+    is_ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json'
+    success, message = archive_exercise(exercise_id)
+
+    if is_ajax:
+        return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_bp.coding_exercises'))
+
+
 @admin_bp.route('/coding-sandbox')
 def coding_sandbox():
     return render_placeholder("Coding Sandbox")
@@ -1967,7 +2089,7 @@ def upload_resource():
         module_content = request.form.get('module_content') or ''
         resource_id = request.form.get('resource_id') or None
 
-        success, message, saved_resource_id = save_lesson_draft(
+        success, message, saved_resource_id = save_and_publish_lesson(
             resource_id=resource_id,
             lesson_name=lesson_name,
             cat_id=cat_id,
@@ -1986,16 +2108,7 @@ def upload_resource():
                 return redirect(url_for('admin_bp.upload_resource', resource_id=redirect_resource_id))
             return redirect(url_for('admin_bp.upload_resource'))
 
-        publish_success, publish_message = publish_resource(saved_resource_id)
-        if not publish_success:
-            # The lesson itself saved successfully - only the "go live"
-            # step was blocked (most commonly: the parent module isn't
-            # Published yet). Say so plainly instead of a generic
-            # failure message, and stay on this same resource.
-            flash(f"Lesson saved as a draft, but could not publish it: {publish_message}", 'error')
-            return redirect(url_for('admin_bp.upload_resource', resource_id=saved_resource_id))
-
-        flash('Lesson published successfully.', 'success')
+        flash(message, 'success')
         return redirect(url_for('admin_bp.learning_resources'))
 
     # Task #41: Category dropdown is rendered server-side from real
@@ -2149,8 +2262,43 @@ def upload_resource_save_draft():
     Returns JSON: { "success": bool, "message": str, "resource_id": int | None }
     """
     data = request.get_json(silent=True) or {}
+    preserve_status = bool(data.get('preserve_status', False))
 
     success, message, saved_resource_id = save_lesson_draft(
+        resource_id=data.get('resource_id'),
+        lesson_name=data.get('lesson_name'),
+        cat_id=data.get('category_id'),
+        module_id=data.get('module_id'),
+        content_html=data.get('module_content') or '',
+        uploaded_by=session.get('admin_id'),
+        preserve_status=preserve_status,
+    )
+    return jsonify({
+        "success": success,
+        "message": message,
+        "resource_id": saved_resource_id,
+    }), (200 if success else 400)
+
+
+# ============================================================
+# ROUTE: TASK #95 - PUBLISH UPLOAD RESOURCE (JSON)
+# ============================================================
+@admin_bp.route('/upload-resource/publish', methods=['POST'])
+def upload_resource_publish():
+    """
+    Task #95: JSON Publish for the New Lesson form so the frontend can
+    show a floating success toast before leaving the page. Same
+    save-then-publish path as the HTML POST on /admin/upload-resource
+    (resource_form_publish.save_and_publish_lesson). This route is a
+    thin HTTP wrapper only.
+
+    Expects JSON body: { resource_id, lesson_name, category_id, module_id, module_content }
+
+    Returns JSON: { "success": bool, "message": str, "resource_id": int | None }
+    """
+    data = request.get_json(silent=True) or {}
+
+    success, message, saved_resource_id = save_and_publish_lesson(
         resource_id=data.get('resource_id'),
         lesson_name=data.get('lesson_name'),
         cat_id=data.get('category_id'),
@@ -2163,6 +2311,8 @@ def upload_resource_save_draft():
         "message": message,
         "resource_id": saved_resource_id,
     }), (200 if success else 400)
+
+
 # ============================================================
 # ROUTE: TASK #41 - MODULES DEPENDENT ON SELECTED CATEGORY
 # ============================================================
@@ -2527,8 +2677,11 @@ def save_coding_exercise_draft():
     if not request.is_json:
         data['test_cases'] = parse_test_cases_from_form(request.form)
 
+    preserve = data.get('preserve_status') in (True, 'true', '1') or data.get('action') == 'save'
+    target_status = 'Published' if (preserve and data.get('status') == 'Published') else 'Draft'
+
     admin_id = session.get('admin_id')
-    success, exercise_id, msg = save_coding_exercise(data, status='Draft', uploaded_by=admin_id)
+    success, exercise_id, msg = save_coding_exercise(data, status=target_status, uploaded_by=admin_id)
 
     if success:
         flash(msg, 'success')

@@ -293,6 +293,25 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
     if not is_type_valid:
         return False, type_err_msg, None, 0
 
+    # Task #103: Validate Multiple Choice questions for duplicate options and matching feedback
+    if activity_type_name == "Multiple Choice" and questions:
+        for q_idx, q in enumerate(questions):
+            opts = q.get("options") or []
+            seen_opts = set()
+            for opt_idx, opt in enumerate(opts):
+                opt_text = (opt.get("text") or "").strip()
+                opt_feedback = (opt.get("feedback") or "").strip()
+                letter = chr(65 + opt_idx)
+
+                if opt_text:
+                    lower_text = opt_text.lower()
+                    if lower_text in seen_opts:
+                        return False, f'Duplicate answer option "{opt_text}" found in Question #{q_idx + 1}. Each option must have a unique answer.', None, 0
+                    seen_opts.add(lower_text)
+
+                    if opt_feedback and lower_text == opt_feedback.lower():
+                        return False, f'Answer and Feedback for Learner cannot be identical in Question #{q_idx + 1} (Option {letter}).', None, 0
+
     # Task #55/#56: points are NEVER trusted from the client, for either
     # Save Draft or Publish - always recomputed here from the actual
     # submitted items, so the two paths can never disagree.

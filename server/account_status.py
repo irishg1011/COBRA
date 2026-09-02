@@ -57,7 +57,7 @@ ACCOUNT_TABLE = "account_tbl"
 # CONFIGURABLE THRESHOLD (minutes)
 # ------------------------------------------------------------
 # Defaults to 30 DAYS (30 * 24 * 60 = 43200 minutes) - an account only
-# flips to "Inactive" once it hasn't logged in for a full 30 days. For
+# flips to "Inacdtive" once it hasn't logged in for a full 30 days. For
 # local development/testing, override with a small value via env var,
 # e.g. ACCOUNT_INACTIVITY_MINUTES=1, without touching this file.
 ACCOUNT_INACTIVITY_MINUTES_DEFAULT = 30 * 24 * 60  # 43200 minutes = 30 days

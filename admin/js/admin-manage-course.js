@@ -1,14 +1,10 @@
 /**
- * admin-manage-course.js - Task #24: Manage Course DB Integration
+ * admin-manage-course.js - Task #24, #27, #77, #80, #87, #89 & #90
  * ------------------------------------------------------------------
- * Wires the Manage Course table (search/status filter/pagination) and
- * the Categories modal (view + Add Category + Add Module) to the real
- * backend endpoints in admin_routes.py, replacing every placeholder
- * value that used to live in manage-course.html / categories-modal.html.
- *
- * Include this on manage-course.html, right after admin-script.js:
- *
- *   <script src="{{ url_for('admin_bp.static', filename='js/admin-manage-course.js') }}"></script>
+ * Handles Manage Course table (search/status filter/date filter/pagination),
+ * row-level Publish/Unpublish toggle, standalone Create Module & Create Category
+ * modals with cancel confirmation guards, Edit Module change confirmation &
+ * "Changes Saved" popup notifications, Categories list modal, and Unified Archives.
  */
 (function () {
     "use strict";
@@ -17,12 +13,6 @@
 
     // ------------------------------------------------------------
     // Task #77: Module Name / Description sentence-case formatter.
-    // Mirrors manage_course.py's format_sentence_case() exactly - only
-    // letter CASE is ever changed, spacing/punctuation are left
-    // untouched, and capitalization restarts after every period. This
-    // is a UX convenience only; the backend re-applies the exact same
-    // rule authoritatively before every INSERT/UPDATE, so this being
-    // skipped or bypassed can never leave incorrectly-cased text saved.
     // ------------------------------------------------------------
     function formatSentenceCase(value) {
         if (!value) return "";
@@ -32,10 +22,6 @@
         const chars = trimmed.split("");
         const isAlpha = (ch) => /[a-zA-Z]/.test(ch);
 
-        // Literal first character is uppercased (matching the backend's
-        // format_sentence_case()) - e.g. "123 PYTHON" starts with a
-        // digit, so this has no visible effect and the first actual
-        // letter is still lowercased below, giving "123 python".
         chars[0] = chars[0].toUpperCase();
 
         let capitalizeNextAlpha = false;
@@ -54,7 +40,54 @@
         return chars.join("");
     }
 
+    // ------------------------------------------------------------
+    // Task #90: Temporary Popup Notification ("Changes Saved")
+    // ------------------------------------------------------------
+    let toastTimeout = null;
+    function showChangesSavedToast(message = "Changes Saved") {
+        let toast = document.getElementById("changesSavedToast");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "changesSavedToast";
+            toast.className = "changes-saved-toast";
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${escapeHtml(message)}</span>`;
+        toast.classList.add("show");
+
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove("show");
+        }, 2000);
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+    }
+
+    function statusBadgeHtml(status) {
+        const cls = status === "Published" ? "badge-success-log"
+            : status === "Draft" ? "badge-draft" : "badge-inactive";
+        return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+    }
+
+    function publishButtonHtml(moduleId, status) {
+        const isPublished = status === "Published";
+        const label = isPublished ? "Unpublish" : "Publish";
+        const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+        return `
+            <button type="button"
+                    class="btn ${btnClass} js-toggle-publish-module-btn"
+                    data-module-id="${moduleId}"
+                    data-status="${escapeHtml(status || "Draft")}">
+                ${label}
+            </button>`;
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
+        // Active Table DOM Elements
         const searchInput = document.getElementById("moduleSearchInput");
         const statusSelect = document.getElementById("moduleStatusSelect");
         const tableBody = document.getElementById("modulesTableBody");
@@ -63,10 +96,7 @@
         const prevBtn = document.getElementById("modulesPrevBtn");
         const nextBtn = document.getElementById("modulesNextBtn");
 
-        // Task #30 (simplified): Created At / Updated At date filter
-        // controls. Each field is a single date picker by default; the
-        // matching "Range" toggle checkbox reveals its second (end) date
-        // input only when the admin wants to filter a span of dates.
+        // Date Filter Elements
         const createdFromInput = document.getElementById("createdFromInput");
         const createdToInput = document.getElementById("createdToInput");
         const createdRangeToggle = document.getElementById("createdRangeToggle");
@@ -94,13 +124,6 @@
             dateFilterError.style.display = "none";
         }
 
-        /**
-         * Resolves a date filter field's effective {from, to} pair based
-         * on its own Range toggle: with the toggle off, the field acts as
-         * a single-date filter ("on this date") and `to` mirrors `from`;
-         * with it on, `to` comes from the field's own end-date input.
-         * An empty `from` means the filter isn't in use at all.
-         */
         function getEffectiveDateRange(fromInput, toInput, rangeToggle) {
             const from = fromInput ? fromInput.value : "";
             if (!from) return { from: "", to: "" };
@@ -109,14 +132,6 @@
             return { from, to };
         }
 
-        /**
-         * Task #30, Requirement #17: reject an invalid date range
-         * (End before Start) client-side, before ever calling the
-         * backend, so the admin gets instant feedback. The backend's
-         * /manage-course/data endpoint re-validates the exact same rule
-         * server-side (never trusting only this check) in case this
-         * script is bypassed.
-         */
         function validateDateRanges() {
             clearDateFilterError();
 
@@ -135,22 +150,10 @@
             return true;
         }
 
-        function escapeHtml(str) {
-            const div = document.createElement("div");
-            div.textContent = str == null ? "" : String(str);
-            return div.innerHTML;
-        }
-
-        function statusBadgeHtml(status) {
-            const cls = status === "Published" ? "badge-success-log"
-                : status === "Draft" ? "badge-draft" : "badge-inactive";
-            return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
-        }
-
         function renderModules(modules) {
             if (!tableBody) return;
             if (!modules || modules.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" class="text-muted table-empty-message">No modules found.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="7" class="text-muted table-empty-message">No modules found.</td></tr>`;
                 return;
             }
             tableBody.innerHTML = modules.map(m => `
@@ -160,7 +163,7 @@
                         <small class="text-muted">${escapeHtml(m.description)}</small>
                     </td>
                     <td class="text-muted">${escapeHtml(m.category)}</td>
-                    <td>${statusBadgeHtml(m.status)}</td>
+                    <td class="js-status-cell">${statusBadgeHtml(m.status)}</td>
                     <td class="text-muted">${escapeHtml(m.created_at)}</td>
                     <td class="text-muted">${escapeHtml(m.updated_at)}</td>
                     <td class="text-right">
@@ -168,6 +171,9 @@
                             <a href="#" title="Edit" class="table-action-icon js-edit-module" data-id="${m.module_id}"><i class="fa-solid fa-pen-to-square"></i></a>
                             <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="${m.module_id}"><i class="fa-solid fa-box-archive"></i></a>
                         </div>
+                    </td>
+                    <td class="text-right">
+                        ${publishButtonHtml(m.module_id, m.status)}
                     </td>
                 </tr>
             `).join("");
@@ -178,13 +184,7 @@
             const term = searchInput ? searchInput.value.trim() : "";
             if (term) params.set("q", term);
             if (statusSelect && statusSelect.value) params.set("status", statusSelect.value);
-            // Task #30 (simplified): only ever sent when the admin
-            // actually picked a "from" value - an empty/untouched date
-            // field adds no restriction, matching get_modules_overview()'s
-            // "absent bound = no restriction" behavior on the backend.
-            // With the Range toggle off, "to" mirrors "from" (a single-day
-            // filter); with it on, "to" comes from the field's own end
-            // date input - see getEffectiveDateRange() above.
+
             const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
             if (created.from) params.set("created_from", created.from);
             if (created.to) params.set("created_to", created.to);
@@ -198,9 +198,6 @@
         }
 
         async function loadModules() {
-            // Task #30: don't even call the backend with a known-bad
-            // range - keep the current table/pagination as-is and just
-            // surface the validation message.
             if (!validateDateRanges()) return;
 
             const requestId = ++activeRequestId;
@@ -210,15 +207,11 @@
                 if (requestId !== activeRequestId) return;
 
                 if (!result.success) {
-                    // Task #30: the backend's own range check (400) lands
-                    // here too (e.g. if this script's client-side check
-                    // was somehow bypassed) - show it as a filter error,
-                    // not a generic "could not load" message.
                     if (response.status === 400 && result.message) {
                         showDateFilterError(result.message);
                         return;
                     }
-                    tableBody.innerHTML = `<tr><td colspan="6" class="text-muted table-empty-message">Could not load modules.</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="7" class="text-muted table-empty-message">Could not load modules.</td></tr>`;
                     return;
                 }
 
@@ -233,7 +226,7 @@
                 if (nextBtn) nextBtn.disabled = result.page >= result.total_pages;
             } catch (err) {
                 if (requestId !== activeRequestId) return;
-                tableBody.innerHTML = `<tr><td colspan="6" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="7" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
             }
         }
 
@@ -248,26 +241,11 @@
         if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; loadModules(); } });
         if (nextBtn) nextBtn.addEventListener("click", () => { if (currentPage < totalPages) { currentPage++; loadModules(); } });
 
-        // ------------------------------------------------------------
-        // Task #30: Created At / Updated At date filters
-        // ------------------------------------------------------------
-        // Each date input reruns the same combined load (debounced, and
-        // resets to page 1 - Requirement #12), preserving whatever is
-        // currently in search/status/the other date fields, exactly like
-        // status/search already do above.
         [createdFromInput, createdToInput, updatedFromInput, updatedToInput].forEach((input) => {
             if (!input) return;
             input.addEventListener("change", () => scheduleLoad(true));
         });
 
-        // ------------------------------------------------------------
-        // Simplified date filters: each field's "Range" toggle shows/
-        // hides its own end-date input, instead of both always being
-        // visible. Restores the toggle's checked state from whatever
-        // values were already rendered server-side (e.g. a bookmarked/
-        // shared filtered URL) BEFORE the first sync, so loading a page
-        // with an active range doesn't wipe out its own end date.
-        // ------------------------------------------------------------
         function initDateRangeToggle(fromInput, toInput, rangeToggle) {
             if (!rangeToggle || !toInput) return;
 
@@ -290,9 +268,6 @@
         initDateRangeToggle(createdFromInput, createdToInput, createdRangeToggle);
         initDateRangeToggle(updatedFromInput, updatedToInput, updatedRangeToggle);
 
-        // Requirement #9/#10: Clear only removes ITS OWN date
-        // restriction (Created At or Updated At) - search, status, and
-        // the other date filter are left completely untouched.
         if (clearCreatedDateBtn) {
             clearCreatedDateBtn.addEventListener("click", () => {
                 if (createdFromInput) createdFromInput.value = "";
@@ -314,13 +289,12 @@
             });
         }
 
-        // ------------------------------------------------------------
-        // Edit / Delete module (event delegation - rows are re-rendered)
-        // ------------------------------------------------------------
+        // Active Table Actions: Edit / Archive module / Publish / Unpublish
         if (tableBody) {
             tableBody.addEventListener("click", async (e) => {
                 const editBtn = e.target.closest(".js-edit-module");
                 const delBtn = e.target.closest(".js-delete-module");
+                const togglePublishBtn = e.target.closest(".js-toggle-publish-module-btn");
 
                 if (editBtn) {
                     e.preventDefault();
@@ -329,15 +303,12 @@
                     const currentName = row.querySelector(".table-item-title").textContent;
                     const currentDesc = row.querySelector("small").textContent;
                     openEditModuleModal(id, currentName, currentDesc);
+                    return;
                 }
 
                 if (delBtn) {
                     e.preventDefault();
                     const id = delBtn.dataset.id;
-                    // Task #27: this used to permanently delete the module.
-                    // It now archives it instead (soft delete) - the module
-                    // row is preserved and can be restored later from the
-                    // Archived Modules modal.
                     if (!confirm("Are you sure you want to archive this module?")) return;
                     const resp = await fetch(`/admin/manage-course/modules/${id}/delete`, {
                         method: "POST", credentials: "include"
@@ -349,16 +320,69 @@
                         alert("Module archived successfully.");
                     }
                     loadModules();
+                    refreshCategoriesModal();
+                    return;
+                }
+
+                if (togglePublishBtn) {
+                    e.preventDefault();
+                    const id = togglePublishBtn.dataset.moduleId;
+                    const currentStatus = togglePublishBtn.dataset.status || "Draft";
+                    const isPublished = currentStatus === "Published";
+
+                    const promptMsg = isPublished
+                        ? "Are you sure you want to unpublish this module? It will be moved back to Draft and hidden from learners."
+                        : "Are you sure you want to publish this module? It will become visible to learners.";
+
+                    if (!confirm(promptMsg)) return;
+
+                    togglePublishBtn.disabled = true;
+                    const originalText = togglePublishBtn.textContent;
+                    togglePublishBtn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+
+                    try {
+                        const endpoint = isPublished
+                            ? `/admin/manage-course/modules/${id}/unpublish`
+                            : `/admin/manage-course/modules/${id}/publish`;
+
+                        const resp = await fetch(endpoint, { method: "POST", credentials: "include" });
+                        const result = await resp.json();
+
+                        if (!result.success) {
+                            alert(result.message || "Could not update module status.");
+                            togglePublishBtn.disabled = false;
+                            togglePublishBtn.textContent = originalText;
+                            return;
+                        }
+
+                        const newStatus = isPublished ? "Draft" : "Published";
+                        togglePublishBtn.dataset.status = newStatus;
+                        togglePublishBtn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
+                        togglePublishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom");
+                        togglePublishBtn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                        togglePublishBtn.disabled = false;
+
+                        const row = togglePublishBtn.closest("tr");
+                        const statusCell = row ? row.querySelector(".js-status-cell") : null;
+                        if (statusCell) {
+                            statusCell.innerHTML = statusBadgeHtml(newStatus);
+                        }
+
+                        refreshCategoriesModal();
+                        showChangesSavedToast("Changes Saved");
+                    } catch (err) {
+                        alert("Could not reach the server. Please try again.");
+                        togglePublishBtn.disabled = false;
+                        togglePublishBtn.textContent = originalText;
+                    }
+                    return;
                 }
             });
         }
 
         // ------------------------------------------------------------
-        // Categories modal: view + Add Category + Add Module
+        // Categories & Statuses Fetch Helpers
         // ------------------------------------------------------------
-        const categoriesListView = document.getElementById("categoriesListView");
-        const categoriesModal = document.getElementById("categoriesModal");
-
         async function fetchCategories() {
             try {
                 const resp = await fetch("/admin/manage-course/categories", { credentials: "include" });
@@ -368,30 +392,249 @@
         }
 
         async function fetchStatuses() {
-            // Statuses aren't behind their own endpoint - reuse the
-            // server-rendered <option> list already in the page's
-            // status filter dropdown so there's a single source of truth.
             const opts = Array.from(document.querySelectorAll("#moduleStatusSelect option"))
                 .filter(o => o.value)
                 .map((o, i) => ({ module_stats_id: i + 1, module_stats_name: o.value }));
             return opts;
         }
 
+        async function populateSelectWithCategories(selectElement) {
+            if (!selectElement) return;
+            const categories = await fetchCategories();
+            selectElement.innerHTML = `<option value="" disabled selected>Select Category</option>` +
+                categories.map(c => `<option value="${c.cat_id}">${c.category_name}</option>`).join("");
+        }
+
+        // ------------------------------------------------------------
+        // STANDALONE CREATE MODULE MODAL (Task #87)
+        // ------------------------------------------------------------
+        const createModuleModal = document.getElementById("createModuleModal");
+        const openCreateModuleBtn = document.getElementById("openCreateModuleBtn");
+        const closeCreateModuleModalBtn = document.getElementById("closeCreateModuleModalBtn");
+        const cancelCreateModuleBtn = document.getElementById("cancelCreateModuleBtn");
+        const createModuleForm = document.getElementById("createModuleForm");
+        const newModuleName = document.getElementById("newModuleName");
+        const newModuleDesc = document.getElementById("newModuleDesc");
+        const newModuleCategory = document.getElementById("newModuleCategory");
+
+        async function openCreateModule(preselectedCatId = null) {
+            if (!createModuleModal) return;
+            if (createModuleForm) createModuleForm.reset();
+            await populateSelectWithCategories(newModuleCategory);
+            if (preselectedCatId && newModuleCategory) {
+                newModuleCategory.value = String(preselectedCatId);
+            }
+            createModuleModal.style.display = "flex";
+            if (newModuleName) newModuleName.focus();
+        }
+
+        function createModuleHasInputs() {
+            const nameVal = newModuleName ? newModuleName.value.trim() : "";
+            const descVal = newModuleDesc ? newModuleDesc.value.trim() : "";
+            const catVal = newModuleCategory ? newModuleCategory.value : "";
+            return Boolean(nameVal || descVal || catVal);
+        }
+
+        function attemptCloseCreateModuleModal() {
+            if (!createModuleModal || createModuleModal.style.display === "none") return;
+            if (createModuleHasInputs()) {
+                const confirmed = confirm("Are you sure you want to cancel? Any entered input data will be deleted and cannot be undone.");
+                if (!confirmed) return;
+            }
+            createModuleModal.style.display = "none";
+            if (createModuleForm) createModuleForm.reset();
+        }
+
+        if (openCreateModuleBtn) {
+            openCreateModuleBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                openCreateModule();
+            });
+        }
+        if (closeCreateModuleModalBtn) {
+            closeCreateModuleModalBtn.addEventListener("click", attemptCloseCreateModuleModal);
+        }
+        if (cancelCreateModuleBtn) {
+            cancelCreateModuleBtn.addEventListener("click", attemptCloseCreateModuleModal);
+        }
+        if (createModuleModal) {
+            createModuleModal.addEventListener("click", (e) => {
+                if (e.target === createModuleModal) attemptCloseCreateModuleModal();
+            });
+        }
+
+        if (newModuleName) {
+            newModuleName.addEventListener("blur", () => {
+                newModuleName.value = formatSentenceCase(newModuleName.value);
+            });
+            newModuleName.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (newModuleDesc) newModuleDesc.focus();
+                }
+            });
+        }
+        if (newModuleDesc) {
+            newModuleDesc.addEventListener("blur", () => {
+                newModuleDesc.value = formatSentenceCase(newModuleDesc.value);
+            });
+            newModuleDesc.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (newModuleCategory) newModuleCategory.focus();
+                }
+            });
+        }
+
+        let submittingCreateModule = false;
+        if (createModuleForm) {
+            createModuleForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                if (submittingCreateModule) return;
+
+                const name = newModuleName ? newModuleName.value.trim() : "";
+                const desc = newModuleDesc ? newModuleDesc.value.trim() : "";
+                const catId = newModuleCategory ? newModuleCategory.value : "";
+
+                if (!name || !desc || !catId) {
+                    alert("Module name, description, and category are all required.");
+                    return;
+                }
+
+                submittingCreateModule = true;
+                try {
+                    const statuses = await fetchStatuses();
+                    const draft = statuses.find(s => s.module_stats_name === "Draft") || statuses[0];
+
+                    const resp = await fetch("/admin/manage-course/modules/create", {
+                        method: "POST", credentials: "include",
+                        body: new URLSearchParams({
+                            module_name: formatSentenceCase(name),
+                            description: formatSentenceCase(desc),
+                            cat_id: catId,
+                            module_stats_id: draft ? draft.module_stats_id : ""
+                        })
+                    });
+                    const result = await resp.json();
+                    if (!result.success) {
+                        alert(result.message);
+                        return;
+                    }
+
+                    createModuleModal.style.display = "none";
+                    createModuleForm.reset();
+                    loadModules();
+                    refreshCategoriesModal();
+                    showChangesSavedToast("Changes Saved");
+                } finally {
+                    submittingCreateModule = false;
+                }
+            });
+        }
+
+        // ------------------------------------------------------------
+        // STANDALONE CREATE CATEGORY MODAL (Task #87)
+        // ------------------------------------------------------------
+        const createCategoryModal = document.getElementById("createCategoryModal");
+        const openCreateCategoryBtn = document.getElementById("openCreateCategoryBtn");
+        const closeCreateCategoryModalBtn = document.getElementById("closeCreateCategoryModalBtn");
+        const cancelCreateCategoryBtn = document.getElementById("cancelCreateCategoryBtn");
+        const createCategoryForm = document.getElementById("createCategoryForm");
+        const newCategoryName = document.getElementById("newCategoryName");
+
+        function openCreateCategory() {
+            if (!createCategoryModal) return;
+            if (createCategoryForm) createCategoryForm.reset();
+            createCategoryModal.style.display = "flex";
+            if (newCategoryName) newCategoryName.focus();
+        }
+
+        function createCategoryHasInputs() {
+            return Boolean(newCategoryName && newCategoryName.value.trim() !== "");
+        }
+
+        function attemptCloseCreateCategoryModal() {
+            if (!createCategoryModal || createCategoryModal.style.display === "none") return;
+            if (createCategoryHasInputs()) {
+                const confirmed = confirm("Are you sure you want to cancel? Any entered input data will be deleted and cannot be undone.");
+                if (!confirmed) return;
+            }
+            createCategoryModal.style.display = "none";
+            if (createCategoryForm) createCategoryForm.reset();
+        }
+
+        if (openCreateCategoryBtn) {
+            openCreateCategoryBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                openCreateCategory();
+            });
+        }
+        if (closeCreateCategoryModalBtn) {
+            closeCreateCategoryModalBtn.addEventListener("click", attemptCloseCreateCategoryModal);
+        }
+        if (cancelCreateCategoryBtn) {
+            cancelCreateCategoryBtn.addEventListener("click", attemptCloseCreateCategoryModal);
+        }
+        if (createCategoryModal) {
+            createCategoryModal.addEventListener("click", (e) => {
+                if (e.target === createCategoryModal) attemptCloseCreateCategoryModal();
+            });
+        }
+
+        let submittingCreateCategory = false;
+        if (createCategoryForm) {
+            createCategoryForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                if (submittingCreateCategory) return;
+
+                const name = newCategoryName ? newCategoryName.value.trim() : "";
+                if (!name) { alert("Category name is required."); return; }
+
+                submittingCreateCategory = true;
+                try {
+                    const resp = await fetch("/admin/manage-course/categories/create", {
+                        method: "POST", credentials: "include",
+                        body: new URLSearchParams({ category_name: name })
+                    });
+                    const result = await resp.json();
+                    if (!result.success) { alert(result.message); return; }
+
+                    createCategoryModal.style.display = "none";
+                    createCategoryForm.reset();
+                    loadModules();
+                    refreshCategoriesModal();
+                    showChangesSavedToast("Changes Saved");
+                } finally {
+                    submittingCreateCategory = false;
+                }
+            });
+        }
+
+        // ------------------------------------------------------------
+        // VIEW CATEGORIES MODAL (Task #87)
+        // ------------------------------------------------------------
+        const categoriesModal = document.getElementById("categoriesModal");
+        const openViewCategoriesBtn = document.getElementById("openViewCategoriesBtn");
+        const closeCategoriesModal = document.getElementById("closeCategoriesModal");
+        const categoriesListView = document.getElementById("categoriesListView");
+        const modalAddCategoryBtn = document.getElementById("modalAddCategoryBtn");
+        const modalAddModuleBtn = document.getElementById("modalAddModuleBtn");
+
         function renderCategoriesAccordion(categories) {
             if (!categoriesListView) return;
             if (!categories.length) {
-                categoriesListView.innerHTML = `<p class="text-muted" style="padding:16px 0;">No categories yet. Use "Add Category" below to create one.</p>`;
+                categoriesListView.innerHTML = `<p class="text-muted" style="padding:16px 0;">No active categories yet. Use "+ Category" to create one.</p>`;
                 return;
             }
             categoriesListView.innerHTML = categories.map((cat, idx) => `
                 <div class="category-accordion-item ${idx === 0 ? 'active' : ''}" data-cat-id="${cat.cat_id}">
                     <div class="category-accordion-toggle">
                         <i class="fa-solid ${idx === 0 ? 'fa-chevron-down' : 'fa-chevron-right'} toggle-arrow"></i>
-                        <span class="category-name">${cat.category_name}</span>
+                        <span class="category-name">${escapeHtml(cat.category_name)}</span>
                         <span class="module-row-actions js-cat-actions" style="margin-left:auto; display:flex; gap:10px;">
                             <i class="fa-solid fa-square-plus js-add-module-to-category" title="Add Module"></i>
                             <i class="fa-solid fa-pen-to-square js-edit-category" title="Rename"></i>
-                            <i class="fa-solid fa-trash js-delete-category" title="Delete"></i>
+                            <i class="fa-solid fa-trash js-delete-category" title="Archive Category"></i>
                         </span>
                     </div>
                     <div class="category-modules-list" ${idx === 0 ? 'style="display:block;"' : ''}>
@@ -399,10 +642,10 @@
                             <div class="category-module-row">
                                 <div class="module-badge-num bg-success-log">${i + 1}</div>
                                 <div class="module-info-text">
-                                    <strong>${m.module_name}</strong>
-                                    <small>${m.description}</small>
+                                    <strong>${escapeHtml(m.module_name)}</strong>
+                                    <small>${escapeHtml(m.description)}</small>
                                 </div>
-                                <span class="badge ${m.status_name === 'Published' ? 'badge-success-log' : (m.status_name === 'Draft' ? 'badge-draft' : 'badge-inactive')}">${m.status_name}</span>
+                                <span class="badge ${m.status_name === 'Published' ? 'badge-success-log' : (m.status_name === 'Draft' ? 'badge-draft' : 'badge-inactive')}">${escapeHtml(m.status_name)}</span>
                             </div>
                         `).join("") : `<p class="text-muted" style="padding:8px 0;">No modules in this category yet.</p>`}
                     </div>
@@ -438,78 +681,61 @@
                     e.stopPropagation();
                     const item = icon.closest(".category-accordion-item");
                     const catId = item.dataset.catId;
-                    if (!confirm("Delete this category?")) return;
-                    const resp = await fetch(`/admin/manage-course/categories/${catId}/delete`, {
+                    if (!confirm("Are you sure you want to archive this category?")) return;
+                    const resp = await fetch(`/admin/manage-course/categories/${catId}/archive`, {
                         method: "POST", credentials: "include"
                     });
                     const result = await resp.json();
-                    if (!result.success) alert(result.message);
+                    if (!result.success) {
+                        alert(result.message);
+                    } else {
+                        alert("Category archived successfully.");
+                    }
                     refreshCategoriesModal();
+                    loadModules();
                 });
             });
 
-            // ------------------------------------------------------------
-            // Task: "Add Module" icon per Category - opens the existing
-            // Add Module drawer with this Category already selected, so
-            // the admin is never required to pick it again manually.
-            // ------------------------------------------------------------
             categoriesListView.querySelectorAll(".js-add-module-to-category").forEach(icon => {
-                icon.addEventListener("click", async (e) => {
+                icon.addEventListener("click", (e) => {
                     e.stopPropagation();
                     const item = icon.closest(".category-accordion-item");
                     const catId = item.dataset.catId;
-
-                    // Reuses admin-script.js's own "Add Module" button
-                    // click handler (openDrawer(addModuleDrawer), hides
-                    // the other drawer/footer) instead of a second,
-                    // divergent copy of that drawer-opening logic here -
-                    // the Add Module form/layout itself is left untouched.
-                    const modalAddModuleBtn = document.getElementById("modalAddModuleBtn");
-                    if (modalAddModuleBtn) modalAddModuleBtn.click();
-
-                    // The Category dropdown is already populated whenever
-                    // the Categories modal opens (see refreshCategoriesModal()
-                    // below), but re-populate here too so the pre-select
-                    // below always has a matching <option> even if this is
-                    // somehow triggered before that first population lands.
-                    await populateModuleCategorySelect();
-
-                    const categorySelect = document.getElementById("newModuleCategorySelect");
-                    if (categorySelect) categorySelect.value = String(catId);
-
-                    const nameInput = document.getElementById("newModuleNameInput");
-                    if (nameInput) nameInput.focus();
+                    openCreateModule(catId);
                 });
             });
-        }
-
-        async function populateModuleCategorySelect() {
-            const select = document.getElementById("newModuleCategorySelect");
-            if (!select) return;
-            const categories = await fetchCategories();
-            select.innerHTML = `<option value="" disabled selected>Select Category</option>` +
-                categories.map(c => `<option value="${c.cat_id}">${c.category_name}</option>`).join("");
         }
 
         async function refreshCategoriesModal() {
             const categories = await fetchCategories();
             renderCategoriesAccordion(categories);
-            populateModuleCategorySelect();
         }
 
-        if (categoriesModal) {
-            // Refresh every time the modal is opened (View Categories /
-            // Add Module buttons already toggle display:flex elsewhere
-            // in admin-script.js).
-            const observer = new MutationObserver(() => {
-                if (categoriesModal.style.display === "flex") refreshCategoriesModal();
+        if (openViewCategoriesBtn && categoriesModal) {
+            openViewCategoriesBtn.addEventListener("click", () => {
+                categoriesModal.style.display = "flex";
+                refreshCategoriesModal();
             });
-            observer.observe(categoriesModal, { attributes: true, attributeFilter: ["style"] });
+        }
+        if (closeCategoriesModal && categoriesModal) {
+            closeCategoriesModal.addEventListener("click", () => {
+                categoriesModal.style.display = "none";
+            });
+        }
+        if (categoriesModal) {
+            categoriesModal.addEventListener("click", (e) => {
+                if (e.target === categoriesModal) categoriesModal.style.display = "none";
+            });
+        }
+        if (modalAddCategoryBtn) {
+            modalAddCategoryBtn.addEventListener("click", () => openCreateCategory());
+        }
+        if (modalAddModuleBtn) {
+            modalAddModuleBtn.addEventListener("click", () => openCreateModule());
         }
 
         // ------------------------------------------------------------
-        // Edit Module Modal (replaces the old prompt()/alert()-based
-        // edit flow - see edit-module-modal.html)
+        // Edit Module Modal (Task #90: Confirmation & Changes Saved Toast)
         // ------------------------------------------------------------
         const editModuleModal = document.getElementById("editModuleModal");
         const closeEditModuleModalBtn = document.getElementById("closeEditModuleModal");
@@ -518,42 +744,46 @@
         const editModuleNameInput = document.getElementById("editModuleName");
         const editModuleDescInput = document.getElementById("editModuleDesc");
         const editModuleCategorySelect = document.getElementById("editModuleCategory");
-        const editModuleStatusSelect = document.getElementById("editModuleStatus");
+
+        let initialEditModuleData = { name: "", desc: "", catId: "" };
 
         async function openEditModuleModal(id, currentName, currentDesc) {
             if (!editModuleModal) return;
 
             editModuleIdInput.value = id;
-            editModuleNameInput.value = currentName.trim();
-            editModuleDescInput.value = currentDesc.trim();
+            const formattedName = currentName.trim();
+            const formattedDesc = currentDesc.trim();
+            editModuleNameInput.value = formattedName;
+            editModuleDescInput.value = formattedDesc;
 
-            // Populate both dropdowns fresh every time the modal opens,
-            // same source-of-truth functions the Categories modal and
-            // Add Module drawer already use (never hardcoded values).
-            const [categories, statuses] = await Promise.all([fetchCategories(), fetchStatuses()]);
+            const categories = await fetchCategories();
 
             editModuleCategorySelect.innerHTML = `<option value="" disabled>Select Category</option>` +
                 categories.map(c => `<option value="${c.cat_id}">${c.category_name}</option>`).join("");
-            editModuleStatusSelect.innerHTML = `<option value="" disabled>Select Status</option>` +
-                statuses.map(s => `<option value="${s.module_stats_id}">${s.module_stats_name}</option>`).join("");
 
-            // Pre-select this row's current category/status by matching
-            // the text already shown in the table, so the dropdowns open
-            // reflecting today's values instead of the blank placeholder.
             const row = document.querySelector(`tr[data-module-id="${id}"]`);
+            let selectedCatId = "";
             if (row) {
                 const catText = row.children[1] ? row.children[1].textContent.trim() : "";
-                const statusBadge = row.querySelector(".badge");
-                const statusText = statusBadge ? statusBadge.textContent.trim() : "";
-
                 const catOption = [...editModuleCategorySelect.options].find(o => o.textContent === catText);
-                if (catOption) catOption.selected = true;
-
-                const statusOption = [...editModuleStatusSelect.options].find(o => o.textContent === statusText);
-                if (statusOption) statusOption.selected = true;
+                if (catOption) {
+                    catOption.selected = true;
+                    selectedCatId = catOption.value;
+                }
+            }
+            if (!selectedCatId && editModuleCategorySelect.options.length > 1) {
+                selectedCatId = editModuleCategorySelect.options[1].value;
+                editModuleCategorySelect.value = selectedCatId;
             }
 
+            initialEditModuleData = {
+                name: formattedName,
+                desc: formattedDesc,
+                catId: String(selectedCatId)
+            };
+
             editModuleModal.style.display = "flex";
+            if (editModuleNameInput) editModuleNameInput.focus();
         }
 
         function closeEditModuleModal() {
@@ -561,8 +791,6 @@
             if (editModuleForm) editModuleForm.reset();
         }
 
-        // Task #77: live sentence-case formatting on blur, same as the
-        // Add Module drawer above.
         if (editModuleNameInput) {
             editModuleNameInput.addEventListener("blur", () => {
                 editModuleNameInput.value = formatSentenceCase(editModuleNameInput.value);
@@ -573,52 +801,76 @@
                 editModuleDescInput.value = formatSentenceCase(editModuleDescInput.value);
             });
         }
-
-        if (closeEditModuleModalBtn) {
-            closeEditModuleModalBtn.addEventListener("click", closeEditModuleModal);
-        }
+        if (closeEditModuleModalBtn) closeEditModuleModalBtn.addEventListener("click", closeEditModuleModal);
         if (editModuleModal) {
-            // Click outside the card closes it too, matching the Create
-            // Administrator modal's own outside-click behavior.
             editModuleModal.addEventListener("click", (e) => {
                 if (e.target === editModuleModal) closeEditModuleModal();
             });
         }
 
+        let submittingEditModule = false;
         if (editModuleForm) {
             editModuleForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
+                if (submittingEditModule) return;
+
                 const id = editModuleIdInput.value;
-                // Task #77: safety-net formatting right before submit,
-                // in case blur never fired.
-                const body = new URLSearchParams({
-                    module_name: formatSentenceCase(editModuleNameInput.value),
-                    description: formatSentenceCase(editModuleDescInput.value),
-                    cat_id: editModuleCategorySelect.value,
-                    module_stats_id: editModuleStatusSelect.value
-                });
-                const resp = await fetch(`/admin/manage-course/modules/${id}/update`, {
-                    method: "POST", credentials: "include", body
-                });
-                const result = await resp.json();
-                if (!result.success) {
-                    alert(result.message);
+                const formattedName = formatSentenceCase(editModuleNameInput.value);
+                const formattedDesc = formatSentenceCase(editModuleDescInput.value);
+                const catId = editModuleCategorySelect.value;
+
+                if (!formattedName || !formattedDesc || !catId) {
+                    alert("Module name, description, and category are all required.");
                     return;
                 }
-                closeEditModuleModal();
-                loadModules();
+
+                // Task #90: Check if actual edits were made
+                const hasChanges = (
+                    formattedName !== initialEditModuleData.name ||
+                    formattedDesc !== initialEditModuleData.desc ||
+                    String(catId) !== String(initialEditModuleData.catId)
+                );
+
+                if (!hasChanges) {
+                    // No changes occurred - bypass warning and close modal
+                    closeEditModuleModal();
+                    return;
+                }
+
+                // Changes occurred - prompt confirmation alert
+                const confirmed = confirm("Are you sure you want to save the changes to this module?");
+                if (!confirmed) return;
+
+                submittingEditModule = true;
+                try {
+                    const body = new URLSearchParams({
+                        module_name: formattedName,
+                        description: formattedDesc,
+                        cat_id: catId
+                    });
+                    const resp = await fetch(`/admin/manage-course/modules/${id}/update`, {
+                        method: "POST", credentials: "include", body
+                    });
+                    const result = await resp.json();
+                    if (!result.success) {
+                        alert(result.message || "Could not update module.");
+                        return;
+                    }
+
+                    closeEditModuleModal();
+                    loadModules();
+                    refreshCategoriesModal();
+                    showChangesSavedToast("Changes Saved");
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
+                } finally {
+                    submittingEditModule = false;
+                }
             });
         }
 
         // ------------------------------------------------------------
-        // Edit Category Modal (replaces the old prompt()/alert()-based
-        // rename flow - see edit-category-modal.html). Mirrors the Edit
-        // Module modal immediately above: same open/close pattern, same
-        // outside-click-to-close behavior, and posts to the SAME
-        // /manage-course/categories/<cat_id>/update route the old
-        // prompt()-based flow already used (admin_routes.py /
-        // manage_course.update_category()) - no new backend logic, no
-        // duplicated update-category code path.
+        // Edit Category Modal
         // ------------------------------------------------------------
         const editCategoryModal = document.getElementById("editCategoryModal");
         const closeEditCategoryModalBtn = document.getElementById("closeEditCategoryModal");
@@ -640,16 +892,9 @@
             if (editCategoryForm) editCategoryForm.reset();
         }
 
-        if (closeEditCategoryModalBtn) {
-            closeEditCategoryModalBtn.addEventListener("click", closeEditCategoryModal);
-        }
-        if (cancelEditCategoryBtn) {
-            // Requirement: "Cancel closes the modal without saving changes."
-            cancelEditCategoryBtn.addEventListener("click", closeEditCategoryModal);
-        }
+        if (closeEditCategoryModalBtn) closeEditCategoryModalBtn.addEventListener("click", closeEditCategoryModal);
+        if (cancelEditCategoryBtn) cancelEditCategoryBtn.addEventListener("click", closeEditCategoryModal);
         if (editCategoryModal) {
-            // Click outside the card closes it too, matching the Edit
-            // Module modal's own outside-click behavior.
             editCategoryModal.addEventListener("click", (e) => {
                 if (e.target === editCategoryModal) closeEditCategoryModal();
             });
@@ -665,281 +910,206 @@
                 });
                 const result = await resp.json();
                 if (!result.success) {
-                    // Same validation rules as before (required, no
-                    // duplicate name) - manage_course.update_category()
-                    // already enforces these; just surfaced here instead
-                    // of inside a native prompt().
                     alert(result.message);
                     return;
                 }
                 closeEditCategoryModal();
-                // Refreshes the accordion (new name) AND the active
-                // Manage Course table (module rows show this category's
-                // name in their Category column too) - same two calls
-                // the old prompt()-based handler already made.
                 refreshCategoriesModal();
                 loadModules();
+                showChangesSavedToast("Changes Saved");
             });
         }
 
         // ------------------------------------------------------------
-        // Add Category submit
-        // ------------------------------------------------------------
-        const submitCreateCategoryBtn = document.getElementById("submitCreateCategoryBtn");
-        const newCategoryNameInput = document.getElementById("newCategoryNameInput");
-
-        // Task #28: single source of truth for "create this category" -
-        // both the button's click handler AND the Enter-key handler below
-        // call this exact function, so there is only ever one place that
-        // builds the request (no separate/duplicated Enter-key logic).
-        // `submittingCategory` guards against a double-fire if the user
-        // holds Enter down or otherwise triggers this twice before the
-        // first request resolves.
-        let submittingCategory = false;
-        async function submitCreateCategory() {
-            if (submittingCategory) return;
-            const name = newCategoryNameInput ? newCategoryNameInput.value.trim() : "";
-            if (!name) { alert("Category name is required."); return; }
-
-            submittingCategory = true;
-            try {
-                const resp = await fetch("/admin/manage-course/categories/create", {
-                    method: "POST", credentials: "include",
-                    body: new URLSearchParams({ category_name: name })
-                });
-                const result = await resp.json();
-                if (!result.success) { alert(result.message); return; }
-                if (newCategoryNameInput) newCategoryNameInput.value = "";
-                refreshCategoriesModal();
-            } finally {
-                submittingCategory = false;
-            }
-        }
-
-        if (submitCreateCategoryBtn) {
-            submitCreateCategoryBtn.addEventListener("click", submitCreateCategory);
-        }
-
-        // Task #28: Enter key in the Add Category input acts like clicking
-        // "Create Category" - scoped to just this one input (not a page-
-        // wide keydown listener), so it can never fire from any other
-        // field/modal on the page.
-        if (newCategoryNameInput) {
-            newCategoryNameInput.addEventListener("keydown", (e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault(); // no surrounding <form>, but keeps this consistent/defensive
-                submitCreateCategory();
-            });
-        }
-
-        // ------------------------------------------------------------
-        // Add Module submit
-        // ------------------------------------------------------------
-        const submitCreateModuleBtn = document.getElementById("submitCreateModuleBtn");
-        const newModuleNameInput = document.getElementById("newModuleNameInput");
-        const newModuleDescInput = document.getElementById("newModuleDescInput");
-        const newModuleCategorySelect = document.getElementById("newModuleCategorySelect");
-
-        // Task #28: same pattern as submitCreateCategory() above - one
-        // function, reused by both the button click and the Enter-key
-        // handling on the final field, guarded against duplicate
-        // in-flight submissions.
-        let submittingModule = false;
-        async function submitCreateModule() {
-            if (submittingModule) return;
-            const name = newModuleNameInput ? newModuleNameInput.value.trim() : "";
-            const desc = newModuleDescInput ? newModuleDescInput.value.trim() : "";
-            const catId = newModuleCategorySelect ? newModuleCategorySelect.value : "";
-
-            if (!name || !desc || !catId) {
-                alert("Module name, description, and category are all required.");
-                return;
-            }
-
-            submittingModule = true;
-            try {
-                // Default new modules to "Draft" status - looked up by
-                // name from the same source of truth as the filter dropdown,
-                // never a hardcoded id.
-                const statuses = await fetchStatuses();
-                const draft = statuses.find(s => s.module_stats_name === "Draft") || statuses[0];
-
-                // Task #77: safety-net formatting right before submit,
-                // in case blur never fired (e.g. Enter-key submission).
-                const resp = await fetch("/admin/manage-course/modules/create", {
-                    method: "POST", credentials: "include",
-                    body: new URLSearchParams({
-                        module_name: formatSentenceCase(name), description: formatSentenceCase(desc),
-                        cat_id: catId, module_stats_id: draft ? draft.module_stats_id : ""
-                    })
-                });
-                const result = await resp.json();
-                if (!result.success) { alert(result.message); return; }
-
-                if (newModuleNameInput) newModuleNameInput.value = "";
-                if (newModuleDescInput) newModuleDescInput.value = "";
-                refreshCategoriesModal();
-                loadModules();
-            } finally {
-                submittingModule = false;
-            }
-        }
-
-        if (submitCreateModuleBtn) {
-            submitCreateModuleBtn.addEventListener("click", submitCreateModule);
-        }
-
-        // Task #28: Enter-key navigation across the Add Module drawer's
-        // fields, in their actual on-screen order (Name -> Description ->
-        // Category -> submit). Each handler is bound to exactly one field
-        // inside #addModuleDrawer, so Enter here can never reach the Add
-        // Category drawer or any other form on the page.
-        if (newModuleNameInput && newModuleDescInput) {
-            newModuleNameInput.addEventListener("keydown", (e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                newModuleDescInput.focus();
-            });
-        }
-        if (newModuleDescInput && newModuleCategorySelect) {
-            newModuleDescInput.addEventListener("keydown", (e) => {
-                if (e.key !== "Enter") return;
-                // The description field is a <textarea> - plain Enter
-                // still needs to insert a newline for a multi-line
-                // description, so only a plain (non-Shift) Enter advances
-                // to the next field; Shift+Enter behaves like a normal
-                // textarea and adds a line break instead.
-                if (e.shiftKey) return;
-                e.preventDefault();
-                newModuleCategorySelect.focus();
-            });
-        }
-        if (newModuleCategorySelect) {
-            newModuleCategorySelect.addEventListener("keydown", (e) => {
-                if (e.key !== "Enter") return;
-                // Final field in the drawer - Enter triggers the same
-                // "Create Module" action the button uses.
-                e.preventDefault();
-                submitCreateModule();
-            });
-        }
-
-        // Task #77: live sentence-case formatting on blur (UX
-        // convenience only - see formatSentenceCase() above; the
-        // backend re-normalizes authoritatively regardless).
-        if (newModuleNameInput) {
-            newModuleNameInput.addEventListener("blur", () => {
-                newModuleNameInput.value = formatSentenceCase(newModuleNameInput.value);
-            });
-        }
-        if (newModuleDescInput) {
-            newModuleDescInput.addEventListener("blur", () => {
-                newModuleDescInput.value = formatSentenceCase(newModuleDescInput.value);
-            });
-        }
-
-        // Initial population of the Add Module category dropdown, since
-        // it's no longer hardcoded to "basics"/"control-flow".
-        populateModuleCategorySelect();
-
-        // ------------------------------------------------------------
-        // Task #27: Archived Modules modal - view + Restore
+        // UNIFIED ARCHIVES MODAL (Task #27, #80 & #87)
         // ------------------------------------------------------------
         const archivedModal = document.getElementById("archivedModulesModal");
         const openArchivedBtn = document.getElementById("openArchivedModulesBtn");
         const closeArchivedBtn = document.getElementById("closeArchivedModulesModal");
-        const archivedSearchInput = document.getElementById("archivedModuleSearchInput");
-        const archivedTableBody = document.getElementById("archivedModulesTableBody");
-        const archivedShowingCount = document.getElementById("archivedModulesShowingCount");
-        const archivedPageLabel = document.getElementById("archivedModulesPageLabel");
-        const archivedPrevBtn = document.getElementById("archivedModulesPrevBtn");
-        const archivedNextBtn = document.getElementById("archivedModulesNextBtn");
+        const archivedSearchInput = document.getElementById("archivedSearchInput");
 
-        let archivedCurrentPage = 1;
-        let archivedTotalPages = 1;
+        const toggleArchivedModulesBtn = document.getElementById("toggleArchivedModulesBtn");
+        const toggleArchivedCategoriesBtn = document.getElementById("toggleArchivedCategoriesBtn");
+
+        const archivedModulesView = document.getElementById("archivedModulesView");
+        const archivedCategoriesView = document.getElementById("archivedCategoriesView");
+
+        const archivedModulesTableBody = document.getElementById("archivedModulesTableBody");
+        const archivedModulesShowingCount = document.getElementById("archivedModulesShowingCount");
+        const archivedModulesPageLabel = document.getElementById("archivedModulesPageLabel");
+        const archivedModulesPrevBtn = document.getElementById("archivedModulesPrevBtn");
+        const archivedModulesNextBtn = document.getElementById("archivedModulesNextBtn");
+
+        const archivedCategoriesTableBody = document.getElementById("archivedCategoriesTableBody");
+        const archivedCategoriesShowingCount = document.getElementById("archivedCategoriesShowingCount");
+        const archivedCategoriesPageLabel = document.getElementById("archivedCategoriesPageLabel");
+        const archivedCategoriesPrevBtn = document.getElementById("archivedCategoriesPrevBtn");
+        const archivedCategoriesNextBtn = document.getElementById("archivedCategoriesNextBtn");
+
+        let activeArchiveTab = "modules";
+        let archivedModulesCurrentPage = 1;
+        let archivedModulesTotalPages = 1;
+        let archivedCategoriesCurrentPage = 1;
+        let archivedCategoriesTotalPages = 1;
         let archivedDebounceTimer = null;
         let archivedActiveRequestId = 0;
 
-        function archivedBuildParams() {
-            const params = new URLSearchParams();
-            const term = archivedSearchInput ? archivedSearchInput.value.trim() : "";
-            if (term) params.set("q", term);
-            params.set("page", archivedCurrentPage);
-            return params;
+        function setArchiveTab(tab) {
+            activeArchiveTab = tab;
+            if (toggleArchivedModulesBtn) toggleArchivedModulesBtn.classList.toggle("active", tab === "modules");
+            if (toggleArchivedCategoriesBtn) toggleArchivedCategoriesBtn.classList.toggle("active", tab === "categories");
+
+            if (archivedModulesView) archivedModulesView.style.display = (tab === "modules") ? "block" : "none";
+            if (archivedCategoriesView) archivedCategoriesView.style.display = (tab === "categories") ? "block" : "none";
+
+            if (archivedSearchInput) {
+                archivedSearchInput.placeholder = (tab === "modules") ? "Search archived modules..." : "Search archived categories...";
+                archivedSearchInput.value = "";
+            }
+
+            if (tab === "modules") {
+                archivedModulesCurrentPage = 1;
+                loadArchivedModules();
+            } else {
+                archivedCategoriesCurrentPage = 1;
+                loadArchivedCategories();
+            }
+        }
+
+        if (toggleArchivedModulesBtn) {
+            toggleArchivedModulesBtn.addEventListener("click", () => setArchiveTab("modules"));
+        }
+        if (toggleArchivedCategoriesBtn) {
+            toggleArchivedCategoriesBtn.addEventListener("click", () => setArchiveTab("categories"));
         }
 
         function renderArchivedModules(modules) {
-            if (!archivedTableBody) return;
+            if (!archivedModulesTableBody) return;
             if (!modules || modules.length === 0) {
-                archivedTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">No archived modules found.</td></tr>`;
+                archivedModulesTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">No archived modules found.</td></tr>`;
                 return;
             }
-            // Task #80: Actions column moved to the FIRST position (see
-            // archived-modules-modal.html's reordered <thead>), and now
-            // includes a Permanent Delete action alongside the existing
-            // Restore action.
-            archivedTableBody.innerHTML = modules.map(m => `
- <tr data-module-id="${m.module_id}">
-    <td>
-        <strong class="table-item-title">${escapeHtml(m.module_name)}</strong>
-        <small class="text-muted">${escapeHtml(m.description)}</small>
-    </td>
-    <td class="text-muted">${escapeHtml(m.category)}</td>
-    <td>${statusBadgeHtml(m.status)}</td>
-    <td class="text-muted">${escapeHtml(m.updated_at)}</td>
-    <td class="text-right">
-        <div class="table-actions-group">
-            <a href="#" title="Restore" class="table-action-icon js-restore-module" data-id="${m.module_id}">
-                <i class="fa-solid fa-rotate-left"></i>
-            </a>
-            <a href="#" title="Permanently Delete" class="table-action-icon delete-action js-permanent-delete-module" data-id="${m.module_id}">
-                <i class="fa-solid fa-trash-can"></i>
-            </a>
-        </div>
-    </td>
-</tr>
+            archivedModulesTableBody.innerHTML = modules.map(m => `
+                <tr data-module-id="${m.module_id}">
+                    <td>
+                        <strong class="table-item-title">${escapeHtml(m.module_name)}</strong>
+                        <small class="text-muted">${escapeHtml(m.description)}</small>
+                    </td>
+                    <td class="text-muted">${escapeHtml(m.category)}</td>
+                    <td>${statusBadgeHtml(m.status)}</td>
+                    <td class="text-muted">${escapeHtml(m.updated_at)}</td>
+                    <td class="text-right">
+                        <div class="table-actions-group">
+                            <a href="#" title="Restore" class="table-action-icon js-restore-module" data-id="${m.module_id}">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </a>
+                            <a href="#" title="Permanently Delete" class="table-action-icon delete-action js-permanent-delete-module" data-id="${m.module_id}">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
             `).join("");
         }
 
         async function loadArchivedModules() {
-            if (!archivedTableBody) return;
+            if (!archivedModulesTableBody) return;
             const requestId = ++archivedActiveRequestId;
+            const q = archivedSearchInput ? archivedSearchInput.value.trim() : "";
             try {
-                const response = await fetch(`/admin/manage-course/modules/archived?${archivedBuildParams().toString()}`, { credentials: "include" });
+                const response = await fetch(`/admin/manage-course/modules/archived?q=${encodeURIComponent(q)}&page=${archivedModulesCurrentPage}`, { credentials: "include" });
                 const result = await response.json();
                 if (requestId !== archivedActiveRequestId) return;
 
                 if (!result.success) {
-                    archivedTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">Could not load archived modules.</td></tr>`;
+                    archivedModulesTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">Could not load archived modules.</td></tr>`;
                     return;
                 }
 
                 renderArchivedModules(result.modules);
-                archivedCurrentPage = result.page;
-                archivedTotalPages = result.total_pages;
+                archivedModulesCurrentPage = result.page;
+                archivedModulesTotalPages = result.total_pages;
 
-                if (archivedShowingCount) archivedShowingCount.textContent = `Showing ${result.modules.length} of ${result.total} Archived Modules`;
-                if (archivedPageLabel) archivedPageLabel.textContent = `${result.page} of ${result.total_pages}`;
-                if (archivedPrevBtn) archivedPrevBtn.disabled = result.page <= 1;
-                if (archivedNextBtn) archivedNextBtn.disabled = result.page >= result.total_pages;
+                if (archivedModulesShowingCount) archivedModulesShowingCount.textContent = `Showing ${result.modules.length} of ${result.total} Archived Modules`;
+                if (archivedModulesPageLabel) archivedModulesPageLabel.textContent = `${result.page} of ${result.total_pages}`;
+                if (archivedModulesPrevBtn) archivedModulesPrevBtn.disabled = result.page <= 1;
+                if (archivedModulesNextBtn) archivedModulesNextBtn.disabled = result.page >= result.total_pages;
             } catch (err) {
                 if (requestId !== archivedActiveRequestId) return;
-                archivedTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
+                archivedModulesTableBody.innerHTML = `<tr><td colspan="5" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
+            }
+        }
+
+        function renderArchivedCategories(categories) {
+            if (!archivedCategoriesTableBody) return;
+            if (!categories || categories.length === 0) {
+                archivedCategoriesTableBody.innerHTML = `<tr><td colspan="3" class="text-muted table-empty-message">No archived categories found.</td></tr>`;
+                return;
+            }
+            archivedCategoriesTableBody.innerHTML = categories.map(c => `
+                <tr data-cat-id="${c.cat_id}">
+                    <td>
+                        <strong class="table-item-title">${escapeHtml(c.category_name)}</strong>
+                    </td>
+                    <td class="text-muted">${c.module_count} module${c.module_count === 1 ? '' : 's'}</td>
+                    <td class="text-right">
+                        <div class="table-actions-group">
+                            <a href="#" title="Restore Category" class="table-action-icon js-restore-category" data-id="${c.cat_id}">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </a>
+                            <a href="#" title="Permanently Delete Category" class="table-action-icon delete-action js-permanent-delete-category" data-id="${c.cat_id}">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+            `).join("");
+        }
+
+        async function loadArchivedCategories() {
+            if (!archivedCategoriesTableBody) return;
+            const requestId = ++archivedActiveRequestId;
+            const q = archivedSearchInput ? archivedSearchInput.value.trim() : "";
+            try {
+                const response = await fetch(`/admin/manage-course/categories/archived?q=${encodeURIComponent(q)}&page=${archivedCategoriesCurrentPage}`, { credentials: "include" });
+                const result = await response.json();
+                if (requestId !== archivedActiveRequestId) return;
+
+                if (!result.success) {
+                    archivedCategoriesTableBody.innerHTML = `<tr><td colspan="3" class="text-muted table-empty-message">Could not load archived categories.</td></tr>`;
+                    return;
+                }
+
+                renderArchivedCategories(result.categories);
+                archivedCategoriesCurrentPage = result.page;
+                archivedCategoriesTotalPages = result.total_pages;
+
+                if (archivedCategoriesShowingCount) archivedCategoriesShowingCount.textContent = `Showing ${result.categories.length} of ${result.total} Archived Categories`;
+                if (archivedCategoriesPageLabel) archivedCategoriesPageLabel.textContent = `${result.page} of ${result.total_pages}`;
+                if (archivedCategoriesPrevBtn) archivedCategoriesPrevBtn.disabled = result.page <= 1;
+                if (archivedCategoriesNextBtn) archivedCategoriesNextBtn.disabled = result.page >= result.total_pages;
+            } catch (err) {
+                if (requestId !== archivedActiveRequestId) return;
+                archivedCategoriesTableBody.innerHTML = `<tr><td colspan="3" class="text-muted table-empty-message">Could not reach the server.</td></tr>`;
             }
         }
 
         function scheduleArchivedLoad(resetPage = true) {
-            if (resetPage) archivedCurrentPage = 1;
-            if (archivedDebounceTimer) clearTimeout(archivedDebounceTimer);
-            archivedDebounceTimer = setTimeout(loadArchivedModules, DEBOUNCE_MS);
+            if (activeArchiveTab === "modules") {
+                if (resetPage) archivedModulesCurrentPage = 1;
+                if (archivedDebounceTimer) clearTimeout(archivedDebounceTimer);
+                archivedDebounceTimer = setTimeout(loadArchivedModules, DEBOUNCE_MS);
+            } else {
+                if (resetPage) archivedCategoriesCurrentPage = 1;
+                if (archivedDebounceTimer) clearTimeout(archivedDebounceTimer);
+                archivedDebounceTimer = setTimeout(loadArchivedCategories, DEBOUNCE_MS);
+            }
         }
 
         if (openArchivedBtn && archivedModal) {
             openArchivedBtn.addEventListener("click", () => {
                 archivedModal.style.display = "flex";
-                if (archivedSearchInput) archivedSearchInput.value = "";
-                archivedCurrentPage = 1;
-                loadArchivedModules();
+                setArchiveTab("modules");
             });
         }
         if (closeArchivedBtn && archivedModal) {
@@ -951,11 +1121,32 @@
             });
         }
         if (archivedSearchInput) archivedSearchInput.addEventListener("input", () => scheduleArchivedLoad(true));
-        if (archivedPrevBtn) archivedPrevBtn.addEventListener("click", () => { if (archivedCurrentPage > 1) { archivedCurrentPage--; loadArchivedModules(); } });
-        if (archivedNextBtn) archivedNextBtn.addEventListener("click", () => { if (archivedCurrentPage < archivedTotalPages) { archivedCurrentPage++; loadArchivedModules(); } });
 
-        if (archivedTableBody) {
-            archivedTableBody.addEventListener("click", async (e) => {
+        if (archivedModulesPrevBtn) {
+            archivedModulesPrevBtn.addEventListener("click", () => {
+                if (archivedModulesCurrentPage > 1) { archivedModulesCurrentPage--; loadArchivedModules(); }
+            });
+        }
+        if (archivedModulesNextBtn) {
+            archivedModulesNextBtn.addEventListener("click", () => {
+                if (archivedModulesCurrentPage < archivedModulesTotalPages) { archivedModulesCurrentPage++; loadArchivedModules(); }
+            });
+        }
+
+        if (archivedCategoriesPrevBtn) {
+            archivedCategoriesPrevBtn.addEventListener("click", () => {
+                if (archivedCategoriesCurrentPage > 1) { archivedCategoriesCurrentPage--; loadArchivedCategories(); }
+            });
+        }
+        if (archivedCategoriesNextBtn) {
+            archivedCategoriesNextBtn.addEventListener("click", () => {
+                if (archivedCategoriesCurrentPage < archivedCategoriesTotalPages) { archivedCategoriesCurrentPage++; loadArchivedCategories(); }
+            });
+        }
+
+        // Archived Modules Event Delegation
+        if (archivedModulesTableBody) {
+            archivedModulesTableBody.addEventListener("click", async (e) => {
                 const restoreBtn = e.target.closest(".js-restore-module");
                 const permanentDeleteBtn = e.target.closest(".js-permanent-delete-module");
 
@@ -972,22 +1163,12 @@
                     } else {
                         alert("Module restored successfully.");
                     }
-                    // Restored module leaves the archived list and reappears
-                    // in the active Manage Course table - refresh both.
                     loadArchivedModules();
                     loadModules();
+                    refreshCategoriesModal();
                     return;
                 }
 
-                // ------------------------------------------------------------
-                // Task #80: Permanent Delete - real DELETE from the database,
-                // never another archive/status flip. Requires an explicit
-                // confirmation that clearly states the action is irreversible
-                // before the request is ever sent, and only removes the row
-                // from the UI after the backend confirms success (a failure -
-                // e.g. the module is still referenced by learning resources
-                // or activities - leaves the row exactly where it was).
-                // ------------------------------------------------------------
                 if (permanentDeleteBtn) {
                     e.preventDefault();
                     const id = permanentDeleteBtn.dataset.id;
@@ -996,30 +1177,77 @@
                         "This action cannot be undone and the module will be permanently " +
                         "removed from the system."
                     );
-                    if (!confirmed) return; // Cancel: no request sent, nothing changes.
+                    if (!confirmed) return;
 
                     permanentDeleteBtn.style.pointerEvents = "none";
-
                     try {
                         const resp = await fetch(`/admin/manage-course/modules/${id}/permanent-delete`, {
                             method: "POST", credentials: "include"
                         });
                         const result = await resp.json();
-
                         if (!result.success) {
-                            // Backend refused (not archived, still referenced,
-                            // DB error, etc.) - keep the row, surface why.
                             alert(result.message || "Could not permanently delete this module.");
                             permanentDeleteBtn.style.pointerEvents = "";
                             return;
                         }
-
                         alert(result.message || "Module permanently deleted.");
-                        // Dynamic removal - no full page/table reload required.
-                        // Re-fetch the current page so pagination counts/labels
-                        // stay accurate (e.g. a now-short last page), matching
-                        // the same pattern already used after Restore.
                         loadArchivedModules();
+                    } catch (err) {
+                        alert("Could not reach the server. Please try again.");
+                        permanentDeleteBtn.style.pointerEvents = "";
+                    }
+                }
+            });
+        }
+
+        // Archived Categories Event Delegation
+        if (archivedCategoriesTableBody) {
+            archivedCategoriesTableBody.addEventListener("click", async (e) => {
+                const restoreBtn = e.target.closest(".js-restore-category");
+                const permanentDeleteBtn = e.target.closest(".js-permanent-delete-category");
+
+                if (restoreBtn) {
+                    e.preventDefault();
+                    const id = restoreBtn.dataset.id;
+                    if (!confirm("Are you sure you want to restore this category?")) return;
+                    const resp = await fetch(`/admin/manage-course/categories/${id}/restore`, {
+                        method: "POST", credentials: "include"
+                    });
+                    const result = await resp.json();
+                    if (!result.success) {
+                        alert(result.message);
+                    } else {
+                        alert("Category restored successfully.");
+                    }
+                    loadArchivedCategories();
+                    refreshCategoriesModal();
+                    loadModules();
+                    return;
+                }
+
+                if (permanentDeleteBtn) {
+                    e.preventDefault();
+                    const id = permanentDeleteBtn.dataset.id;
+                    const confirmed = confirm(
+                        "Are you sure you want to permanently delete this category? " +
+                        "This action cannot be undone and the category will be permanently " +
+                        "removed from the system."
+                    );
+                    if (!confirmed) return;
+
+                    permanentDeleteBtn.style.pointerEvents = "none";
+                    try {
+                        const resp = await fetch(`/admin/manage-course/categories/${id}/permanent-delete`, {
+                            method: "POST", credentials: "include"
+                        });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            alert(result.message || "Could not permanently delete this category.");
+                            permanentDeleteBtn.style.pointerEvents = "";
+                            return;
+                        }
+                        alert(result.message || "Category permanently deleted.");
+                        loadArchivedCategories();
                     } catch (err) {
                         alert("Could not reach the server. Please try again.");
                         permanentDeleteBtn.style.pointerEvents = "";

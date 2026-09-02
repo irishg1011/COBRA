@@ -39,19 +39,30 @@
                             <button type="button" class="btn btn-secondary-custom" id="previewExerciseBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Exercise
                             </button>
-                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn">
+                            {% if existing_exercise and existing_exercise.status == 'Published' %}
+                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn" data-is-published="true">
+                                <i class="fa-regular fa-floppy-disk"></i> Save
+                            </button>
+                            <button type="button" class="btn btn-unpublish-custom" id="unpublishExerciseBtn" data-exercise-id="{{ existing_exercise.exercise_id }}">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish Exercise
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn" data-is-published="false">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
+                            <button type="submit" form="createExerciseForm" class="btn btn-success-custom" id="publishExerciseBtn">
+                                <i class="fa-solid fa-paper-plane"></i> Publish Exercise
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
 
-                <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST">
+                <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST" novalidate>
                     <input type="hidden" name="exercise_id" id="exerciseIdInput" value="{{ existing_exercise.exercise_id if existing_exercise else '' }}">
                     
                     <!-- Section 1: Exercise Information -->
-                    <div class="card-box padded-card mb-24">
-                        <div class="card-box padded-card mb-24 accent-top">
+                    <div class="card-box padded-card mb-24 accent-top">
                             <div class="form-section-header">
                                 <div class="step-badge">1</div>
                                 <h3>Exercise Information</h3>
@@ -229,21 +240,14 @@
                     </div> 
                      -->
 
-                    <!-- Bottom Form Actions Footer -->
-                    <div class="form-actions-footer mt-24 accent-top">
-                        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn btn-secondary-custom" id="cancelExerciseBtn">Cancel</a>
-                        <button type="submit" class="btn btn-success-custom">
-                            <i class="fa-solid fa-paper-plane"></i> Publish Exercise
-                        </button>
-                    </div>
-
                 </form>
 
             </div>
         </main>
     </div>
 
-    {% include 'unsaved-changes-modal.html' %}
+    {% include 'unsaved-changes-modal-exercise.html' %}
+    {% include 'confirm-action-modal.html' %}
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>

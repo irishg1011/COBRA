@@ -2,6 +2,16 @@
    Create Learning Activity Styles
    ========================================== */
 
+/* Task #104: Preview Activity / Save Draft / Publish Activity now sit
+   together in the top header. Scoped to this page only (not the shared
+   .header-actions rule in admin-style.css) so the three buttons wrap
+   onto a second line instead of overflowing/breaking layout on
+   narrower viewports. */
+.dashboard-top-bar .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .card-box {
     background: #ffffff;
     border-radius: 12px;
@@ -515,4 +525,17 @@
     width: auto !important;
     justify-content: center !important;
     margin-top: 14px;
+}
+
+/* Task #115: Red border highlighting for invalid / empty required fields and dropdowns */
+.field-error,
+.form-control.field-error,
+.form-control-select.field-error,
+.custom-select.field-error,
+.question-textarea.field-error,
+input.field-error,
+select.field-error,
+textarea.field-error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 1px #ef4444 !important;
 }

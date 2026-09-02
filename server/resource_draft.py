@@ -202,7 +202,7 @@ def get_lesson_draft(resource_id):
             connection.close()
 
 
-def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html, uploaded_by=None):
+def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html, uploaded_by=None, preserve_status=False):
     """
     Saves (creating or updating) a Draft learning_resources_tbl /
     lesson_content_tbl row from the Upload Resource form's current
@@ -223,6 +223,9 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
         uploaded_by (str | None): the saving admin's acc_id (from
             Flask session["admin_id"]) - only ever set on the initial
             INSERT; an update never changes who originally uploaded it.
+        preserve_status (bool): if True, updating an existing resource
+            maintains its current status (e.g. Published) instead of
+            forcing it to Draft.
 
     Returns:
         (success: bool, message: str, resource_id: int | None)
@@ -286,28 +289,31 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
             )
             if cursor.fetchone() is None:
                 cursor.close()
-                return False, "This draft no longer exists. Please refresh and try again.", None
+                return False, "This resource no longer exists. Please refresh and try again.", None
 
-            # Requirement #1 - editing a resource through Save Draft must
-            # also force it back to "Draft", not just leave whatever
-            # status it happened to have (e.g. re-opening an already-
-            # Published resource and clicking Save Draft should revert it
-            # to Draft, exactly like a brand-new resource starts as
-            # Draft). Reuses the SAME status id the INSERT branch below
-            # already resolves via get_draft_status_id() - never a
-            # second/divergent lookup.
-            draft_status_id = get_draft_status_id(connection)
-            if not draft_status_id:
-                cursor.close()
-                return False, "Could not resolve the Draft status.", None
+            if preserve_status:
+                cursor.execute(
+                    f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                        SET resource_title = %s, cat_id = %s, module_id = %s,
+                            updated_at = NOW()
+                        WHERE resource_id = %s""",
+                    (normalized_name, cat_id, module_id, existing_id)
+                )
+                success_msg = "Resource saved successfully."
+            else:
+                draft_status_id = get_draft_status_id(connection)
+                if not draft_status_id:
+                    cursor.close()
+                    return False, "Could not resolve the Draft status.", None
 
-            cursor.execute(
-                f"""UPDATE {LEARNING_RESOURCES_TABLE}
-                    SET resource_title = %s, cat_id = %s, module_id = %s,
-                        lr_stats_id = %s, updated_at = NOW()
-                    WHERE resource_id = %s""",
-                (normalized_name, cat_id, module_id, draft_status_id, existing_id)
-            )
+                cursor.execute(
+                    f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                        SET resource_title = %s, cat_id = %s, module_id = %s,
+                            lr_stats_id = %s, updated_at = NOW()
+                        WHERE resource_id = %s""",
+                    (normalized_name, cat_id, module_id, draft_status_id, existing_id)
+                )
+                success_msg = "Draft saved successfully."
 
             cursor.execute(
                 f"SELECT lesson_content_id FROM {LESSON_CONTENT_TABLE} WHERE resource_id = %s",
@@ -327,7 +333,7 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
 
             connection.commit()
             cursor.close()
-            return True, "Draft saved successfully.", existing_id
+            return True, success_msg, existing_id
 
         # ------------------------------------------------------------
         # INSERT branch - first save for this lesson, no resource_id

@@ -14,6 +14,8 @@ from text_formatting import format_display_name, format_sentence_case  # NEW: se
 CATEGORY_TABLE = "category_tbl"
 MODULES_TABLE = "modules_tbl"
 MODULE_STATS_TABLE = "module_stats_tbl"
+LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
+LR_STATS_TABLE = "learning_resources_stats_tbl"
 
 # Task requirement: these three statuses must exist in module_stats_tbl.
 # Never hardcoded anywhere else in the app - every other file reads them
@@ -23,29 +25,20 @@ DEFAULT_STATUSES = ["Published", "Draft", "Archived"]
 _module_stats_ensured = False
 
 # ------------------------------------------------------------------
-# Task #27: Soft Delete / Archive - lazy migration flag
+# Task #27 & #87: Soft Delete / Archive - lazy migration flags
 # ------------------------------------------------------------------
 # Mirrors admin_routes.py's _ensure_mobile_column() pattern: idempotent,
 # gated behind a module-level flag so "ADD COLUMN IF NOT EXISTS" only
 # actually round-trips to the database once per running process, not on
 # every single request.
 _is_archived_column_ensured = False
+_is_category_archived_column_ensured = False
 
 
 def ensure_is_archived_column(connection):
     """
     Task #27 - adds modules_tbl.is_archived (TINYINT(1) NOT NULL DEFAULT 0)
-    if it doesn't already exist yet. This is intentionally a SEPARATE
-    column from module_stats_id/status_name (Published/Draft/Archived) -
-    publication status and archive state are different concepts (see
-    Task #27 spec, Requirement 12): a module can be Published AND
-    archived at the same time. DEFAULT 0 means every existing module
-    automatically stays active/non-archived the moment this column is
-    added - nothing needs to be backfilled.
-
-    "ADD COLUMN IF NOT EXISTS" (MariaDB 10.4+ / MySQL 8.0.29+) is the
-    same idempotent-migration convention already used elsewhere in this
-    project (see admin_routes.py's _ensure_mobile_column()).
+    if it doesn't already exist yet.
     """
     global _is_archived_column_ensured
     if _is_archived_column_ensured:
@@ -61,6 +54,28 @@ def ensure_is_archived_column(connection):
         _is_archived_column_ensured = True
     except Error as e:
         print(f"manage_course: failed to ensure {MODULES_TABLE}.is_archived column exists: {e}")
+
+
+def ensure_category_is_archived_column(connection):
+    """
+    Task #87 - adds category_tbl.is_archived (TINYINT(1) NOT NULL DEFAULT 0)
+    if it doesn't already exist yet.
+    """
+    global _is_category_archived_column_ensured
+    if _is_category_archived_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {CATEGORY_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"is_archived TINYINT(1) NOT NULL DEFAULT 0"
+        )
+        connection.commit()
+        cursor.close()
+        _is_category_archived_column_ensured = True
+    except Error as e:
+        print(f"manage_course: failed to ensure {CATEGORY_TABLE}.is_archived column exists: {e}")
+
 
 
 def ensure_module_stats(connection):
@@ -119,13 +134,15 @@ def get_module_stats_options():
 # ================================================================
 # CATEGORIES
 # ================================================================
-def get_categories():
+def get_categories(include_archived=False):
     connection = get_db_connection()
     if connection is None:
         return []
     try:
+        ensure_category_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} ORDER BY category_name ASC")
+        where_clause = "" if include_archived else "WHERE COALESCE(is_archived, 0) = 0"
+        cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} {where_clause} ORDER BY category_name ASC")
         rows = cursor.fetchall()
         cursor.close()
         return rows
@@ -137,19 +154,21 @@ def get_categories():
             connection.close()
 
 
-def get_categories_with_modules():
+def get_categories_with_modules(include_archived=False):
     """
-    Backs the Categories modal - every category, each with its own list
-    of modules (module_name, description, status_name), so the frontend
-    can render the accordion (Basics -> Introduction to Python, ...)
-    straight from one payload instead of N+1 requests.
+    Backs the Categories modal - every active category, each with its own list
+    of active modules (module_name, description, status_name), so the frontend
+    can render the accordion straight from one payload instead of N+1 requests.
     """
     connection = get_db_connection()
     if connection is None:
         return []
     try:
+        ensure_category_is_archived_column(connection)
+        ensure_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} ORDER BY category_name ASC")
+        where_clause = "" if include_archived else "WHERE COALESCE(is_archived, 0) = 0"
+        cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} {where_clause} ORDER BY category_name ASC")
         categories = cursor.fetchall()
 
         cursor.execute(
@@ -158,6 +177,8 @@ def get_categories_with_modules():
                    COALESCE(ms.module_stats_name, 'Draft') AS status_name
             FROM {MODULES_TABLE} m
             LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+            WHERE COALESCE(m.is_archived, 0) = 0
+              AND COALESCE(ms.module_stats_name, '') != 'Archived'
             ORDER BY m.module_id ASC
             """
         )
@@ -193,14 +214,15 @@ def create_category(category_name):
         return False, "Could not connect to the database.", None
 
     try:
+        ensure_category_is_archived_column(connection)
         cursor = connection.cursor()
-        # Prevent duplicate category names (case-insensitive).
-        cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s)", (name,))
+        # Prevent duplicate active category names (case-insensitive).
+        cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s) AND is_archived = 0", (name,))
         if cursor.fetchone():
             cursor.close()
             return False, "A category with this name already exists.", None
 
-        cursor.execute(f"INSERT INTO {CATEGORY_TABLE} (category_name) VALUES (%s)", (name,))
+        cursor.execute(f"INSERT INTO {CATEGORY_TABLE} (category_name, is_archived) VALUES (%s, 0)", (name,))
         connection.commit()
         new_id = cursor.lastrowid
         cursor.close()
@@ -226,9 +248,10 @@ def update_category(cat_id, category_name):
         return False, "Could not connect to the database."
 
     try:
+        ensure_category_is_archived_column(connection)
         cursor = connection.cursor()
         cursor.execute(
-            f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s) AND cat_id != %s",
+            f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s) AND cat_id != %s AND is_archived = 0",
             (name, cat_id)
         )
         if cursor.fetchone():
@@ -248,40 +271,234 @@ def update_category(cat_id, category_name):
             connection.close()
 
 
-def delete_category(cat_id):
+def archive_category(cat_id):
     """
-    Task requirement: "Prevent orphaned Modules ... either preventing
-    deletion while modules exist, or reassigning/deleting related
-    modules." This implementation takes the safer route: block deletion
-    while any module still references this category, so cat_id never
-    dangles.
+    Task #87: Soft Delete / Archive for Categories.
+    Marks category as archived (is_archived = 1).
+    Fails safely if there are active (non-archived) modules belonging to it.
     """
+    if not cat_id:
+        return False, "Category ID is required."
+
     connection = get_db_connection()
     if connection is None:
         return False, "Could not connect to the database."
 
     try:
+        ensure_category_is_archived_column(connection)
+        ensure_is_archived_column(connection)
         cursor = connection.cursor()
+
+        cursor.execute(f"SELECT is_archived FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, "Category not found."
+
+        if row[0]:
+            cursor.close()
+            return False, "This category is already archived."
+
+        # Prevent archiving if active modules still reference this category
+        cursor.execute(
+            f"SELECT COUNT(*) FROM {MODULES_TABLE} WHERE cat_id = %s AND is_archived = 0",
+            (cat_id,)
+        )
+        (active_count,) = cursor.fetchone()
+        if active_count > 0:
+            cursor.close()
+            return False, (
+                f"Cannot archive this category - {active_count} active module(s) still belong to it. "
+                "Please archive or reassign those modules first."
+            )
+
+        cursor.execute(
+            f"UPDATE {CATEGORY_TABLE} SET is_archived = 1 WHERE cat_id = %s AND is_archived = 0",
+            (cat_id,)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Category archived successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to archive category: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def restore_category(cat_id):
+    """
+    Task #87: Flips a category's is_archived flag back to 0.
+    """
+    if not cat_id:
+        return False, "Category ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_category_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT is_archived FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, "Category not found."
+
+        if not row[0]:
+            cursor.close()
+            return False, "This category is not archived."
+
+        cursor.execute(
+            f"UPDATE {CATEGORY_TABLE} SET is_archived = 0 WHERE cat_id = %s AND is_archived = 1",
+            (cat_id,)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Category restored successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to restore category: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def permanently_delete_category(cat_id):
+    """
+    Task #87: Permanently deletes an archived category from category_tbl.
+    Enforces referential integrity - blocks deletion if any module (active or archived)
+    still references this cat_id.
+    """
+    if not cat_id:
+        return False, "Category ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_category_is_archived_column(connection)
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT is_archived FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, "Category not found."
+
+        if not row[0]:
+            cursor.close()
+            return False, "This category must be archived before it can be permanently deleted."
+
         cursor.execute(f"SELECT COUNT(*) FROM {MODULES_TABLE} WHERE cat_id = %s", (cat_id,))
         (module_count,) = cursor.fetchone()
         if module_count > 0:
             cursor.close()
             return False, (
-                f"Cannot delete this category - {module_count} module(s) still belong to it. "
-                "Move or delete those modules first."
+                f"Cannot permanently delete this category - {module_count} module(s) (including archived) "
+                "still reference it. Permanently delete or reassign those modules first."
             )
 
-        cursor.execute(f"DELETE FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        cursor.execute(
+            f"DELETE FROM {CATEGORY_TABLE} WHERE cat_id = %s AND is_archived = 1",
+            (cat_id,)
+        )
         connection.commit()
+        deleted_rows = cursor.rowcount
         cursor.close()
-        return True, "Category deleted successfully."
+
+        if deleted_rows == 0:
+            return False, "This category could not be deleted (it may no longer be archived)."
+
+        return True, "Category permanently deleted."
     except Error as e:
         connection.rollback()
-        print(f"manage_course: failed to delete category: {e}")
+        print(f"manage_course: failed to permanently delete category: {e}")
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():
             connection.close()
+
+
+def get_archived_categories(search_query=None, page=1, per_page=8):
+    """
+    Task #87: Pulls paginated archived categories with module count.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        ensure_category_is_archived_column(connection)
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor(dictionary=True)
+
+        base_query = f"FROM {CATEGORY_TABLE} c WHERE c.is_archived = 1"
+        params = []
+
+        term = (search_query or "").strip()
+        if term:
+            base_query += " AND LOWER(c.category_name) LIKE %s"
+            params.append(f"%{term.lower()}%")
+
+        cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
+        total = cursor.fetchone()["total"]
+
+        page = max(1, page)
+        per_page = max(1, per_page)
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
+
+        cursor.execute(
+            f"""
+            SELECT c.cat_id, c.category_name,
+                   (SELECT COUNT(*) FROM {MODULES_TABLE} m WHERE m.cat_id = c.cat_id) AS module_count
+            {base_query}
+            ORDER BY c.category_name ASC
+            LIMIT %s OFFSET %s
+            """,
+            tuple(params) + (per_page, offset)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+
+        categories = []
+        for r in rows:
+            categories.append({
+                "cat_id": r["cat_id"],
+                "category_name": r["category_name"],
+                "module_count": r.get("module_count", 0)
+            })
+
+        return {
+            "categories": categories,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages
+        }
+    except Error as e:
+        print(f"manage_course: failed to load archived categories: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def delete_category(cat_id):
+    """
+    Soft-archives a category via archive_category(cat_id).
+    """
+    return archive_category(cat_id)
+
 
 
 # ================================================================
@@ -348,7 +565,7 @@ def create_module(module_name, description, cat_id, module_stats_id):
             connection.close()
 
 
-def update_module(module_id, module_name, description, cat_id, module_stats_id):
+def update_module(module_id, module_name, description, cat_id, module_stats_id=None):
     # Task #77: same period-aware sentence-case formatting as
     # create_module() above, so editing an existing Module always ends
     # up in the same normalized form (e.g. "INTRODUCTION TO PYTHON. THIS
@@ -363,8 +580,6 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id):
         return False, "Description is required."
     if not cat_id:
         return False, "Category is required."
-    if not module_stats_id:
-        return False, "Status is required."
 
     connection = get_db_connection()
     if connection is None:
@@ -373,19 +588,114 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id):
     try:
         cursor = connection.cursor()
         # updated_at bumped, created_at intentionally left untouched.
-        cursor.execute(
-            f"""UPDATE {MODULES_TABLE}
-                SET module_name = %s, description = %s, cat_id = %s,
-                    module_stats_id = %s, updated_at = NOW()
-                WHERE module_id = %s""",
-            (name, desc, cat_id, module_stats_id, module_id)
-        )
+        if module_stats_id:
+            cursor.execute(
+                f"""UPDATE {MODULES_TABLE}
+                    SET module_name = %s, description = %s, cat_id = %s,
+                        module_stats_id = %s, updated_at = NOW()
+                    WHERE module_id = %s""",
+                (name, desc, cat_id, module_stats_id, module_id)
+            )
+        else:
+            cursor.execute(
+                f"""UPDATE {MODULES_TABLE}
+                    SET module_name = %s, description = %s, cat_id = %s,
+                        updated_at = NOW()
+                    WHERE module_id = %s""",
+                (name, desc, cat_id, module_id)
+            )
         connection.commit()
         cursor.close()
         return True, "Module updated successfully."
     except Error as e:
         connection.rollback()
         print(f"manage_course: failed to update module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def publish_module(module_id):
+    """
+    Task #90: Sets a module's status to 'Published'.
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_module_stats(connection)
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Published' LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Published status not found."
+        published_id = row[0]
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET module_stats_id = %s, is_archived = 0, updated_at = NOW()
+                WHERE module_id = %s""",
+            (published_id, module_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Module published successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to publish module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unpublish_module(module_id):
+    """
+    Task #90: Sets a module's status to 'Draft'.
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_module_stats(connection)
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Draft' LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Draft status not found."
+        draft_id = row[0]
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET module_stats_id = %s, updated_at = NOW()
+                WHERE module_id = %s""",
+            (draft_id, module_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Module unpublished successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to unpublish module: {e}")
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():
@@ -499,10 +809,27 @@ def archive_module(module_id):
                 "module status to Draft first."
             )
 
+        # Task #91: Check if there are active learning resources attached to this module
+        cursor.execute(
+            f"""SELECT COUNT(*)
+                FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.module_id = %s
+                  AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')""",
+            (module_id,)
+        )
+        (resource_count,) = cursor.fetchone()
+        if resource_count > 0:
+            cursor.close()
+            return False, (
+                "Cannot archive this module because it has attached learning resources. "
+                "Please delete or reassign the resources first."
+            )
+
         cursor.execute(
             f"""UPDATE {MODULES_TABLE}
                 SET is_archived = 1, updated_at = NOW()
-                WHERE module_id = %s AND is_archived = 0""",
+                WHERE module_id = %s AND COALESCE(is_archived, 0) = 0""",
             (module_id,)
         )
         connection.commit()
@@ -539,19 +866,32 @@ def restore_module(module_id):
         ensure_is_archived_column(connection)
         cursor = connection.cursor()
 
-        cursor.execute(f"SELECT is_archived FROM {MODULES_TABLE} WHERE module_id = %s", (module_id,))
+        cursor.execute(
+            f"""SELECT m.is_archived, ms.module_stats_name
+                FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.module_id = %s""",
+            (module_id,)
+        )
         row = cursor.fetchone()
         if row is None:
             cursor.close()
             return False, "Module not found."
-        if not row[0]:
+        is_archived, status_name = row
+        if not is_archived and status_name != "Archived":
             cursor.close()
             return False, "This module is not archived."
 
         cursor.execute(
             f"""UPDATE {MODULES_TABLE}
-                SET is_archived = 0, updated_at = NOW()
-                WHERE module_id = %s AND is_archived = 1""",
+                SET is_archived = 0,
+                    module_stats_id = CASE
+                        WHEN module_stats_id = (SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Archived' LIMIT 1)
+                        THEN (SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Draft' LIMIT 1)
+                        ELSE module_stats_id
+                    END,
+                    updated_at = NOW()
+                WHERE module_id = %s""",
             (module_id,)
         )
         connection.commit()
@@ -718,13 +1058,24 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
         ensure_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
 
-        base_query = """
-            FROM {modules} m
-            LEFT JOIN {categories} c ON m.cat_id = c.cat_id
-            LEFT JOIN {statuses} ms ON m.module_stats_id = ms.module_stats_id
-            WHERE m.is_archived = %s
-        """.format(modules=MODULES_TABLE, categories=CATEGORY_TABLE, statuses=MODULE_STATS_TABLE)
-        params = [1 if archived else 0]
+        if archived:
+            base_query = """
+                FROM {modules} m
+                LEFT JOIN {categories} c ON m.cat_id = c.cat_id
+                LEFT JOIN {statuses} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE (COALESCE(m.is_archived, 0) = 1 OR ms.module_stats_name = 'Archived')
+            """.format(modules=MODULES_TABLE, categories=CATEGORY_TABLE, statuses=MODULE_STATS_TABLE)
+            params = []
+        else:
+            base_query = """
+                FROM {modules} m
+                LEFT JOIN {categories} c ON m.cat_id = c.cat_id
+                LEFT JOIN {statuses} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE COALESCE(m.is_archived, 0) = 0
+                  AND COALESCE(ms.module_stats_name, '') != 'Archived'
+                  AND (COALESCE(c.is_archived, 0) = 0 OR c.cat_id IS NULL)
+            """.format(modules=MODULES_TABLE, categories=CATEGORY_TABLE, statuses=MODULE_STATS_TABLE)
+            params = []
 
         term = (search_query or "").strip()
         if term:
@@ -850,11 +1201,17 @@ def get_modules_by_category(cat_id):
         return []
     try:
         ensure_is_archived_column(connection)
+        ensure_category_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            f"""SELECT module_id, module_name FROM {MODULES_TABLE}
-                WHERE cat_id = %s AND is_archived = 0
-                ORDER BY module_name ASC""",
+            f"""SELECT m.module_id, m.module_name FROM {MODULES_TABLE} m
+                INNER JOIN {CATEGORY_TABLE} c ON m.cat_id = c.cat_id
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.cat_id = %s
+                  AND COALESCE(m.is_archived, 0) = 0
+                  AND COALESCE(c.is_archived, 0) = 0
+                  AND COALESCE(ms.module_stats_name, '') != 'Archived'
+                ORDER BY m.module_name ASC""",
             (cat_id,)
         )
         rows = cursor.fetchall()

@@ -1,17 +1,16 @@
 /**
- * admin-resource-actions.js - Task #81: Manage Learning Resources
- * ACTIONS column (Edit / Archive)
+ * admin-resource-actions.js - Task #81 & #98: Manage Learning Resources
+ * ACTIONS column (Edit / Archive) & Published Edit Interception
  * --------------------------------------------------------------------
  * Wires up the ACTIONS column in the Manage Learning Resources table
- * (learning-resources.html), which is now strictly Edit + Archive -
- * Publish/Unpublish has moved to its own "Publish Status" column,
- * handled separately by admin-resource-publish.js.
+ * (learning-resources.html), which handles Edit + Archive.
  *
- * Edit reuses the existing Upload Resource route
- * (admin_bp.upload_resource?resource_id=<id>) - it's a normal link, no
- * JS needed beyond the server-rendered href already in the markup.
+ * Task #98: Intercepts the click event on the Edit button for
+ * resources with "Published" status, prompting the admin with a
+ * confirmation warning modal (#confirmActionModal) before opening the
+ * editor. Resources in "Draft" status bypass the warning directly.
  *
- * Archive calls the new /admin/learning-resources/<id>/archive
+ * Archive calls the /admin/learning-resources/<id>/archive
  * endpoint (see admin_routes.py -> resource_publishing.archive_resource()),
  * mirroring admin-manage-course.js's own archive-module confirm/fetch
  * pattern for consistency.
@@ -30,6 +29,54 @@
         const tableBody = document.getElementById("resourcesTableBody");
         if (!tableBody) return; // not on this page
 
+        const confirmActionModal = document.getElementById("confirmActionModal");
+        const confirmActionTitle = document.getElementById("confirmActionTitle");
+        const confirmActionText = document.getElementById("confirmActionText");
+        const confirmActionCancelBtn = document.getElementById("confirmActionCancelBtn");
+        const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
+
+        let pendingConfirmAction = null;
+
+        function showConfirmModal(message, onConfirm, title) {
+            if (!confirmActionModal) {
+                if (window.confirm(message)) onConfirm();
+                return;
+            }
+            pendingConfirmAction = onConfirm;
+            if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
+            if (confirmActionText) confirmActionText.textContent = message;
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+        }
+
+        function closeConfirmModal() {
+            if (confirmActionModal) {
+                confirmActionModal.classList.add("modal-hidden");
+                confirmActionModal.style.display = "none";
+            }
+            pendingConfirmAction = null;
+        }
+
+        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+        if (confirmActionModal) {
+            confirmActionModal.addEventListener("click", (e) => {
+                if (e.target === confirmActionModal) closeConfirmModal();
+            });
+        }
+        if (confirmActionConfirmBtn) {
+            confirmActionConfirmBtn.addEventListener("click", () => {
+                const action = pendingConfirmAction;
+                closeConfirmModal();
+                if (typeof action === "function") action();
+            });
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && confirmActionModal && !confirmActionModal.classList.contains("modal-hidden") && confirmActionModal.style.display !== "none") {
+                closeConfirmModal();
+            }
+        });
+
         function escapeHtml(str) {
             const div = document.createElement("div");
             div.textContent = str == null ? "" : String(str);
@@ -42,18 +89,14 @@
          * admin-learning-resources.js's renderRows() can build the
          * exact same markup for live-search/filter/page results,
          * without duplicating this logic a second time in that file.
-         *
-         * editUrl is passed in (rather than built here) since the real
-         * Flask url_for()-generated route lives server-side; the
-         * initial page-load table already has it baked into each row's
-         * href, and admin-learning-resources.js's JSON results include
-         * resource_id, from which the same URL pattern can be built.
          */
-        function actionsHtml(resourceId, editUrl) {
+        function actionsHtml(resourceId, editUrl, status) {
             const href = editUrl || `/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}`;
+            const statusAttr = status ? ` data-status="${escapeHtml(status)}"` : "";
             return `
                 <div class="table-actions-group">
-                    <a href="${href}" title="Edit" class="table-action-icon">
+                    <a href="${href}" title="Edit" class="table-action-icon js-edit-resource-btn"
+                       data-resource-id="${resourceId}"${statusAttr}>
                         <i class="fa-solid fa-pen-to-square"></i>
                     </a>
                     <a href="#" title="Archive"
@@ -67,6 +110,30 @@
         window.cobraByteResourceActions = { actionsHtml };
 
         tableBody.addEventListener("click", async (e) => {
+            // Task #98: Intercept Edit click for Published resources
+            const editBtn = e.target.closest(".js-edit-resource-btn") || e.target.closest('a[title="Edit"]');
+            if (editBtn) {
+                const row = editBtn.closest("tr");
+                const statusCell = row ? row.querySelector(".js-status-cell") : null;
+                const statusText = (editBtn.dataset.status || (statusCell ? statusCell.textContent : "")).trim().toLowerCase();
+                const isPublished = statusText === "published";
+
+                if (isPublished) {
+                    e.preventDefault();
+                    const targetUrl = editBtn.href;
+                    showConfirmModal(
+                        "You are about to edit a published resource. Do you wish to continue?",
+                        () => {
+                            window.location.href = targetUrl;
+                        },
+                        "Edit Published Resource?"
+                    );
+                    return;
+                }
+                // Draft status bypasses warning and proceeds straight to editor
+                return;
+            }
+
             const archiveBtn = e.target.closest(".js-archive-resource-btn");
             if (!archiveBtn) return;
             e.preventDefault();

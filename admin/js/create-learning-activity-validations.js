@@ -1,31 +1,12 @@
 /**
- * create-learning-activity-validation.js - Task #53: Activity Title
- * Live Casing Normalization + Global Uniqueness Check
+ * create-learning-activity-validation.js - Task #53, #62, #102
  * --------------------------------------------------------------------
- * Mirrors upload-resource.js's Task #42 pattern exactly, scoped to
- * #activityTitle on create-learning-activity.html instead of
- * #lessonNameInput on upload-resource.html:
- *
- *   - Live casing normalization while typing: first character
- *     uppercase, every other character lowercase ("PYTHON QUIZ" ->
- *     "Python quiz"), mirroring activity_validation.format_activity_title()
- *     on the server, with caret position preserved so typing isn't
- *     disrupted mid-word.
- *   - Debounced live duplicate check against
- *     GET /admin/create-learning-activity/check-activity-name
- *     (admin_routes.py -> activity_validation.validate_activity_title()),
- *     shown as an inline error under/beside the field.
- *   - Blocks form submission client-side while a known duplicate is
- *     showing (pure UX convenience - the backend's POST handler
- *     (create_activity_submit) and the Save Draft path
- *     (learning_activity_draft.save_activity_draft()) both always
- *     re-validate uniqueness themselves before anything is saved, so
- *     this check being bypassed can never let a duplicate through).
- *
- * Only present on pages that have #activityTitle and
- * #createActivityForm (currently just create-learning-activity.html),
- * so this is safe to include as a shared script without guard checks
- * elsewhere.
+ * Handles:
+ *   - Live casing normalization while typing: first character uppercase,
+ *     every other character lowercase ("PYTHON QUIZ" -> "Python quiz").
+ *   - Debounced live duplicate check with red border (.field-error)
+ *     and popup alert notifications (zero inline layout shifts).
+ *   - Lesson Activity Type uniqueness live check.
  */
 (function () {
     "use strict";
@@ -34,34 +15,31 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         const activityTitleInput = document.getElementById("activityTitle");
-        const activityTitleError = document.getElementById("activityTitleError");
         const createActivityForm = document.getElementById("createActivityForm");
         const activityIdInput = document.getElementById("activityIdInput");
+        const lessonSelect = document.getElementById("lessonSelect");
+        const activityTypeSelect = document.getElementById("activityType");
 
         if (!activityTitleInput) return; // field not present on this page
 
         let lastCheckedValue = "";
-        let lastCheckAvailable = true; // optimistic until proven otherwise
+        let lastCheckAvailable = true;
         let debounceTimer = null;
 
-        function showActivityTitleError(message) {
-            if (!activityTitleError) return;
-            activityTitleError.textContent = message;
-            activityTitleError.style.display = "block";
+        function showTitleError(message) {
+            if (activityTitleInput) activityTitleInput.classList.add("field-error");
+            if (typeof window.cobraByteShowActivityInfoModal === "function") {
+                window.cobraByteShowActivityInfoModal(message, "Activity Title Missing");
+            } else if (typeof window.cobraByteShowActivityPopupAlert === "function") {
+                window.cobraByteShowActivityPopupAlert(message, "error");
+            }
         }
 
-        function clearActivityTitleError() {
-            if (!activityTitleError) return;
-            activityTitleError.textContent = "";
-            activityTitleError.style.display = "none";
+        function clearTitleError() {
+            if (activityTitleInput) activityTitleInput.classList.remove("field-error");
         }
 
-        // Task #53: live casing normalization - first character
-        // uppercase, every other character lowercase - "PYTHON QUIZ" ->
-        // "Python quiz", "python QUIZ" -> "Python quiz". Mirrors
-        // activity_validation.format_activity_title() exactly, but
-        // preserves the caret position so typing isn't disrupted
-        // mid-word.
+        // Live casing normalization
         function formatActivityTitleLive(value) {
             if (!value) return value;
             const lower = value.toLowerCase();
@@ -78,7 +56,7 @@
                 activityTitleInput.setSelectionRange(start, end);
             }
 
-            clearActivityTitleError();
+            clearTitleError();
             scheduleDuplicateCheck();
         });
 
@@ -92,15 +70,12 @@
             if (!value) {
                 lastCheckedValue = "";
                 lastCheckAvailable = true;
-                clearActivityTitleError();
+                clearTitleError();
                 return;
             }
 
             try {
                 const params = new URLSearchParams({ name: value });
-                // Editing an existing draft - exclude its own row from
-                // the duplicate check, same convention the server-side
-                // validate_activity_title(exclude_la_id=...) uses.
                 if (activityIdInput && activityIdInput.value) {
                     params.set("activity_id", activityIdInput.value);
                 }
@@ -114,30 +89,23 @@
                 lastCheckedValue = value;
 
                 if (!result.success) {
-                    // Could not verify - fail safe (treat as unavailable)
-                    // so an unverified duplicate can never slip through
-                    // client-side.
                     lastCheckAvailable = false;
-                    showActivityTitleError(result.message || "Could not verify activity title. Please try again.");
+                    showTitleError(result.message || "Could not verify activity title. Please try again.");
                     return;
                 }
 
                 lastCheckAvailable = !!result.available;
 
                 if (!result.available) {
-                    showActivityTitleError(result.message || "An activity with this title already exists.");
+                    showTitleError(result.message || "An activity with this title already exists.");
                 } else {
-                    clearActivityTitleError();
+                    clearTitleError();
                 }
             } catch (err) {
-                // Network/server unreachable - best-effort only; the
-                // backend's POST handler re-validates uniqueness
-                // authoritatively regardless.
+                // Best-effort only
             }
         }
 
-        // Also run once on blur, in case the debounce timer hasn't
-        // fired yet and the admin tabs straight to the next field.
         activityTitleInput.addEventListener("blur", () => {
             if (debounceTimer) clearTimeout(debounceTimer);
             runDuplicateCheck();
@@ -146,23 +114,20 @@
         // ------------------------------------------------------------
         // Task #62: Lesson Activity Type Uniqueness Live Validation
         // ------------------------------------------------------------
-        const lessonSelect = document.getElementById("lessonSelect");
-        const activityTypeSelect = document.getElementById("activityType");
-        const activityTypeError = document.getElementById("activityTypeError");
-
         let lastTypeAvailable = true;
         let lastTypeErrorMessage = "";
 
-        function showActivityTypeError(message) {
-            if (!activityTypeError) return;
-            activityTypeError.textContent = message;
-            activityTypeError.style.display = "block";
+        function showTypeError(message) {
+            if (activityTypeSelect) activityTypeSelect.classList.add("field-error");
+            if (typeof window.cobraByteShowActivityInfoModal === "function") {
+                window.cobraByteShowActivityInfoModal(message, "Activity Type Error");
+            } else if (typeof window.cobraByteShowActivityPopupAlert === "function") {
+                window.cobraByteShowActivityPopupAlert(message, "error");
+            }
         }
 
-        function clearActivityTypeError() {
-            if (!activityTypeError) return;
-            activityTypeError.textContent = "";
-            activityTypeError.style.display = "none";
+        function clearTypeError() {
+            if (activityTypeSelect) activityTypeSelect.classList.remove("field-error");
         }
 
         async function checkLessonActivityTypeUniqueness() {
@@ -173,7 +138,7 @@
             if (!lessonId || !activityType) {
                 lastTypeAvailable = true;
                 lastTypeErrorMessage = "";
-                clearActivityTypeError();
+                clearTypeError();
                 return;
             }
 
@@ -195,14 +160,14 @@
                 if (!result.success || !result.available) {
                     lastTypeAvailable = false;
                     lastTypeErrorMessage = result.message || `A ${activityType} activity already exists for this lesson.`;
-                    showActivityTypeError(lastTypeErrorMessage);
+                    showTypeError(lastTypeErrorMessage);
                 } else {
                     lastTypeAvailable = true;
                     lastTypeErrorMessage = "";
-                    clearActivityTypeError();
+                    clearTypeError();
                 }
             } catch (err) {
-                // Best-effort client check - backend enforces authoritatively
+                // Best-effort check
             }
         }
 
@@ -219,27 +184,21 @@
 
                 if (!value) {
                     e.preventDefault();
-                    showActivityTitleError("Activity title is required.");
+                    showTitleError("Activity title is required.");
                     activityTitleInput.focus();
                     return;
                 }
 
-                // Only block submission on a CONFIRMED duplicate for the
-                // exact value currently in the field - an unverified or
-                // stale check never blocks submission client-side, since
-                // the backend's POST handler is the true source of truth
-                // and will reject it there regardless.
                 if (value === lastCheckedValue && !lastCheckAvailable) {
                     e.preventDefault();
-                    showActivityTitleError("An activity with this title already exists. Activity titles must be unique across the entire system.");
+                    showTitleError("An activity with this title already exists. Activity titles must be unique across the entire system.");
                     activityTitleInput.focus();
                     return;
                 }
 
-                // Task #62: Block submission if activity type is already taken for this lesson
                 if (!lastTypeAvailable && lastTypeErrorMessage) {
                     e.preventDefault();
-                    showActivityTypeError(lastTypeErrorMessage);
+                    showTypeError(lastTypeErrorMessage);
                     if (activityTypeSelect) activityTypeSelect.focus();
                     return;
                 }

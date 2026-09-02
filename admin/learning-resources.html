@@ -176,7 +176,9 @@
                                 <td class="text-right">
                                     <div class="table-actions-group">
                                         <a href="{{ url_for('admin_bp.upload_resource', resource_id=resource.resource_id) }}"
-                                           title="Edit" class="table-action-icon">
+                                           title="Edit" class="table-action-icon js-edit-resource-btn"
+                                           data-resource-id="{{ resource.resource_id }}"
+                                           data-status="{{ resource.status }}">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </a>
                                         <a href="#" title="Archive"
@@ -231,6 +233,7 @@
                 </div>
 
             </div>
+            {% include 'confirm-action-modal.html' %}
         </main>
     </div>
 
