@@ -62,6 +62,15 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
 )
 from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise  # Task #111 & #112
 
+from relational_archive import (  # NEW - Task #116: relational archive restrictions,
+    check_category_archive_eligibility, cascade_archive_category,   # cascading archive, and
+    check_module_archive_eligibility, cascade_archive_module,       # checkbox-controlled cascading restore
+    check_resource_archive_eligibility, cascade_archive_resource,
+    get_archived_descendants_for_restore,
+    restore_category_with_selection, restore_module_with_selection,
+)
+
+
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
 admin_bp = Blueprint(
@@ -1424,7 +1433,17 @@ def manage_course_update_category(cat_id):
  
 @admin_bp.route('/manage-course/categories/<int:cat_id>/delete', methods=['POST'])
 def manage_course_delete_category(cat_id):
-    success, message = delete_category(cat_id)
+    # Task #116: block if any connected descendant is still Published,
+    # otherwise cascade-archive every DRAFT descendant along with the
+    # category itself.
+    eligible, blockers, _tree = check_category_archive_eligibility(cat_id)
+    if not eligible:
+        return jsonify({
+            "success": False,
+            "message": "Cannot archive this category - connected item(s) are still Published: " + "; ".join(blockers),
+            "blockers": blockers,
+        }), 400
+    success, message = cascade_archive_category(cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
  
  
@@ -1450,16 +1469,16 @@ def manage_course_update_module(module_id):
  
 @admin_bp.route('/manage-course/modules/<int:module_id>/delete', methods=['POST'])
 def manage_course_delete_module(module_id):
-    """
-    Task #27: this used to permanently DELETE the module row
-    (delete_module()). It now performs a soft delete/archive instead
-    (archive_module()) - the route/endpoint URL is left unchanged
-    (still "/delete") on purpose, since admin-manage-course.js's
-    existing Delete/trash icon already points here and the request/
-    response shape is identical; only the underlying database operation
-    changed from DELETE to UPDATE ... SET is_archived = 1.
-    """
-    success, message = archive_module(module_id)
+    # Task #116: same published-dependency gate + cascading archive,
+    # one level down from Category.
+    eligible, blockers, _tree = check_module_archive_eligibility(module_id)
+    if not eligible:
+        return jsonify({
+            "success": False,
+            "message": "Cannot archive this module - connected item(s) are still Published: " + "; ".join(blockers),
+            "blockers": blockers,
+        }), 400
+    success, message = cascade_archive_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -1534,6 +1553,54 @@ def manage_course_archive_category(cat_id):
     success, message = archive_category(cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
+# ============================================================
+# ROUTE: TASK #116 - CHECKBOX-CONTROLLED CASCADING RESTORE
+# ============================================================
+@admin_bp.route('/manage-course/categories/<int:cat_id>/restore-options')
+def manage_course_category_restore_options(cat_id):
+    """Lists every archived descendant of this category, grouped by type,
+    for the checkbox restore modal."""
+    data = get_archived_descendants_for_restore("category", cat_id)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/restore-selected', methods=['POST'])
+def manage_course_category_restore_selected(cat_id):
+    """Restores the category plus only the checked child items (Draft)."""
+    data = request.get_json(silent=True) or {}
+    success, message = restore_category_with_selection(
+        cat_id,
+        module_ids=data.get('module_ids') or [],
+        resource_ids=data.get('resource_ids') or [],
+        activity_ids=data.get('activity_ids') or [],
+        exercise_ids=data.get('exercise_ids') or [],
+    )
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/restore-options')
+def manage_course_module_restore_options(module_id):
+    """Lists every archived descendant of this module, grouped by type,
+    for the checkbox restore modal."""
+    data = get_archived_descendants_for_restore("module", module_id)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/restore-selected', methods=['POST'])
+def manage_course_module_restore_selected(module_id):
+    """Restores the module plus only the checked child items (Draft)."""
+    data = request.get_json(silent=True) or {}
+    success, message = restore_module_with_selection(
+        module_id,
+        resource_ids=data.get('resource_ids') or [],
+        activity_ids=data.get('activity_ids') or [],
+        exercise_ids=data.get('exercise_ids') or [],
+    )
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 @admin_bp.route('/manage-course/categories/<int:cat_id>/restore', methods=['POST'])
 def manage_course_restore_category(cat_id):
@@ -1710,16 +1777,16 @@ def unpublish_learning_resource(resource_id):
 # ============================================================
 @admin_bp.route('/learning-resources/<int:resource_id>/archive', methods=['POST'])
 def archive_learning_resource(resource_id):
-    """
-    Task #81: Manage Learning Resources table's ACTIONS -> Archive
-    control. Thin HTTP wrapper only, matching this project's existing
-    convention (see publish_learning_resource() /
-    unpublish_learning_resource() above) - all real logic lives in
-    resource_publishing.archive_resource().
-
-    Returns JSON: { "success": bool, "message": str }
-    """
-    success, message = archive_resource(resource_id)
+    # Task #116: same published-dependency gate + cascading archive,
+    # scoped to the resource's own activities/exercises.
+    eligible, blockers, _tree = check_resource_archive_eligibility(resource_id)
+    if not eligible:
+        return jsonify({
+            "success": False,
+            "message": "Cannot archive this resource - connected item(s) are still Published: " + "; ".join(blockers),
+            "blockers": blockers,
+        }), 400
+    success, message = cascade_archive_resource(resource_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -2701,3 +2768,22 @@ def save_coding_exercise_draft():
                 "message": msg
             }), 400
         return redirect(url_for('admin_bp.create_coding_exercise'))
+    # ============================================================
+# ROUTE: TASK #116 - ARCHIVE ELIGIBILITY CHECKS (published-dependency gate)
+# ============================================================
+@admin_bp.route('/manage-course/categories/<int:cat_id>/archive-check')
+def manage_course_category_archive_check(cat_id):
+    eligible, blockers, _tree = check_category_archive_eligibility(cat_id)
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/archive-check')
+def manage_course_module_archive_check(module_id):
+    eligible, blockers, _tree = check_module_archive_eligibility(module_id)
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
+
+
+@admin_bp.route('/learning-resources/<int:resource_id>/archive-check')
+def learning_resource_archive_check(resource_id):
+    eligible, blockers, _tree = check_resource_archive_eligibility(resource_id)
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200

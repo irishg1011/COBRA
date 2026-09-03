@@ -1,0 +1,43 @@
+<!-- admin/restore-selection-modal.html
+     Task #116: Checkbox-Controlled Cascading Restore Modal
+     -------------------------------------------------------------
+     Shown when the admin clicks "Restore" on an archived Category or
+     Module. Lists every connected item that was archived alongside the
+     parent - grouped into Modules (Category only), Learning Resources,
+     Learning Activities, and Coding Exercises - each with its own
+     checkbox, plus a top-level "Select All" toggle. The parent itself is
+     always restored; a child item is only restored if its checkbox is
+     still checked when "Restore Selected" is confirmed.
+
+     Wired up entirely by admin-relational-archive.js. Hidden by default.
+     Include this once, alongside archived-modules-modal.html (e.g. in
+     manage-course.html, right after {% include 'archived-modules-modal.html' %}). -->
+<div id="restoreSelectionModal" class="custom-modal-overlay" style="display: none;">
+    <div class="custom-modal-dialog" style="height: auto; max-height: 85vh; width: 100%; max-width: 640px;">
+        <div class="custom-modal-header">
+            <h3 id="restoreSelectionTitle">Restore Item</h3>
+            <button type="button" class="categories-close-btn" id="closeRestoreSelectionModal">&times;</button>
+        </div>
+
+        <div class="custom-modal-body">
+            <p class="text-muted" id="restoreSelectionIntro" style="margin-bottom: 16px;">
+                This item was archived along with the connected items below. Choose which ones to bring back along with it.
+            </p>
+
+            <label class="checkbox-label" style="margin-bottom: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="restoreSelectAllToggle"> Select All
+            </label>
+
+            <div id="restoreSelectionGroups">
+                <p class="text-muted" id="restoreSelectionLoading">Loading connected items&hellip;</p>
+            </div>
+        </div>
+
+        <div class="custom-modal-footer centered-footer">
+            <button type="button" class="btn-cancel-custom" id="cancelRestoreSelectionBtn">Cancel</button>
+            <button type="button" class="btn btn-success-custom" id="confirmRestoreSelectionBtn">
+                <i class="fa-solid fa-rotate-left"></i> Restore Selected
+            </button>
+        </div>
+    </div>
+</div>
