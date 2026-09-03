@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - Learn Python The Interactive Way</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='landing_style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <img src="{{ url_for('static', filename='assets/logo.png') }}" alt="CobraByte Logo" onerror="this.style.display='none'">
+                <span class="logo-text">CobraByte</span>
+            </div>
+            <nav class="nav-links">
+                <a href="#home" class="active">Home</a>
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#about">About Us</a>
+                <a href="#contact">Contact Us</a>
+            </nav>
+            <div class="nav-auth">
+                <a href="/login" class="sign-in-link">Sign In</a>
+                <a href="/signup" class="btn-get-started-top">Get Started &rarr;</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="hero-section" id="home">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1>Learn Python<br><span class="highlight">The Interactive Way</span></h1>
+                <p>Start your Python learning journey with interactive lessons and hands-on activities. Practice at your own pace and build confidence through engaging learning experiences.</p>
+                <div class="hero-buttons">
+                    <a href="/signup" class="btn-primary">Get Started &rarr;</a>
+                    <a href="#features" class="btn-secondary">Explore Features</a>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="{{ url_for('static', filename='assets/hero-laptop.png') }}" alt="Interactive Python Learning Setup" onerror="this.src='https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=650&q=80'">
+            </div>
+        </div>
+    </main>
+</body>
+</html>s
