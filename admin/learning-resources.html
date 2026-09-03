@@ -6,6 +6,7 @@
     <title>CobraByte Admin - Manage Learning Resources</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/archived-modals.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -37,6 +38,9 @@
                             <a href="{{ url_for('admin_bp.upload_resource') }}" id="openUploadResourceBtn" class="btn btn-success-custom">
                                 <i class="fa-solid fa-upload"></i> Upload Resource
                             </a>
+                            <button id="openArchivedResourcesBtn" class="btn btn-icon-custom" title="Archived Items">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -233,6 +237,7 @@
                 </div>
 
             </div>
+            {% include 'archived-resources-modal.html' %}
             {% include 'confirm-action-modal.html' %}
         </main>
     </div>
@@ -250,5 +255,7 @@
          window.cobraByteResourcePublishing is available when that
          script's renderRows() needs it. -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-resource-publish.js') }}"></script>
+    <!-- NEW - Task #117: Dedicated Tabbed Archive Modal -->
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-archived-resources.js') }}"></script>
 </body>
 </html>

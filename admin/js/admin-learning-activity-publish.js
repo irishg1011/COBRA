@@ -49,6 +49,20 @@
 
         let pendingConfirmAction = null;
 
+        function showAlertModal(message, title = "Cannot Publish") {
+            if (!confirmActionModal) {
+                alert(message);
+                return;
+            }
+            pendingConfirmAction = null;
+            if (confirmActionTitle) confirmActionTitle.textContent = title;
+            if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "none";
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "OK";
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+        }
+
         function showConfirmModal(message, onConfirm, title) {
             if (!confirmActionModal) {
                 if (window.confirm(message)) onConfirm();
@@ -57,6 +71,8 @@
             pendingConfirmAction = onConfirm;
             if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
             if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "Confirm";
             confirmActionModal.classList.remove("modal-hidden");
             confirmActionModal.style.display = "flex";
         }
@@ -66,6 +82,8 @@
                 confirmActionModal.classList.add("modal-hidden");
                 confirmActionModal.style.display = "none";
             }
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "Confirm";
             pendingConfirmAction = null;
         }
 
@@ -82,6 +100,12 @@
                 if (typeof action === "function") action();
             });
         }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && confirmActionModal && !confirmActionModal.classList.contains("modal-hidden") && confirmActionModal.style.display !== "none") {
+                closeConfirmModal();
+            }
+        });
 
         function escapeHtml(str) {
             const div = document.createElement("div");
@@ -118,7 +142,7 @@
             return `<span class="badge ${cls}">${escapeHtml(status || "Draft")}</span>`;
         }
 
-        function publishButtonHtml(activityId, status) {
+        function publishButtonHtml(activityId, status, moduleStatus) {
             const isPublished = status === "Published";
             const label = isPublished ? "Unpublish" : "Publish";
             const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
@@ -126,7 +150,8 @@
                 <button type="button"
                         class="btn ${btnClass} js-toggle-activity-publish-btn"
                         data-activity-id="${activityId}"
-                        data-status="${escapeHtml(status || "Draft")}">
+                        data-status="${escapeHtml(status || "Draft")}"
+                        data-module-status="${escapeHtml(moduleStatus || "Draft")}">
                     ${label}
                 </button>`;
         }
@@ -144,7 +169,19 @@
 
             const activityId = btn.dataset.activityId;
             const currentStatus = btn.dataset.status || "Draft";
+            const moduleStatus = btn.dataset.moduleStatus || "";
             const isPublished = currentStatus === "Published";
+
+            if (!isPublished) {
+                if (moduleStatus && moduleStatus !== "Published") {
+                    showAlertModal(
+                        `Cannot publish this activity - its parent module is still in ` +
+                        `${moduleStatus} status. Publish the parent module first.`,
+                        "Cannot Publish"
+                    );
+                    return;
+                }
+            }
 
             const confirmMsg = isPublished
                 ? "Are you sure you want to unpublish this learning activity? It will be moved back to Draft and hidden from learners."
@@ -168,7 +205,7 @@
                     const result = await response.json();
 
                     if (!result.success) {
-                        alert(result.message || "Could not update this activity's status.");
+                        showAlertModal(result.message || "Could not update this activity's status.", "Cannot Publish");
                         btn.disabled = false;
                         btn.textContent = originalText;
                         return;

@@ -1,0 +1,57 @@
+<!-- admin/archived-exercises-modal.html
+     Task #117: Dedicated Tabbed Archive Modal for Manage Coding Exercises
+     Features 1 Tab: Coding Exercises -->
+<div id="archivedExercisesModal" class="custom-modal-overlay" style="display: none;">
+    <div class="custom-modal-dialog archive-modal-dialog">
+        <div class="custom-modal-header">
+            <h3>Archived Coding Exercises</h3>
+            <button type="button" class="categories-close-btn" id="closeArchivedExercisesModal" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="custom-modal-body archive-modal-body">
+            <!-- 1 Tab: Coding Exercises -->
+            <div class="archive-toggle-group">
+                <button type="button" class="archive-toggle-btn active" id="toggleArchivedExercisesBtn" data-tab="coding_exercises">
+                    <i class="fa-solid fa-code"></i> Coding Exercises
+                </button>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="header-search search-override archive-search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="archivedExerciseSearchInput" placeholder="Search archived coding exercises...">
+            </div>
+
+            <!-- Coding Exercises View -->
+            <div id="archivedExercisesView" class="archive-tab-view">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Exercise</th>
+                            <th>Lesson Name</th>
+                            <th>Category</th>
+                            <th>Points</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivedExercisesTableBody">
+                        <tr>
+                            <td colspan="7" class="text-muted table-empty-message">Loading archived coding exercises&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="table-pagination" id="archivedExercisesPagination">
+                    <span id="archivedExercisesShowingCount">Showing 0 of 0 Archived Exercises</span>
+                    <span>
+                        <button id="archivedExercisesPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                        <span id="archivedExercisesPageLabel">1 of 1</span>
+                        <button id="archivedExercisesNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

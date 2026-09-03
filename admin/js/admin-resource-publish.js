@@ -75,7 +75,73 @@
         // logic a second time in that file.
         window.cobraByteResourcePublishing = { statusBadgeHtml, publishButtonHtml };
 
-        tableBody.addEventListener("click", async (e) => {
+        const confirmActionModal = document.getElementById("confirmActionModal");
+        const confirmActionTitle = document.getElementById("confirmActionTitle");
+        const confirmActionText = document.getElementById("confirmActionText");
+        const confirmActionCancelBtn = document.getElementById("confirmActionCancelBtn");
+        const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
+
+        let pendingConfirmAction = null;
+
+        function showAlertModal(message, title = "Cannot Publish") {
+            if (!confirmActionModal) {
+                alert(message);
+                return;
+            }
+            pendingConfirmAction = null;
+            if (confirmActionTitle) confirmActionTitle.textContent = title;
+            if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "none";
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "OK";
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+        }
+
+        function showConfirmModal(message, onConfirm, title) {
+            if (!confirmActionModal) {
+                if (window.confirm(message)) onConfirm();
+                return;
+            }
+            pendingConfirmAction = onConfirm;
+            if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
+            if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "Confirm";
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+        }
+
+        function closeConfirmModal() {
+            if (confirmActionModal) {
+                confirmActionModal.classList.add("modal-hidden");
+                confirmActionModal.style.display = "none";
+            }
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "Confirm";
+            pendingConfirmAction = null;
+        }
+
+        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+        if (confirmActionModal) {
+            confirmActionModal.addEventListener("click", (e) => {
+                if (e.target === confirmActionModal) closeConfirmModal();
+            });
+        }
+        if (confirmActionConfirmBtn) {
+            confirmActionConfirmBtn.addEventListener("click", () => {
+                const action = pendingConfirmAction;
+                closeConfirmModal();
+                if (typeof action === "function") action();
+            });
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && confirmActionModal && !confirmActionModal.classList.contains("modal-hidden") && confirmActionModal.style.display !== "none") {
+                closeConfirmModal();
+            }
+        });
+
+        tableBody.addEventListener("click", (e) => {
             const btn = e.target.closest(".js-toggle-publish-btn");
             if (!btn) return;
             e.preventDefault();
@@ -91,70 +157,64 @@
                 // ever hitting the server (which re-checks this exact
                 // rule authoritatively regardless).
                 if (moduleStatus && moduleStatus !== "Published") {
-                    alert(
+                    showAlertModal(
                         `Cannot publish this resource - its parent module is still in ` +
-                        `${moduleStatus} status. Publish the parent module first.`
+                        `${moduleStatus} status. Publish the parent module first.`,
+                        "Cannot Publish"
                     );
                     return;
                 }
-
-                // Task #43: confirmation alert before publishing.
-                const confirmed = confirm(
-                    "Are you sure you want to publish this resource? " +
-                    "It will become visible to learners."
-                );
-                if (!confirmed) return;
-            } else {
-                // Task #43: confirmation alert before unpublishing too.
-                const confirmed = confirm(
-                    "Are you sure you want to unpublish this resource? " +
-                    "It will be moved back to Draft and hidden from learners."
-                );
-                if (!confirmed) return;
             }
 
-            const endpoint = isPublished
-                ? `/admin/learning-resources/${resourceId}/unpublish`
-                : `/admin/learning-resources/${resourceId}/publish`;
+            const confirmMsg = isPublished
+                ? "Are you sure you want to unpublish this resource? It will be moved back to Draft and hidden from learners."
+                : "Are you sure you want to publish this resource? It will become visible to learners.";
+            const confirmTitle = isPublished ? "Unpublish Resource?" : "Publish Resource?";
 
-            btn.disabled = true;
-            const originalText = btn.textContent;
-            btn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+            showConfirmModal(confirmMsg, async () => {
+                const endpoint = isPublished
+                    ? `/admin/learning-resources/${resourceId}/unpublish`
+                    : `/admin/learning-resources/${resourceId}/publish`;
 
-            try {
-                const response = await fetch(endpoint, {
-                    method: "POST",
-                    credentials: "include",
-                });
-                const result = await response.json();
+                btn.disabled = true;
+                const originalText = btn.textContent;
+                btn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
 
-                if (!result.success) {
-                    alert(result.message || "Could not update this resource's status.");
+                try {
+                    const response = await fetch(endpoint, {
+                        method: "POST",
+                        credentials: "include",
+                    });
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        showAlertModal(result.message || "Could not update this resource's status.", "Cannot Publish");
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                        return;
+                    }
+
+                    const newStatus = isPublished ? "Draft" : "Published";
+
+                    // Toggle the button itself into its new state.
+                    btn.dataset.status = newStatus;
+                    btn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
+                    btn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-secondary-custom");
+                    btn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                    btn.disabled = false;
+
+                    // Update this row's Status badge cell in place.
+                    const row = btn.closest("tr");
+                    const statusCell = row ? row.querySelector(".js-status-cell") : null;
+                    if (statusCell) {
+                        statusCell.innerHTML = statusBadgeHtml(newStatus);
+                    }
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
                     btn.disabled = false;
                     btn.textContent = originalText;
-                    return;
                 }
-
-                const newStatus = isPublished ? "Draft" : "Published";
-
-                // Toggle the button itself into its new state.
-                btn.dataset.status = newStatus;
-                btn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
-                btn.classList.remove("btn-success-custom", "btn-secondary-custom");
-                btn.classList.add(newStatus === "Published" ? "btn-secondary-custom" : "btn-success-custom");
-                btn.disabled = false;
-
-                // Update this row's Status badge cell in place.
-                const row = btn.closest("tr");
-                const statusCell = row ? row.querySelector(".js-status-cell") : null;
-                if (statusCell) {
-                    statusCell.innerHTML = statusBadgeHtml(newStatus);
-                }
-            } catch (err) {
-                alert("Could not reach the server. Please try again.");
-                btn.disabled = false;
-                btn.textContent = originalText;
-            }
+            }, confirmTitle);
         });
     });
 })();

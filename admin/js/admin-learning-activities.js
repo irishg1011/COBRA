@@ -100,9 +100,9 @@
         // hasn't loaded for some reason (script tag order/load failure),
         // matching admin-learning-resources.js's own fallback convention
         // for its Publish/Unpublish button.
-        function publishButtonHtml(activityId, status) {
+        function publishButtonHtml(activityId, status, moduleStatus) {
             if (window.cobraByteActivityPublishing) {
-                return window.cobraByteActivityPublishing.publishButtonHtml(activityId, status);
+                return window.cobraByteActivityPublishing.publishButtonHtml(activityId, status, moduleStatus);
             }
             return "";
         }
@@ -129,15 +129,17 @@
                     <td class="text-muted">${escapeHtml(a.uploaded_by)}</td>
                     <td class="text-muted">${escapeHtml(a.created_at)}</td>
                     <td class="text-muted">${escapeHtml(a.updated_at)}</td>
-                    <td class="text-right">
+                    <td class="text-right activity-actions-column">
                         <div class="table-actions-group">
                             <a href="/admin/create-learning-activity?activity_id=${encodeURIComponent(a.activity_id)}" title="Edit" class="table-action-icon js-edit-activity-btn" data-activity-id="${a.activity_id}"><i class="fa-solid fa-pen-to-square"></i></a>
-                            <form action="/admin/learning-activities/${a.activity_id}/delete" method="POST" class="inline-form">
-                                <button type="submit" title="Delete" class="table-action-icon delete-action icon-button-reset"><i class="fa-solid fa-trash"></i></button>
-                            </form>
+                            <a href="#" title="Archive"
+                               class="table-action-icon delete-action js-archive-activity-btn"
+                               data-activity-id="${escapeHtml(a.activity_id)}">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </a>
                         </div>
                     </td>
-                    <td class="text-right">${publishButtonHtml(a.activity_id, a.status)}</td>
+                    <td class="text-right publish-status-column">${publishButtonHtml(a.activity_id, a.status, a.module_status)}</td>
                 </tr>
             `).join("");
         }
@@ -271,5 +273,99 @@
                 scheduleLoad(true);
             });
         }
+
+        const confirmActionModal = document.getElementById("confirmActionModal");
+        const confirmActionTitle = document.getElementById("confirmActionTitle");
+        const confirmActionText = document.getElementById("confirmActionText");
+        const confirmActionCancelBtn = document.getElementById("confirmActionCancelBtn");
+        const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
+
+        let pendingConfirmAction = null;
+
+        function showConfirmModal(message, onConfirm, title) {
+            if (!confirmActionModal) {
+                if (window.confirm(message)) onConfirm();
+                return;
+            }
+            pendingConfirmAction = onConfirm;
+            if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
+            if (confirmActionText) confirmActionText.textContent = message;
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+        }
+
+        function closeConfirmModal() {
+            if (confirmActionModal) {
+                confirmActionModal.classList.add("modal-hidden");
+                confirmActionModal.style.display = "none";
+            }
+            pendingConfirmAction = null;
+        }
+
+        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+        if (confirmActionModal) {
+            confirmActionModal.addEventListener("click", (e) => {
+                if (e.target === confirmActionModal) closeConfirmModal();
+            });
+        }
+        if (confirmActionConfirmBtn) {
+            confirmActionConfirmBtn.addEventListener("click", () => {
+                const action = pendingConfirmAction;
+                closeConfirmModal();
+                if (typeof action === "function") action();
+            });
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && confirmActionModal && !confirmActionModal.classList.contains("modal-hidden") && confirmActionModal.style.display !== "none") {
+                closeConfirmModal();
+            }
+        });
+
+        tableBody.addEventListener("click", (e) => {
+            const archiveBtn = e.target.closest(".js-archive-activity-btn");
+            if (!archiveBtn) return;
+            e.preventDefault();
+
+            const activityId = archiveBtn.dataset.activityId;
+            if (!activityId) return;
+
+            const confirmMsg = "Are you sure you want to archive this activity? " +
+                "It will be removed from active use, but its content is preserved.";
+            const confirmTitle = "Archive Activity?";
+
+            showConfirmModal(confirmMsg, async () => {
+                const icon = archiveBtn.querySelector("i");
+                const originalClass = icon ? icon.className : "";
+                if (icon) icon.className = "fa-solid fa-spinner fa-spin";
+                archiveBtn.style.pointerEvents = "none";
+
+                try {
+                    const response = await fetch(`/admin/learning-activities/${activityId}/archive`, {
+                        method: "POST",
+                        credentials: "include",
+                    });
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        alert(result.message || "Could not archive this activity.");
+                        if (icon) icon.className = originalClass;
+                        archiveBtn.style.pointerEvents = "";
+                        return;
+                    }
+
+                    const row = archiveBtn.closest("tr");
+                    if (row) row.remove();
+
+                    if (!tableBody.querySelector("tr")) {
+                        loadActivities();
+                    }
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
+                    if (icon) icon.className = originalClass;
+                    archiveBtn.style.pointerEvents = "";
+                }
+            }, confirmTitle);
+        });
     });
-})();
+})();

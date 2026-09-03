@@ -6,6 +6,7 @@
     <title>CobraByte Admin - Manage Learning Activities</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/archived-modals.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -37,6 +38,9 @@
                             <a href="{{ url_for('admin_bp.create_learning_activity_page') }}" class="btn btn-success-custom" style="text-decoration: none;">
                                 <i class="fa-solid fa-plus"></i> Create Activity
                             </a>
+                            <button id="openArchivedActivitiesBtn" class="btn btn-icon-custom" title="Archived Items">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -114,7 +118,7 @@
                                     confused with row management actions.
                                 -->
                                 <th class="text-right activity-actions-column">Actions</th>
-                                <th class="publish-status-column">Publish Status</th>
+                                <th class="text-right publish-status-column">Publish Status</th>
                             </tr>
                         </thead>
                         <tbody id="activitiesTableBody">
@@ -139,9 +143,11 @@
                                 <td class="text-right activity-actions-column">
                                     <div class="table-actions-group">
                                         <a href="{{ url_for('admin_bp.create_learning_activity_page', activity_id=activity.activity_id) }}" title="Edit" class="table-action-icon js-edit-activity-btn" data-activity-id="{{ activity.activity_id }}"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <form action="{{ url_for('admin_bp.delete_activity', activity_id=activity.activity_id) }}" method="POST" class="inline-form">
-                                            <button type="submit" title="Delete" class="table-action-icon delete-action icon-button-reset"><i class="fa-solid fa-trash"></i></button>
-                                        </form>
+                                        <a href="#" title="Archive"
+                                           class="table-action-icon delete-action js-archive-activity-btn"
+                                           data-activity-id="{{ activity.activity_id }}">
+                                            <i class="fa-solid fa-box-archive"></i>
+                                        </a>
                                     </div>
                                 </td>
                                 <!--
@@ -154,11 +160,12 @@
                                     it reads as the same control everywhere in
                                     the admin.
                                 -->
-                                <td class="publish-status-column">
+                                <td class="text-right publish-status-column">
                                     <button type="button"
                                             class="btn {{ 'btn-unpublish-custom' if activity.status == 'Published' else 'btn-success-custom' }} js-toggle-activity-publish-btn"
                                             data-activity-id="{{ activity.activity_id }}"
-                                            data-status="{{ activity.status }}">
+                                            data-status="{{ activity.status }}"
+                                            data-module-status="{{ activity.module_status }}">
                                         {{ 'Unpublish' if activity.status == 'Published' else 'Publish' }}
                                     </button>
                                 </td>
@@ -186,6 +193,7 @@
                 </div>
 
             </div>
+            {% include 'archived-activities-modal.html' %}
             {% include 'confirm-action-modal.html' %}
         </main>
     </div>
@@ -199,5 +207,7 @@
          window.cobraByteActivityPublishing is available when that
          script's renderRows() needs it. -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learning-activity-publish.js') }}"></script>
+    <!-- NEW - Task #117: Dedicated Tabbed Archive Modal -->
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-archived-activities.js') }}"></script>
 </body>
 </html>

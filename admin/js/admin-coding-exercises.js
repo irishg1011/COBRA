@@ -127,11 +127,12 @@
                             </a>
                         </div>
                     </td>
-                    <td class="publish-status-column">
+                    <td class="text-right publish-status-column">
                         <button type="button"
                                 class="btn ${btnClass} js-toggle-exercise-publish-btn"
                                 data-exercise-id="${escapeHtml(ex.exercise_id)}"
-                                data-status="${escapeHtml(ex.status || 'Draft')}">
+                                data-status="${escapeHtml(ex.status || 'Draft')}"
+                                data-module-status="${escapeHtml(ex.module_status || 'Draft')}">
                             ${btnLabel}
                         </button>
                     </td>

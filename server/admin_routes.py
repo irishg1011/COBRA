@@ -46,7 +46,7 @@ from learning_activity_draft import save_activity_draft, get_activity_draft  # N
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
     parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
 )
-from learning_activity_publishing import publish_activity, unpublish_activity  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern
+from learning_activity_publishing import publish_activity, unpublish_activity, archive_activity  # NEW - Task #57, #107, Task #117
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
@@ -69,6 +69,12 @@ from relational_archive import (  # NEW - Task #116: relational archive restrict
     get_archived_descendants_for_restore,
     restore_category_with_selection, restore_module_with_selection,
 )
+from archived_items import (  # NEW - Task #117: Dedicated Tabbed Archive Modals & CRUD
+    get_archived_resources, restore_learning_resource, permanently_delete_learning_resource,
+    get_archived_activities, restore_learning_activity, permanently_delete_learning_activity,
+    get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,
+)
+
 
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -1924,6 +1930,15 @@ def unpublish_learning_activity(activity_id):
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
+@admin_bp.route('/learning-activities/<int:activity_id>/archive', methods=['POST'])
+def archive_learning_activity_route(activity_id):
+    """
+    Archives a learning activity by setting its status to Archived.
+    """
+    success, message = archive_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
 # ============================================================
 # ROUTE: DELETE LEARNING ACTIVITY
 # ============================================================
@@ -2787,3 +2802,135 @@ def manage_course_module_archive_check(module_id):
 def learning_resource_archive_check(resource_id):
     eligible, blockers, _tree = check_resource_archive_eligibility(resource_id)
     return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
+
+
+# ============================================================
+# ROUTE: TASK #117 - DEDICATED ARCHIVE MODAL ENDPOINTS
+# ============================================================
+
+# 1. LEARNING RESOURCES ARCHIVE ROUTES
+@admin_bp.route('/learning-resources/archived')
+def learning_resources_archived_data():
+    """
+    Task #117: Returns paginated archived learning resources, optionally
+    filtered by type (Lesson Content / Video Tutorial) and search query q.
+    """
+    resource_type = request.args.get('type', '')
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    result = get_archived_resources(resource_type=resource_type, search_query=search, page=page)
+    if result is None:
+        return jsonify({"success": False, "message": "Could not load archived resources."}), 500
+
+    return jsonify({
+        "success": True,
+        "resources": result["resources"],
+        "total": result["total"],
+        "page": result["page"],
+        "per_page": result["per_page"],
+        "total_pages": result["total_pages"],
+    }), 200
+
+
+@admin_bp.route('/learning-resources/<int:resource_id>/restore', methods=['POST'])
+def learning_resources_restore(resource_id):
+    """
+    Task #117: Restores an archived learning resource back to Draft status.
+    """
+    success, message = restore_learning_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-resources/<int:resource_id>/permanent-delete', methods=['POST'])
+def learning_resources_permanent_delete(resource_id):
+    """
+    Task #117: Permanently deletes an archived learning resource from the database.
+    """
+    success, message = permanently_delete_learning_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# 2. LEARNING ACTIVITIES ARCHIVE ROUTES
+@admin_bp.route('/learning-activities/archived')
+def learning_activities_archived_data():
+    """
+    Task #117: Returns paginated archived learning activities, optionally
+    filtered by activity type (Multiple Choice / Fill in the Blanks / Flashcards)
+    and search query q.
+    """
+    activity_type = request.args.get('type', '')
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    result = get_archived_activities(activity_type=activity_type, search_query=search, page=page)
+    if result is None:
+        return jsonify({"success": False, "message": "Could not load archived activities."}), 500
+
+    return jsonify({
+        "success": True,
+        "activities": result["activities"],
+        "total": result["total"],
+        "page": result["page"],
+        "per_page": result["per_page"],
+        "total_pages": result["total_pages"],
+    }), 200
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/restore', methods=['POST'])
+def learning_activities_restore(activity_id):
+    """
+    Task #117: Restores an archived learning activity back to Draft status.
+    """
+    success, message = restore_learning_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/permanent-delete', methods=['POST'])
+def learning_activities_permanent_delete(activity_id):
+    """
+    Task #117: Permanently deletes an archived learning activity from the database.
+    """
+    success, message = permanently_delete_learning_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# 3. CODING EXERCISES ARCHIVE ROUTES
+@admin_bp.route('/coding-exercises/archived')
+def coding_exercises_archived_data():
+    """
+    Task #117: Returns paginated archived coding exercises with search query q.
+    """
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    result = get_archived_exercises(search_query=search, page=page)
+    if result is None:
+        return jsonify({"success": False, "message": "Could not load archived exercises."}), 500
+
+    return jsonify({
+        "success": True,
+        "exercises": result["exercises"],
+        "total": result["total"],
+        "page": result["page"],
+        "per_page": result["per_page"],
+        "total_pages": result["total_pages"],
+    }), 200
+
+
+@admin_bp.route('/coding-exercises/<int:exercise_id>/restore', methods=['POST'])
+def coding_exercises_restore(exercise_id):
+    """
+    Task #117: Restores an archived coding exercise back to Draft status.
+    """
+    success, message = restore_coding_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/coding-exercises/<int:exercise_id>/permanent-delete', methods=['POST'])
+def coding_exercises_permanent_delete(exercise_id):
+    """
+    Task #117: Permanently deletes an archived coding exercise from the database.
+    """
+    success, message = permanently_delete_coding_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)

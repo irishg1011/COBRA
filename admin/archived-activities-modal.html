@@ -1,0 +1,122 @@
+<!-- admin/archived-activities-modal.html
+     Task #117: Dedicated Tabbed Archive Modal for Manage Learning Activities
+     Features 3 Tabs: Multiple Choice Test (MCT), Fill in the Blanks (FIB), Flashcards (FC) -->
+<div id="archivedActivitiesModal" class="custom-modal-overlay" style="display: none;">
+    <div class="custom-modal-dialog archive-modal-dialog">
+        <div class="custom-modal-header">
+            <h3>Archived Learning Activities</h3>
+            <button type="button" class="categories-close-btn" id="closeArchivedActivitiesModal" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="custom-modal-body archive-modal-body">
+            <!-- 3 Tabs: MCT, FIB, FC -->
+            <div class="archive-toggle-group">
+                <button type="button" class="archive-toggle-btn active" id="toggleArchivedMctBtn" data-tab="mct">
+                    <i class="fa-solid fa-list-check"></i> Multiple Choice Test (MCT)
+                </button>
+                <button type="button" class="archive-toggle-btn" id="toggleArchivedFibBtn" data-tab="fib">
+                    <i class="fa-solid fa-pen-clip"></i> Fill in the Blanks (FIB)
+                </button>
+                <button type="button" class="archive-toggle-btn" id="toggleArchivedFcBtn" data-tab="fc">
+                    <i class="fa-solid fa-clone"></i> Flashcards (FC)
+                </button>
+            </div>
+
+            <!-- Active Tab Search Bar -->
+            <div class="header-search search-override archive-search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="archivedActivitySearchInput" placeholder="Search archived multiple choice tests...">
+            </div>
+
+            <!-- Tab 1: MCT View -->
+            <div id="archivedMctView" class="archive-tab-view">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Activity Name</th>
+                            <th>Lesson Name</th>
+                            <th>Points</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivedMctTableBody">
+                        <tr>
+                            <td colspan="6" class="text-muted table-empty-message">Loading archived multiple choice tests&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="table-pagination" id="archivedMctPagination">
+                    <span id="archivedMctShowingCount">Showing 0 of 0 Archived Activities</span>
+                    <span>
+                        <button id="archivedMctPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                        <span id="archivedMctPageLabel">1 of 1</span>
+                        <button id="archivedMctNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Tab 2: FIB View -->
+            <div id="archivedFibView" class="archive-tab-view" style="display: none;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Activity Name</th>
+                            <th>Lesson Name</th>
+                            <th>Points</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivedFibTableBody">
+                        <tr>
+                            <td colspan="6" class="text-muted table-empty-message">Loading archived fill in the blanks&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="table-pagination" id="archivedFibPagination">
+                    <span id="archivedFibShowingCount">Showing 0 of 0 Archived Activities</span>
+                    <span>
+                        <button id="archivedFibPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                        <span id="archivedFibPageLabel">1 of 1</span>
+                        <button id="archivedFibNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Tab 3: FC View -->
+            <div id="archivedFcView" class="archive-tab-view" style="display: none;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Activity Name</th>
+                            <th>Lesson Name</th>
+                            <th>Points</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivedFcTableBody">
+                        <tr>
+                            <td colspan="6" class="text-muted table-empty-message">Loading archived flashcards&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="table-pagination" id="archivedFcPagination">
+                    <span id="archivedFcShowingCount">Showing 0 of 0 Archived Activities</span>
+                    <span>
+                        <button id="archivedFcPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                        <span id="archivedFcPageLabel">1 of 1</span>
+                        <button id="archivedFcNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
