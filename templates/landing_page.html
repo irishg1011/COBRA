@@ -11,8 +11,7 @@
     <header class="navbar">
         <div class="nav-container">
             <div class="logo">
-                <img src="{{ url_for('static', filename='assets/logo.png') }}" alt="CobraByte Logo" onerror="this.style.display='none'">
-                <span class="logo-text">CobraByte</span>
+                <img src="/assets/images/logo-ad.png" alt="CobraByte Logo" onerror="this.style.display='none'">
             </div>
             <nav class="nav-links">
                 <a href="#home" class="active">Home</a>
@@ -23,7 +22,7 @@
             </nav>
             <div class="nav-auth">
                 <a href="/login" class="sign-in-link">Sign In</a>
-                <a href="/signup" class="btn-get-started-top">Get Started &rarr;</a>
+                <a href="/signup" class="btn-get-started-top">Sign Up</a>
             </div>
         </div>
     </header>
@@ -31,17 +30,16 @@
     <main class="hero-section" id="home">
         <div class="hero-container">
             <div class="hero-content">
-                <h1>Learn Python<br><span class="highlight">The Interactive Way</span></h1>
+                <h1>Learn Python<br>The <span class="highlight">Interactive</span> Way</h1>
                 <p>Start your Python learning journey with interactive lessons and hands-on activities. Practice at your own pace and build confidence through engaging learning experiences.</p>
                 <div class="hero-buttons">
                     <a href="/signup" class="btn-primary">Get Started &rarr;</a>
-                    <a href="#features" class="btn-secondary">Explore Features</a>
                 </div>
             </div>
             <div class="hero-image">
-                <img src="{{ url_for('static', filename='assets/hero-laptop.png') }}" alt="Interactive Python Learning Setup" onerror="this.src='https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=650&q=80'">
+                <img src="/assets/images/hero-illustration.png" alt="Interactive Python Learning Setup">
             </div>
         </div>
     </main>
 </body>
-</html>s
+</html>

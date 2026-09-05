@@ -6,7 +6,11 @@
 }
 
 body {
-    background: radial-gradient(circle at 50% 20%, #eef6ff 0%, #e0f2fe 50%, #f0fdf4 100%);
+    background-image: url('/assets/images/landingpage.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     color: #0f172a;
     min-height: 100vh;
     overflow-x: hidden;
@@ -34,12 +38,13 @@ body {
 }
 
 .logo img {
-    height: 36px;
+    height: 70px;
     width: auto;
+    object-fit: contain;
 }
 
 .logo-text {
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 800;
     color: #1e293b;
     letter-spacing: -0.5px;
@@ -54,44 +59,56 @@ body {
 .nav-links a {
     text-decoration: none;
     color: #334155;
-    font-size: 15px;
-    font-weight: 500;
+    font-size: 17px;
+    font-weight: 600;
     transition: color 0.2s ease;
 }
 
 .nav-links a:hover, 
 .nav-links a.active {
     color: #0284c7;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .nav-auth {
     display: flex;
     align-items: center;
-    gap: 28px;
+    gap: 8px;
 }
 
 .sign-in-link {
     text-decoration: none;
     color: #0f172a;
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid transparent; /* Keeps it invisible by default */
+    transition: border-color 0.2s ease;
+}
+
+.sign-in-link:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    border-color: #cbd5e1; /* A very soft, light gray-blue border on hover */
+    background: transparent; /* Ensures the background stays clean */
 }
 
 .btn-get-started-top {
-    background: #0ea5e9;
+    background: linear-gradient(135deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
     color: white;
     padding: 10px 22px;
     border-radius: 8px;
     text-decoration: none;
     font-weight: 600;
-    font-size: 14px;
-    box-shadow: 0 4px 14px rgba(14, 165, 233, 0.3);
-    transition: background 0.2s ease;
+    font-size: 16px;
+    box-shadow: 0 4px 14px rgba(36, 199, 183, 0.3);
+    transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .btn-get-started-top:hover {
-    background: #0284c7;
+    opacity: 0.9;
+    transform: translateY(-1px);
 }
 
 .hero-section {
@@ -116,7 +133,7 @@ body {
 }
 
 .hero-content h1 {
-    font-size: 56px;
+    font-size: 58px;
     font-weight: 800;
     line-height: 1.15;
     color: #0f172a;
@@ -125,13 +142,13 @@ body {
 }
 
 .hero-content h1 .highlight {
-    background: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
+    background: linear-gradient(135deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 .hero-content p {
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.7;
     color: #475569;
     margin-bottom: 40px;
@@ -144,19 +161,19 @@ body {
 }
 
 .btn-primary {
-    background: #06b6d4;
+    background: linear-gradient(135deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
     color: white;
     padding: 14px 28px;
     border-radius: 10px;
     text-decoration: none;
     font-weight: 600;
-    font-size: 15px;
-    box-shadow: 0 6px 20px rgba(6, 182, 212, 0.3);
+    font-size: 17px;
+    box-shadow: 0 6px 20px rgba(36, 199, 183, 0.35);
     transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
-    background: #0891b2;
+    opacity: 0.9;
     transform: translateY(-2px);
 }
 
@@ -167,7 +184,7 @@ body {
     border-radius: 10px;
     text-decoration: none;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 17px;
     border: 1px solid #cbd5e1;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     transition: all 0.2s ease;
@@ -188,4 +205,82 @@ body {
     max-width: 100%;
     height: auto;
     filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.08));
+}
+
+/*MOBILE TAB VER*/
+@media screen and (max-width: 992px) {
+    .navbar {
+        padding: 16px 20px;
+    }
+
+    .logo img {
+        height: 50px; /* Shrinks the logo size down for mobile screens */
+    }
+
+    .nav-container {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .nav-auth {
+        gap: 8px;
+    }
+
+    /* Compact top auth buttons on mobile */
+    .nav-auth .sign-in-link {
+        font-size: 13px;
+        padding: 6px 10px;
+    }
+
+    .nav-auth .btn-get-started-top {
+        font-size: 13px;
+        padding: 6px 12px;
+        border-radius: 6px;
+    }
+
+    .hero-section {
+        padding: 30px 20px;
+    }
+
+    .hero-container {
+        flex-direction: column;
+        text-align: left;
+        gap: 24px;
+    }
+
+    .hero-content {
+        max-width: 100%;
+    }
+
+    .hero-content h1 {
+        font-size: 32px;
+        line-height: 1.15;
+    }
+
+    .hero-content p {
+        font-size: 15px;
+        margin-bottom: 20px;
+    }
+
+    .hero-buttons {
+        display: flex;
+        flex-direction: row;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .btn-primary, .btn-secondary {
+        padding: 12px 20px;
+        font-size: 15px;
+    }
+
+    /* Completely hides the photo on mobile screens */
+    .hero-image {
+        display: none;
+    }
 }
