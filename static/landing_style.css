@@ -17,10 +17,15 @@ body {
 }
 
 .navbar {
+    position: sticky;
+    top: 0;
+    left: 0;
     width: 100%;
-    padding: 24px 6%;
-    display: flex;
-    justify-content: center;
+    z-index: 1000;
+    background-color: rgba(235, 243, 250, 0.85); /* Matches your soft light-blue theme */
+    backdrop-filter: blur(10px); /* Smooth frosted glass effect when scrolling over text */
+    padding: 16px 5%;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .nav-container {
@@ -66,7 +71,7 @@ body {
 
 .nav-links a:hover, 
 .nav-links a.active {
-    color: #0284c7;
+    color: #10b981; /* Brand green or your choice of highlight color */
     font-weight: 700;
 }
 
@@ -328,6 +333,140 @@ body {
                       radial-gradient(circle at 20% 80%, rgba(24, 184, 230, 0.08) 0%, transparent 40%);
     background-repeat: no-repeat;
     background-size: cover;
+}
+
+/* ==========================================
+   How It Works / Learning Journey Section
+   ========================================== */
+
+.journey-section {
+    padding: 90px 5%;
+    background-color: transparent;
+}
+
+.journey-container {
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+.journey-header {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.journey-header .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.journey-header h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 12px;
+}
+
+.journey-header p {
+    font-size: 16px;
+    color: #64748b;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.journey-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+}
+
+.journey-card {
+    background: #ffffff;
+    padding: 28px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    border: 1px solid #f1f5f9;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.journey-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.journey-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.feature-icon-img {
+    width: 48px;
+    height: 48px;
+}
+
+.feature-icon-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.step-number {
+    font-size: 26px;
+    font-weight: 800;
+    color: #cbd5e1;
+    letter-spacing: -1px;
+}
+
+.journey-card h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.journey-card p {
+    font-size: 13.5px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* Responsive Grid for Tablets & Mobiles */
+@media screen and (max-width: 1024px) {
+    .journey-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .journey-grid {
+        grid-template-columns: 1fr;
+    }
+    .journey-header h2 {
+        font-size: 28px;
+    }
+}
+
+/* Prevents the sticky navbar from overlapping sections when clicking anchor links */
+html {
+    scroll-behavior: smooth;
+}
+
+#home, .hero-section {
+    scroll-margin-top: 90px; /* Adjust this value based on your navbar height */
+}
+
+#features, #how-it-works, #about, #contact {
+    scroll-margin-top: 90px;
 }
 
 /*MOBILE TAB VER*/
