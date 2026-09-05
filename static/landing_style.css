@@ -832,6 +832,215 @@ body {
 }
 
 /* ==========================================
+   Learning Analytics Section Styles
+   ========================================== */
+
+.analytics-header-center {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto 40px auto; /* Centers the block horizontally and adds proper bottom spacing */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Forces the badge, title, and paragraph to center alignment */
+}
+
+.analytics-section {
+    padding: 80px 5%;
+    background-image: url('../images/landingpage.png'); /* Point to your wave background asset */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.analytics-container {
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 50px;
+    align-items: start; /* Aligns the left column and right card neatly at the top */
+}
+
+.analytics-content .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.analytics-content h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.2;
+}
+
+.analytics-content p {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.analytics-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.analytics-features li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 15px;
+    color: #334155;
+    font-weight: 500;
+}
+
+/* Feature Icon Asset Container */
+.feature-icon-wrap {
+    width: 28px;
+    height: 28px;
+    background: transparent; /* Removes the mismatched box */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.feature-icon-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Dashboard Mockup Card */
+.analytics-dashboard-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.dashboard-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 2px 0;
+}
+
+.dashboard-sub {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.improving-badge {
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Progress Bars */
+.analytics-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.progress-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    margin-bottom: 4px;
+}
+
+.prog-val {
+    color: #64748b;
+}
+
+.progress-track {
+    width: 100%;
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #10b981;
+    border-radius: 3px;
+}
+
+/* Bottom Mini Cards Grid */
+.dashboard-bottom-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.mini-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.mini-card h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 8px 0;
+}
+
+.mini-card ul {
+    margin: 0;
+    padding-left: 15px;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* Responsive Media Queries */
+@media screen and (max-width: 900px) {
+    .analytics-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .analytics-content h2 {
+        font-size: 28px;
+    }
+}
+
+/* ==========================================
  Prevents the sticky navbar from overlapping sections when clicking anchor links 
  ==========================================*/
 html {
