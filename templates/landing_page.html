@@ -210,6 +210,119 @@
             </div>
         </div>
     </section>
+
+    <!-- CobraByte Experience Section -->
+    <section class="experience-section" id="experience">
+        <div class="experience-container">
+            <div class="experience-header">
+                <span class="badge">Learning Activities</span>
+                <h2>See the CobraByte Experience</h2>
+                <p>Every lesson is reinforced with hands-on activities that give you instant feedback and keep you engaged.</p>
+            </div>
+            
+            <div class="experience-grid">
+                <!-- 1. Lesson Interface -->
+                <div class="experience-card">
+                    <div class="experience-card-top">
+                        <div class="feature-icon-img"><img src="/assets/images/interactivelessons-icon.png" alt="Lesson Interface"></div>
+                        <h3>Lesson Interface</h3>
+                    </div>
+                    <p class="experience-desc">A variable is a container for storing data values.</p>
+                    <div class="preview-box compact-box">
+                        <pre><code>name = "Ada"
+print(name)</code></pre>
+                    </div>
+                </div>
+                
+                <!-- 2. Multiple Choice -->
+                <div class="experience-card">
+                    <div class="experience-card-top">
+                        <div class="feature-icon-img"><img src="/assets/images/multiplechoice-icon.png" alt="Multiple Choice"></div>
+                        <h3>Multiple Choice</h3>
+                    </div>
+                    <p class="experience-desc">What is the data type of 3.14?</p>
+                    <div class="mcq-grid-box">
+                        <div class="mcq-option">integer</div>
+                        <div class="mcq-option">string</div>
+                        <div class="mcq-option correct anim-mcq-correct">✓ float</div>
+                        <div class="mcq-option">boolean</div>
+                    </div>
+                </div>
+                
+                <!-- 3. Flashcards -->
+                <div class="experience-card">
+                    <div class="experience-card-top">
+                        <div class="feature-icon-img"><img src="/assets/images/flashcards-icon.png" alt="Flashcards"></div>
+                        <h3>Flashcards</h3>
+                    </div>
+                    <div class="flashcard-scene">
+                        <div class="flashcard-flipper">
+                            <div class="flashcard-face flashcard-front">
+                                <span class="fc-tag">Question</span>
+                                <p>How do you assign value 5 to x?</p>
+                            </div>
+                            <div class="flashcard-face flashcard-back">
+                                <span class="fc-tag">Answer</span>
+                                <p class="code-ans">x = 5</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 4. Fill in the Blanks -->
+                <div class="experience-card">
+                    <div class="experience-card-top">
+                        <div class="feature-icon-img"><img src="/assets/images/fillintheblanks-icon.png" alt="Fill in the Blanks"></div>
+                        <h3>Fill in the Blanks</h3>
+                    </div>
+                    <p class="experience-desc">Complete the function definition:</p>
+                    <div class="preview-box compact-box code-preview-box">
+                        <div class="code-line"><span class="anim-blank-slot">def</span> greet():</div>
+                        <div class="code-line indented">print("Hi!")</div>
+                    </div>
+                    <div class="preview-footer-left">
+                        <span class="success-text anim-success-text">✓ Correct!</span>
+                    </div>
+                </div>
+                
+                <!-- 5. Coding Exercise -->
+                <div class="experience-card">
+                    <div class="experience-card-top">
+                        <div class="feature-icon-img"><img src="/assets/images/codingexercises-icon.png" alt="Coding Exercise"></div>
+                        <h3>Coding Exercise</h3>
+                    </div>
+                    <p class="experience-desc">Challenge: Print a welcome message</p>
+                    <div class="preview-box compact-box typing-container">
+                        <span class="typewriter-text-ex">print("Hello, Ada!")</span>
+                        <span class="cursor">|</span>
+                    </div>
+                    <div class="preview-footer-left">
+                        <span class="success-text anim-success-exercise">✓ Exercise passed</span>
+                    </div>
+                </div>
+                    
+                <!-- 6. Coding Sandbox -->
+                <div class="experience-card">
+                    <div class="experience-card-top">
+                        <div class="feature-icon-img"><img src="/assets/images/codingsandbox-icon.png" alt="Coding Sandbox"></div>
+                        <h3>Coding Sandbox</h3>
+                    </div>
+                    <p class="experience-desc">Test your code snippet live:</p>
+                    <div class="preview-box compact-box typing-container">
+                        <span class="typewriter-text-box">print("Hello, CobraByte")</span>
+                        <span class="cursor">|</span>
+                    </div>
+                    <div class="preview-output-tight">
+                        <span class="output-label">Output:</span>
+                        <div class="output-field-tight static-output-fade">
+                            <span>Hello, CobraByte</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <script src="{{ url_for('static', filename='landing_script.js') }}"></script>
 </body>
 </html>

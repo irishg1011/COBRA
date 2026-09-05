@@ -456,7 +456,384 @@ body {
     }
 }
 
-/* Prevents the sticky navbar from overlapping sections when clicking anchor links */
+/* ==========================================
+   CobraByte Experience Section Styles
+   ========================================== */
+
+.experience-section {
+    padding: 70px 5%;
+    background-color: transparent;
+}
+
+.experience-container {
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+.experience-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.experience-header .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.experience-header h2 {
+    font-size: 36px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.experience-header p {
+    font-size: 15px;
+    color: #64748b;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.experience-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.experience-card {
+    background: #ffffff;
+    padding: 16px 18px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    height: auto;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.experience-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+.experience-card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.experience-card-top h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.experience-desc {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+/* ==========================================
+   Inner UI Mockup Previews & Animations
+   ========================================== */
+
+.preview-box.compact-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: monospace;
+    font-size: 11.5px;
+    color: #334155;
+    margin-bottom: 2px;
+}
+
+.preview-box.compact-box pre {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.typing-container {
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+@keyframes blinkCaret {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+.cursor {
+    display: inline-block;
+    font-weight: bold;
+    color: #10b981;
+    animation: blinkCaret 0.8s infinite;
+    margin-left: 1px;
+}
+
+/* 1. Multiple Choice 2x2 Grid Layout */
+.mcq-grid-box {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 4px !important;
+    margin-top: 2px;
+}
+
+.mcq-option {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 5px 4px;
+    border-radius: 5px;
+    font-size: 11px;
+    color: #475569;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+}
+
+@keyframes mcqPulse {
+    0%, 40% { background: #ffffff; border-color: #e2e8f0; color: #475569; font-weight: 400; }
+    50%, 90% { background: #ecfdf5; border-color: #10b981; color: #047857; font-weight: 600; }
+    100% { background: #ffffff; border-color: #e2e8f0; color: #475569; font-weight: 400; }
+}
+
+.mcq-option.correct.anim-mcq-correct {
+    animation: mcqPulse 4s infinite ease-in-out;
+}
+
+/* 2. True 3D Flipping Flashcard Scene */
+.flashcard-scene {
+    perspective: 1000px;
+    width: 100%;
+    height: 85px;
+    margin-top: 2px;
+}
+
+.flashcard-flipper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    animation: cardFlip 6s infinite ease-in-out;
+}
+
+@keyframes cardFlip {
+    0%, 40% { transform: rotateY(0deg); }
+    50%, 90% { transform: rotateY(180deg); }
+    100% { transform: rotateY(360deg); }
+}
+
+.flashcard-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.flashcard-front {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #1e293b;
+}
+
+.flashcard-back {
+    background: #ecfdf5;
+    border: 1px solid #10b981;
+    transform: rotateY(180deg);
+}
+
+.fc-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #16a34a;
+    margin-bottom: 2px;
+    letter-spacing: 0.5px;
+}
+
+.flashcard-face p {
+    font-size: 11px;
+    margin: 0;
+    color: #334155;
+    line-height: 1.2;
+}
+
+.flashcard-face p.code-ans {
+    font-family: monospace;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #047857;
+}
+
+/* 3. Fill in the Blanks Looping Animation */
+@keyframes blankTypeAnim {
+    0%, 35% { background: #cbd5e1; color: transparent; width: 4px; }
+    45%, 80% { background: #ecfdf5; color: #10b981; border: 1px solid #10b981; width: auto; padding: 0 4px; }
+    90%, 100% { background: #cbd5e1; color: transparent; width: 4px; }
+}
+
+.anim-blank-slot {
+    display: inline-block;
+    height: 14px;
+    vertical-align: middle;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    overflow: hidden;
+    animation: blankTypeAnim 4s infinite ease-in-out;
+}
+
+@keyframes successFade {
+    0%, 35% { opacity: 0; transform: translateY(2px); }
+    45%, 80% { opacity: 1; transform: translateY(0); }
+    90%, 100% { opacity: 0; transform: translateY(2px); }
+}
+
+.success-text {
+    font-size: 11px;
+    color: #10b981;
+    font-weight: 600;
+}
+
+.anim-success-text {
+    animation: successFade 4s infinite ease-in-out;
+}
+
+.preview-footer-left {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    height: 14px;
+    margin-top: 2px;
+}
+
+.code-preview-box {
+    line-height: 1.4;
+}
+
+.code-line.indented {
+    padding-left: 12px;
+}
+
+/* 4. Coding Sandbox Output & General Typing Simulations */
+.preview-output-tight {
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.output-label {
+    color: #64748b;
+    display: block;
+    font-size: 10px;
+    margin-bottom: 1px;
+}
+
+.output-field-tight {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: #475569;
+    font-family: monospace;
+    overflow: hidden;
+    white-space: nowrap;
+    height: 20px;
+    display: flex;
+    align-items: center;
+}
+
+/* Character reveal steps for typing text */
+@keyframes typingEffect {
+    0%, 15% { width: 0; }
+    40%, 75% { width: 100%; }
+    85%, 100% { width: 0; }
+}
+
+.typewriter-text-ex {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 0;
+    animation: typingEffect 4s infinite steps(18, end);
+}
+
+.typewriter-text-box {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 0;
+    animation: typingEffect 4s infinite steps(20, end);
+}
+
+/* Delayed Exercise Success Fade Effect */
+@keyframes successFadeEx {
+    0%, 45% { opacity: 0; transform: translateY(2px); }
+    55%, 75% { opacity: 1; transform: translateY(0); }
+    85%, 100% { opacity: 0; transform: translateY(2px); }
+}
+
+.anim-success-exercise {
+    animation: successFadeEx 4s infinite ease-in-out;
+}
+
+/* Delayed Sandbox Output Fade Effect (Static appearance, no typing) */
+@keyframes outputFadeBox {
+    0%, 45% { opacity: 0; transform: translateY(2px); }
+    55%, 75% { opacity: 1; transform: translateY(0); }
+    85%, 100% { opacity: 0; transform: translateY(2px); }
+}
+
+.static-output-fade {
+    animation: outputFadeBox 4s infinite ease-in-out;
+}
+
+/* ==========================================
+   Responsive Grid Media Queries
+   ========================================== */
+
+@media screen and (max-width: 1024px) {
+    .experience-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .experience-grid {
+        grid-template-columns: 1fr;
+    }
+    .experience-header h2 {
+        font-size: 28px;
+    }
+}
+
+/* ==========================================
+ Prevents the sticky navbar from overlapping sections when clicking anchor links 
+ ==========================================*/
 html {
     scroll-behavior: smooth;
 }
@@ -469,7 +846,9 @@ html {
     scroll-margin-top: 90px;
 }
 
-/*MOBILE TAB VER*/
+/* ==========================================
+    MOBILE TAB VER
+   ========================================== */
 @media screen and (max-width: 992px) {
     .navbar {
         padding: 16px 20px;
