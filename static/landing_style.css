@@ -1190,6 +1190,397 @@ body {
 }
 
 /* ==========================================
+   Contact Us Section Styles
+   ========================================== */
+
+.contact-section {
+    padding: 80px 5%;
+    background-image: url('../images/landingpage.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.contact-container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* Centered Header Text */
+.contact-header-center {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto 50px auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.contact-header-center .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.contact-header-center h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.2;
+}
+
+.contact-header-center p {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Contact Grid Layout */
+.contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 30px;
+    align-items: start;
+}
+
+/* Left Contact Info Card */
+.contact-info-card, 
+.contact-form-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+.contact-info-card h3,
+.contact-form-card h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.info-sub {
+    font-size: 14px;
+    color: #64748b;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.contact-details-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 30px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.contact-details-list li {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.contact-icon-wrap {
+    width: 40px;
+    height: 40px;
+    background: transparent; /* Removes the container background box */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.contact-icon-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.detail-label {
+    display: block;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.detail-val {
+    display: block;
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+/* Social Icons */
+.contact-socials {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 20px;
+}
+
+.contact-socials .detail-label {
+    margin-bottom: 10px;
+}
+
+.social-icons-row {
+    display: flex;
+    gap: 12px;
+}
+
+.social-icon-btn {
+    width: 38px;
+    height: 38px;
+    background: transparent; /* Removes the box background */
+    border: none;             /* Removes the border box */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: transform 0.2s ease;
+}
+
+.social-icon-btn:hover {
+    background: transparent;
+    transform: translateY(-2px);
+}
+
+.social-icon-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Right Form Card */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #0f172a;
+    background: #f8fafc;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: #10b981;
+    background: #ffffff;
+}
+
+.submit-btn {
+    width: 100%;
+    background: linear-gradient(90deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px; /* Matches the 8px corner radius from your Figma inspector */
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(36, 199, 183, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* Space between text and the icon */
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(36, 199, 183, 0.3);
+}
+
+/* ==========================================
+   Responsive Breakpoints
+   ========================================== */
+
+@media screen and (max-width: 900px) {
+    .contact-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .contact-header-center h2 {
+        font-size: 28px;
+    }
+}
+
+
+/* ==========================================
+   Footer Section Styles (Dark & Full Width)
+   ========================================== */
+
+.footer-section {
+    background: #0f172a; /* Dark sleek slate background */
+    color: #94a3b8;      /* Lighter gray text for readability on dark */
+    padding: 70px 5% 30px 5%;
+    width: 100%;         /* Spans full width from left to right */
+    box-sizing: border-box;
+    border-top: 1px solid #1e293b;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* 3 Column Grid Layout */
+.footer-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    gap: 40px;
+    margin-bottom: 40px;
+}
+
+/* Column 1: Brand Info */
+.footer-logo {
+    display: flex;
+    align-items: left;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.footer-logo img {
+    height: 60px;
+    object-fit: contain;
+}
+
+.footer-logo span {
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffffff; /* Pure white for the brand name */
+}
+
+.footer-col-brand p {
+    font-size: 14px;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    max-width: 320px;
+}
+
+/* Footer Social Icons */
+.footer-socials {
+    display: flex;
+    gap: 10px;
+}
+
+.footer-social-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.footer-social-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.footer-social-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Columns 2 & 3: Navigation Links */
+.footer-col-links h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff; /* White headers */
+    letter-spacing: 0.8px;
+    margin-bottom: 18px;
+}
+
+.footer-col-links ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.footer-col-links ul li a {
+    text-decoration: none;
+    font-size: 14px;
+    color: #94a3b8;
+    transition: color 0.2s ease;
+}
+
+.footer-col-links ul li a:hover {
+    color: #10b981; /* Accent color on hover */
+}
+
+/* Divider Line */
+.footer-divider {
+    width: 100%;
+    height: 1px;
+    background: #1e293b; /* Subtle dark border line */
+    margin-bottom: 25px;
+}
+
+/* Bottom Row */
+.footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.footer-bottom p {
+    margin: 0;
+}
+
+/* ==========================================
+   Responsive Breakpoints
+   ========================================== */
+
+@media screen and (max-width: 850px) {
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+    
+    .footer-bottom {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+}
+
+/* ==========================================
  Prevents the sticky navbar from overlapping sections when clicking anchor links 
  ==========================================*/
 html {

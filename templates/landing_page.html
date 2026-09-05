@@ -473,6 +473,152 @@ print(name)</code></pre>
         </div>
     </section>
 
+    <section id="contact" class="contact-section">
+        <div class="contact-container">
+            
+            <div class="contact-header-center">
+                <span class="badge">Contact Us</span>
+                <h2>Get In Touch With Us</h2>
+                <p>Have questions, feedback, or need help with your Python learning journey? Reach out to our team and we'll be happy to assist you.</p>
+            </div>
+
+            <div class="contact-grid">
+                
+                <div class="contact-info-card">
+                    <h3>Contact Information</h3>
+                    <p class="info-sub">Fill out the form or reach us directly through our support channels.</p>
+                    
+                    <ul class="contact-details-list">
+                        <li>
+                            <div class="contact-icon-wrap">
+                                <img src="assets/images/support-icon.png" alt="Support">
+                            </div>
+                            <div>
+                                <span class="detail-label">Support Hours</span>
+                                <span class="detail-val">Mon - Fri: 9:00 AM - 6:00 PM</span>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="contact-icon-wrap">
+                                <img src="assets/images/email-icon.png" alt="Email">
+                            </div>
+                            <div>
+                                <span class="detail-label">Email Address</span>
+                                <span class="detail-val">support@cobrabyte.com</span>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="contact-icon-wrap">
+                                <img src="assets/images/location-icon.png" alt="Location">
+                            </div>
+                            <div>
+                                <span class="detail-label">Location</span>
+                                <span class="detail-val">San Jose del Monte, Bulacan</span>
+                            </div>
+                        </li>
+                    </ul>
+
+                    <div class="contact-socials">
+                        <span class="detail-label">Follow Us</span>
+                        <div class="social-icons-row">
+                            <a href="#" class="social-icon-btn">
+                                <img src="assets/images/fb-icon.png" alt="Facebook">
+                            </a>
+                            <a href="#" class="social-icon-btn">
+                                <img src="assets/images/ig-icon.png" alt="Instagram">
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="contact-form-card">
+                    <h3>Send Us a Message</h3>
+                    <form action="#" method="POST">
+                        <div class="form-group">
+                            <label for="name">Your Name</label>
+                            <input type="text" id="name" placeholder="Enter your full name" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="email" id="email" placeholder="Enter your email address" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="message">Your Message</label>
+                            <textarea id="message" rows="4" placeholder="How can we help you?" required></textarea>
+                        </div>
+
+                        <button type="submit" class="submit-btn">Send Message</button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
     <script src="{{ url_for('static', filename='landing_script.js') }}"></script>
 </body>
+
+<!-- ==========================================
+   Footer Section
+   ========================================== -->
+<footer class="footer-section">
+    <div class="footer-container">
+        
+        <!-- Top Columns Row -->
+        <div class="footer-grid">
+            
+            <!-- Column 1: Brand & Bio -->
+            <div class="footer-col-brand">
+                <div class="footer-logo">
+                    <img src="assets/images/logo-ad.png" alt="CobraByte Logo">
+                </div>
+                <p>An interactive Python learning platform that helps beginners learn, practice, and track their progress step by step.</p>
+                <div class="footer-socials">
+                    <a href="#" class="footer-social-btn">
+                        <img src="assets/images/fb-icon.png" alt="Facebook">
+                    </a>
+                    <a href="#" class="footer-social-btn">
+                        <img src="assets/images/ig-icon.png" alt="Instagram">
+                    </a>
+                </div>
+            </div>
+
+            <!-- Column 2: Quick Links -->
+            <div class="footer-col-links">
+                <h4>QUICK LINKS</h4>
+                <ul>
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#about">About Us</a></li>
+                    <li><a href="#contact">Contact Us</a></li>
+                </ul>
+            </div>
+
+            <!-- Column 3: Platform -->
+            <div class="footer-col-links">
+                <h4>PLATFORM</h4>
+                <ul>
+                    <li><a href="#">Learner Dashboard</a></li>
+                    <li><a href="#">Lessons</a></li>
+                    <li><a href="#">Coding Sandbox</a></li>
+                    <li><a href="#">Sign In</a></li>
+                </ul>
+            </div>
+
+        </div>
+
+        <!-- Divider Line -->
+        <div class="footer-divider"></div>
+
+        <!-- Bottom Copyright Row -->
+        <div class="footer-bottom">
+            <p>&copy; 2026 CobraByte. All rights reserved.</p>
+            <p>Made for Python beginners. Learn the interactive way.</p>
+        </div>
+
+    </div>
+</footer>
+
 </html>
