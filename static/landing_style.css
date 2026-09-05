@@ -6,11 +6,11 @@
 }
 
 body {
-    background-image: url('/assets/images/landingpage.jpg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-image: radial-gradient(ellipse at center, transparent 60%, rgba(15, 23, 42, 0.08) 100%), url('/assets/images/landingpage.jpg');
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+    background-attachment: fixed, fixed;
     color: #0f172a;
     min-height: 100vh;
     overflow-x: hidden;

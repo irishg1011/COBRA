@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CobraByte - Learn Python The Interactive Way</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='landing_style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='animations.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -45,7 +46,7 @@
     <!-- Features Section -->
     <section class="features-section" id="features">
         <div class="features-container">
-            <div class="features-header">
+            <div class="features-header" data-animate>
                 <span class="badge">Features</span>
                 <h2>Everything You Need to Start Coding</h2>
                 <p>CobraByte combines lessons, interactive practice, and performance tracking in one beginner friendly platform.</p>
@@ -53,63 +54,63 @@
             
             <div class="features-grid">
                 <!-- 1. Interactive Lessons -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/interactivelessons-icon.png" alt="Interactive Lessons"></div>
                     <h3>Interactive Lessons</h3>
                     <p>Learn Python concepts through beginner friendly lessons and explanations.</p>
                 </div>
                 
                 <!-- 2. Tutorial Videos -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/tutorialvideos-icon.png" alt="Tutorial Videos"></div>
                     <h3>Tutorial Videos</h3>
                     <p>Watch video lessons to better understand Python concepts.</p>
                 </div>
                 
                 <!-- 3. Multiple Choice Activities -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/multiplechoice-icon.png" alt="Multiple Choice Activities"></div>
                     <h3>Multiple Choice Activities</h3>
                     <p>Test understanding through interactive questions with instant feedback.</p>
                 </div>
                 
                 <!-- 4. Flashcards -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/flashcards-icon.png" alt="Flashcards"></div>
                     <h3>Flashcards</h3>
                     <p>Review Python concepts and strengthen memory through interactive cards.</p>
                 </div>
                 
                 <!-- 5. Fill in the Blanks -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/fillintheblanks-icon.png" alt="Fill in the Blanks"></div>
                     <h3>Fill in the Blanks</h3>
                     <p>Practice Python syntax and concepts by completing missing code or answers.</p>
                 </div>
                 
                 <!-- 6. Coding Exercises -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/codingexercises-icon.png" alt="Coding Exercises"></div>
                     <h3>Coding Exercises</h3>
                     <p>Solve beginner-friendly programming challenges based on real situations.</p>
                 </div>
                 
                 <!-- 7. Coding Sandbox -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/codingsandbox-icon.png" alt="Coding Sandbox"></div>
                     <h3>Coding Sandbox</h3>
                     <p>Write, test, experiment, and practice python code in a browser-based coding environment.</p>
                 </div>
                 
                 <!-- 8. Learning Analytics -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/learninganalytics-icon.png" alt="Learning Analytics"></div>
                     <h3>Learning Analytics</h3>
                     <p>Track learner progress and analyze weak and strong areas.</p>
                 </div>
                 
                 <!-- 9. Recommendations -->
-                <div class="feature-card">
+                <div class="feature-card" data-animate>
                     <div class="feature-icon-img"><img src="/assets/images/recommendations-icon.png" alt="Recommendations"></div>
                     <h3>Recommendations</h3>
                     <p>Recommend lessons and activities based on learner performance.</p>
@@ -121,7 +122,7 @@
     <!-- How It Works Section -->
     <section class="journey-section" id="how-it-works">
         <div class="journey-container">
-            <div class="journey-header">
+            <div class="journey-header" data-animate>
                 <span class="badge">How It Works</span>
                 <h2>Your Learning Journey, Step by Step</h2>
                 <p>A clear, guided path from your very first line of Python to confident coding.</p>
@@ -129,7 +130,7 @@
             
             <div class="journey-grid">
                 <!-- 01. Create an Account -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/createanaccount-icon.png" alt="Create an Account"></div>
                         <span class="step-number">01</span>
@@ -139,7 +140,7 @@
                 </div>
                 
                 <!-- 02. Choose a Python Lesson -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/chooseapythonlesson-icon.png" alt="Choose a Python Lesson"></div>
                         <span class="step-number">02</span>
@@ -149,7 +150,7 @@
                 </div>
                 
                 <!-- 03. Learn & Watch Tutorials -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/learnnwatchtutorials-icon.png" alt="Learn & Watch Tutorials"></div>
                         <span class="step-number">03</span>
@@ -159,7 +160,7 @@
                 </div>
                 
                 <!-- 04. Interactive Activities -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/interactiveactivities-icon.png" alt="Interactive Activities"></div>
                         <span class="step-number">04</span>
@@ -169,7 +170,7 @@
                 </div>
                 
                 <!-- 05. Coding Exercise -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/codingexercises-icon.png" alt="Coding Exercise"></div>
                         <span class="step-number">05</span>
@@ -179,7 +180,7 @@
                 </div>
                 
                 <!-- 06. Track Your Performance -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/trackyourperformance-icon.png" alt="Track Your Performance"></div>
                         <span class="step-number">06</span>
@@ -189,7 +190,7 @@
                 </div>
                 
                 <!-- 07. Lesson Recommendations -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/recommendations-icon.png" alt="Lesson Recommendations"></div>
                         <span class="step-number">07</span>
@@ -199,7 +200,7 @@
                 </div>
                 
                 <!-- 08. Continue Improving -->
-                <div class="journey-card">
+                <div class="journey-card" data-animate>
                     <div class="journey-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/continueimproving-icon.png" alt="Continue Improving"></div>
                         <span class="step-number">08</span>
@@ -214,7 +215,7 @@
     <!-- CobraByte Experience Section -->
     <section class="experience-section" id="experience">
         <div class="experience-container">
-            <div class="experience-header">
+            <div class="experience-header" data-animate>
                 <span class="badge">Learning Activities</span>
                 <h2>See the CobraByte Experience</h2>
                 <p>Every lesson is reinforced with hands-on activities that give you instant feedback and keep you engaged.</p>
@@ -222,7 +223,7 @@
             
             <div class="experience-grid">
                 <!-- 1. Lesson Interface -->
-                <div class="experience-card">
+                <div class="experience-card" data-animate>
                     <div class="experience-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/interactivelessons-icon.png" alt="Lesson Interface"></div>
                         <h3>Lesson Interface</h3>
@@ -235,7 +236,7 @@ print(name)</code></pre>
                 </div>
                 
                 <!-- 2. Multiple Choice -->
-                <div class="experience-card">
+                <div class="experience-card" data-animate>
                     <div class="experience-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/multiplechoice-icon.png" alt="Multiple Choice"></div>
                         <h3>Multiple Choice</h3>
@@ -250,7 +251,7 @@ print(name)</code></pre>
                 </div>
                 
                 <!-- 3. Flashcards -->
-                <div class="experience-card">
+                <div class="experience-card" data-animate>
                     <div class="experience-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/flashcards-icon.png" alt="Flashcards"></div>
                         <h3>Flashcards</h3>
@@ -270,7 +271,7 @@ print(name)</code></pre>
                 </div>
                 
                 <!-- 4. Fill in the Blanks -->
-                <div class="experience-card">
+                <div class="experience-card" data-animate>
                     <div class="experience-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/fillintheblanks-icon.png" alt="Fill in the Blanks"></div>
                         <h3>Fill in the Blanks</h3>
@@ -286,7 +287,7 @@ print(name)</code></pre>
                 </div>
                 
                 <!-- 5. Coding Exercise -->
-                <div class="experience-card">
+                <div class="experience-card" data-animate>
                     <div class="experience-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/codingexercises-icon.png" alt="Coding Exercise"></div>
                         <h3>Coding Exercise</h3>
@@ -302,7 +303,7 @@ print(name)</code></pre>
                 </div>
                     
                 <!-- 6. Coding Sandbox -->
-                <div class="experience-card">
+                <div class="experience-card" data-animate>
                     <div class="experience-card-top">
                         <div class="feature-icon-img"><img src="/assets/images/codingsandbox-icon.png" alt="Coding Sandbox"></div>
                         <h3>Coding Sandbox</h3>
@@ -327,14 +328,14 @@ print(name)</code></pre>
     <section class="analytics-section">
         <div class="analytics-container">
 
-        <div class="analytics-header-center">
+        <div class="analytics-header-center" data-animate>
             <span class="badge">Learning Analytics</span>
         </div>
 
             <div class="analytics-grid">
 
                 <!-- Left Content -->
-                <div class="analytics-content">
+                <div class="analytics-content" data-animate>
                     <h2>Understand Your Progress &amp; Improve Faster</h2>
                     <p>CobraByte tracks your learning performance and helps identify areas where beginners need more practice. See your strengths, spot weak spots, and get lessons recommended just for you.</p>
                     
@@ -355,7 +356,7 @@ print(name)</code></pre>
                 </div>
 
                 <!-- Right Dashboard Preview Card -->
-                <div class="analytics-dashboard-card">
+                <div class="analytics-dashboard-card" data-animate>
                     <div class="dashboard-header">
                         <div>
                             <h3>Performance Dashboard</h3>
@@ -426,7 +427,7 @@ print(name)</code></pre>
         <div class="about-container">
             
             <!-- Header Content -->
-            <div class="about-header-center">
+            <div class="about-header-center" data-animate>
                 <span class="badge">About Us</span>
                 <h2>About CobraByte</h2>
                 <p>CobraByte is a web-based interactive learning platform designed to help Python beginners learn programming in a more engaging and practical way. Through lessons, interactive activities, coding exercises, and performance tracking, CobraByte helps learners understand their strengths and identify areas that need improvement.</p>
@@ -435,7 +436,7 @@ print(name)</code></pre>
             <!-- 3 Feature Cards Grid -->
             <div class="about-cards-grid">
                 <!-- Card 1: Accessible -->
-                <div class="about-card">
+                <div class="about-card" data-animate>
                     <div class="card-icon-wrap">
                         <img src="assets/images/accessibble-icon.png" alt="Accessible">
                     </div>
@@ -444,7 +445,7 @@ print(name)</code></pre>
                 </div>
 
                 <!-- Card 2: Interactive -->
-                <div class="about-card">
+                <div class="about-card" data-animate>
                     <div class="card-icon-wrap">
                         <img src="assets/images/interactive-icon.png" alt="Interactive">
                     </div>
@@ -453,7 +454,7 @@ print(name)</code></pre>
                 </div>
 
                 <!-- Card 3: Guided -->
-                <div class="about-card">
+                <div class="about-card" data-animate>
                     <div class="card-icon-wrap">
                         <img src="assets/images/guided-icon.png" alt="Guided">
                     </div>
@@ -463,7 +464,7 @@ print(name)</code></pre>
             </div>
 
             <!-- Bottom Mission Banner -->
-            <div class="mission-banner">
+            <div class="mission-banner" data-animate>
                 <blockquote>
                     "Our mission is to make Python learning accessible, interactive, and beginner friendly for everyone, everywhere."
                 </blockquote>
@@ -476,7 +477,7 @@ print(name)</code></pre>
     <section id="contact" class="contact-section">
         <div class="contact-container">
             
-            <div class="contact-header-center">
+            <div class="contact-header-center" data-animate>
                 <span class="badge">Contact Us</span>
                 <h2>Get In Touch With Us</h2>
                 <p>Have questions, feedback, or need help with your Python learning journey? Reach out to our team and we'll be happy to assist you.</p>
@@ -484,7 +485,7 @@ print(name)</code></pre>
 
             <div class="contact-grid">
                 
-                <div class="contact-info-card">
+                <div class="contact-info-card" data-animate>
                     <h3>Contact Information</h3>
                     <p class="info-sub">Fill out the form or reach us directly through our support channels.</p>
                     
@@ -531,7 +532,7 @@ print(name)</code></pre>
                     </div>
                 </div>
 
-                <div class="contact-form-card">
+                <div class="contact-form-card" data-animate>
                     <h3>Send Us a Message</h3>
                     <form action="#" method="POST">
                         <div class="form-group">
@@ -558,6 +559,7 @@ print(name)</code></pre>
     </section>
 
     <script src="{{ url_for('static', filename='landing_script.js') }}"></script>
+    <script src="{{ url_for('static', filename='animations.js') }}"></script>
 </body>
 
 <!-- ==========================================
