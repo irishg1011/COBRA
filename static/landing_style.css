@@ -329,16 +329,6 @@ body {
    Background Flow Effect for Features Section
    ========================================== */
 
-.features-section {
-    position: relative;
-    padding: 90px 5%;
-    background-color: transparent;
-    /* This layers a subtle duplicate of your background gradient/blob flowing downwards */
-    background-image: radial-gradient(circle at 80% 20%, rgba(70, 217, 125, 0.08) 0%, transparent 40%),
-                      radial-gradient(circle at 20% 80%, rgba(24, 184, 230, 0.08) 0%, transparent 40%);
-    background-repeat: no-repeat;
-    background-size: cover;
-}
 
 /* ==========================================
    How It Works / Learning Journey Section
