@@ -29,8 +29,10 @@ body {
 }
 
 .nav-container {
+    position: relative;
     width: 100%;
     max-width: 1350px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -59,6 +61,9 @@ body {
     display: flex;
     gap: 36px;
     align-items: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
 .nav-links a {
@@ -1437,10 +1442,10 @@ body {
    ========================================== */
 
 .footer-section {
-    background: #0f172a; /* Dark sleek slate background */
-    color: #94a3b8;      /* Lighter gray text for readability on dark */
-    padding: 70px 5% 30px 5%;
-    width: 100%;         /* Spans full width from left to right */
+    background: #0f172a;
+    color: #94a3b8;
+    padding: 40px 5% 20px 5%;
+    width: 100%;
     box-sizing: border-box;
     border-top: 1px solid #1e293b;
 }
@@ -1454,20 +1459,20 @@ body {
 .footer-grid {
     display: grid;
     grid-template-columns: 1.5fr 1fr 1fr;
-    gap: 40px;
-    margin-bottom: 40px;
+    gap: 30px;
+    margin-bottom: 20px;
 }
 
 /* Column 1: Brand Info */
 .footer-logo {
     display: flex;
     align-items: left;
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: 8px;
+    margin-bottom: 10px;
 }
 
 .footer-logo img {
-    height: 60px;
+    height: 42px;
     object-fit: contain;
 }
 
@@ -1478,10 +1483,10 @@ body {
 }
 
 .footer-col-brand p {
-    font-size: 14px;
+    font-size: 13px;
     color: #94a3b8;
-    line-height: 1.6;
-    margin-bottom: 20px;
+    line-height: 1.5;
+    margin-bottom: 14px;
     max-width: 320px;
 }
 
@@ -1515,11 +1520,11 @@ body {
 
 /* Columns 2 & 3: Navigation Links */
 .footer-col-links h4 {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    color: #ffffff; /* White headers */
+    color: #ffffff;
     letter-spacing: 0.8px;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
 }
 
 .footer-col-links ul {
@@ -1528,7 +1533,7 @@ body {
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
 .footer-col-links ul li a {
@@ -1546,8 +1551,8 @@ body {
 .footer-divider {
     width: 100%;
     height: 1px;
-    background: #1e293b; /* Subtle dark border line */
-    margin-bottom: 25px;
+    background: #1e293b;
+    margin-bottom: 16px;
 }
 
 /* Bottom Row */
