@@ -846,7 +846,7 @@ body {
 
 .analytics-section {
     padding: 80px 5%;
-    background-image: url('../images/landingpage.png'); /* Point to your wave background asset */
+    background-image: url('/assets/images/landingpage.png'); /* Point to your wave background asset */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -864,7 +864,7 @@ body {
     align-items: start; /* Aligns the left column and right card neatly at the top */
 }
 
-.analytics-content .badge {
+.analytics-header-center .badge {
     display: inline-block;
     background: #e6f9ed;
     color: #10b981;
@@ -1037,6 +1037,155 @@ body {
 @media screen and (max-width: 640px) {
     .analytics-content h2 {
         font-size: 28px;
+    }
+}
+
+/* ==========================================
+   About Us Section Styles
+   ========================================== */
+
+.about-section {
+    padding: 80px 5%;
+    background-image: url('/assets/images/landingpage.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.about-container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* Centered Header Text */
+.about-header-center {
+    text-align: center;
+    max-width: 780px;
+    margin: 0 auto 50px auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.about-header-center .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.about-header-center h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.2;
+}
+
+.about-header-center p {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* 3 Feature Cards Grid */
+.about-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 40px;
+}
+
+.about-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 32px 24px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.about-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 35px rgba(0, 0, 0, 0.06);
+}
+
+.card-icon-wrap {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-icon-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.about-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 10px;
+}
+
+.about-card p {
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Mission Gradient Banner */
+.mission-banner {
+    background: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
+    border-radius: 16px;
+    padding: 40px 30px;
+    text-align: center;
+    color: #ffffff;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.15);
+}
+
+.mission-banner blockquote {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.5;
+    margin: 0 0 16px 0;
+}
+
+.mission-author {
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0.9;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================
+   Responsive Breakpoints
+   ========================================== */
+
+@media screen and (max-width: 850px) {
+    .about-cards-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .about-header-center h2 {
+        font-size: 28px;
+    }
+    .mission-banner blockquote {
+        font-size: 16px;
     }
 }
 
