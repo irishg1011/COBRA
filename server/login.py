@@ -1,7 +1,16 @@
 """
-login.py - CobraByte Backend Server
+login.py - CobraByte Backend Server (Merged)
 ------------------------------------
-Flask routes for user registration, authentication, and OTP verification.
+Single Flask app serving:
+  - The landing page at "/"
+  - The login/signup page at "/login"
+  - All auth/API routes (signup, login, OTP, password reset, etc.)
+  - The admin blueprint
+  - Shared static/assets folders
+
+Merged from what were previously two separate Flask apps (app.py +
+login.py) so everything runs on one port with no CORS/cross-origin
+juggling needed for same-origin fetch() calls.
 """
 
 import os
@@ -23,7 +32,12 @@ from lockout_logs import log_lockout_event  # NEW: distinct-per-day lockout even
 from validators import PASSWORD_REGEX, calculate_age, MIN_SIGNUP_AGE, MAX_SIGNUP_AGE  # NEW: shared validation rules (also reused by admin_routes.py's Create Administrator flow)
 from id_generator import generate_prefixed_acc_id  # NEW: shared account-ID generator (also reused by admin_routes.py)
 
-app = Flask(__name__, template_folder='../templates', static_folder='../static')
+# Define paths relative to this file's folder (matches the old app.py's setup)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+TEMPLATES_DIR = os.path.abspath(os.path.join(BASE_DIR, '../templates'))
+STATIC_DIR = os.path.abspath(os.path.join(BASE_DIR, '../static'))
+
+app = Flask(__name__, template_folder=TEMPLATES_DIR, static_folder=STATIC_DIR)
 
 # ------------------------------------------------------------
 # SESSION CONFIG (Task #12: server-side admin session)
@@ -33,15 +47,15 @@ app = Flask(__name__, template_folder='../templates', static_folder='../static')
 # secret is fine for local dev only.
 app.secret_key = os.environ.get("COBRABYTE_SECRET_KEY", "dev-only-change-me")
 
-# supports_credentials lets the frontend's fetch() calls send/receive the
-# session cookie across origins (e.g. Live Server on :5500 -> Flask on :5000).
-# NOTE: browsers require an explicit origin (not "*") whenever credentials
-# are involved, so list the frontend origin(s) directly instead of allowing
-# any origin.
+# NOTE: Now that the landing page and login page are served by this same
+# Flask app (same origin), CORS is no longer required for the frontend's
+# own fetch() calls. This is left in place only in case something external
+# (e.g. a separate tool) still needs it - safe to remove later if unused.
 FRONTEND_ORIGINS = ["http://127.0.0.1:5500", "http://localhost:5500"]
 CORS(app, supports_credentials=True, origins=FRONTEND_ORIGINS)
 
-# Register the admin blueprint
+# Register the admin blueprint (only once, now that app.py's duplicate
+# registration no longer exists)
 app.register_blueprint(admin_bp, url_prefix='/admin')
 
 # ============================================================
@@ -731,12 +745,20 @@ def learner_session_end_beacon():
 # ROUTE: SERVE FRONTEND PAGES
 # ============================================================
 @app.route("/")
-def serve_login():
-    return send_from_directory('.', 'login.html')
+def landing_page():
+    """Landing page now owns the root path (merged from the old app.py)."""
+    return render_template('landing_page.html')
 
-@app.route("/<path:filename>")
-def serve_static_files(filename):
-    return send_from_directory('.', filename)
+
+@app.route("/login")
+def serve_login():
+    """
+    Login/signup page now lives at /login instead of "/", since the
+    landing page owns the root path in this merged app. Uses
+    render_template() (not send_from_directory) so it correctly reads
+    from the templates/ folder configured above.
+    """
+    return render_template('login.html')
 
 # ============================================================
 # ROUTE: DASHBOARD PAGE
@@ -754,5 +776,10 @@ def serve_global_assets(filename):
     assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../assets'))
     return send_from_directory(assets_dir, filename)
 
+@app.route("/header.html")
+def serve_header():
+    return render_template('header.html')
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+

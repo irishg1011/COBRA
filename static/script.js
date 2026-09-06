@@ -20,14 +20,14 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem("isAuthenticated");
         sessionStorage.removeItem("userRole");
     } else if (isAuthenticatedFlag) {
-        window.location.replace("dashboard.html");
+        window.location.replace("/dashboard");
     }
 
     const API_BASE_URL = "http://127.0.0.1:5000";
 
     const headerPlaceholder = document.getElementById('header-placeholder');
     if (headerPlaceholder) {
-        fetch('header.html')
+        fetch('/header.html')
             .then(response => response.text())
             .then(data => { headerPlaceholder.innerHTML = data; })
             .catch(error => console.error('Error loading header:', error));
@@ -587,7 +587,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (signUpPanel) signUpPanel.style.display = 'block';
     }
     window.addEventListener('pageshow', () => {
-        showSignInView();
+    const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('tab') === 'signup') {
+            showSignUpView();
+        } else {
+            showSignInView();
+        }
     });
     if (signInBtn && signUpBtn) {
         signUpBtn.addEventListener('click', () => {
@@ -940,7 +945,7 @@ if (result.success) {
     const isAdmin = result.role === "Admin";
     const destination = isAdmin
         ? `${API_BASE_URL}${result.redirect || "/admin/dashboard"}`
-        : "../templates/dashboard.html";
+        : "../dashboard";
 
     const successText = successPanel ? successPanel.querySelector('p') : null;
     if (successText) {

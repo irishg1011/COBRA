@@ -54,7 +54,7 @@
     // ------------------------------------------------------------
     // CONFIG - adjust these constants per deployment if needed
     // ------------------------------------------------------------
-    const LANDING_PAGE_URL = "login.html"; // CobraByte's login/landing route (see login.py: @app.route("/"))
+    const LANDING_PAGE_URL = "/"; // CobraByte's login/landing route (see login.py: @app.route("/"))
     const AUTH_FLAG_KEY = "isAuthenticated";
 
     // Back-button behavior is per-page, controlled by a data attribute on

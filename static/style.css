@@ -9,7 +9,11 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: #EFECE1;
+    background-image: url('/assets/images/landingpage.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     color: #000000;
     min-height: 100vh;
     display: flex;
@@ -20,12 +24,17 @@ body {
    DYNAMIC HEADER
    ========================================================================== */
 header {
-    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
-    padding: 10px 8%; /* Kept clean padding constraints for the nav text alignment */
+    background-color: rgba(235, 243, 250, 0.85);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    padding: 10px 8%;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 70px; /* Fixed height for consistent header size */
+    height: 70px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
 .logo-container {
@@ -165,9 +174,9 @@ h1 {
 }
 
 .toggle-btn.active {
-    background: #FFFFFF;
-    color: #000000;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
+    color: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .form-header h2 {
@@ -357,8 +366,8 @@ h1 {
 }
 
 /* --- Forgot Password Extras --- */
-.footer-back-wrapper {
-    margin-top: 35px;
+.back-home-wrapper {
+    margin-top: 25px;
     border-top: 1px solid #EDEAE4;
     padding-top: 20px;
     width: 100%;
@@ -366,7 +375,7 @@ h1 {
     justify-content: center;
 }
 
-.back-to-login-link {
+.back-home-link {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -377,7 +386,7 @@ h1 {
     transition: color 0.2s ease;
 }
 
-.back-to-login-link:hover {
+.back-home-link:hover {
     color: #139C38;
 }
 
