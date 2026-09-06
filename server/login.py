@@ -765,7 +765,7 @@ def serve_login():
 # ============================================================
 @app.route("/dashboard")
 def dashboard():
-    return render_template('/../dashboard.html')
+    return render_template('dashboard.html')
 
 # ============================================================
 # ROUTE: GLOBAL ASSETS HANDLER (Handles root and blueprint paths)
@@ -779,6 +779,16 @@ def serve_global_assets(filename):
 @app.route("/header.html")
 def serve_header():
     return render_template('header.html')
+
+@app.route('/learner/<path:filename>')
+def serve_learner_assets(filename):
+    """
+    Serves files from the /learner folder (e.g. learner.js) so
+    dashboard.html's relative <script src="../learner/learner.js">
+    resolves correctly instead of 404ing.
+    """
+    learner_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../learner'))
+    return send_from_directory(learner_dir, filename)
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

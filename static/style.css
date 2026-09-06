@@ -31,7 +31,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 70px;
+    min-height: 88px;
     position: sticky;
     top: 0;
     z-index: 1000;
@@ -45,7 +45,7 @@ header {
 }
 
 .logo-img {
-    height: 45px;
+    height: 70px;
     width: auto;
     display: block;
 }
@@ -153,6 +153,7 @@ h1 {
 }
 
 .auth-toggle {
+    position: relative;
     display: flex;
     background: #D5D5D5;
     border-radius: 25px;
@@ -160,7 +161,26 @@ h1 {
     margin-bottom: 30px;
 }
 
+.toggle-slider {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: transform 0.35s cubic-bezier(0.65, 0, 0.35, 1);
+    z-index: 0;
+}
+
+.toggle-slider.slide-right {
+    transform: translateX(100%);
+}
+
 .toggle-btn {
+    position: relative;
+    z-index: 1;
     flex: 1;
     border: none;
     background: transparent;
@@ -174,9 +194,7 @@ h1 {
 }
 
 .toggle-btn.active {
-    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
     color: #FFFFFF;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .form-header h2 {
@@ -390,6 +408,27 @@ h1 {
     color: #139C38;
 }
 
+.footer-back-wrapper {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+}
+
+.back-to-login-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333333;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.back-to-login-link:hover {
+    color: #139C38;
+}
+
 .password-wrapper {
     position: relative;
     display: flex;
@@ -470,6 +509,39 @@ h1 {
     .description { margin: 0 auto; }
     header { flex-direction: column; gap: 15px; }
     .auth-card { margin: 0 auto; }
+}
+
+.dashboard-nav {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 32px;
+}
+
+.dashboard-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    color: #475569;
+    transition: color 0.2s ease;
+}
+
+.dashboard-nav-link:hover {
+    color: #10b981;
+}
+
+.dashboard-nav-link.active {
+    color: #10b981;
+}
+
+.dashboard-nav-link svg {
+    width: 18px;
+    height: 18px;
 }
 
 /* ==========================================================================
@@ -591,6 +663,7 @@ select {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
+    background: #ffffff;
 }
 
 /* Styled Badges */

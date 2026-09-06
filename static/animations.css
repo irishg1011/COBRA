@@ -43,3 +43,20 @@
 .hero-image {
     will-change: transform;
 }
+
+/* ==========================================================================
+   PAGE TRANSITIONS (fade in/out between pages)
+   ========================================================================== */
+body {
+    opacity: 0;
+}
+
+body.page-fade-in {
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+body.page-fade-out {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}

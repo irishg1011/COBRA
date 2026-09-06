@@ -476,6 +476,54 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
+    // =========================================================================
+    // --- PANEL ENTRANCE ANIMATION HELPER ---
+    // =========================================================================
+    // Replaces plain `panel.style.display = 'block'` everywhere a panel is
+    // revealed. Re-adding the animation class every call (after forcing a
+    // reflow) makes the fade+slide-up animation replay each time, even if
+    // the same panel was shown before with the class still attached.
+    function showPanel(panel, displayValue = 'block') {
+        if (!panel) return;
+        panel.style.display = displayValue;
+        panel.classList.remove('panel-animate-in');
+        void panel.offsetWidth; // force reflow so the animation retriggers
+        panel.classList.add('panel-animate-in');
+    }
+
+    function hideAllPanels() {
+        const panels = [signInPanel, signUpPanel, signUpStep2Panel, signUpStep3Panel, signUpStep4Panel,
+                        forgotPasswordPanel, forgotOtpPanel, setNewPasswordPanel, forgotSuccessPanel];
+        panels.forEach(p => { if (p) p.style.display = 'none'; });
+        if (document.getElementById('signInSuccessPanel')) document.getElementById('signInSuccessPanel').style.display = 'none';
+    }
+
+        const toggleSlider = document.getElementById('toggleSlider');
+
+    function showSignInView() {
+        resetSignUpForm();
+        resetForgotPasswordForm();
+        resetSignInForm();
+        hideAllPanels();
+        if (authToggleBar) authToggleBar.style.display = 'flex';
+        if (signInBtn) signInBtn.classList.add('active');
+        if (signUpBtn) signUpBtn.classList.remove('active');
+        if (toggleSlider) toggleSlider.classList.remove('slide-right');
+        showPanel(signInPanel);
+    }
+
+    function showSignUpView() {
+        resetSignInForm();
+        resetForgotPasswordForm();
+        resetSignUpForm();
+        hideAllPanels();
+        if (authToggleBar) authToggleBar.style.display = 'flex';
+        if (signInBtn) signInBtn.classList.remove('active');
+        if (signUpBtn) signUpBtn.classList.add('active');
+        if (toggleSlider) toggleSlider.classList.add('slide-right');
+        showPanel(signUpPanel);
+    }
+    
     // --- FORM RESET HELPERS (TASK 14) ---
     function resetSignUpForm() {
         const signUpFormStep1 = document.querySelector('#signUpPanel form');
@@ -558,34 +606,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function hideAllPanels() {
-        const panels = [signInPanel, signUpPanel, signUpStep2Panel, signUpStep3Panel, signUpStep4Panel,
-                        forgotPasswordPanel, forgotOtpPanel, setNewPasswordPanel, forgotSuccessPanel];
-        panels.forEach(p => { if (p) p.style.display = 'none'; });
-        if (document.getElementById('signInSuccessPanel')) document.getElementById('signInSuccessPanel').style.display = 'none';
-    }
-
-    function showSignInView() {
-        resetSignUpForm();
-        resetForgotPasswordForm();
-        resetSignInForm();
-        hideAllPanels();
-        if (authToggleBar) authToggleBar.style.display = 'flex';
-        if (signInBtn) signInBtn.classList.add('active');
-        if (signUpBtn) signUpBtn.classList.remove('active');
-        if (signInPanel) signInPanel.style.display = 'block';
-    }
-
-    function showSignUpView() {
-        resetSignInForm();
-        resetForgotPasswordForm();
-        resetSignUpForm();
-        hideAllPanels();
-        if (authToggleBar) authToggleBar.style.display = 'flex';
-        if (signInBtn) signInBtn.classList.remove('active');
-        if (signUpBtn) signUpBtn.classList.add('active');
-        if (signUpPanel) signUpPanel.style.display = 'block';
-    }
     window.addEventListener('pageshow', () => {
     const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('tab') === 'signup') {
@@ -626,11 +646,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             hideAllPanels();
-            if (signUpStep2Panel) signUpStep2Panel.style.display = 'block';
+            showPanel(signUpStep2Panel);
         });
     }
 
-    if (backToStep1) backToStep1.addEventListener('click', (e) => { e.preventDefault(); hideAllPanels(); if (signUpPanel) signUpPanel.style.display = 'block'; });
+    if (backToStep1) backToStep1.addEventListener('click', (e) => { e.preventDefault(); hideAllPanels(); showPanel(signUpPanel); });
 
     if (proceedToStep3) {
         proceedToStep3.addEventListener('click', async (e) => {
@@ -708,7 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 hideAllPanels();
                 if (authToggleBar) authToggleBar.style.display = 'none';
-                if (signUpStep3Panel) signUpStep3Panel.style.display = 'block';
+                showPanel(signUpStep3Panel);
 
                 clearOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
                 startOtpCountdown(
@@ -777,7 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
         backToStep2.addEventListener('click', (e) => {
             e.preventDefault(); hideAllPanels();
             if (authToggleBar) authToggleBar.style.display = 'flex';
-            if (signUpStep2Panel) signUpStep2Panel.style.display = 'block';
+            showPanel(signUpStep2Panel);
         });
     }
 
@@ -822,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     setTimeout(() => {
                         hideAllPanels();
-                        if (signUpStep4Panel) signUpStep4Panel.style.display = 'block';
+                        showPanel(signUpStep4Panel);
                     }, 400);
                 } else {
                     setOtpBoxesState('#signUpStep3Panel', false, true);
@@ -936,16 +956,16 @@ if (result.success) {
     if (signInPanel) signInPanel.style.display = 'none';
 
     const successPanel = document.getElementById('signInSuccessPanel');
-    if (successPanel) successPanel.style.display = 'block';
+    showPanel(successPanel);
 
     // --- ROLE-BASED REDIRECT (u_type: 1 = Admin, 2 = Learner) ---
     // Admin dashboard is a Flask/Jinja page served by the backend
-    // (API_BASE_URL), while the Learner dashboard is a static page
-    // served from this same frontend origin.
+    // (API_BASE_URL), while the Learner dashboard is served by this
+    // same merged Flask app at /dashboard.
     const isAdmin = result.role === "Admin";
     const destination = isAdmin
         ? `${API_BASE_URL}${result.redirect || "/admin/dashboard"}`
-        : "../dashboard";
+        : "/dashboard";
 
     const successText = successPanel ? successPanel.querySelector('p') : null;
     if (successText) {
@@ -1027,7 +1047,7 @@ if (result.success) {
             if (!confirmViewSwitch()) return;
             hideAllPanels();
             if (authToggleBar) authToggleBar.style.display = 'none';
-            if (forgotPasswordPanel) forgotPasswordPanel.style.display = 'block';
+            showPanel(forgotPasswordPanel);
         });
     }
 
@@ -1068,7 +1088,7 @@ if (result.success) {
                     });
 
                     hideAllPanels();
-                    if (forgotOtpPanel) forgotOtpPanel.style.display = 'block';
+                    showPanel(forgotOtpPanel);
 
                     clearOtpInputs('#forgotOtpPanel', 'showForgotOtp');
                     startOtpCountdown(
@@ -1164,7 +1184,7 @@ if (result.success) {
                     setOtpBoxesState('#forgotOtpPanel', true, false);
                     setTimeout(() => {
                         hideAllPanels();
-                        if (setNewPasswordPanel) setNewPasswordPanel.style.display = 'block';
+                        showPanel(setNewPasswordPanel);
                     }, 400);
                 } else {
                     setOtpBoxesState('#forgotOtpPanel', false, true);
@@ -1235,7 +1255,7 @@ if (result.success) {
 
                 if (result.success) {
                     hideAllPanels();
-                    if (forgotSuccessPanel) forgotSuccessPanel.style.display = 'block';
+                    showPanel(forgotSuccessPanel);
                 } else {
                     if (matchIndicator) matchIndicator.style.display = 'none';
                     showInlineError(confirmWrapper, result.message);

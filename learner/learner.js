@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionStorage.clear();
                 localStorage.clear();
 
-                window.location.replace('login.html');
+                window.location.replace('/login');
             }
 
         });
