@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CobraByte - Choose Your Learning Path</title>
+    <title>CobraByte - Coding Sandbox</title>
     <link rel="stylesheet" href="../static/style.css">
     <link rel="stylesheet" href="../static/animations.css">
+    <link rel="stylesheet" href="../learner/css/sandbox.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body data-auth-guard-mode="refresh">
@@ -13,12 +14,12 @@
     <!-- Logged In Header -->
     <header>
         <div class="logo-container">
-            <img src="../assets/images/logo-ad.png" alt="CobraByte Logo" class="logo-img">
+            <img src="../assets/images/Logo.png" alt="CobraByte Logo" class="logo-img">
         </div>
 
         <!-- Center Navigation -->
         <nav class="dashboard-nav">
-            <a href="/dashboard" class="dashboard-nav-link active">
+            <a href="/dashboard" class="dashboard-nav-link">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <rect x="3" y="3" width="7" height="7" rx="1"></rect>
                     <rect x="14" y="3" width="7" height="7" rx="1"></rect>
@@ -27,8 +28,13 @@
                 </svg>
                 Dashboard
             </a>
-            <a href="#" class="dashboard-nav-link">Lessons</a>
-            <a href="/sandbox" class="dashboard-nav-link">
+            <a href="#" class="dashboard-nav-link">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                </svg>
+                Lessons
+            </a>
+            <a href="/sandbox" class="dashboard-nav-link active">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <polyline points="16 18 22 12 16 6"></polyline>
                     <polyline points="8 6 2 12 8 18"></polyline>
@@ -42,7 +48,7 @@
             <button class="icon-btn" aria-label="Notifications" style="background: none; border: none; cursor: pointer; padding: 8px;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1-1.5-1s-1.5.17-1.5 1v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
             </button>
-            
+
             <!-- User Profile Icon -->
             <button class="icon-btn profile-btn" aria-label="User Profile" style="background: none; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
@@ -57,47 +63,84 @@
         </div>
     </header>
 
-    <!-- Main Dashboard Container Grid -->
-    <main class="dashboard-container">
-        <div class="dashboard-intro">
-            <div class="intro-title-col">
-                <h1>Choose your <span class="text-green">learning path</span></h1>
-            </div>
-            <div class="intro-desc-col">
-                <h3>LEARNING PATHS</h3>
-                <p>Whether you are starting from scratch or leveling up your skills, our structured paths guide you from the fundamentals to advanced Python concepts at your own pace.</p>
-            </div>
-        </div>
+    <!-- Sandbox Main Content -->
+    <main class="sandbox-container">
 
-        <div class="paths-grid">
-            <div class="path-card">
-                <div class="card-image-wrapper">
-                    <img src="../assets/images/image 1.png" alt="Python Lesson Workspace" class="card-banner">
+        <div class="sandbox-heading-row">
+            <div class="sandbox-heading-left">
+                <div class="sandbox-icon-badge">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="#ffffff">
+                        <polyline points="8 9 4 12 8 15"></polyline>
+                        <line x1="10" y1="18" x2="14" y2="6"></line>
+                    </svg>
                 </div>
-                <div class="card-body">
-                    <span class="badge badge-learn">Learn</span>
-                    <h2>Python Lesson</h2>
-                    <p>Start from zero and build real skills. Interactive tutorials covering variables, data types, loops, functions, and OOP — everything you need to become a confident Python programmer.</p>
-                    <a href="/sandbox" class="card-link">Start Learning 
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </a>
+                <div>
+                    <h1>Coding Sandbox</h1>
+                    <p>Write, run, and experiment with Python right in your browser.</p>
                 </div>
             </div>
 
-            <div class="path-card">
-                <div class="card-image-wrapper">
-                    <img src="../assets/images/image 2 (1).png" alt="Coding Workspace Laptop" class="card-banner">
-                </div>
-                <div class="card-body">
-                    <span class="badge badge-practice">Practice</span>
-                    <h2>Coding Sandbox</h2>
-                    <p>Write, run, and experiment with Python code directly in your browser. No setup, no installation — just open the sandbox and start coding instantly. Perfect for practicing what you learn.</p>
-                    <a href="/sandbox" class="card-link">Start Learning
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </a>
-                </div>
+            <div class="sandbox-actions">
+                <button id="saveCodeBtn" class="btn-sandbox btn-sandbox-outline">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                    Save Code
+                </button>
+                <button id="resetCodeBtn" class="btn-sandbox btn-sandbox-outline">
+                    Reset
+                </button>
+                <button id="runCodeBtn" class="btn-sandbox btn-sandbox-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    Run Code
+                </button>
             </div>
         </div>
+
+        <div class="sandbox-grid">
+
+            <!-- Code Editor Panel -->
+            <div class="code-panel">
+                <div class="panel-header">
+                    <div class="traffic-lights">
+                        <span class="dot dot-green"></span>
+                        <span class="dot dot-teal"></span>
+                        <span class="dot dot-blue"></span>
+                    </div>
+                    <span class="panel-filename">main.py</span>
+                    <span class="panel-meta" id="lineCountLabel">4 lines</span>
+                </div>
+                <textarea id="codeEditor" class="code-editor" spellcheck="false">print("Hello, CobraByte!")
+
+name = "Python"
+print("Let's learn", name)</textarea>
+            </div>
+
+            <!-- Console / Output Panel -->
+            <div class="output-panel">
+                <div class="panel-header">
+                    <span class="panel-title">CONSOLE / OUTPUT</span>
+                    <button id="clearOutputBtn" class="btn-clear">Clear</button>
+                </div>
+                <div class="output-body" id="outputBody">
+                    <p class="output-placeholder" id="outputPlaceholder">Click "Run Code" to see your program's output here.</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Saved Snippets -->
+        <div class="snippets-card">
+            <div class="snippets-header">
+                <h2>Your Saved Snippets</h2>
+                <span class="snippets-count" id="snippetsCount">0 saved</span>
+            </div>
+            <p class="snippets-empty" id="snippetsEmpty">No saved snippets yet. Write some code and click "Save Code".</p>
+            <ul class="snippets-list" id="snippetsList"></ul>
+        </div>
+
     </main>
 
     <!-- Logout Confirmation Modal Overlay -->
@@ -117,7 +160,8 @@
         </div>
     </div>
 
-    <!-- External Script Reference -->
+    <!-- External Script References -->
+    <script src="../learner/js/sandbox.js"></script>
     <script src="../learner/js/learner.js"></script>
     <script src="../static/auth-guard.js"></script>
     <script src="../static/page-transitions.js"></script>

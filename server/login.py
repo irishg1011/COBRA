@@ -6,6 +6,7 @@ Single Flask app serving:
   - The login/signup page at "/login"
   - All auth/API routes (signup, login, OTP, password reset, etc.)
   - The admin blueprint
+  - The learner blueprint (Dashboard, Sandbox, learner/ folder assets)
   - Shared static/assets folders
 
 Merged from what were previously two separate Flask apps (app.py +
@@ -26,6 +27,7 @@ import re
 from login_logs import log_login_attempt  # NEW: reusable login attempt logger
 from password_reset_logs import log_password_reset  # NEW: reusable password-reset activity logger
 from admin_routes import admin_bp  # NEW: import admin blueprint
+from learner_routes import learner_bp  # NEW: import learner blueprint
 from account_status import refresh_inactive_accounts, is_account_inactive  # NEW: shared, configurable Active/Inactive logic
 from session_tracker import create_session, end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
 from lockout_logs import log_lockout_event  # NEW: distinct-per-day lockout event logging
@@ -57,6 +59,11 @@ CORS(app, supports_credentials=True, origins=FRONTEND_ORIGINS)
 # Register the admin blueprint (only once, now that app.py's duplicate
 # registration no longer exists)
 app.register_blueprint(admin_bp, url_prefix='/admin')
+
+# NEW: Learner-side pages (Dashboard, Sandbox) and learner/ folder assets -
+# kept in their own blueprint (learner_routes.py) the same way admin
+# routes are kept separate in admin_routes.py.
+app.register_blueprint(learner_bp)
 
 # ============================================================
 # DATABASE CONFIG
@@ -760,12 +767,8 @@ def serve_login():
     """
     return render_template('login.html')
 
-# ============================================================
-# ROUTE: DASHBOARD PAGE
-# ============================================================
-@app.route("/dashboard")
-def dashboard():
-    return render_template('dashboard.html')
+# NOTE: /dashboard and /learner/<path:filename> moved to learner_routes.py
+# (registered above as learner_bp) - no longer defined here.
 
 # ============================================================
 # ROUTE: GLOBAL ASSETS HANDLER (Handles root and blueprint paths)
@@ -780,16 +783,5 @@ def serve_global_assets(filename):
 def serve_header():
     return render_template('header.html')
 
-@app.route('/learner/<path:filename>')
-def serve_learner_assets(filename):
-    """
-    Serves files from the /learner folder (e.g. learner.js) so
-    dashboard.html's relative <script src="../learner/learner.js">
-    resolves correctly instead of 404ing.
-    """
-    learner_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../learner'))
-    return send_from_directory(learner_dir, filename)
-
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-
