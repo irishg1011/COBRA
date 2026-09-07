@@ -28,6 +28,11 @@
         document.body.classList.remove('page-fade-in');
         document.body.classList.add('page-fade-out');
 
+        // Flag this as an intentional in-app navigation, not a real
+        // tab/browser close - auth-guard.js's pagehide handler checks
+        // this to avoid ending the session on every internal link click.
+        window.__cobrabyteInternalNav = true;
+
         setTimeout(() => {
             window.location.href = url.href;
         }, 200);
