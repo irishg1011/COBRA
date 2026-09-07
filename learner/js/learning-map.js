@@ -161,6 +161,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadMap();
 
+    // Subtle parallax: shifts the background image slightly as the page
+    // scrolls, giving the map a sense of depth without touching the art.
+    function updateParallax() {
+        const scrollY = window.scrollY;
+        mapCanvas.style.backgroundPositionY = `calc(50% + ${scrollY * 0.08}px)`;
+    }
+    window.addEventListener('scroll', updateParallax, { passive: true });
+    updateParallax();
+
     // Redraw connectors on window resize, since card positions shift.
     window.addEventListener('resize', () => {
         const nodes = mapChain.querySelectorAll('.map-node');
