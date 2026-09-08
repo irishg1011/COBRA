@@ -141,50 +141,50 @@
             const resourceId = archiveBtn.dataset.resourceId;
             if (!resourceId) return;
 
-            const confirmed = confirm(
-                "Are you sure you want to archive this resource? " +
-                "It will be removed from active use, but its content is preserved."
-            );
-            if (!confirmed) return;
+            const confirmMsg = "Are you sure you want to archive this resource? " +
+                "It will be removed from active use, but its content is preserved.";
+            const confirmTitle = "Archive Resource?";
 
-            const icon = archiveBtn.querySelector("i");
-            const originalClass = icon ? icon.className : "";
-            if (icon) icon.className = "fa-solid fa-spinner fa-spin";
-            archiveBtn.style.pointerEvents = "none";
+            showConfirmModal(confirmMsg, async () => {
+                const icon = archiveBtn.querySelector("i");
+                const originalClass = icon ? icon.className : "";
+                if (icon) icon.className = "fa-solid fa-spinner fa-spin";
+                archiveBtn.style.pointerEvents = "none";
 
-            try {
-                const response = await fetch(`/admin/learning-resources/${resourceId}/archive`, {
-                    method: "POST",
-                    credentials: "include",
-                });
-                const result = await response.json();
+                try {
+                    const response = await fetch(`/admin/learning-resources/${resourceId}/archive`, {
+                        method: "POST",
+                        credentials: "include",
+                    });
+                    const result = await response.json();
 
-                if (!result.success) {
-                    alert(result.message || "Could not archive this resource.");
+                    if (!result.success) {
+                        alert(result.message || "Could not archive this resource.");
+                        if (icon) icon.className = originalClass;
+                        archiveBtn.style.pointerEvents = "";
+                        return;
+                    }
+
+                    // Row no longer belongs in the active list - remove it
+                    // in place rather than a full page reload, same UX as
+                    // admin-manage-course.js's own archive-module flow.
+                    const row = archiveBtn.closest("tr");
+                    if (row) row.remove();
+
+                    if (!tableBody.querySelector("tr")) {
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="9" class="text-muted table-empty-message">
+                                    No resources found.
+                                </td>
+                            </tr>`;
+                    }
+                } catch (err) {
+                    alert("Could not reach the server. Please try again.");
                     if (icon) icon.className = originalClass;
                     archiveBtn.style.pointerEvents = "";
-                    return;
                 }
-
-                // Row no longer belongs in the active list - remove it
-                // in place rather than a full page reload, same UX as
-                // admin-manage-course.js's own archive-module flow.
-                const row = archiveBtn.closest("tr");
-                if (row) row.remove();
-
-                if (!tableBody.querySelector("tr")) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="9" class="text-muted table-empty-message">
-                                No resources found.
-                            </td>
-                        </tr>`;
-                }
-            } catch (err) {
-                alert("Could not reach the server. Please try again.");
-                if (icon) icon.className = originalClass;
-                archiveBtn.style.pointerEvents = "";
-            }
+            }, confirmTitle);
         });
     });
 })();

@@ -1,0 +1,89 @@
+<!-- admin/archived-resources-modal.html
+     Task #117: Dedicated Tabbed Archive Modal for Manage Learning Resources
+     Features 2 Tabs: Lesson Content & Video Tutorial -->
+<div id="archivedResourcesModal" class="custom-modal-overlay" style="display: none;">
+    <div class="custom-modal-dialog archive-modal-dialog">
+        <div class="custom-modal-header">
+            <h3>Archived Learning Resources</h3>
+            <button type="button" class="categories-close-btn" id="closeArchivedResourcesModal" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="custom-modal-body archive-modal-body">
+            <!-- 2 Tabs: Lesson Content & Video Tutorial -->
+            <div class="archive-toggle-group">
+                <button type="button" class="archive-toggle-btn active" id="toggleArchivedLessonContentBtn" data-tab="lesson_content">
+                    <i class="fa-solid fa-book-open"></i> Lesson Content
+                </button>
+                <button type="button" class="archive-toggle-btn" id="toggleArchivedVideoTutorialBtn" data-tab="video_tutorial">
+                    <i class="fa-solid fa-video"></i> Video Tutorial
+                </button>
+            </div>
+
+            <!-- Active Tab Search Bar -->
+            <div class="header-search search-override archive-search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="archivedResourceSearchInput" placeholder="Search archived lesson content...">
+            </div>
+
+            <!-- Tab 1: Lesson Content View -->
+            <div id="archivedLessonContentView" class="archive-tab-view">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Resource</th>
+                            <th>Category</th>
+                            <th>Module</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivedLessonContentTableBody">
+                        <tr>
+                            <td colspan="6" class="text-muted table-empty-message">Loading archived lesson content&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="table-pagination" id="archivedLessonContentPagination">
+                    <span id="archivedLessonContentShowingCount">Showing 0 of 0 Archived Resources</span>
+                    <span>
+                        <button id="archivedLessonContentPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                        <span id="archivedLessonContentPageLabel">1 of 1</span>
+                        <button id="archivedLessonContentNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Tab 2: Video Tutorial View -->
+            <div id="archivedVideoTutorialView" class="archive-tab-view" style="display: none;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Resource</th>
+                            <th>Category</th>
+                            <th>Module</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivedVideoTutorialTableBody">
+                        <tr>
+                            <td colspan="6" class="text-muted table-empty-message">Loading archived video tutorials&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="table-pagination" id="archivedVideoTutorialPagination">
+                    <span id="archivedVideoTutorialShowingCount">Showing 0 of 0 Archived Resources</span>
+                    <span>
+                        <button id="archivedVideoTutorialPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                        <span id="archivedVideoTutorialPageLabel">1 of 1</span>
+                        <button id="archivedVideoTutorialNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

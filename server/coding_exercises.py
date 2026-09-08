@@ -17,6 +17,7 @@ LA_STATS_TABLE = "learning_activities_stats_tbl"
 PROFILE_TABLE = "profile_tbl"
 CATEGORY_TABLE = "category_tbl"
 MODULES_TABLE = "modules_tbl"
+MODULE_STATS_TABLE = "module_stats_tbl"
 
 DEFAULT_EXERCISE_STATUSES = ["Draft", "Published", "Archived"]
 _stats_ensured = False
@@ -219,6 +220,7 @@ def get_coding_exercises_overview(search_query=None, stats_filter=None, page=1, 
             FROM {CODING_EXERCISES_TABLE} ce
             LEFT JOIN {LEARNING_RESOURCES_TABLE} lr ON ce.resource_id = lr.resource_id
             LEFT JOIN {MODULES_TABLE} m ON lr.module_id = m.module_id
+            LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
             LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
             LEFT JOIN {LA_STATS_TABLE} stats ON ce.exercise_stats_id = stats.la_stats_id
             LEFT JOIN {PROFILE_TABLE} p ON ce.uploaded_by = p.acc_id
@@ -298,6 +300,7 @@ def get_coding_exercises_overview(search_query=None, stats_filter=None, page=1, 
                 lr.resource_title AS lesson_title,
                 m.module_id,
                 m.module_name,
+                ms.module_stats_name,
                 c.cat_id,
                 c.category_name,
                 stats.la_stats_name AS stats_name,
@@ -326,6 +329,7 @@ def get_coding_exercises_overview(search_query=None, stats_filter=None, page=1, 
                 "module_id": r.get("module_id"),
                 "module": r.get("module_name") or "—",
                 "module_name": r.get("module_name") or "—",
+                "module_status": r.get("module_stats_name") or "Draft",
                 "cat_id": r.get("cat_id"),
                 "category": r.get("category_name") or "—",
                 "category_name": r.get("category_name") or "—",

@@ -73,6 +73,55 @@
         return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
     }
 
+    const confirmActionModal = document.getElementById("confirmActionModal");
+    const confirmActionTitle = document.getElementById("confirmActionTitle");
+    const confirmActionText = document.getElementById("confirmActionText");
+    const confirmActionCancelBtn = document.getElementById("confirmActionCancelBtn");
+    const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
+
+    let pendingConfirmAction = null;
+
+    function showConfirmModal(message, onConfirm, title) {
+        if (!confirmActionModal) {
+            if (window.confirm(message)) onConfirm();
+            return;
+        }
+        pendingConfirmAction = onConfirm;
+        if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
+        if (confirmActionText) confirmActionText.textContent = message;
+        confirmActionModal.classList.remove("modal-hidden");
+        confirmActionModal.style.display = "flex";
+    }
+
+    function closeConfirmModal() {
+        if (confirmActionModal) {
+            confirmActionModal.classList.add("modal-hidden");
+            confirmActionModal.style.display = "none";
+        }
+        pendingConfirmAction = null;
+    }
+
+    if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
+    if (confirmActionModal) {
+        confirmActionModal.addEventListener("click", (e) => {
+            if (e.target === confirmActionModal) closeConfirmModal();
+        });
+    }
+    if (confirmActionConfirmBtn) {
+        confirmActionConfirmBtn.addEventListener("click", () => {
+            const action = pendingConfirmAction;
+            closeConfirmModal();
+            if (typeof action === "function") action();
+        });
+    }
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && confirmActionModal && !confirmActionModal.classList.contains("modal-hidden") && confirmActionModal.style.display !== "none") {
+            closeConfirmModal();
+        }
+    });
+
+
     function publishButtonHtml(moduleId, status) {
         const isPublished = status === "Published";
         const label = isPublished ? "Unpublish" : "Publish";
@@ -309,18 +358,19 @@
                 if (delBtn) {
                     e.preventDefault();
                     const id = delBtn.dataset.id;
-                    if (!confirm("Are you sure you want to archive this module?")) return;
-                    const resp = await fetch(`/admin/manage-course/modules/${id}/delete`, {
-                        method: "POST", credentials: "include"
-                    });
-                    const result = await resp.json();
-                    if (!result.success) {
-                        alert(result.message);
-                    } else {
-                        alert("Module archived successfully.");
-                    }
-                    loadModules();
-                    refreshCategoriesModal();
+                    showConfirmModal("Are you sure you want to archive this module?", async () => {
+                        const resp = await fetch(`/admin/manage-course/modules/${id}/delete`, {
+                            method: "POST", credentials: "include"
+                        });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            alert(result.message);
+                        } else {
+                            alert("Module archived successfully.");
+                        }
+                        loadModules();
+                        refreshCategoriesModal();
+                    }, "Archive Module?");
                     return;
                 }
 
@@ -333,48 +383,49 @@
                     const promptMsg = isPublished
                         ? "Are you sure you want to unpublish this module? It will be moved back to Draft and hidden from learners."
                         : "Are you sure you want to publish this module? It will become visible to learners.";
+                    const promptTitle = isPublished ? "Unpublish Module?" : "Publish Module?";
 
-                    if (!confirm(promptMsg)) return;
+                    showConfirmModal(promptMsg, async () => {
+                        togglePublishBtn.disabled = true;
+                        const originalText = togglePublishBtn.textContent;
+                        togglePublishBtn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
 
-                    togglePublishBtn.disabled = true;
-                    const originalText = togglePublishBtn.textContent;
-                    togglePublishBtn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+                        try {
+                            const endpoint = isPublished
+                                ? `/admin/manage-course/modules/${id}/unpublish`
+                                : `/admin/manage-course/modules/${id}/publish`;
 
-                    try {
-                        const endpoint = isPublished
-                            ? `/admin/manage-course/modules/${id}/unpublish`
-                            : `/admin/manage-course/modules/${id}/publish`;
+                            const resp = await fetch(endpoint, { method: "POST", credentials: "include" });
+                            const result = await resp.json();
 
-                        const resp = await fetch(endpoint, { method: "POST", credentials: "include" });
-                        const result = await resp.json();
+                            if (!result.success) {
+                                alert(result.message || "Could not update module status.");
+                                togglePublishBtn.disabled = false;
+                                togglePublishBtn.textContent = originalText;
+                                return;
+                            }
 
-                        if (!result.success) {
-                            alert(result.message || "Could not update module status.");
+                            const newStatus = isPublished ? "Draft" : "Published";
+                            togglePublishBtn.dataset.status = newStatus;
+                            togglePublishBtn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
+                            togglePublishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom");
+                            togglePublishBtn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                            togglePublishBtn.disabled = false;
+
+                            const row = togglePublishBtn.closest("tr");
+                            const statusCell = row ? row.querySelector(".js-status-cell") : null;
+                            if (statusCell) {
+                                statusCell.innerHTML = statusBadgeHtml(newStatus);
+                            }
+
+                            refreshCategoriesModal();
+                            showChangesSavedToast("Changes Saved");
+                        } catch (err) {
+                            alert("Could not reach the server. Please try again.");
                             togglePublishBtn.disabled = false;
                             togglePublishBtn.textContent = originalText;
-                            return;
                         }
-
-                        const newStatus = isPublished ? "Draft" : "Published";
-                        togglePublishBtn.dataset.status = newStatus;
-                        togglePublishBtn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
-                        togglePublishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom");
-                        togglePublishBtn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
-                        togglePublishBtn.disabled = false;
-
-                        const row = togglePublishBtn.closest("tr");
-                        const statusCell = row ? row.querySelector(".js-status-cell") : null;
-                        if (statusCell) {
-                            statusCell.innerHTML = statusBadgeHtml(newStatus);
-                        }
-
-                        refreshCategoriesModal();
-                        showChangesSavedToast("Changes Saved");
-                    } catch (err) {
-                        alert("Could not reach the server. Please try again.");
-                        togglePublishBtn.disabled = false;
-                        togglePublishBtn.textContent = originalText;
-                    }
+                    }, promptTitle);
                     return;
                 }
             });
@@ -677,22 +728,23 @@
             });
 
             categoriesListView.querySelectorAll(".js-delete-category").forEach(icon => {
-                icon.addEventListener("click", async (e) => {
+                icon.addEventListener("click", (e) => {
                     e.stopPropagation();
                     const item = icon.closest(".category-accordion-item");
                     const catId = item.dataset.catId;
-                    if (!confirm("Are you sure you want to archive this category?")) return;
-                    const resp = await fetch(`/admin/manage-course/categories/${catId}/archive`, {
-                        method: "POST", credentials: "include"
-                    });
-                    const result = await resp.json();
-                    if (!result.success) {
-                        alert(result.message);
-                    } else {
-                        alert("Category archived successfully.");
-                    }
-                    refreshCategoriesModal();
-                    loadModules();
+                    showConfirmModal("Are you sure you want to archive this category?", async () => {
+                        const resp = await fetch(`/admin/manage-course/categories/${catId}/archive`, {
+                            method: "POST", credentials: "include"
+                        });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            alert(result.message);
+                        } else {
+                            alert("Category archived successfully.");
+                        }
+                        refreshCategoriesModal();
+                        loadModules();
+                    }, "Archive Category?");
                 });
             });
 

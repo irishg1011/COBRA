@@ -73,6 +73,7 @@ LA_STATS_TABLE = "learning_activities_stats_tbl"
 PROFILE_TABLE = "profile_tbl"
 CATEGORY_TABLE = "category_tbl"
 MODULES_TABLE = "modules_tbl"
+MODULE_STATS_TABLE = "module_stats_tbl"
 ACTIVITY_TYPES_TABLE = "activity_types_tbl"
 
 # Task requirement: these statuses must exist in learning_activities_stats_tbl.
@@ -274,6 +275,7 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
             LEFT JOIN {PROFILE_TABLE} p ON la.uploaded_by = p.acc_id
             LEFT JOIN {CATEGORY_TABLE} c ON la.cat_id = c.cat_id
             LEFT JOIN {MODULES_TABLE} m ON la.module_id = m.module_id
+            LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
             LEFT JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
             WHERE (last.la_stats_name IS NULL OR last.la_stats_name != 'Archived')
               AND (c.cat_id IS NULL OR COALESCE(c.is_archived, 0) = 0)
@@ -344,6 +346,7 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
                 la.la_stats_id, last.la_stats_name,
                 la.uploaded_by, p.firstname, p.lastname,
                 c.category_name, m.module_name, atp.activity_type_name,
+                ms.module_stats_name,
                 la.created_at, la.updated_at
             {base_query}
             ORDER BY {order_clause}
@@ -366,6 +369,7 @@ def get_learning_activities_overview(search_query=None, type_filter=None, page=1
                 "activity_name": row["activity_title"],
                 "lesson_name": row.get("resource_title") or "—",
                 "status": row.get("la_stats_name") or "Draft",
+                "module_status": row.get("module_stats_name") or "Draft",
                 "uploaded_by": uploaded_by_display,
                 "category": row.get("category_name") or "Uncategorized",
                 "module": row.get("module_name") or "—",

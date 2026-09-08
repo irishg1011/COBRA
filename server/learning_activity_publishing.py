@@ -110,12 +110,24 @@ def publish_activity(activity_id):
         cursor = connection.cursor()
 
         cursor.execute(
-            f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
+            f"""
+            SELECT la.la_id, la.module_id, ms.module_stats_name
+            FROM {LEARNING_ACTIVITIES_TABLE} la
+            LEFT JOIN modules_tbl m ON la.module_id = m.module_id
+            LEFT JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+            WHERE la.la_id = %s
+            """,
             (activity_id,)
         )
-        if cursor.fetchone() is None:
+        row = cursor.fetchone()
+        if row is None:
             cursor.close()
             return False, "Learning activity not found."
+
+        module_status = row[2] or "Draft"
+        if module_status != "Published":
+            cursor.close()
+            return False, f"Cannot publish this activity - its parent module is still in {module_status} status. Publish the parent module first."
 
         published_id = get_published_status_id(connection)
         if not published_id:
@@ -201,3 +213,59 @@ def unpublish_activity(activity_id):
     finally:
         if connection.is_connected():
             connection.close()
+
+
+def get_archived_status_id(connection):
+    """
+    Returns the la_stats_id for "Archived". Seeds
+    learning_activities_stats_tbl first.
+    """
+    ensure_la_stats(connection)
+    return _get_status_id(connection, "Archived")
+
+
+def archive_activity(activity_id):
+    """
+    Archives a learning activity by setting its la_stats_id to Archived.
+    """
+    if not activity_id:
+        return False, "Activity ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_la_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
+            (activity_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Learning activity not found."
+
+        archived_id = get_archived_status_id(connection)
+        if not archived_id:
+            cursor.close()
+            return False, "Could not resolve the Archived status."
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_ACTIVITIES_TABLE}
+                SET la_stats_id = %s, updated_at = NOW()
+                WHERE la_id = %s""",
+            (archived_id, activity_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Learning activity archived successfully."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"learning_activity_publishing: failed to archive activity {activity_id}: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
