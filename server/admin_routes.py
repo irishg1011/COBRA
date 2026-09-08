@@ -46,7 +46,7 @@ from learning_activity_draft import save_activity_draft, get_activity_draft  # N
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
     parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
 )
-from learning_activity_publishing import publish_activity, unpublish_activity, archive_activity  # NEW - Task #57, #107, Task #117
+from learning_activity_publishing import publish_activity, unpublish_activity  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
@@ -61,21 +61,6 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     save_coding_exercise, parse_test_cases_from_form,
 )
 from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise  # Task #111 & #112
-
-from relational_archive import (  # NEW - Task #116: relational archive restrictions,
-    check_category_archive_eligibility, cascade_archive_category,   # cascading archive, and
-    check_module_archive_eligibility, cascade_archive_module,       # checkbox-controlled cascading restore
-    check_resource_archive_eligibility, cascade_archive_resource,
-    get_archived_descendants_for_restore,
-    restore_category_with_selection, restore_module_with_selection,
-)
-from archived_items import (  # NEW - Task #117: Dedicated Tabbed Archive Modals & CRUD
-    get_archived_resources, restore_learning_resource, permanently_delete_learning_resource,
-    get_archived_activities, restore_learning_activity, permanently_delete_learning_activity,
-    get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,
-)
-
-
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1439,17 +1424,7 @@ def manage_course_update_category(cat_id):
  
 @admin_bp.route('/manage-course/categories/<int:cat_id>/delete', methods=['POST'])
 def manage_course_delete_category(cat_id):
-    # Task #116: block if any connected descendant is still Published,
-    # otherwise cascade-archive every DRAFT descendant along with the
-    # category itself.
-    eligible, blockers, _tree = check_category_archive_eligibility(cat_id)
-    if not eligible:
-        return jsonify({
-            "success": False,
-            "message": "Cannot archive this category - connected item(s) are still Published: " + "; ".join(blockers),
-            "blockers": blockers,
-        }), 400
-    success, message = cascade_archive_category(cat_id)
+    success, message = delete_category(cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
  
  
@@ -1475,16 +1450,16 @@ def manage_course_update_module(module_id):
  
 @admin_bp.route('/manage-course/modules/<int:module_id>/delete', methods=['POST'])
 def manage_course_delete_module(module_id):
-    # Task #116: same published-dependency gate + cascading archive,
-    # one level down from Category.
-    eligible, blockers, _tree = check_module_archive_eligibility(module_id)
-    if not eligible:
-        return jsonify({
-            "success": False,
-            "message": "Cannot archive this module - connected item(s) are still Published: " + "; ".join(blockers),
-            "blockers": blockers,
-        }), 400
-    success, message = cascade_archive_module(module_id)
+    """
+    Task #27: this used to permanently DELETE the module row
+    (delete_module()). It now performs a soft delete/archive instead
+    (archive_module()) - the route/endpoint URL is left unchanged
+    (still "/delete") on purpose, since admin-manage-course.js's
+    existing Delete/trash icon already points here and the request/
+    response shape is identical; only the underlying database operation
+    changed from DELETE to UPDATE ... SET is_archived = 1.
+    """
+    success, message = archive_module(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -1559,54 +1534,6 @@ def manage_course_archive_category(cat_id):
     success, message = archive_category(cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
-# ============================================================
-# ROUTE: TASK #116 - CHECKBOX-CONTROLLED CASCADING RESTORE
-# ============================================================
-@admin_bp.route('/manage-course/categories/<int:cat_id>/restore-options')
-def manage_course_category_restore_options(cat_id):
-    """Lists every archived descendant of this category, grouped by type,
-    for the checkbox restore modal."""
-    data = get_archived_descendants_for_restore("category", cat_id)
-    if data is None:
-        return jsonify({"success": False, "message": "Could not reach the database."}), 500
-    return jsonify({"success": True, **data}), 200
-
-
-@admin_bp.route('/manage-course/categories/<int:cat_id>/restore-selected', methods=['POST'])
-def manage_course_category_restore_selected(cat_id):
-    """Restores the category plus only the checked child items (Draft)."""
-    data = request.get_json(silent=True) or {}
-    success, message = restore_category_with_selection(
-        cat_id,
-        module_ids=data.get('module_ids') or [],
-        resource_ids=data.get('resource_ids') or [],
-        activity_ids=data.get('activity_ids') or [],
-        exercise_ids=data.get('exercise_ids') or [],
-    )
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
-
-
-@admin_bp.route('/manage-course/modules/<int:module_id>/restore-options')
-def manage_course_module_restore_options(module_id):
-    """Lists every archived descendant of this module, grouped by type,
-    for the checkbox restore modal."""
-    data = get_archived_descendants_for_restore("module", module_id)
-    if data is None:
-        return jsonify({"success": False, "message": "Could not reach the database."}), 500
-    return jsonify({"success": True, **data}), 200
-
-
-@admin_bp.route('/manage-course/modules/<int:module_id>/restore-selected', methods=['POST'])
-def manage_course_module_restore_selected(module_id):
-    """Restores the module plus only the checked child items (Draft)."""
-    data = request.get_json(silent=True) or {}
-    success, message = restore_module_with_selection(
-        module_id,
-        resource_ids=data.get('resource_ids') or [],
-        activity_ids=data.get('activity_ids') or [],
-        exercise_ids=data.get('exercise_ids') or [],
-    )
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 @admin_bp.route('/manage-course/categories/<int:cat_id>/restore', methods=['POST'])
 def manage_course_restore_category(cat_id):
@@ -1783,16 +1710,16 @@ def unpublish_learning_resource(resource_id):
 # ============================================================
 @admin_bp.route('/learning-resources/<int:resource_id>/archive', methods=['POST'])
 def archive_learning_resource(resource_id):
-    # Task #116: same published-dependency gate + cascading archive,
-    # scoped to the resource's own activities/exercises.
-    eligible, blockers, _tree = check_resource_archive_eligibility(resource_id)
-    if not eligible:
-        return jsonify({
-            "success": False,
-            "message": "Cannot archive this resource - connected item(s) are still Published: " + "; ".join(blockers),
-            "blockers": blockers,
-        }), 400
-    success, message = cascade_archive_resource(resource_id)
+    """
+    Task #81: Manage Learning Resources table's ACTIONS -> Archive
+    control. Thin HTTP wrapper only, matching this project's existing
+    convention (see publish_learning_resource() /
+    unpublish_learning_resource() above) - all real logic lives in
+    resource_publishing.archive_resource().
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    success, message = archive_resource(resource_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -1927,15 +1854,6 @@ def unpublish_learning_activity(activity_id):
     Returns JSON: { "success": bool, "message": str }
     """
     success, message = unpublish_activity(activity_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
-
-
-@admin_bp.route('/learning-activities/<int:activity_id>/archive', methods=['POST'])
-def archive_learning_activity_route(activity_id):
-    """
-    Archives a learning activity by setting its status to Archived.
-    """
-    success, message = archive_activity(activity_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -2122,6 +2040,21 @@ def achievements():
 @admin_bp.route('/reports')
 def reports():
     return render_placeholder("Reports")
+
+@admin_bp.route('/upload-video-tutorial')
+def upload_video_tutorial():
+    """
+    Front-end only for now: renders the standalone Upload Video Tutorial
+    page. No save/publish logic is wired up yet - Category options are
+    real (get_categories(), same as upload_resource()), but the
+    Module/Lesson dropdowns and the actual file/description save are
+    still placeholders.
+    """
+    return render_template(
+        'upload-video-tutorial.html',
+        categories=get_categories(),
+    )
+
 
 @admin_bp.route('/upload-resource', methods=['GET', 'POST'])
 def upload_resource():
@@ -2783,154 +2716,3 @@ def save_coding_exercise_draft():
                 "message": msg
             }), 400
         return redirect(url_for('admin_bp.create_coding_exercise'))
-    # ============================================================
-# ROUTE: TASK #116 - ARCHIVE ELIGIBILITY CHECKS (published-dependency gate)
-# ============================================================
-@admin_bp.route('/manage-course/categories/<int:cat_id>/archive-check')
-def manage_course_category_archive_check(cat_id):
-    eligible, blockers, _tree = check_category_archive_eligibility(cat_id)
-    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
-
-
-@admin_bp.route('/manage-course/modules/<int:module_id>/archive-check')
-def manage_course_module_archive_check(module_id):
-    eligible, blockers, _tree = check_module_archive_eligibility(module_id)
-    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
-
-
-@admin_bp.route('/learning-resources/<int:resource_id>/archive-check')
-def learning_resource_archive_check(resource_id):
-    eligible, blockers, _tree = check_resource_archive_eligibility(resource_id)
-    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
-
-
-# ============================================================
-# ROUTE: TASK #117 - DEDICATED ARCHIVE MODAL ENDPOINTS
-# ============================================================
-
-# 1. LEARNING RESOURCES ARCHIVE ROUTES
-@admin_bp.route('/learning-resources/archived')
-def learning_resources_archived_data():
-    """
-    Task #117: Returns paginated archived learning resources, optionally
-    filtered by type (Lesson Content / Video Tutorial) and search query q.
-    """
-    resource_type = request.args.get('type', '')
-    search = request.args.get('q', '')
-    page = request.args.get('page', 1, type=int)
-
-    result = get_archived_resources(resource_type=resource_type, search_query=search, page=page)
-    if result is None:
-        return jsonify({"success": False, "message": "Could not load archived resources."}), 500
-
-    return jsonify({
-        "success": True,
-        "resources": result["resources"],
-        "total": result["total"],
-        "page": result["page"],
-        "per_page": result["per_page"],
-        "total_pages": result["total_pages"],
-    }), 200
-
-
-@admin_bp.route('/learning-resources/<int:resource_id>/restore', methods=['POST'])
-def learning_resources_restore(resource_id):
-    """
-    Task #117: Restores an archived learning resource back to Draft status.
-    """
-    success, message = restore_learning_resource(resource_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
-
-
-@admin_bp.route('/learning-resources/<int:resource_id>/permanent-delete', methods=['POST'])
-def learning_resources_permanent_delete(resource_id):
-    """
-    Task #117: Permanently deletes an archived learning resource from the database.
-    """
-    success, message = permanently_delete_learning_resource(resource_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
-
-
-# 2. LEARNING ACTIVITIES ARCHIVE ROUTES
-@admin_bp.route('/learning-activities/archived')
-def learning_activities_archived_data():
-    """
-    Task #117: Returns paginated archived learning activities, optionally
-    filtered by activity type (Multiple Choice / Fill in the Blanks / Flashcards)
-    and search query q.
-    """
-    activity_type = request.args.get('type', '')
-    search = request.args.get('q', '')
-    page = request.args.get('page', 1, type=int)
-
-    result = get_archived_activities(activity_type=activity_type, search_query=search, page=page)
-    if result is None:
-        return jsonify({"success": False, "message": "Could not load archived activities."}), 500
-
-    return jsonify({
-        "success": True,
-        "activities": result["activities"],
-        "total": result["total"],
-        "page": result["page"],
-        "per_page": result["per_page"],
-        "total_pages": result["total_pages"],
-    }), 200
-
-
-@admin_bp.route('/learning-activities/<int:activity_id>/restore', methods=['POST'])
-def learning_activities_restore(activity_id):
-    """
-    Task #117: Restores an archived learning activity back to Draft status.
-    """
-    success, message = restore_learning_activity(activity_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
-
-
-@admin_bp.route('/learning-activities/<int:activity_id>/permanent-delete', methods=['POST'])
-def learning_activities_permanent_delete(activity_id):
-    """
-    Task #117: Permanently deletes an archived learning activity from the database.
-    """
-    success, message = permanently_delete_learning_activity(activity_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
-
-
-# 3. CODING EXERCISES ARCHIVE ROUTES
-@admin_bp.route('/coding-exercises/archived')
-def coding_exercises_archived_data():
-    """
-    Task #117: Returns paginated archived coding exercises with search query q.
-    """
-    search = request.args.get('q', '')
-    page = request.args.get('page', 1, type=int)
-
-    result = get_archived_exercises(search_query=search, page=page)
-    if result is None:
-        return jsonify({"success": False, "message": "Could not load archived exercises."}), 500
-
-    return jsonify({
-        "success": True,
-        "exercises": result["exercises"],
-        "total": result["total"],
-        "page": result["page"],
-        "per_page": result["per_page"],
-        "total_pages": result["total_pages"],
-    }), 200
-
-
-@admin_bp.route('/coding-exercises/<int:exercise_id>/restore', methods=['POST'])
-def coding_exercises_restore(exercise_id):
-    """
-    Task #117: Restores an archived coding exercise back to Draft status.
-    """
-    success, message = restore_coding_exercise(exercise_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
-
-
-@admin_bp.route('/coding-exercises/<int:exercise_id>/permanent-delete', methods=['POST'])
-def coding_exercises_permanent_delete(exercise_id):
-    """
-    Task #117: Permanently deletes an archived coding exercise from the database.
-    """
-    success, message = permanently_delete_coding_exercise(exercise_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
