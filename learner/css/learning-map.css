@@ -1,0 +1,293 @@
+/* ==========================================================================
+   LEARNING MAP PAGE STYLES
+   ========================================================================== */
+
+.map-page {
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 40px 100px;
+}
+
+.map-title-row {
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+.map-title-row h1 {
+    font-size: 36px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 6px 0;
+}
+
+.map-title-row p {
+    font-size: 16px;
+    color: #64748b;
+    margin: 0;
+}
+
+/* --- Map Canvas: the illustrated background the chapter nodes sit on --- */
+.map-canvas {
+    position: relative;
+    min-height: 900px;
+    border-radius: 20px;
+    overflow: hidden;
+    background-image: url('../../assets/images/learning-map-bg.png');
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    padding: 60px 40px;
+}
+
+.map-loading,
+.map-error {
+    text-align: center;
+    font-size: 14px;
+    color: #64748b;
+    padding-top: 40px;
+}
+
+.map-error {
+    color: #e02424;
+}
+
+/* --- Chain of chapter nodes, alternating left/right down the page --- */
+.map-chain {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 90px;
+}
+
+.map-node-row {
+    position: relative;
+    display: flex;
+    width: 100%;
+    z-index: 3;
+}
+
+.map-node-row.align-left {
+    justify-content: flex-start;
+    padding-left: 15%;
+}
+
+.map-node-row.align-right {
+    justify-content: flex-end;
+    padding-right: 15%;
+}
+
+/* Curved connector lines are now drawn as an SVG by learning-map.js,
+   positioned to actually match each card's real location - this class
+   only styles the lock/check badge sitting at the curve's midpoint. */
+.map-connector-lock {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    margin-left: -16px;
+    margin-top: -16px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 3px solid #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.25);
+}
+
+.map-connector-lock svg {
+    width: 16px;
+    height: 16px;
+    color: #334155;
+    stroke-width: 2.5;
+}
+
+/* --- Chapter Node Card --- */
+.map-node {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px 22px;
+    min-width: 300px;
+    max-width: 340px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+    border: 2px solid #e2e8f0;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.map-node.status-completed {
+    border-color: #0ED400;
+}
+
+.map-node.status-in_progress {
+    border-color: #F97316;
+}
+
+.map-node.status-locked {
+    opacity: 0.95;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+}
+
+.map-node.node-clickable {
+    cursor: pointer;
+}
+
+.map-node.node-clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+}
+
+.map-node-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-node-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.map-node.status-completed .map-node-icon {
+    background: #0ED400;
+}
+.map-node.status-completed .map-node-icon svg {
+    color: #ffffff;
+}
+
+.map-node.status-in_progress .map-node-icon {
+    background: #F97316;
+}
+.map-node.status-in_progress .map-node-icon svg {
+    color: #ffffff;
+}
+
+.map-node.status-not_started .map-node-icon {
+    background: #e0f2fe;
+}
+.map-node.status-not_started .map-node-icon svg {
+    color: #0284c7;
+}
+
+.map-node.status-locked .map-node-icon {
+    background: #cbd5e1;
+}
+.map-node.status-locked .map-node-icon svg {
+    color: #475569;
+    stroke-width: 2.4;
+}
+
+.map-node-text .chapter-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0 0 2px 0;
+}
+
+.map-node-text h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 2px 0;
+}
+
+.map-node-text .chapter-meta {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+}
+
+.map-node.status-locked .chapter-meta {
+    color: #64748b;
+    font-weight: 600;
+}
+
+/* --- Responsive --- */
+@media (max-width: 760px) {
+    .map-canvas {
+        padding: 30px 16px;
+    }
+    .map-node-row.align-left,
+    .map-node-row.align-right {
+        justify-content: center;
+    }
+    .map-node {
+        min-width: unset;
+        width: 100%;
+        max-width: 340px;
+    }
+}
+
+.map-clouds {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.map-cloud {
+    position: absolute;
+    background: #ffffff;
+    border-radius: 50px;
+    opacity: 0.55;
+    filter: blur(1px);
+    animation-name: cloudDrift;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+
+.map-cloud::before,
+.map-cloud::after {
+    content: "";
+    position: absolute;
+    background: #ffffff;
+    border-radius: 50%;
+}
+
+.map-cloud::before {
+    width: 60%;
+    height: 140%;
+    top: -70%;
+    left: 12%;
+}
+
+.map-cloud::after {
+    width: 45%;
+    height: 110%;
+    top: -50%;
+    left: 55%;
+}
+
+@keyframes cloudDrift {
+    from { transform: translateX(0); }
+    to { transform: translateX(2000px); }
+}
+
+.map-shimmer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(120deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
+    background-size: 250% 250%;
+    mix-blend-mode: overlay;
+    animation: shimmerSweep 7s ease-in-out infinite;
+}
+
+@keyframes shimmerSweep {
+    0% { background-position: 0% 0%; }
+    50% { background-position: 100% 100%; }
+    100% { background-position: 0% 0%; }
+}
+

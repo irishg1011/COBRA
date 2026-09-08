@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CobraByte - Login</title>
     <link rel="stylesheet" href="../static/style.css">
+    <link rel="stylesheet" href="../static/animations.css">
 </head>
 <body>
 
@@ -29,6 +30,7 @@
             <div class="auth-card">
                 <!-- Toggle Slider Buttons -->
                 <div class="auth-toggle">
+                    <div class="toggle-slider" id="toggleSlider"></div>
                     <button type="button" class="toggle-btn active" id="switchToSignIn">Sign In</button>
                     <button type="button" class="toggle-btn" id="switchToSignUp">Sign Up</button>
                 </div>
@@ -359,10 +361,19 @@
                         <button type="button" class="btn-login btn-success-nav" id="btnBackToSignIn">Back to Sign In</button>
                     </div>
                 </div>
+
+                <!-- Back to Home Link -->
+                <div class="back-home-wrapper">
+                    <a href="/" class="back-home-link">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        Back to home
+                    </a>
+                </div>
             </div>
         </section>
     </main>
 
     <script src="../static/script.js"></script>
+    <script src="../static/page-transitions.js"></script>
 </body>
 </html>

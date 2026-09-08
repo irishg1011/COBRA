@@ -6,11 +6,11 @@
 }
 
 body {
-    background-image: url('/assets/images/landingpage.jpg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-image: radial-gradient(ellipse at center, transparent 60%, rgba(15, 23, 42, 0.08) 100%), url('/assets/images/landingpage.jpg');
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+    background-attachment: fixed, fixed;
     color: #0f172a;
     min-height: 100vh;
     overflow-x: hidden;
@@ -323,21 +323,6 @@ body {
     .features-grid {
         grid-template-columns: 1fr;
     }
-}
-
-/* ==========================================
-   Background Flow Effect for Features Section
-   ========================================== */
-
-.features-section {
-    position: relative;
-    padding: 90px 5%;
-    background-color: transparent;
-    /* This layers a subtle duplicate of your background gradient/blob flowing downwards */
-    background-image: radial-gradient(circle at 80% 20%, rgba(70, 217, 125, 0.08) 0%, transparent 40%),
-                      radial-gradient(circle at 20% 80%, rgba(24, 184, 230, 0.08) 0%, transparent 40%);
-    background-repeat: no-repeat;
-    background-size: cover;
 }
 
 /* ==========================================

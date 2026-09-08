@@ -54,7 +54,7 @@
     // ------------------------------------------------------------
     // CONFIG - adjust these constants per deployment if needed
     // ------------------------------------------------------------
-    const LANDING_PAGE_URL = "login.html"; // CobraByte's login/landing route (see login.py: @app.route("/"))
+    const LANDING_PAGE_URL = "/login"; // CobraByte's login/landing route (see login.py: @app.route("/"))
     const AUTH_FLAG_KEY = "isAuthenticated";
 
     // Back-button behavior is per-page, controlled by a data attribute on
@@ -216,10 +216,12 @@
     // catches it eventually. Guarded by isAuthenticated() so this never
     // fires for someone who was never logged in to begin with (e.g. a
     // page load that immediately redirects to the landing page above).
-    window.addEventListener("pagehide", function () {
-        if (!isAuthenticated()) return;
-        if (navigator.sendBeacon) {
-            navigator.sendBeacon("http://127.0.0.1:5000/session/end");
-        }
-    });
+    // NOTE: The pagehide-based beacon was removed entirely. It's
+    // impossible to reliably tell "tab actually closing" apart from
+    // "page refreshing" or "browser back/forward" using pagehide alone -
+    // all of these fire the same event, and each one was deleting the
+    // active_sessions_tbl row, breaking any page (like Learning Map)
+    // that depends on the session still being valid. Session cleanup
+    // now relies on the explicit Logout button and session_tracker.py's
+    // inactivity sweep instead.
 })();
