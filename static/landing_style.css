@@ -1,0 +1,1681 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+    background-image: url('/assets/images/landingpage.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    color: #0f172a;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.navbar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    background-color: rgba(235, 243, 250, 0.85); /* Matches your soft light-blue theme */
+    backdrop-filter: blur(10px); /* Smooth frosted glass effect when scrolling over text */
+    padding: 16px 5%;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.nav-container {
+    position: relative;
+    width: 100%;
+    max-width: 1350px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo img {
+    height: 70px;
+    width: auto;
+    object-fit: contain;
+}
+
+.logo-text {
+    font-size: 26px;
+    font-weight: 800;
+    color: #1e293b;
+    letter-spacing: -0.5px;
+}
+
+.nav-links {
+    display: flex;
+    gap: 36px;
+    align-items: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #334155;
+    font-size: 17px;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.nav-links a:hover, 
+.nav-links a.active {
+    color: #10b981; /* Brand green or your choice of highlight color */
+    font-weight: 700;
+}
+
+.nav-auth {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sign-in-link {
+    text-decoration: none;
+    color: #0f172a;
+    font-size: 17px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid transparent; /* Keeps it invisible by default */
+    transition: border-color 0.2s ease;
+}
+
+.sign-in-link:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    border-color: #cbd5e1; /* A very soft, light gray-blue border on hover */
+    background: transparent; /* Ensures the background stays clean */
+}
+
+.btn-get-started-top {
+    background: linear-gradient(135deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
+    color: white;
+    padding: 10px 22px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 16px;
+    box-shadow: 0 4px 14px rgba(36, 199, 183, 0.3);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.btn-get-started-top:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.hero-section {
+    padding: 80px 6%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.hero-container {
+    max-width: 1350px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+}
+
+.hero-content {
+    flex: 1;
+    max-width: 620px;
+}
+
+.hero-content h1 {
+    font-size: 58px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: #0f172a;
+    margin-bottom: 24px;
+    letter-spacing: -1px;
+}
+
+.hero-content h1 .highlight {
+    background: linear-gradient(135deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero-content p {
+    font-size: 18px;
+    line-height: 1.7;
+    color: #475569;
+    margin-bottom: 40px;
+}
+
+.hero-buttons {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
+    color: white;
+    padding: 14px 28px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 17px;
+    box-shadow: 0 6px 20px rgba(36, 199, 183, 0.35);
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: #ffffff;
+    color: #1e293b;
+    padding: 14px 28px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 17px;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.hero-image {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.hero-image img {
+    max-width: 100%;
+    height: auto;
+    filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.08));
+}
+
+/* ==========================================
+   Features Section Styles
+   ========================================== */
+
+.features-section {
+    padding: 90px 5%;
+    background-color: transparent;
+}
+
+.features-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.features-header {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.features-header .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.features-header h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 12px;
+}
+
+.features-header p {
+    font-size: 16px;
+    color: #64748b;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.feature-card {
+    background: #ffffff;
+    padding: 32px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    border: 1px solid #f1f5f9;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.feature-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-bottom: 20px;
+}
+
+.icon-green { background: #e6f9ed; color: #10b981; }
+.icon-blue { background: #e0f2fe; color: #0284c7; }
+.icon-teal { background: #ccfbf1; color: #14b8a6; }
+
+.feature-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.feature-card p {
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* Responsive Grid for Tablets & Mobiles */
+@media screen and (max-width: 992px) {
+    .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .features-header h2 {
+        font-size: 30px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================
+   Background Flow Effect for Features Section
+   ========================================== */
+
+.features-section {
+    position: relative;
+    padding: 90px 5%;
+    background-color: transparent;
+    /* This layers a subtle duplicate of your background gradient/blob flowing downwards */
+    background-image: radial-gradient(circle at 80% 20%, rgba(70, 217, 125, 0.08) 0%, transparent 40%),
+                      radial-gradient(circle at 20% 80%, rgba(24, 184, 230, 0.08) 0%, transparent 40%);
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+/* ==========================================
+   How It Works / Learning Journey Section
+   ========================================== */
+
+.journey-section {
+    padding: 90px 5%;
+    background-color: transparent;
+}
+
+.journey-container {
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+.journey-header {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.journey-header .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.journey-header h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 12px;
+}
+
+.journey-header p {
+    font-size: 16px;
+    color: #64748b;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.journey-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+}
+
+.journey-card {
+    background: #ffffff;
+    padding: 28px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    border: 1px solid #f1f5f9;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.journey-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.journey-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.feature-icon-img {
+    width: 48px;
+    height: 48px;
+}
+
+.feature-icon-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.step-number {
+    font-size: 26px;
+    font-weight: 800;
+    color: #cbd5e1;
+    letter-spacing: -1px;
+}
+
+.journey-card h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.journey-card p {
+    font-size: 13.5px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* Responsive Grid for Tablets & Mobiles */
+@media screen and (max-width: 1024px) {
+    .journey-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .journey-grid {
+        grid-template-columns: 1fr;
+    }
+    .journey-header h2 {
+        font-size: 28px;
+    }
+}
+
+/* ==========================================
+   CobraByte Experience Section Styles
+   ========================================== */
+
+.experience-section {
+    padding: 70px 5%;
+    background-color: transparent;
+}
+
+.experience-container {
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+.experience-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.experience-header .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.experience-header h2 {
+    font-size: 36px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.experience-header p {
+    font-size: 15px;
+    color: #64748b;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.experience-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.experience-card {
+    background: #ffffff;
+    padding: 16px 18px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    height: auto;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.experience-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+.experience-card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.experience-card-top h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.experience-desc {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+/* ==========================================
+   Inner UI Mockup Previews & Animations
+   ========================================== */
+
+.preview-box.compact-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: monospace;
+    font-size: 11.5px;
+    color: #334155;
+    margin-bottom: 2px;
+}
+
+.preview-box.compact-box pre {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.typing-container {
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+@keyframes blinkCaret {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+.cursor {
+    display: inline-block;
+    font-weight: bold;
+    color: #10b981;
+    animation: blinkCaret 0.8s infinite;
+    margin-left: 1px;
+}
+
+/* 1. Multiple Choice 2x2 Grid Layout */
+.mcq-grid-box {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 4px !important;
+    margin-top: 2px;
+}
+
+.mcq-option {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 5px 4px;
+    border-radius: 5px;
+    font-size: 11px;
+    color: #475569;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+}
+
+@keyframes mcqPulse {
+    0%, 40% { background: #ffffff; border-color: #e2e8f0; color: #475569; font-weight: 400; }
+    50%, 90% { background: #ecfdf5; border-color: #10b981; color: #047857; font-weight: 600; }
+    100% { background: #ffffff; border-color: #e2e8f0; color: #475569; font-weight: 400; }
+}
+
+.mcq-option.correct.anim-mcq-correct {
+    animation: mcqPulse 4s infinite ease-in-out;
+}
+
+/* 2. True 3D Flipping Flashcard Scene */
+.flashcard-scene {
+    perspective: 1000px;
+    width: 100%;
+    height: 85px;
+    margin-top: 2px;
+}
+
+.flashcard-flipper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    animation: cardFlip 6s infinite ease-in-out;
+}
+
+@keyframes cardFlip {
+    0%, 40% { transform: rotateY(0deg); }
+    50%, 90% { transform: rotateY(180deg); }
+    100% { transform: rotateY(360deg); }
+}
+
+.flashcard-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.flashcard-front {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #1e293b;
+}
+
+.flashcard-back {
+    background: #ecfdf5;
+    border: 1px solid #10b981;
+    transform: rotateY(180deg);
+}
+
+.fc-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #16a34a;
+    margin-bottom: 2px;
+    letter-spacing: 0.5px;
+}
+
+.flashcard-face p {
+    font-size: 11px;
+    margin: 0;
+    color: #334155;
+    line-height: 1.2;
+}
+
+.flashcard-face p.code-ans {
+    font-family: monospace;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #047857;
+}
+
+/* 3. Fill in the Blanks Looping Animation */
+@keyframes blankTypeAnim {
+    0%, 35% { background: #cbd5e1; color: transparent; width: 4px; }
+    45%, 80% { background: #ecfdf5; color: #10b981; border: 1px solid #10b981; width: auto; padding: 0 4px; }
+    90%, 100% { background: #cbd5e1; color: transparent; width: 4px; }
+}
+
+.anim-blank-slot {
+    display: inline-block;
+    height: 14px;
+    vertical-align: middle;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    overflow: hidden;
+    animation: blankTypeAnim 4s infinite ease-in-out;
+}
+
+@keyframes successFade {
+    0%, 35% { opacity: 0; transform: translateY(2px); }
+    45%, 80% { opacity: 1; transform: translateY(0); }
+    90%, 100% { opacity: 0; transform: translateY(2px); }
+}
+
+.success-text {
+    font-size: 11px;
+    color: #10b981;
+    font-weight: 600;
+}
+
+.anim-success-text {
+    animation: successFade 4s infinite ease-in-out;
+}
+
+.preview-footer-left {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    height: 14px;
+    margin-top: 2px;
+}
+
+.code-preview-box {
+    line-height: 1.4;
+}
+
+.code-line.indented {
+    padding-left: 12px;
+}
+
+/* 4. Coding Sandbox Output & General Typing Simulations */
+.preview-output-tight {
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.output-label {
+    color: #64748b;
+    display: block;
+    font-size: 10px;
+    margin-bottom: 1px;
+}
+
+.output-field-tight {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: #475569;
+    font-family: monospace;
+    overflow: hidden;
+    white-space: nowrap;
+    height: 20px;
+    display: flex;
+    align-items: center;
+}
+
+/* Character reveal steps for typing text */
+@keyframes typingEffect {
+    0%, 15% { width: 0; }
+    40%, 75% { width: 100%; }
+    85%, 100% { width: 0; }
+}
+
+.typewriter-text-ex {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 0;
+    animation: typingEffect 4s infinite steps(18, end);
+}
+
+.typewriter-text-box {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 0;
+    animation: typingEffect 4s infinite steps(20, end);
+}
+
+/* Delayed Exercise Success Fade Effect */
+@keyframes successFadeEx {
+    0%, 45% { opacity: 0; transform: translateY(2px); }
+    55%, 75% { opacity: 1; transform: translateY(0); }
+    85%, 100% { opacity: 0; transform: translateY(2px); }
+}
+
+.anim-success-exercise {
+    animation: successFadeEx 4s infinite ease-in-out;
+}
+
+/* Delayed Sandbox Output Fade Effect (Static appearance, no typing) */
+@keyframes outputFadeBox {
+    0%, 45% { opacity: 0; transform: translateY(2px); }
+    55%, 75% { opacity: 1; transform: translateY(0); }
+    85%, 100% { opacity: 0; transform: translateY(2px); }
+}
+
+.static-output-fade {
+    animation: outputFadeBox 4s infinite ease-in-out;
+}
+
+/* ==========================================
+   Responsive Grid Media Queries
+   ========================================== */
+
+@media screen and (max-width: 1024px) {
+    .experience-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .experience-grid {
+        grid-template-columns: 1fr;
+    }
+    .experience-header h2 {
+        font-size: 28px;
+    }
+}
+
+/* ==========================================
+   Learning Analytics Section Styles
+   ========================================== */
+
+.analytics-header-center {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto 40px auto; /* Centers the block horizontally and adds proper bottom spacing */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Forces the badge, title, and paragraph to center alignment */
+}
+
+.analytics-section {
+    padding: 80px 5%;
+    background-image: url('/assets/images/landingpage.png'); /* Point to your wave background asset */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.analytics-container {
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 50px;
+    align-items: start; /* Aligns the left column and right card neatly at the top */
+}
+
+.analytics-header-center .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.analytics-content h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.2;
+}
+
+.analytics-content p {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.analytics-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.analytics-features li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 15px;
+    color: #334155;
+    font-weight: 500;
+}
+
+/* Feature Icon Asset Container */
+.feature-icon-wrap {
+    width: 28px;
+    height: 28px;
+    background: transparent; /* Removes the mismatched box */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.feature-icon-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Dashboard Mockup Card */
+.analytics-dashboard-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.dashboard-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 2px 0;
+}
+
+.dashboard-sub {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.improving-badge {
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Progress Bars */
+.analytics-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.progress-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    margin-bottom: 4px;
+}
+
+.prog-val {
+    color: #64748b;
+}
+
+.progress-track {
+    width: 100%;
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #10b981;
+    border-radius: 3px;
+}
+
+/* Bottom Mini Cards Grid */
+.dashboard-bottom-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.mini-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.mini-card h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 8px 0;
+}
+
+.mini-card ul {
+    margin: 0;
+    padding-left: 15px;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* Responsive Media Queries */
+@media screen and (max-width: 900px) {
+    .analytics-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .analytics-content h2 {
+        font-size: 28px;
+    }
+}
+
+/* ==========================================
+   About Us Section Styles
+   ========================================== */
+
+.about-section {
+    padding: 80px 5%;
+    background-image: url('/assets/images/landingpage.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.about-container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* Centered Header Text */
+.about-header-center {
+    text-align: center;
+    max-width: 780px;
+    margin: 0 auto 50px auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.about-header-center .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.about-header-center h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.2;
+}
+
+.about-header-center p {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* 3 Feature Cards Grid */
+.about-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 40px;
+}
+
+.about-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 32px 24px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.about-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 35px rgba(0, 0, 0, 0.06);
+}
+
+.card-icon-wrap {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-icon-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.about-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 10px;
+}
+
+.about-card p {
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Mission Gradient Banner */
+.mission-banner {
+    background: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
+    border-radius: 16px;
+    padding: 40px 30px;
+    text-align: center;
+    color: #ffffff;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.15);
+}
+
+.mission-banner blockquote {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.5;
+    margin: 0 0 16px 0;
+}
+
+.mission-author {
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0.9;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================
+   Responsive Breakpoints
+   ========================================== */
+
+@media screen and (max-width: 850px) {
+    .about-cards-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .about-header-center h2 {
+        font-size: 28px;
+    }
+    .mission-banner blockquote {
+        font-size: 16px;
+    }
+}
+
+/* ==========================================
+   Contact Us Section Styles
+   ========================================== */
+
+.contact-section {
+    padding: 80px 5%;
+    background-image: url('../images/landingpage.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.contact-container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* Centered Header Text */
+.contact-header-center {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto 50px auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.contact-header-center .badge {
+    display: inline-block;
+    background: #e6f9ed;
+    color: #10b981;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.contact-header-center h2 {
+    font-size: 38px;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.2;
+}
+
+.contact-header-center p {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Contact Grid Layout */
+.contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 30px;
+    align-items: start;
+}
+
+/* Left Contact Info Card */
+.contact-info-card, 
+.contact-form-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+.contact-info-card h3,
+.contact-form-card h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.info-sub {
+    font-size: 14px;
+    color: #64748b;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.contact-details-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 30px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.contact-details-list li {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.contact-icon-wrap {
+    width: 40px;
+    height: 40px;
+    background: transparent; /* Removes the container background box */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.contact-icon-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.detail-label {
+    display: block;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.detail-val {
+    display: block;
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+/* Social Icons */
+.contact-socials {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 20px;
+}
+
+.contact-socials .detail-label {
+    margin-bottom: 10px;
+}
+
+.social-icons-row {
+    display: flex;
+    gap: 12px;
+}
+
+.social-icon-btn {
+    width: 38px;
+    height: 38px;
+    background: transparent; /* Removes the box background */
+    border: none;             /* Removes the border box */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: transform 0.2s ease;
+}
+
+.social-icon-btn:hover {
+    background: transparent;
+    transform: translateY(-2px);
+}
+
+.social-icon-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Right Form Card */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #0f172a;
+    background: #f8fafc;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: #10b981;
+    background: #ffffff;
+}
+
+.submit-btn {
+    width: 100%;
+    background: linear-gradient(90deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px; /* Matches the 8px corner radius from your Figma inspector */
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(36, 199, 183, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* Space between text and the icon */
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(36, 199, 183, 0.3);
+}
+
+/* ==========================================
+   Responsive Breakpoints
+   ========================================== */
+
+@media screen and (max-width: 900px) {
+    .contact-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .contact-header-center h2 {
+        font-size: 28px;
+    }
+}
+
+
+/* ==========================================
+   Footer Section Styles (Dark & Full Width)
+   ========================================== */
+
+.footer-section {
+    background: #0f172a;
+    color: #94a3b8;
+    padding: 40px 5% 20px 5%;
+    width: 100%;
+    box-sizing: border-box;
+    border-top: 1px solid #1e293b;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* 3 Column Grid Layout */
+.footer-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 20px;
+}
+
+/* Column 1: Brand Info */
+.footer-logo {
+    display: flex;
+    align-items: left;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.footer-logo img {
+    height: 42px;
+    object-fit: contain;
+}
+
+.footer-logo span {
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffffff; /* Pure white for the brand name */
+}
+
+.footer-col-brand p {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-bottom: 14px;
+    max-width: 320px;
+}
+
+/* Footer Social Icons */
+.footer-socials {
+    display: flex;
+    gap: 10px;
+}
+
+.footer-social-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.footer-social-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.footer-social-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Columns 2 & 3: Navigation Links */
+.footer-col-links h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.8px;
+    margin-bottom: 12px;
+}
+
+.footer-col-links ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.footer-col-links ul li a {
+    text-decoration: none;
+    font-size: 14px;
+    color: #94a3b8;
+    transition: color 0.2s ease;
+}
+
+.footer-col-links ul li a:hover {
+    color: #10b981; /* Accent color on hover */
+}
+
+/* Divider Line */
+.footer-divider {
+    width: 100%;
+    height: 1px;
+    background: #1e293b;
+    margin-bottom: 16px;
+}
+
+/* Bottom Row */
+.footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.footer-bottom p {
+    margin: 0;
+}
+
+/* ==========================================
+   Responsive Breakpoints
+   ========================================== */
+
+@media screen and (max-width: 850px) {
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+    
+    .footer-bottom {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+}
+
+/* ==========================================
+ Prevents the sticky navbar from overlapping sections when clicking anchor links 
+ ==========================================*/
+html {
+    scroll-behavior: smooth;
+}
+
+#home, .hero-section {
+    scroll-margin-top: 90px; /* Adjust this value based on your navbar height */
+}
+
+#features, #how-it-works, #about, #contact {
+    scroll-margin-top: 90px;
+}
+
+/* ==========================================
+    MOBILE TAB VER
+   ========================================== */
+@media screen and (max-width: 992px) {
+    .navbar {
+        padding: 16px 20px;
+    }
+
+    .logo img {
+        height: 50px; /* Shrinks the logo size down for mobile screens */
+    }
+
+    .nav-container {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .nav-auth {
+        gap: 8px;
+    }
+
+    /* Compact top auth buttons on mobile */
+    .nav-auth .sign-in-link {
+        font-size: 13px;
+        padding: 6px 10px;
+    }
+
+    .nav-auth .btn-get-started-top {
+        font-size: 13px;
+        padding: 6px 12px;
+        border-radius: 6px;
+    }
+
+    .hero-section {
+        padding: 30px 20px;
+    }
+
+    .hero-container {
+        flex-direction: column;
+        text-align: left;
+        gap: 24px;
+    }
+
+    .hero-content {
+        max-width: 100%;
+    }
+
+    .hero-content h1 {
+        font-size: 32px;
+        line-height: 1.15;
+    }
+
+    .hero-content p {
+        font-size: 15px;
+        margin-bottom: 20px;
+    }
+
+    .hero-buttons {
+        display: flex;
+        flex-direction: row;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .btn-primary, .btn-secondary {
+        padding: 12px 20px;
+        font-size: 15px;
+    }
+
+    /* Completely hides the photo on mobile screens */
+    .hero-image {
+        display: none;
+    }
+}
