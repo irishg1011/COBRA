@@ -1,8 +1,7 @@
 .lesson-page {
-    max-width: 820px;
     width: 100%;
     margin: 0 auto;
-    padding: 24px 4% 100px;
+    padding: 40px 40px 100px;
 }
 
 .lesson-back-link {
@@ -66,123 +65,144 @@
 .lesson-content-body em { font-style: italic; }
 
 /* ===================== Interactive Code/Terminal blocks ===================== */
-/* Same visual language as the admin editor, minus editing-only chrome. */
+/* Mirrors module-editor.css (admin editor) exactly - same light theme,
+   same colors - minus editing-only chrome (mode select, delete button). */
 .editor-code-container {
-    margin: 22px 0;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+    .editor-code-container {
+        grid-template-columns: 1fr;
+    }
 }
 
 .editor-code-top-bar {
+    grid-column: 1 / -1;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
+    gap: 12px;
+    margin-bottom: 4px;
 }
 
 .editor-code-filename-group {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13.5px;
-    font-weight: 600;
-    color: #475569;
+    flex-grow: 1;
 }
 
 .editor-code-filename {
-    border: none;
-    background: transparent;
-    font-weight: 600;
-    color: #475569;
-    font-size: 13.5px;
-    pointer-events: none;
-    width: auto;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: #374151;
+    width: 100%;
+    max-width: 250px;
+    outline: none;
+    font-family: monospace;
+    background: #ffffff;
 }
 
 .editor-code-mode-select,
-.editor-delete-block-btn {
+.editor-delete-block-btn,
+.editor-output-mode-select {
     display: none !important;
 }
 
-.editor-code-card {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+.editor-code-desc {
+    display: none;
 }
 
-.console-card-pane,
-.output-card-pane {
+.editor-code-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
 
 .editor-code-card-header {
     height: 4px;
-    background: #06b6d4;
+    width: 100%;
+    background: #06b6d4 !important;
 }
 
 .editor-code-card-body {
-    padding: 16px 18px;
-    background: #0f172a;
-    flex: 1;
+    padding: 16px;
     display: flex;
     flex-direction: column;
+    gap: 6px;
+    flex-grow: 1;
+    text-align: left;
 }
 
 .editor-code-title-row {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    align-items: center;
+    min-height: 28px;
+    margin-bottom: 4px;
 }
 
 .editor-code-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #cbd5e1;
     display: flex;
     align-items: center;
-    gap: 6px;
-}
-
-.editor-code-desc {
-    font-size: 12px;
-    color: #64748b;
-    margin: 0 0 10px;
+    gap: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
 }
 
 .editor-console-box,
-.editor-output-box,
-.editor-terminal-box {
-    flex: 1;
-    min-height: 90px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 13.5px;
-    color: #e2e8f0;
+.editor-output-box {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #374151;
+    min-height: 120px;
+    outline: none;
     white-space: pre-wrap;
-    line-height: 1.6;
+    word-break: break-all;
+    flex: 1;
 }
 
 .editor-output-box:empty::before,
 .editor-console-box:empty::before {
     content: attr(placeholder);
-    color: #64748b;
+    color: #9ca3af;
+    pointer-events: none;
+    display: block;
 }
 
 .console-action-btn.run-btn {
-    background: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
-    color: #04342C;
+    background: #06b6d4;
+    color: #ffffff;
     border: none;
-    padding: 6px 14px;
     border-radius: 6px;
-    font-size: 12.5px;
-    font-weight: 700;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+}
+
+.console-action-btn.run-btn:hover {
+    background: #0891b2;
 }
 
 .console-action-btn.run-btn:disabled {
@@ -191,34 +211,43 @@
 }
 
 .editor-terminal-container {
-    margin: 22px 0;
-    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    margin: 16px 0;
+    width: 100%;
+    box-sizing: border-box;
     overflow: hidden;
-    border: 1px solid #e2e8f0;
 }
 
 .editor-terminal-card-header {
-    height: 4px;
-    background: #64748b;
+    background: #06b6d4 !important;
+    height: 8px;
+    width: 100%;
 }
 
 .editor-terminal-card-body {
-    padding: 16px 18px;
-    background: #0f172a;
+    padding: 16px;
+    text-align: left;
 }
 
 .editor-terminal-box {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: monospace;
+    font-size: 0.9rem;
+    padding: 12px;
+    border-radius: 6px;
+    min-height: 80px;
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-all;
     pointer-events: none;
 }
 
 .editor-terminal-prompt-text {
     color: #94a3b8;
-}
-
-@media (max-width: 700px) {
-    .editor-code-card {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* ===================== Mark complete ===================== */
@@ -261,4 +290,4 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-}
+}   

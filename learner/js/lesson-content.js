@@ -219,6 +219,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         lessonContentBody.querySelectorAll(".editor-code-container").forEach((wrapper) => {
+            wrapper.querySelectorAll(".editor-output-mode-select").forEach((el) => el.remove());
+
             const modeSelect = wrapper.querySelector(".editor-code-mode-select");
             const isSnippetOnly = modeSelect && modeSelect.value === "snippet";
             const outputPane = wrapper.querySelector(".output-card-pane");
@@ -227,6 +229,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 outputPane.style.display = "none";
                 if (consolePane) consolePane.style.gridColumn = "1 / -1";
             }
+
+            const outputBox = wrapper.querySelector(".editor-output-box");
+            if (outputBox) {
+                outputBox.textContent = "";
+                outputBox.setAttribute("placeholder", "Run the program first to see the output.");
+            }
+
             wireRunButton(wrapper);
         });
 

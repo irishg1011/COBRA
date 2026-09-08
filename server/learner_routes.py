@@ -123,7 +123,10 @@ def learning_map_data():
             module_id = module["module_id"]
 
             cursor.execute(
-                "SELECT COUNT(*) AS total FROM learning_resources_tbl WHERE module_id = %s",
+                """SELECT COUNT(*) AS total
+                   FROM learning_resources_tbl lr
+                   JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                   WHERE lr.module_id = %s AND lrs.lr_stats_name = 'Published'""",
                 (module_id,)
             )
             total_resources = cursor.fetchone()["total"]
@@ -138,7 +141,10 @@ def learning_map_data():
             completed_resources = cursor.fetchone()["done"]
 
             cursor.execute(
-                "SELECT COUNT(*) AS total FROM learning_activities_tbl WHERE module_id = %s",
+                """SELECT COUNT(*) AS total
+                   FROM learning_activities_tbl la
+                   JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
+                   WHERE la.module_id = %s AND las.la_stats_name = 'Published'""",
                 (module_id,)
             )
             total_activities = cursor.fetchone()["total"]
@@ -156,7 +162,8 @@ def learning_map_data():
                 """SELECT COUNT(*) AS total
                    FROM coding_exercises_tbl ce
                    JOIN learning_resources_tbl lr ON ce.resource_id = lr.resource_id
-                   WHERE lr.module_id = %s""",
+                   JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
+                   WHERE lr.module_id = %s AND las.la_stats_name = 'Published'""",
                 (module_id,)
             )
             total_exercises = cursor.fetchone()["total"]
@@ -428,7 +435,10 @@ def lesson_content_data():
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT resource_id, resource_title, cat_id FROM learning_resources_tbl WHERE resource_id = %s",
+            """SELECT lr.resource_id, lr.resource_title, m.cat_id
+               FROM learning_resources_tbl lr
+               JOIN modules_tbl m ON lr.module_id = m.module_id
+               WHERE lr.resource_id = %s""",
             (resource_id,)
         )
         resource = cursor.fetchone()
