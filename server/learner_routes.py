@@ -3,8 +3,7 @@ learner_routes.py - CobraByte Learner-Side Page & Asset Routes
 ------------------------------------------------------------------
 Blueprint containing every route that serves a page or asset for
 logged-in Learner accounts: Dashboard, Coding Sandbox, Learning Map,
-and the learner/ folder's own css/js files (learner.js, sandbox.css,
-sandbox.js, learning-map.css, learning-map.js, etc.).
+Lessons, and the learner/ folder's own css/js files.
 
 Registered onto the main app in login.py via:
     app.register_blueprint(learner_bp)
@@ -14,22 +13,14 @@ routes) the same way admin_routes.py's admin_bp is kept separate.
 """
 
 import os
-from flask import Blueprint, render_template, send_from_directory, jsonify, session
+from flask import Blueprint, render_template, send_from_directory, jsonify, session, request
 import mysql.connector
 from mysql.connector import Error
 
 learner_bp = Blueprint('learner_bp', __name__)
 
-# This file lives in server/, so learner/ is a sibling one level up
-# (server/learner_routes.py -> ../learner).
 LEARNER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../learner'))
 
-# ------------------------------------------------------------
-# DATABASE CONFIG
-# ------------------------------------------------------------
-# Duplicated from login.py (same as admin_routes.py does) rather than
-# imported, to avoid a circular import - login.py imports learner_bp
-# FROM this file, so this file can't import back from login.py.
 DB_HOST = "localhost"
 DB_USER = "root"
 DB_PASSWORD = ""
@@ -52,19 +43,6 @@ def get_db_connection():
 
 
 def get_current_learner_acc_id():
-    """
-    Identifies which learner is making the request, using the
-    session_token that login() stored in the Flask session cookie.
-
-    ASSUMPTION: this queries active_sessions_tbl for a row matching
-    the current session_token, expecting columns named
-    "session_token" and "acc_id". session_tracker.py's create_session()
-    is what originally inserts that row at login time - if its actual
-    column names differ, update the query below to match.
-
-    Returns None if there's no session token, or no matching active
-    session row (e.g. it expired or was already ended by logout).
-    """
     token = session.get("session_token")
     if not token:
         return None
@@ -95,11 +73,6 @@ def get_current_learner_acc_id():
 # ============================================================
 @learner_bp.route("/dashboard")
 def dashboard():
-    """
-    dashboard.html lives in the main Flask templates/ folder (like
-    login.html), so render_template works as normal here - the
-    Blueprint shares the main app's Jinja template loader.
-    """
     return render_template('dashboard.html')
 
 
@@ -108,11 +81,6 @@ def dashboard():
 # ============================================================
 @learner_bp.route("/sandbox")
 def sandbox():
-    """
-    sandbox.html lives under learner/html/, NOT the Flask templates/
-    folder, so it's served directly via send_from_directory rather
-    than render_template.
-    """
     learner_html_dir = os.path.join(LEARNER_DIR, 'html')
     return send_from_directory(learner_html_dir, 'sandbox.html')
 
@@ -122,10 +90,6 @@ def sandbox():
 # ============================================================
 @learner_bp.route("/learning-map")
 def learning_map_page():
-    """
-    learning-map.html lives under learner/html/, same pattern as
-    sandbox.html above.
-    """
     learner_html_dir = os.path.join(LEARNER_DIR, 'html')
     return send_from_directory(learner_html_dir, 'learning-map.html')
 
@@ -135,23 +99,6 @@ def learning_map_page():
 # ============================================================
 @learner_bp.route("/api/learning-map", methods=["GET"])
 def learning_map_data():
-    """
-    Computes, for the currently logged-in learner, the completion
-    status of every chapter (category_tbl row) and returns it as JSON
-    for learning-map.js to render.
-
-    Module completion is derived (not stored) by checking every
-    resource/activity/exercise that belongs to that module against
-    this learner's three progress tables:
-        - learner_resource_progress_tbl
-        - learner_activity_progress_tbl
-        - learner_exercise_progress_tbl
-
-    A module with zero items of a given type is vacuously "complete"
-    for that type (nothing to finish). Chapter completion is then
-    derived from its modules, and chapters are sequentially locked:
-    chapter N (N>1) is locked unless chapter N-1 is fully completed.
-    """
     acc_id = get_current_learner_acc_id()
     if not acc_id:
         return jsonify({"success": False, "message": "Not logged in."}), 401
@@ -163,9 +110,6 @@ def learning_map_data():
     try:
         cursor = connection.cursor(dictionary=True)
 
-        # ------------------------------------------------------------
-        # 1. Fetch all categories (chapters) and all modules up front.
-        # ------------------------------------------------------------
         cursor.execute(
             "SELECT cat_id, category_name FROM category_tbl WHERE is_archived = 0 ORDER BY cat_id ASC"
         )
@@ -176,16 +120,11 @@ def learning_map_data():
         )
         modules = cursor.fetchall()
 
-        # ------------------------------------------------------------
-        # 2. For every module, compute this learner's completion status
-        #    by checking all three content types under it.
-        # ------------------------------------------------------------
         module_status_by_id = {}
 
         for module in modules:
             module_id = module["module_id"]
 
-            # --- Resources (lessons/videos) ---
             cursor.execute(
                 "SELECT COUNT(*) AS total FROM learning_resources_tbl WHERE module_id = %s",
                 (module_id,)
@@ -201,7 +140,6 @@ def learning_map_data():
             )
             completed_resources = cursor.fetchone()["done"]
 
-            # --- Activities (quizzes/flashcards/fill-in-the-blanks) ---
             cursor.execute(
                 "SELECT COUNT(*) AS total FROM learning_activities_tbl WHERE module_id = %s",
                 (module_id,)
@@ -217,9 +155,6 @@ def learning_map_data():
             )
             completed_activities = cursor.fetchone()["done"]
 
-            # --- Coding Exercises ---
-            # coding_exercises_tbl has no module_id of its own - it links to a
-            # module indirectly via resource_id -> learning_resources_tbl.module_id.
             cursor.execute(
                 """SELECT COUNT(*) AS total
                    FROM coding_exercises_tbl ce
@@ -251,9 +186,6 @@ def learning_map_data():
 
             module_status_by_id[module_id] = status
 
-        # ------------------------------------------------------------
-        # 3. Roll module statuses up into chapter (category) statuses.
-        # ------------------------------------------------------------
         chapters = []
 
         for category in categories:
@@ -285,11 +217,6 @@ def learning_map_data():
                 "status": chapter_status
             })
 
-        # ------------------------------------------------------------
-        # 4. Sequential locking: the first chapter is always unlocked;
-        #    each later chapter is locked unless the previous one is
-        #    fully completed.
-        # ------------------------------------------------------------
         for index, chapter in enumerate(chapters):
             if index == 0:
                 chapter["locked"] = False
@@ -307,18 +234,185 @@ def learning_map_data():
 
 
 # ============================================================
+# ROUTE: LESSONS PAGE
+# ============================================================
+@learner_bp.route("/lessons")
+def lessons_page():
+    learner_html_dir = os.path.join(LEARNER_DIR, 'html')
+    return send_from_directory(learner_html_dir, 'lessons.html')
+
+
+# ============================================================
+# ROUTE: LESSONS DATA (JSON API)
+# ============================================================
+@learner_bp.route("/api/lessons", methods=["GET"])
+def lessons_data():
+    """
+    Returns, for one chapter (category_tbl row identified by ?cat_id=),
+    every module in it and every lesson (learning_resources_tbl row)
+    inside each module, with:
+      - this learner's per-lesson completion status
+      - sequential unlocking WITHIN each module (lesson N locked unless
+        lesson N-1 in that same module is fully complete)
+      - each lesson's rolled-up activity/exercise progress
+
+    A lesson (resource) counts as "complete" only when ALL of the
+    following are true for this learner:
+      - its own learner_resource_progress_tbl row has status='completed'
+      - every learning_activities_tbl row under it is completed
+      - every coding_exercises_tbl row under it (if any) is completed
+    """
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    cat_id = request.args.get("cat_id", type=int)
+    if not cat_id:
+        return jsonify({"success": False, "message": "cat_id is required."}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT cat_id, category_name FROM category_tbl WHERE cat_id = %s AND is_archived = 0",
+            (cat_id,)
+        )
+        category = cursor.fetchone()
+        if not category:
+            cursor.close()
+            return jsonify({"success": False, "message": "Chapter not found."}), 404
+
+        cursor.execute(
+            "SELECT module_id, module_name, description FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 ORDER BY module_id ASC",
+            (cat_id,)
+        )
+        raw_modules = cursor.fetchall()
+
+        modules_out = []
+        overall_completed = 0
+        overall_total = 0
+
+        for module in raw_modules:
+            module_id = module["module_id"]
+
+            cursor.execute(
+                "SELECT resource_id, resource_title FROM learning_resources_tbl WHERE module_id = %s ORDER BY resource_id ASC",
+                (module_id,)
+            )
+            resources = cursor.fetchall()
+
+            lessons_out = []
+            previous_complete = True
+
+            for resource in resources:
+                resource_id = resource["resource_id"]
+
+                cursor.execute(
+                    "SELECT status FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s",
+                    (acc_id, resource_id)
+                )
+                progress_row = cursor.fetchone()
+                resource_watched = bool(progress_row and progress_row["status"] == "completed")
+
+                cursor.execute(
+                    "SELECT COUNT(*) AS total FROM learning_activities_tbl WHERE resource_id = %s",
+                    (resource_id,)
+                )
+                activities_total = cursor.fetchone()["total"]
+
+                cursor.execute(
+                    """SELECT COUNT(*) AS done
+                       FROM learner_activity_progress_tbl lap
+                       JOIN learning_activities_tbl la ON lap.la_id = la.la_id
+                       WHERE la.resource_id = %s AND lap.acc_id = %s AND lap.status = 'completed'""",
+                    (resource_id, acc_id)
+                )
+                activities_completed = cursor.fetchone()["done"]
+
+                cursor.execute(
+                    "SELECT exercise_id FROM coding_exercises_tbl WHERE resource_id = %s",
+                    (resource_id,)
+                )
+                exercise_rows = cursor.fetchall()
+                has_exercise = len(exercise_rows) > 0
+
+                exercise_completed = True
+                if has_exercise:
+                    exercise_completed = True
+                    for ex in exercise_rows:
+                        cursor.execute(
+                            """SELECT status FROM learner_exercise_progress_tbl
+                               WHERE acc_id = %s AND exercise_id = %s""",
+                            (acc_id, ex["exercise_id"])
+                        )
+                        ex_progress = cursor.fetchone()
+                        if not ex_progress or ex_progress["status"] != "completed":
+                            exercise_completed = False
+                            break
+
+                activities_ok = (activities_total == 0) or (activities_completed == activities_total)
+                is_complete = resource_watched and activities_ok and exercise_completed
+
+                if is_complete:
+                    status = "completed"
+                elif previous_complete:
+                    status = "ready"
+                else:
+                    status = "locked"
+
+                lessons_out.append({
+                    "resource_id": resource_id,
+                    "resource_title": resource["resource_title"],
+                    "status": status,
+                    "activities_completed": activities_completed,
+                    "activities_total": activities_total,
+                    "has_exercise": has_exercise,
+                    "exercise_completed": exercise_completed if has_exercise else False
+                })
+
+                overall_total += 1
+                if is_complete:
+                    overall_completed += 1
+
+                previous_complete = is_complete
+
+            lessons_completed_in_module = sum(1 for l in lessons_out if l["status"] == "completed")
+
+            modules_out.append({
+                "module_id": module_id,
+                "module_name": module["module_name"],
+                "description": module["description"],
+                "lessons_completed": lessons_completed_in_module,
+                "lessons_total": len(lessons_out),
+                "lessons": lessons_out
+            })
+
+        overall_percent = round((overall_completed / overall_total) * 100) if overall_total > 0 else 0
+
+        cursor.close()
+        return jsonify({
+            "success": True,
+            "category_name": category["category_name"],
+            "overall_completed_lessons": overall_completed,
+            "overall_total_lessons": overall_total,
+            "overall_percent": overall_percent,
+            "modules": modules_out
+        }), 200
+
+    except Error as e:
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
 # ROUTE: LEARNER FOLDER ASSETS (css/js/etc.)
 # ============================================================
 @learner_bp.route('/learner/<path:filename>')
 def serve_learner_assets(filename):
-    """
-    Serves everything under the learner/ folder - e.g. learner/js/learner.js,
-    learner/css/sandbox.css, learner/js/sandbox.js, learner/css/learning-map.css,
-    learner/js/learning-map.js - so relative paths like
-    "../learner/css/sandbox.css" resolve correctly from pages served at
-    routes like /sandbox, /dashboard, or /learning-map.
-
-    <path:filename> matches slashes, so nested subfolders (css/, js/,
-    html/) work automatically without extra routes.
-    """
     return send_from_directory(LEARNER_DIR, filename)
