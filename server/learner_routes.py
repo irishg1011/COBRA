@@ -13,6 +13,13 @@ import os
 from flask import Blueprint, render_template, send_from_directory, jsonify, session, request
 import mysql.connector
 from mysql.connector import Error
+from lesson_activities import (
+    get_published_activities_for_resource,
+    check_mcq_answer,
+    check_fill_blank_answer,
+    record_activity_progress,
+    get_activities_completion_summary,
+)
 
 learner_bp = Blueprint('learner_bp', __name__)
 
@@ -485,6 +492,112 @@ def lesson_content_data():
 
 
 # ============================================================
+# ROUTE: LESSON ACTIVITIES (JSON API) - Multiple Choice / Fill in the
+# Blanks / Flashcards attached to a lesson. Answers are NEVER included
+# here - see /api/lesson-activities/check-answer below.
+# ============================================================
+@learner_bp.route("/api/lesson-activities", methods=["GET"])
+def lesson_activities_data():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    resource_id = request.args.get("resource_id", type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    activities = get_published_activities_for_resource(resource_id)
+
+    connection = get_db_connection()
+    completed_ids = set()
+    if connection is not None:
+        try:
+            la_ids = [a["la_id"] for a in activities]
+            if la_ids:
+                cursor = connection.cursor(dictionary=True)
+                placeholders = ",".join(["%s"] * len(la_ids))
+                cursor.execute(
+                    f"""SELECT la_id FROM learner_activity_progress_tbl
+                        WHERE acc_id = %s AND status = 'completed'
+                        AND la_id IN ({placeholders})""",
+                    tuple([acc_id] + la_ids)
+                )
+                completed_ids = {row["la_id"] for row in cursor.fetchall()}
+                cursor.close()
+        except Error as e:
+            print(f"Error checking activity completion: {e}")
+        finally:
+            if connection.is_connected():
+                connection.close()
+
+    for activity in activities:
+        activity["completed"] = activity["la_id"] in completed_ids
+
+    return jsonify({"success": True, "activities": activities}), 200
+
+
+# ============================================================
+# ROUTE: CHECK A SINGLE ACTIVITY ANSWER (MCQ or Fill in the Blanks)
+# ============================================================
+@learner_bp.route("/api/lesson-activities/check-answer", methods=["POST"])
+def lesson_activities_check_answer():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    answer_type = data.get("type")
+
+    if answer_type == "mcq":
+        is_correct, feedback, correct_option_id = check_mcq_answer(
+            data.get("q_id"), data.get("option_id")
+        )
+        return jsonify({
+            "success": True,
+            "is_correct": is_correct,
+            "feedback": feedback,
+            "correct_option_id": correct_option_id
+        }), 200
+
+    if answer_type == "fill_blank":
+        is_correct, feedback, correct_answer = check_fill_blank_answer(
+            data.get("fib_id"), data.get("answer")
+        )
+        return jsonify({
+            "success": True,
+            "is_correct": is_correct,
+            "feedback": feedback,
+            "correct_answer": correct_answer
+        }), 200
+
+    return jsonify({"success": False, "message": "Unknown answer type."}), 400
+
+
+# ============================================================
+# ROUTE: MARK ONE ACTIVITY AS COMPLETE (MCQ/Fill-in-the-Blanks after
+# the last item, or Flashcards after reviewing every card)
+# ============================================================
+@learner_bp.route("/api/lesson-activities/mark-complete", methods=["POST"])
+def lesson_activities_mark_complete():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    la_id = data.get("la_id")
+    score = data.get("score")
+
+    if not la_id:
+        return jsonify({"success": False, "message": "la_id is required."}), 400
+
+    ok = record_activity_progress(acc_id, la_id, "completed", score)
+    if not ok:
+        return jsonify({"success": False, "message": "Could not record progress."}), 500
+
+    return jsonify({"success": True, "message": "Activity marked complete."}), 200
+
+
+# ============================================================
 # ROUTE: MARK LESSON COMPLETE
 # ============================================================
 @learner_bp.route("/api/lesson-content/complete", methods=["POST"])
@@ -497,6 +610,17 @@ def mark_lesson_complete():
     resource_id = data.get("resource_id")
     if not resource_id:
         return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    # Hard gate: a lesson can never be marked complete while any of its
+    # Published activities are still unfinished for this learner. A
+    # lesson with zero activities has nothing to gate on and passes
+    # through immediately (total == 0).
+    total, completed = get_activities_completion_summary(acc_id, resource_id)
+    if total > 0 and completed < total:
+        return jsonify({
+            "success": False,
+            "message": "Please complete all activities before finishing this lesson."
+        }), 400
 
     connection = get_db_connection()
     if connection is None:

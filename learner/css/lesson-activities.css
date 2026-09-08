@@ -1,0 +1,212 @@
+.activities-container {
+    margin-top: 32px;
+    padding-top: 28px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.activities-gate {
+    text-align: center;
+    padding: 32px 24px;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    border-radius: 14px;
+}
+
+.activities-gate h3 {
+    font-size: 19px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.activities-gate p {
+    font-size: 14.5px;
+    color: #64748b;
+    margin: 0 0 18px;
+}
+
+.activities-proceed-btn {
+    background: #16a34a;
+    color: #ffffff;
+    border: none;
+    padding: 13px 28px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14.5px;
+    cursor: pointer;
+}
+
+.activities-proceed-btn:hover {
+    background: #15803d;
+}
+
+.activity-host {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 28px;
+}
+
+.activity-progress-label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #16a34a;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0 0 10px;
+}
+
+.activity-question-text {
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 20px;
+}
+
+.activity-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.activity-option-btn {
+    text-align: left;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    color: #334155;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.activity-option-btn:hover:not(:disabled) {
+    border-color: #94a3b8;
+    background: #f8fafc;
+}
+
+.activity-option-btn:disabled {
+    cursor: default;
+}
+
+.activity-option-btn.selected {
+    border-color: #0284c7;
+}
+
+.activity-option-btn.correct {
+    border-color: #16a34a;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.activity-option-btn.incorrect {
+    border-color: #e02424;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.activity-fillblank-input {
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    font-size: 14.5px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+}
+
+.activity-fillblank-input:focus {
+    outline: none;
+    border-color: #0284c7;
+}
+
+.activity-feedback-box {
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.activity-feedback-box.is-correct {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.activity-feedback-box.is-incorrect {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.activity-next-btn {
+    background: #0284c7;
+    color: #ffffff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.activity-next-btn:hover {
+    background: #0369a1;
+}
+
+.activity-flashcard-box {
+    min-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    cursor: pointer;
+    margin-bottom: 12px;
+    user-select: none;
+}
+
+.activity-flashcard-box.flipped {
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.activity-flashcard-hint {
+    text-align: center;
+    font-size: 13px;
+    color: #94a3b8;
+    margin: 0 0 20px;
+}
+
+.activity-summary {
+    text-align: center;
+    padding: 20px;
+    font-size: 15px;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.activity-summary i {
+    color: #16a34a;
+    margin-right: 6px;
+}
+
+.lesson-in-progress-label {
+    color: #64748b;
+    font-weight: 600;
+    font-size: 14px;
+}

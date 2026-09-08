@@ -12,8 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const lessonResourceTitle = document.getElementById('lessonResourceTitle');
     const lessonContentBody = document.getElementById('lessonContentBody');
     const lessonCompleteRow = document.getElementById('lessonCompleteRow');
-    const markCompleteBtn = document.getElementById('markCompleteBtn');
-    const markCompleteConfirm = document.getElementById('markCompleteConfirm');
+    const lessonCompleteStatus = document.getElementById('lessonCompleteStatus');
+    const lessonInProgressStatus = document.getElementById('lessonInProgressStatus');
+    const activitiesContainer = document.getElementById('activitiesContainer');
     const backToLessonsLink = document.getElementById('backToLessonsLink');
 
     let activeOutputBox = null;
@@ -244,6 +245,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    async function attemptCompleteLesson() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lesson-content/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ resource_id: resourceId })
+            });
+            const result = await response.json();
+            if (result.success) {
+                lessonInProgressStatus.style.display = 'none';
+                lessonCompleteStatus.style.display = 'inline-flex';
+            } else {
+                console.error('Could not mark this lesson complete:', result.message);
+            }
+        } catch (err) {
+            console.error('Could not reach the server to complete this lesson.', err);
+        }
+    }
+
     async function loadLesson() {
         if (!resourceId) {
             lessonLoading.style.display = 'none';
@@ -274,36 +295,23 @@ document.addEventListener('DOMContentLoaded', () => {
             preparePageForLearner();
             lessonCompleteRow.style.display = 'flex';
 
+            if (data.is_completed) {
+                lessonCompleteStatus.style.display = 'inline-flex';
+                lessonInProgressStatus.style.display = 'none';
+                activitiesContainer.style.display = 'none';
+            } else {
+                lessonCompleteStatus.style.display = 'none';
+                lessonInProgressStatus.style.display = 'inline-flex';
+                if (typeof window.cobraByteInitLessonActivities === 'function') {
+                    window.cobraByteInitLessonActivities(resourceId, activitiesContainer, attemptCompleteLesson);
+                }
+            }
+
         } catch (err) {
             console.error('Error loading lesson:', err);
             lessonLoading.style.display = 'none';
             lessonError.style.display = 'block';
         }
-    }
-
-    if (markCompleteBtn) {
-        markCompleteBtn.addEventListener('click', async () => {
-            markCompleteBtn.disabled = true;
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/lesson-content/complete`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ resource_id: resourceId })
-                });
-                const result = await response.json();
-                if (result.success) {
-                    markCompleteBtn.style.display = 'none';
-                    markCompleteConfirm.style.display = 'inline-flex';
-                } else {
-                    alert(result.message || 'Could not mark this lesson complete.');
-                    markCompleteBtn.disabled = false;
-                }
-            } catch (err) {
-                alert('Could not reach the server.');
-                markCompleteBtn.disabled = false;
-            }
-        });
     }
 
     loadLesson();
