@@ -3,13 +3,10 @@ learner_routes.py - CobraByte Learner-Side Page & Asset Routes
 ------------------------------------------------------------------
 Blueprint containing every route that serves a page or asset for
 logged-in Learner accounts: Dashboard, Coding Sandbox, Learning Map,
-Lessons, and the learner/ folder's own css/js files.
+Lessons, Lesson Content, and the learner/ folder's own css/js files.
 
 Registered onto the main app in login.py via:
     app.register_blueprint(learner_bp)
-
-Kept separate from login.py (which stays focused on auth/session
-routes) the same way admin_routes.py's admin_bp is kept separate.
 """
 
 import os
@@ -247,21 +244,6 @@ def lessons_page():
 # ============================================================
 @learner_bp.route("/api/lessons", methods=["GET"])
 def lessons_data():
-    """
-    Returns, for one chapter (category_tbl row identified by ?cat_id=),
-    every module in it and every lesson (learning_resources_tbl row)
-    inside each module, with:
-      - this learner's per-lesson completion status
-      - sequential unlocking WITHIN each module (lesson N locked unless
-        lesson N-1 in that same module is fully complete)
-      - each lesson's rolled-up activity/exercise progress
-
-    A lesson (resource) counts as "complete" only when ALL of the
-    following are true for this learner:
-      - its own learner_resource_progress_tbl row has status='completed'
-      - every learning_activities_tbl row under it is completed
-      - every coding_exercises_tbl row under it (if any) is completed
-    """
     acc_id = get_current_learner_acc_id()
     if not acc_id:
         return jsonify({"success": False, "message": "Not logged in."}), 401
@@ -404,6 +386,142 @@ def lessons_data():
         }), 200
 
     except Error as e:
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
+# ROUTE: LESSON CONTENT PAGE
+# ============================================================
+@learner_bp.route("/lesson-content")
+def lesson_content_page():
+    learner_html_dir = os.path.join(LEARNER_DIR, 'html')
+    return send_from_directory(learner_html_dir, 'lesson-content.html')
+
+
+# ============================================================
+# ROUTE: LESSON CONTENT DATA (JSON API)
+# ============================================================
+@learner_bp.route("/api/lesson-content", methods=["GET"])
+def lesson_content_data():
+    """
+    Returns one resource's title and its full authored HTML body
+    (lesson_content_tbl.content_body) for the learner-facing viewer to
+    render directly - the same rich content the admin editor produced,
+    including embedded interactive code/terminal blocks.
+    """
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    resource_id = request.args.get("resource_id", type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT resource_id, resource_title, cat_id FROM learning_resources_tbl WHERE resource_id = %s",
+            (resource_id,)
+        )
+        resource = cursor.fetchone()
+        if not resource:
+            cursor.close()
+            return jsonify({"success": False, "message": "Lesson not found."}), 404
+
+        cursor.execute(
+            "SELECT content_body FROM lesson_content_tbl WHERE resource_id = %s",
+            (resource_id,)
+        )
+        content_row = cursor.fetchone()
+        content_html = content_row["content_body"] if content_row else ""
+
+        # Mark this lesson as at least started, without downgrading an
+        # already-completed one.
+        cursor.execute(
+            "SELECT status FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s",
+            (acc_id, resource_id)
+        )
+        existing_progress = cursor.fetchone()
+        if not existing_progress:
+            cursor.execute(
+                """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at)
+                   VALUES (%s, %s, 'in_progress', NOW())""",
+                (acc_id, resource_id)
+            )
+            connection.commit()
+
+        cursor.close()
+        return jsonify({
+            "success": True,
+            "resource_id": resource["resource_id"],
+            "resource_title": resource["resource_title"],
+            "cat_id": resource["cat_id"],
+            "content_html": content_html
+        }), 200
+
+    except Error as e:
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
+# ROUTE: MARK LESSON COMPLETE
+# ============================================================
+@learner_bp.route("/api/lesson-content/complete", methods=["POST"])
+def mark_lesson_complete():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    resource_id = data.get("resource_id")
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT progress_id FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s",
+            (acc_id, resource_id)
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            cursor.execute(
+                """UPDATE learner_resource_progress_tbl
+                   SET status = 'completed', completed_at = NOW()
+                   WHERE progress_id = %s""",
+                (existing["progress_id"],)
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO learner_resource_progress_tbl
+                   (acc_id, resource_id, status, started_at, completed_at)
+                   VALUES (%s, %s, 'completed', NOW(), NOW())""",
+                (acc_id, resource_id)
+            )
+
+        connection.commit()
+        cursor.close()
+        return jsonify({"success": True, "message": "Lesson marked as complete."}), 200
+
+    except Error as e:
+        connection.rollback()
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
     finally:
         if connection.is_connected():
