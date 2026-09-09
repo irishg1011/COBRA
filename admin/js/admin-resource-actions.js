@@ -1,14 +1,18 @@
 /**
- * admin-resource-actions.js - Task #81 & #98: Manage Learning Resources
- * ACTIONS column (Edit / Archive) & Published Edit Interception
+ * admin-resource-actions.js - Manage Learning Resources ACTIONS column
+ * (Edit / Archive) & Published Edit Interception
  * --------------------------------------------------------------------
  * Wires up the ACTIONS column in the Manage Learning Resources table
  * (learning-resources.html), which handles Edit + Archive.
  *
- * Task #98: Intercepts the click event on the Edit button for
- * resources with "Published" status, prompting the admin with a
- * confirmation warning modal (#confirmActionModal) before opening the
- * editor. Resources in "Draft" status bypass the warning directly.
+ * Task update: the Edit (pencil) button no longer navigates directly -
+ * it opens a small dropdown ("Edit lesson content" / "Edit video")
+ * next to it, since a Lesson can now have a Video Tutorial attached in
+ * addition to its own text content. A Lesson with no video attached
+ * only ever shows the single "Edit lesson content" option (there's
+ * nothing else to choose between). Whichever option is picked still
+ * goes through the SAME "Published? confirm first" interception as
+ * before, using the Lesson's own status.
  *
  * Archive calls the /admin/learning-resources/<id>/archive
  * endpoint (see admin_routes.py -> resource_publishing.archive_resource()),
@@ -36,6 +40,7 @@
         const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
 
         let pendingConfirmAction = null;
+        let openEditMenu = null;
 
         function showConfirmModal(message, onConfirm, title) {
             if (!confirmActionModal) {
@@ -71,9 +76,27 @@
             });
         }
 
+        function closeEditMenu() {
+            if (openEditMenu) {
+                openEditMenu.remove();
+                openEditMenu = null;
+            }
+        }
+
         document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && confirmActionModal && !confirmActionModal.classList.contains("modal-hidden") && confirmActionModal.style.display !== "none") {
+            if (e.key !== "Escape") return;
+            if (confirmActionModal && !confirmActionModal.classList.contains("modal-hidden") && confirmActionModal.style.display !== "none") {
                 closeConfirmModal();
+            }
+            if (openEditMenu) closeEditMenu();
+        });
+
+        // Closes the Edit dropdown on any click outside it (the trigger
+        // click itself is handled separately below via stopPropagation,
+        // so it doesn't immediately re-close the menu it just opened).
+        document.addEventListener("click", (e) => {
+            if (openEditMenu && !openEditMenu.contains(e.target)) {
+                closeEditMenu();
             }
         });
 
@@ -83,22 +106,98 @@
             return div.innerHTML;
         }
 
+        function navigateWithPublishedCheck(targetUrl, isPublished) {
+            if (isPublished) {
+                showConfirmModal(
+                    "You are about to edit a published resource. Do you wish to continue?",
+                    () => { window.location.href = targetUrl; },
+                    "Edit Published Resource?"
+                );
+            } else {
+                window.location.href = targetUrl;
+            }
+        }
+
         /**
-         * Builds the ACTIONS cell's inner markup (Edit link + Archive
+         * Opens the small "what do you want to edit?" dropdown below the
+         * Edit (pencil) trigger - Task update: a Lesson with a Video
+         * Tutorial attached now offers a choice ("Edit lesson content" /
+         * "Edit video") instead of jumping straight to the lesson
+         * editor; a Lesson with no video attached only ever shows the
+         * single "Edit lesson content" option, since there's nothing
+         * else to choose between.
+         */
+        function openEditMenuFor(trigger) {
+            closeEditMenu();
+
+            const editUrl = trigger.dataset.editUrl;
+            const videoEditUrl = trigger.dataset.videoEditUrl;
+            const isPublished = (trigger.dataset.status || "").trim().toLowerCase() === "published";
+
+            const menu = document.createElement("div");
+            menu.className = "resource-edit-menu";
+
+            const lessonItem = document.createElement("button");
+            lessonItem.type = "button";
+            lessonItem.className = "resource-edit-menu-item";
+            lessonItem.innerHTML = '<i class="fa-regular fa-file-lines"></i> Edit lesson content';
+            lessonItem.addEventListener("click", (e) => {
+                e.stopPropagation();
+                closeEditMenu();
+                navigateWithPublishedCheck(editUrl, isPublished);
+            });
+            menu.appendChild(lessonItem);
+
+            if (videoEditUrl) {
+                const videoItem = document.createElement("button");
+                videoItem.type = "button";
+                videoItem.className = "resource-edit-menu-item";
+                videoItem.innerHTML = '<i class="fa-solid fa-circle-play"></i> Edit video';
+                videoItem.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    closeEditMenu();
+                    navigateWithPublishedCheck(videoEditUrl, isPublished);
+                });
+                menu.appendChild(videoItem);
+            }
+
+            document.body.appendChild(menu);
+
+            const rect = trigger.getBoundingClientRect();
+            const menuWidth = menu.offsetWidth;
+            menu.style.top = `${rect.bottom + 6}px`;
+            // Right-align to the trigger by default so the menu never
+            // spills off the table's right edge; falls back to
+            // left-aligned only if that would push it off-screen left.
+            let left = rect.right - menuWidth;
+            if (left < 8) left = rect.left;
+            menu.style.left = `${left}px`;
+
+            openEditMenu = menu;
+        }
+
+        /**
+         * Builds the ACTIONS cell's inner markup (Edit trigger + Archive
          * button) for a given resource. Exposed globally so
          * admin-learning-resources.js's renderRows() can build the
          * exact same markup for live-search/filter/page results,
          * without duplicating this logic a second time in that file.
+         *
+         * videoEditUrl (optional): when the Lesson has a Video Tutorial
+         * attached, this is its edit URL - the Edit dropdown then offers
+         * BOTH "Edit lesson content" and "Edit video"; omitted/falsy
+         * means only "Edit lesson content" is offered.
          */
-        function actionsHtml(resourceId, editUrl, status) {
+        function actionsHtml(resourceId, editUrl, status, videoEditUrl) {
             const href = editUrl || `/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}`;
             const statusAttr = status ? ` data-status="${escapeHtml(status)}"` : "";
+            const videoAttr = videoEditUrl ? ` data-video-edit-url="${escapeHtml(videoEditUrl)}"` : "";
             return `
                 <div class="table-actions-group">
-                    <a href="${href}" title="Edit" class="table-action-icon js-edit-resource-btn"
-                       data-resource-id="${resourceId}"${statusAttr}>
+                    <button type="button" title="Edit" class="table-action-icon js-edit-resource-trigger"
+                       data-resource-id="${resourceId}" data-edit-url="${escapeHtml(href)}"${statusAttr}${videoAttr}>
                         <i class="fa-solid fa-pen-to-square"></i>
-                    </a>
+                    </button>
                     <a href="#" title="Archive"
                        class="table-action-icon delete-action js-archive-resource-btn"
                        data-resource-id="${resourceId}">
@@ -110,27 +209,16 @@
         window.cobraByteResourceActions = { actionsHtml };
 
         tableBody.addEventListener("click", async (e) => {
-            // Task #98: Intercept Edit click for Published resources
-            const editBtn = e.target.closest(".js-edit-resource-btn") || e.target.closest('a[title="Edit"]');
-            if (editBtn) {
-                const row = editBtn.closest("tr");
-                const statusCell = row ? row.querySelector(".js-status-cell") : null;
-                const statusText = (editBtn.dataset.status || (statusCell ? statusCell.textContent : "")).trim().toLowerCase();
-                const isPublished = statusText === "published";
-
-                if (isPublished) {
-                    e.preventDefault();
-                    const targetUrl = editBtn.href;
-                    showConfirmModal(
-                        "You are about to edit a published resource. Do you wish to continue?",
-                        () => {
-                            window.location.href = targetUrl;
-                        },
-                        "Edit Published Resource?"
-                    );
-                    return;
+            const editTrigger = e.target.closest(".js-edit-resource-trigger");
+            if (editTrigger) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (openEditMenu && openEditMenu._trigger === editTrigger) {
+                    closeEditMenu();
+                } else {
+                    openEditMenuFor(editTrigger);
+                    if (openEditMenu) openEditMenu._trigger = editTrigger;
                 }
-                // Draft status bypasses warning and proceeds straight to editor
                 return;
             }
 

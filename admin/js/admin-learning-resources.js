@@ -203,13 +203,18 @@
             return div.innerHTML;
         }
 
-        function typeBadgeHtml(type) {
-            const normalized = (type || "").toLowerCase();
-            const cls = normalized.includes("video") ? "badge-video"
-                : normalized.includes("pdf") ? "badge-pdf"
-                : normalized.includes("image") ? "badge-image"
-                : "badge-document";
-            return `<span class="badge ${cls}">${escapeHtml(type || "—")}</span>`;
+        // Task update: the TYPE badge column is now a CONTENT column -
+        // icon buttons instead of a text badge. Every Lesson always
+        // gets a document icon (its own text content); a Video Tutorial
+        // icon is added alongside it ONLY when one is actually attached
+        // (r.video_tutorial_id set) - clicking either previews that
+        // specific content inline rather than navigating anywhere.
+        function contentIconsHtml(resourceId, type, videoId) {
+            let html = `<button type="button" class="resource-content-trigger" data-resource-id="${resourceId}" title="Preview ${escapeHtml(type || 'content')}"><i class="fa-regular fa-file-lines"></i></button>`;
+            if (videoId) {
+                html += ` <button type="button" class="video-preview-trigger" data-video-id="${escapeHtml(videoId)}" title="Preview video"><i class="fa-solid fa-circle-play"></i></button>`;
+            }
+            return html;
         }
 
         // ------------------------------------------------------------
@@ -235,22 +240,333 @@
             return "";
         }
 
-        // Task #81 & #98: ACTIONS column (Edit/Archive) markup - falls back to
-        // just an Edit link if admin-resource-actions.js hasn't loaded
-        // for some reason (script tag order/load failure), so the table
-        // still shows a usable action instead of throwing.
-        function actionsHtml(resourceId, status) {
+        // ACTIONS column (Edit dropdown/Archive) markup - falls back to
+        // just a plain Edit link if admin-resource-actions.js hasn't
+        // loaded for some reason (script tag order/load failure), so
+        // the table still shows a usable action instead of throwing.
+        // videoEditUrl (optional): when set, the Edit dropdown offers
+        // BOTH "Edit lesson content" and "Edit video"; omitted means
+        // only "Edit lesson content" is offered (no video attached).
+        function actionsHtml(resourceId, status, videoEditUrl) {
             if (window.cobraByteResourceActions) {
-                return window.cobraByteResourceActions.actionsHtml(resourceId, null, status);
+                return window.cobraByteResourceActions.actionsHtml(resourceId, null, status, videoEditUrl);
             }
             return `<a href="/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}" title="Edit" class="table-action-icon js-edit-resource-btn" data-resource-id="${resourceId}" data-status="${escapeHtml(status || '')}"><i class="fa-solid fa-pen-to-square"></i></a>`;
         }
 
-        function videoLinkHtml(videoTutorialId, videoId) {
-            if (!videoTutorialId || !videoId) return "";
-            const editUrl = `/admin/upload-video-tutorial?video_id=${encodeURIComponent(videoTutorialId)}`;
-            return ` <a href="${editUrl}" title="Edit attached video" style="margin-left: 8px; color: #6b7280;"><i class="fa-solid fa-pen-to-square"></i></a>`
-                 + ` <button type="button" class="video-preview-trigger" data-video-id="${escapeHtml(videoId)}" title="Preview video" style="margin-left: 6px; color: #09B300; background: none; border: none; padding: 0; cursor: pointer; font-size: inherit;"><i class="fa-solid fa-circle-play"></i></button>`;
+        // ------------------------------------------------------------
+        // Content preview modal (document icon) - fetches the Lesson's
+        // real saved content from /admin/learning-resources/preview-
+        // content (which itself reuses resource_draft.get_lesson_draft(),
+        // the SAME function the actual editor loads from) and renders it
+        // exactly like a learner would see it on lesson-content.html -
+        // not just a raw HTML dump. That means: the SAME CSS (see
+        // admin-style.css's ".lesson-content-body"/".editor-code-*"
+        // rules, copied verbatim from lesson-content.css) AND the SAME
+        // behavior - filenames read-only, Run buttons wired to a real
+        // Pyodide (WebAssembly Python) execution, interactive input()
+        // support - ported from lesson-content.js rather than
+        // re-invented, so admin and learner can never drift apart.
+        // ------------------------------------------------------------
+        const PREVIEW_PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+        const PREVIEW_LESSON_MODULES_DIR = "/lesson_modules";
+        let previewPyodideLoadPromise = null;
+        let previewActiveOutputBox = null;
+
+        function getPreviewPyodideInstance() {
+            if (!previewPyodideLoadPromise) {
+                if (typeof loadPyodide !== "function") {
+                    return Promise.reject(new Error("Pyodide script did not load."));
+                }
+                previewPyodideLoadPromise = loadPyodide({ indexURL: PREVIEW_PYODIDE_INDEX_URL });
+            }
+            return previewPyodideLoadPromise;
+        }
+
+        // Inline input() prompt, appended directly into whichever output
+        // box is currently running - same interaction as the learner's
+        // own lesson page (and the Sandbox): the raw prompt text plus a
+        // live input field, no separate input box anywhere else.
+        function showPreviewTerminalInputPrompt(promptText) {
+            return new Promise((resolve) => {
+                const outputBox = previewActiveOutputBox;
+                if (!outputBox) { resolve(""); return; }
+
+                const promptSpan = document.createElement("span");
+                promptSpan.className = "editor-terminal-prompt-text";
+                promptSpan.textContent = promptText || "";
+
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "editor-terminal-inline-input";
+                input.autocomplete = "off";
+                input.spellcheck = false;
+
+                outputBox.appendChild(promptSpan);
+                outputBox.appendChild(input);
+                outputBox.scrollTop = outputBox.scrollHeight;
+                input.focus();
+
+                input.addEventListener("keydown", function (e) {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        input.disabled = true;
+                        resolve(input.value);
+                    }
+                });
+            });
+        }
+        window.cobraByteContentPreviewInput = showPreviewTerminalInputPrompt;
+
+        function syncPreviewModuleFilesToFS(pyodide, files) {
+            try {
+                pyodide.FS.mkdirTree(PREVIEW_LESSON_MODULES_DIR);
+            } catch (err) { /* already exists */ }
+            files.forEach(({ filename, code }) => {
+                const name = (filename || "").trim();
+                if (!name.toLowerCase().endsWith(".py")) return;
+                const baseName = name.split('/').pop().split('\\').pop();
+                try {
+                    pyodide.FS.writeFile(`${PREVIEW_LESSON_MODULES_DIR}/${baseName}`, code || "", { encoding: "utf8" });
+                } catch (err) { /* ignore */ }
+            });
+        }
+
+        function getAllPreviewCodeBlockFiles(scopeEl) {
+            const files = [];
+            scopeEl.querySelectorAll(".editor-code-container").forEach((wrapper) => {
+                const filenameInput = wrapper.querySelector(".editor-code-filename");
+                const consoleBox = wrapper.querySelector(".editor-console-box");
+                files.push({
+                    filename: filenameInput ? filenameInput.value.trim() : "",
+                    code: consoleBox ? consoleBox.innerText : "",
+                });
+            });
+            return files;
+        }
+
+        async function runPreviewPythonCode(code, files, currentFilename) {
+            let pyodide;
+            try {
+                pyodide = await getPreviewPyodideInstance();
+            } catch (err) {
+                return "Could not load the Python runtime. Check your internet connection and try again.";
+            }
+
+            syncPreviewModuleFilesToFS(pyodide, files);
+            pyodide.globals.set("_cobrabyte_user_code", code || "");
+            pyodide.globals.set("_cobrabyte_module_files", files);
+            pyodide.globals.set("_cobrabyte_current_filename", currentFilename || "");
+
+            try {
+                const result = await pyodide.runPythonAsync(
+                    "import sys, io, traceback, builtins, importlib, ast, types\n" +
+                    "import js as _cobrabyte_js\n" +
+                    `_cobrabyte_modules_dir = ${JSON.stringify(PREVIEW_LESSON_MODULES_DIR)}\n` +
+                    "if _cobrabyte_modules_dir not in sys.path:\n" +
+                    "    sys.path.insert(0, _cobrabyte_modules_dir)\n" +
+                    "importlib.invalidate_caches()\n" +
+                    "_cobrabyte_stdout = io.StringIO()\n" +
+                    "_cobrabyte_stderr = io.StringIO()\n" +
+                    "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
+                    "_old_input = builtins.input\n" +
+                    "sys.stdout, sys.stderr = _cobrabyte_stdout, _cobrabyte_stderr\n" +
+                    "async def _cobrabyte_input(prompt=''):\n" +
+                    "    if prompt:\n" +
+                    "        sys.stdout.write(str(prompt))\n" +
+                    "    _val = await _cobrabyte_js.cobraByteContentPreviewInput(str(prompt) if prompt else '')\n" +
+                    "    if _val is None:\n" +
+                    "        raise EOFError('Input was cancelled while testing.')\n" +
+                    "    _val = str(_val)\n" +
+                    "    sys.stdout.write(_val + chr(10))\n" +
+                    "    return _val\n" +
+                    "builtins.input = _cobrabyte_input\n" +
+                    "class _CobrabyteInputAwaiter(ast.NodeTransformer):\n" +
+                    "    def visit_Call(self, node):\n" +
+                    "        self.generic_visit(node)\n" +
+                    "        if isinstance(node.func, ast.Name) and node.func.id == 'input':\n" +
+                    "            return ast.copy_location(ast.Await(value=node), node)\n" +
+                    "        return node\n" +
+                    "async def _cobrabyte_exec_async(source, mod_globals):\n" +
+                    "    tree = ast.parse(source or '', mode='exec')\n" +
+                    "    _CobrabyteInputAwaiter().visit(tree)\n" +
+                    "    ast.fix_missing_locations(tree)\n" +
+                    "    body = tree.body if tree.body else [ast.Pass()]\n" +
+                    "    func = ast.AsyncFunctionDef(\n" +
+                    "        name='_cobrabyte_block_main',\n" +
+                    "        args=ast.arguments(posonlyargs=[], args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),\n" +
+                    "        body=body, decorator_list=[], returns=None,\n" +
+                    "    )\n" +
+                    "    module_ast = ast.Module(body=[func], type_ignores=[])\n" +
+                    "    ast.fix_missing_locations(module_ast)\n" +
+                    "    exec(compile(module_ast, '<exec>', 'exec'), mod_globals)\n" +
+                    "    await mod_globals['_cobrabyte_block_main']()\n" +
+                    "try:\n" +
+                    "    for _mf in _cobrabyte_module_files.to_py():\n" +
+                    "        _mf_name = (_mf.get('filename') or '').strip()\n" +
+                    "        if not _mf_name.lower().endswith('.py'):\n" +
+                    "            continue\n" +
+                    "        if _mf_name == _cobrabyte_current_filename:\n" +
+                    "            continue\n" +
+                    "        _mod_name = _mf_name.split('/')[-1].split(chr(92))[-1][:-3]\n" +
+                    "        sys.modules.pop(_mod_name, None)\n" +
+                    "        _mod = types.ModuleType(_mod_name)\n" +
+                    "        sys.modules[_mod_name] = _mod\n" +
+                    "        try:\n" +
+                    "            await _cobrabyte_exec_async(_mf.get('code') or '', _mod.__dict__)\n" +
+                    "        except Exception:\n" +
+                    "            traceback.print_exc()\n" +
+                    "    await _cobrabyte_exec_async(_cobrabyte_user_code, {'__name__': '__main__'})\n" +
+                    "except Exception:\n" +
+                    "    traceback.print_exc()\n" +
+                    "finally:\n" +
+                    "    builtins.input = _old_input\n" +
+                    "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
+                    "_cobrabyte_stdout.getvalue() + _cobrabyte_stderr.getvalue()\n"
+                );
+                return result;
+            } catch (err) {
+                return "Error running code: " + (err && err.message ? err.message : String(err));
+            }
+        }
+
+        function wirePreviewRunButton(wrapper, scopeEl) {
+            const runBtn = wrapper.querySelector(".run-btn");
+            const consoleBox = wrapper.querySelector(".editor-console-box");
+            const outputBox = wrapper.querySelector(".editor-output-box");
+            const filenameInput = wrapper.querySelector(".editor-code-filename");
+            if (!runBtn || !consoleBox || !outputBox) return;
+
+            runBtn.addEventListener("click", async function () {
+                const code = consoleBox.innerText.trim();
+                if (!code) {
+                    alert("There's no example code in this Console block.");
+                    return;
+                }
+
+                const originalHtml = runBtn.innerHTML;
+                runBtn.disabled = true;
+                runBtn.innerHTML = previewPyodideLoadPromise
+                    ? '<i class="fa-solid fa-spinner fa-spin"></i> Running...'
+                    : '<i class="fa-solid fa-spinner fa-spin"></i> Loading Python...';
+
+                previewActiveOutputBox = outputBox;
+                outputBox.textContent = "";
+
+                const files = getAllPreviewCodeBlockFiles(scopeEl);
+                const currentFilename = filenameInput ? filenameInput.value.trim() : "";
+                const output = await runPreviewPythonCode(code, files, currentFilename);
+
+                previewActiveOutputBox = null;
+                outputBox.textContent = output.trim();
+
+                runBtn.disabled = false;
+                runBtn.innerHTML = originalHtml;
+            });
+        }
+
+        // Mirrors lesson-content.js's preparePageForLearner() exactly,
+        // just scoped to the modal's own content container instead of
+        // a whole page.
+        function preparePreviewContent(scopeEl) {
+            scopeEl.querySelectorAll(".editor-code-filename").forEach((input) => {
+                input.setAttribute("disabled", "true");
+            });
+
+            scopeEl.querySelectorAll(".editor-console-box").forEach((box) => {
+                box.setAttribute("contenteditable", "false");
+            });
+
+            scopeEl.querySelectorAll(".editor-code-container").forEach((wrapper) => {
+                wrapper.querySelectorAll(".editor-output-mode-select").forEach((el) => el.remove());
+
+                const modeSelect = wrapper.querySelector(".editor-code-mode-select");
+                const isSnippetOnly = modeSelect && modeSelect.value === "snippet";
+                const outputPane = wrapper.querySelector(".output-card-pane");
+                const consolePane = wrapper.querySelector(".console-card-pane");
+                if (isSnippetOnly && outputPane) {
+                    outputPane.style.display = "none";
+                    if (consolePane) consolePane.style.gridColumn = "1 / -1";
+                }
+
+                const outputBox = wrapper.querySelector(".editor-output-box");
+                if (outputBox) {
+                    outputBox.textContent = "";
+                    outputBox.setAttribute("placeholder", "Run the program first to see the output.");
+                }
+
+                wirePreviewRunButton(wrapper, scopeEl);
+            });
+
+            scopeEl.querySelectorAll(".editor-terminal-box").forEach((box) => {
+                box.setAttribute("contenteditable", "false");
+            });
+        }
+
+        async function showContentPreviewModal(resourceId) {
+            let overlay = document.getElementById("contentPreviewModalOverlay");
+            if (overlay) overlay.remove();
+
+            overlay = document.createElement("div");
+            overlay.id = "contentPreviewModalOverlay";
+            overlay.className = "modal-overlay";
+            overlay.innerHTML = `
+                <div class="content-preview-card">
+                    <div class="content-preview-header">
+                        <strong id="contentPreviewTitle">Loading...</strong>
+                        <button type="button" id="contentPreviewCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
+                    </div>
+                    <div class="content-preview-body lesson-content-body" id="contentPreviewBody">Loading content...</div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            function closeModal() {
+                overlay.remove();
+                document.removeEventListener("keydown", onEscKey);
+            }
+            function onEscKey(e) {
+                if (e.key === "Escape") closeModal();
+            }
+            overlay.addEventListener("click", (e) => {
+                if (e.target === overlay) closeModal();
+            });
+            const closeBtn = overlay.querySelector("#contentPreviewCloseBtn");
+            if (closeBtn) closeBtn.addEventListener("click", closeModal);
+            document.addEventListener("keydown", onEscKey);
+
+            try {
+                const response = await fetch(`/admin/learning-resources/preview-content?resource_id=${encodeURIComponent(resourceId)}`, {
+                    credentials: "include",
+                });
+                const result = await response.json();
+
+                const titleEl = document.getElementById("contentPreviewTitle");
+                const bodyEl = document.getElementById("contentPreviewBody");
+                if (!titleEl || !bodyEl) return; // modal was closed before this resolved
+
+                if (!result.success) {
+                    titleEl.textContent = "Preview";
+                    bodyEl.textContent = result.message || "Could not load this content.";
+                    return;
+                }
+
+                titleEl.textContent = result.title || "Preview";
+                bodyEl.innerHTML = result.content_html || "<em>No content yet.</em>";
+                preparePreviewContent(bodyEl);
+            } catch (err) {
+                const bodyEl = document.getElementById("contentPreviewBody");
+                if (bodyEl) bodyEl.textContent = "Could not reach the server.";
+            }
+        }
+
+        if (tableBody) {
+            tableBody.addEventListener("click", (e) => {
+                const contentTrigger = e.target.closest(".resource-content-trigger");
+                if (!contentTrigger) return;
+                e.preventDefault();
+                showContentPreviewModal(contentTrigger.dataset.resourceId);
+            });
         }
 
         function renderRows(resources) {
@@ -271,21 +587,26 @@
             // (Publish/Unpublish) are now two separate cells, in that
             // order, both still at the far right of the row - no other
             // columns were reordered.
-            tableBody.innerHTML = resources.map(r => `
+            tableBody.innerHTML = resources.map(r => {
+                const videoEditUrl = r.video_tutorial_id
+                    ? `/admin/upload-video-tutorial?video_id=${encodeURIComponent(r.video_tutorial_id)}`
+                    : null;
+                return `
                 <tr data-resource-id="${r.resource_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(r.resource_title)}</strong>${videoLinkHtml(r.video_tutorial_id, r.video_file_path)}
+                        <strong class="table-item-title">${escapeHtml(r.resource_title)}</strong>
                     </td>
-                    <td>${typeBadgeHtml(r.type)}</td>
+                    <td>${contentIconsHtml(r.resource_id, r.type, r.video_file_path)}</td>
                     <td class="text-muted">${escapeHtml(r.category)}</td>
                     <td class="text-muted">${escapeHtml(r.uploaded_by)}</td>
                     <td class="text-muted js-status-cell">${statusBadgeHtml(r.status)}</td>
                     <td class="text-muted">${escapeHtml(r.created_at)}</td>
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>
-                    <td class="text-right">${actionsHtml(r.resource_id, r.status)}</td>
+                    <td class="text-right">${actionsHtml(r.resource_id, r.status, videoEditUrl)}</td>
                     <td class="text-right">${publishButtonHtml(r.resource_id, r.status, r.module_status)}</td>
                 </tr>
-            `).join("");
+            `;
+            }).join("");
         }
 
         function buildParams() {

@@ -123,7 +123,7 @@
                         <thead>
                             <tr>
                                 <th>Resource</th>
-                                <th>Type</th>
+                                <th>Content</th>
                                 <th>Category</th>
                                 <th>Uploaded By</th>
                                 <th>Status</th>
@@ -146,24 +146,15 @@
                             <tr data-resource-id="{{ resource.resource_id }}">
                                 <td>
                                     <strong class="table-item-title">{{ resource.resource_title }}</strong>
-                                    {% if resource.video_tutorial_id and resource.video_file_path %}
-                                    <a href="{{ url_for('admin_bp.upload_video_tutorial', video_id=resource.video_tutorial_id) }}" title="Edit attached video" style="margin-left: 8px; color: #6b7280;">
-                                        <i class="fa-solid fa-pen-to-square"></i>
-                                    </a>
-                                    <button type="button" class="video-preview-trigger" data-video-id="{{ resource.video_file_path }}" title="Preview video" style="margin-left: 6px; color: #09B300; background: none; border: none; padding: 0; cursor: pointer; font-size: inherit;">
-                                        <i class="fa-solid fa-circle-play"></i>
-                                    </button>
-                                    {% endif %}
                                 </td>
                                 <td>
-                                    {% if 'video' in resource.type|lower %}
-                                    <span class="badge badge-video">{{ resource.type }}</span>
-                                    {% elif 'pdf' in resource.type|lower %}
-                                    <span class="badge badge-pdf">{{ resource.type }}</span>
-                                    {% elif 'image' in resource.type|lower %}
-                                    <span class="badge badge-image">{{ resource.type }}</span>
-                                    {% else %}
-                                    <span class="badge badge-document">{{ resource.type }}</span>
+                                    <button type="button" class="resource-content-trigger" data-resource-id="{{ resource.resource_id }}" title="Preview {{ resource.type }}">
+                                        <i class="fa-regular fa-file-lines"></i>
+                                    </button>
+                                    {% if resource.video_tutorial_id and resource.video_file_path %}
+                                    <button type="button" class="video-preview-trigger" data-video-id="{{ resource.video_file_path }}" title="Preview video">
+                                        <i class="fa-solid fa-circle-play"></i>
+                                    </button>
                                     {% endif %}
                                 </td>
                                 <td class="text-muted">{{ resource.category }}</td>
@@ -188,14 +179,28 @@
                                     (reuses the existing table-action-icon
                                     styling already used on Manage Course).
                                 -->
+                                <!--
+                                    Task update: ACTIONS' Edit is now a
+                                    dropdown trigger (Edit lesson content
+                                    / Edit video) instead of a direct
+                                    link - see admin-resource-actions.js.
+                                    data-video-edit-url is only present
+                                    when this Lesson actually has a
+                                    Video Tutorial attached; its absence
+                                    is what makes the dropdown offer only
+                                    "Edit lesson content" for a
+                                    video-less Lesson.
+                                -->
                                 <td class="text-right">
                                     <div class="table-actions-group">
-                                        <a href="{{ url_for('admin_bp.upload_resource', resource_id=resource.resource_id) }}"
-                                           title="Edit" class="table-action-icon js-edit-resource-btn"
+                                        <button type="button"
+                                           title="Edit" class="table-action-icon js-edit-resource-trigger"
                                            data-resource-id="{{ resource.resource_id }}"
-                                           data-status="{{ resource.status }}">
+                                           data-edit-url="{{ url_for('admin_bp.upload_resource', resource_id=resource.resource_id) }}"
+                                           data-status="{{ resource.status }}"
+                                           {% if resource.video_tutorial_id %}data-video-edit-url="{{ url_for('admin_bp.upload_video_tutorial', video_id=resource.video_tutorial_id) }}"{% endif %}>
                                             <i class="fa-solid fa-pen-to-square"></i>
-                                        </a>
+                                        </button>
                                         <a href="#" title="Archive"
                                            class="table-action-icon delete-action js-archive-resource-btn"
                                            data-resource-id="{{ resource.resource_id }}">
@@ -254,6 +259,11 @@
     </div>
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <!-- Pyodide - real Python compiled to WebAssembly, running entirely in
+         this browser tab. Needed so the Content preview modal's "Run"
+         button on an Interactive Exercise block actually executes, the
+         same as it does for learners on lesson-content.html. -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learning-resources.js') }}"></script>

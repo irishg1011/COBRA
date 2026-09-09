@@ -832,6 +832,21 @@ body {
     color: #6b7280;
 }
 
+/* Fix: .table-action-icon was originally only ever used on <a> tags,
+   which have no default background/border/padding in any browser - so
+   it never needed to reset those. The new Edit trigger is a <button>
+   (needed so it can open the Edit dropdown instead of navigating),
+   and buttons DO get default background/border/padding from the
+   browser's own UA stylesheet - this reset makes a <button> using
+   .table-action-icon look identical to the plain <a> version right
+   next to it (the Archive icon), instead of showing a stray box. */
+button.table-action-icon {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+}
+
 /* Badges */
 .badge {
     padding: 3px 10px;
@@ -2087,4 +2102,319 @@ textarea.form-control-custom {
 #exercisesDataTable td.exercise-actions-column,
 #exercisesDataTable th.exercise-actions-column {
     padding-right: 28px;
+}
+/* ==========================================================================
+   MANAGE LEARNING RESOURCES - CONTENT COLUMN ICONS, EDIT CHOICE MENU,
+   AND CONTENT PREVIEW MODAL
+   ========================================================================== */
+
+/* Content column icon buttons (document icon = always present, preview
+   the Lesson's own text content; video icon = only when a Video
+   Tutorial is attached) - a plain, borderless icon button, matching
+   the visual weight of .table-action-icon used in the Actions column. */
+.resource-content-trigger,
+.video-preview-trigger {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-right: 8px;
+    font-size: 15px;
+    color: #3b82f6;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.resource-content-trigger:hover,
+.video-preview-trigger:hover {
+    color: #1d4ed8;
+}
+
+.video-preview-trigger {
+    margin-right: 0;
+}
+
+/* Edit choice dropdown ("Edit lesson content" / "Edit video") - opened
+   from the Actions column's Edit (pencil) button. */
+.resource-edit-menu {
+    position: fixed;
+    z-index: 3000;
+    background: #1f2937;
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+    min-width: 190px;
+}
+
+.resource-edit-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: none;
+    border: none;
+    color: #f9fafb;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    padding: 9px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.resource-edit-menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.resource-edit-menu-item i {
+    width: 16px;
+    text-align: center;
+    color: #9ca3af;
+}
+
+/* Read-only Lesson Content preview modal (the document icon's
+   click target) - reuses the existing .modal-overlay backdrop. */
+.content-preview-card {
+    background: #ffffff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.content-preview-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #111827;
+    font-size: 15px;
+}
+
+.content-preview-header .modal-close-btn {
+    color: #6b7280;
+}
+
+.content-preview-body {
+    padding: 20px 22px;
+    overflow-y: auto;
+    color: #374151;
+    line-height: 1.7;
+}
+
+/* ==========================================================================
+   MANAGE LEARNING RESOURCES - CONTENT PREVIEW: LEARNER-STYLE RICH TEXT
+   AND INTERACTIVE CODE/TERMINAL BLOCKS
+   Copied verbatim from lesson-content.css (same class names, same
+   selectors, scoped under .lesson-content-body exactly as there) so a
+   lesson previewed here looks and behaves pixel-identical to how a
+   learner would actually see it - not a re-interpretation of the
+   style, the same rules.
+   ========================================================================== */
+/* ===================== Rich text content ===================== */
+.lesson-content-body h1 { font-size: 26px; font-weight: 800; margin: 28px 0 12px; color: #0f172a; }
+.lesson-content-body h2 { font-size: 21px; font-weight: 700; margin: 24px 0 10px; color: #0f172a; }
+.lesson-content-body h3 { font-size: 17px; font-weight: 700; margin: 20px 0 8px; color: #0f172a; }
+.lesson-content-body p { font-size: 15.5px; line-height: 1.75; color: #334155; margin: 0 0 14px; }
+.lesson-content-body ul, .lesson-content-body ol { margin: 0 0 14px; padding-left: 24px; font-size: 15.5px; line-height: 1.75; color: #334155; }
+.lesson-content-body li { margin-bottom: 4px; }
+.lesson-content-body blockquote {
+    margin: 16px 0;
+    padding: 14px 18px;
+    border-left: 4px solid #16a34a;
+    background: #f0fdf4;
+    color: #14532d;
+    font-size: 14.5px;
+    border-radius: 0 8px 8px 0;
+}
+.lesson-content-body strong { font-weight: 700; }
+.lesson-content-body em { font-style: italic; }
+
+/* ===================== Interactive Code/Terminal blocks ===================== */
+/* Mirrors module-editor.css (admin editor) exactly - same light theme,
+   same colors - minus editing-only chrome (mode select, delete button). */
+.editor-code-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+    .editor-code-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.editor-code-top-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.editor-code-filename-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-grow: 1;
+}
+
+.editor-code-filename {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: #374151;
+    width: 100%;
+    max-width: 250px;
+    outline: none;
+    font-family: monospace;
+    background: #ffffff;
+}
+
+.editor-code-mode-select,
+.editor-delete-block-btn,
+.editor-output-mode-select {
+    display: none !important;
+}
+
+.editor-code-desc {
+    display: none;
+}
+
+.editor-code-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-code-card-header {
+    height: 4px;
+    width: 100%;
+    background: #06b6d4 !important;
+}
+
+.editor-code-card-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-grow: 1;
+    text-align: left;
+}
+
+.editor-code-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 28px;
+    margin-bottom: 4px;
+}
+
+.editor-code-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+}
+
+.editor-console-box,
+.editor-output-box {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #374151;
+    min-height: 120px;
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-all;
+    flex: 1;
+}
+
+.editor-output-box:empty::before,
+.editor-console-box:empty::before {
+    content: attr(placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+    display: block;
+}
+
+.console-action-btn.run-btn {
+    background: #06b6d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.console-action-btn.run-btn:hover {
+    background: #0891b2;
+}
+
+.console-action-btn.run-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.editor-terminal-container {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    margin: 16px 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.editor-terminal-card-header {
+    background: #06b6d4 !important;
+    height: 8px;
+    width: 100%;
+}
+
+.editor-terminal-card-body {
+    padding: 16px;
+    text-align: left;
+}
+
+.editor-terminal-box {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: monospace;
+    font-size: 0.9rem;
+    padding: 12px;
+    border-radius: 6px;
+    min-height: 80px;
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-all;
+    pointer-events: none;
+}
+
+.editor-terminal-prompt-text {
+    color: #94a3b8;
 }

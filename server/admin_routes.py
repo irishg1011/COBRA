@@ -1676,6 +1676,28 @@ def learning_resources_data():
     return jsonify({"success": True, **overview}), 200
 
 
+@admin_bp.route('/learning-resources/preview-content')
+def learning_resources_preview_content():
+    """
+    Read-only preview for the Content column's document icon on Manage
+    Learning Resources - reuses resource_draft.get_lesson_draft(), the
+    SAME function New Lesson's own ?resource_id= reload path already
+    uses, so this preview can never drift from what the actual editor
+    would show. Returns JSON only; the frontend renders it inside a
+    modal rather than navigating anywhere.
+    """
+    resource_id = request.args.get('resource_id', '')
+    draft = get_lesson_draft(resource_id) if resource_id else None
+    if not draft:
+        return jsonify({"success": False, "message": "Content not found."}), 404
+
+    return jsonify({
+        "success": True,
+        "title": draft.get("lesson_name"),
+        "content_html": draft.get("content_html") or "",
+    }), 200
+
+
 # ============================================================
 # Task #43: PUBLISH / UNPUBLISH A LEARNING RESOURCE
 # ============================================================
