@@ -5,6 +5,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const catId = urlParams.get('cat_id');
 
+    if (!catId) {
+        window.location.href = '/learning-map';
+        return;
+}
+
     const lessonsTitle = document.getElementById('lessonsTitle');
     const lessonsSubtitle = document.getElementById('lessonsSubtitle');
     const overallPercent = document.getElementById('overallPercent');

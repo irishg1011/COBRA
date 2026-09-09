@@ -603,10 +603,10 @@ select {
 
 /* Dashboard Parent Wrapper layout */
 .dashboard-container {
-    max-width: 1200px;
+    max-width: 1600px;
     width: 100%;
     margin: 0 auto;
-    padding: 60px 8%;
+    padding: 60px 3%;
 }
 
 .dashboard-intro {

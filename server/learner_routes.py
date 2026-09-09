@@ -20,6 +20,8 @@ from lesson_activities import (
     record_activity_progress,
     get_activities_completion_summary,
 )
+from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet  # Coding Sandbox - save to account
+from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 
 learner_bp = Blueprint('learner_bp', __name__)
 
@@ -87,6 +89,119 @@ def dashboard():
 def sandbox():
     learner_html_dir = os.path.join(LEARNER_DIR, 'html')
     return send_from_directory(learner_html_dir, 'sandbox.html')
+
+
+# ============================================================
+# ROUTE: CODING SANDBOX - SAVE CODE TO THE LEARNER'S ACCOUNT (JSON API)
+# ============================================================
+@learner_bp.route("/api/sandbox/save", methods=["POST"])
+def sandbox_save_code():
+    """
+    Persists the Sandbox editor's current code against the LOGGED-IN
+    learner's own acc_id (see sandbox_snippets.py) - never to the
+    local filesystem/file explorer, so it follows their account across
+    devices/sessions.
+
+    An optional snippet_id in the request body means "update this
+    existing saved snippet" rather than create a new one - see
+    sandbox_snippets.save_snippet()'s update-in-place behavior.
+    """
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    code = data.get("code", "")
+    snippet_id = data.get("snippet_id")
+
+    success, snippet, message = save_snippet(acc_id, code, snippet_id=snippet_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+
+    return jsonify({
+        "success": True,
+        "message": message,
+        "snippet": {
+            "snippet_id": snippet["snippet_id"],
+            "title": snippet["title"],
+            "created_at": snippet["created_at"].strftime("%b %d, %I:%M %p") if snippet.get("created_at") else "",
+            "updated_at": snippet["updated_at"].strftime("%b %d, %I:%M %p") if snippet.get("updated_at") else None,
+        },
+    }), 200
+
+
+# ============================================================
+# ROUTE: CODING SANDBOX - LIST THE LEARNER'S SAVED SNIPPETS (JSON API)
+# ============================================================
+@learner_bp.route("/api/sandbox/snippets", methods=["GET"])
+def sandbox_list_snippets():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    rows = get_snippets_for_learner(acc_id)
+    snippets = [{
+        "snippet_id": row["snippet_id"],
+        "title": row["title"],
+        "created_at": row["created_at"].strftime("%b %d, %I:%M %p") if row.get("created_at") else "",
+        "updated_at": row["updated_at"].strftime("%b %d, %I:%M %p") if row.get("updated_at") else None,
+    } for row in rows]
+
+    return jsonify({"success": True, "snippets": snippets}), 200
+
+
+# ============================================================
+# ROUTE: CODING SANDBOX - LOAD ONE SAVED SNIPPET'S FULL CODE (JSON API)
+# ============================================================
+@learner_bp.route("/api/sandbox/snippets/<int:snippet_id>", methods=["GET"])
+def sandbox_get_snippet(snippet_id):
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    # Scoped to THIS learner's own acc_id inside get_snippet() itself -
+    # requesting another learner's snippet_id correctly returns nothing.
+    row = get_snippet(acc_id, snippet_id)
+    if not row:
+        return jsonify({"success": False, "message": "Snippet not found."}), 404
+
+    return jsonify({
+        "success": True,
+        "snippet": {
+            "snippet_id": row["snippet_id"],
+            "title": row["title"],
+            "code": row["code_content"],
+            "created_at": row["created_at"].strftime("%b %d, %I:%M %p") if row.get("created_at") else "",
+        },
+    }), 200
+
+
+# ============================================================
+# ROUTE: CODING SANDBOX - LOG A RUN (JSON API)
+# ============================================================
+@learner_bp.route("/api/sandbox/log-run", methods=["POST"])
+def sandbox_log_run():
+    """
+    Fire-and-forget: records one Run Code execution to
+    sandbox_runs_tbl (see sandbox_runs.py) for future run-history/
+    activity views. Called by the frontend AFTER a run already
+    finished (Pyodide executes entirely client-side) - this never
+    gates or slows down the run itself, and always responds success
+    regardless of whether the log actually wrote, since a logging
+    hiccup should never look like an error to the learner.
+    """
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    code = data.get("code", "")
+    output = data.get("output", "")
+    status = data.get("status", "success")
+    snippet_id = data.get("snippet_id")
+
+    log_run(acc_id, code, output, status, snippet_id=snippet_id)
+    return jsonify({"success": True}), 200
 
 
 # ============================================================

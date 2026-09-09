@@ -3,10 +3,10 @@
    ========================================================================== */
 
 .sandbox-container {
-    max-width: 1200px;
+    max-width: 1600px;      /* was 1200px */
     width: 100%;
     margin: 0 auto;
-    padding: 50px 8% 80px;
+    padding: 50px 3% 80px;  /* was 50px 8% 80px */
 }
 
 /* --- Heading Row --- */
@@ -204,10 +204,15 @@
     box-sizing: border-box;
 }
 
+.code-editor::placeholder {
+    color: #64748b;
+}
+
 .output-body {
     flex: 1;
     padding: 20px 22px;
     overflow-y: auto;
+    overflow-x: hidden;
     font-family: 'Courier New', Courier, monospace;
     font-size: 14px;
     line-height: 1.8;
@@ -222,6 +227,45 @@
 .output-line {
     margin: 0 0 4px 0;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* NEW: inline input() prompt, matching the same pattern already used
+   by the Manage Learning Resources lesson editor's Interactive
+   Exercise Console (see module-editor.css's .editor-terminal-inline-
+   input) - the cursor sits right after the prompt text on the same
+   line, not in a separate input box. */
+.terminal-prompt-text {
+    white-space: pre-wrap;
+}
+
+.terminal-inline-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #1CE8C8;
+    outline: none;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    caret-color: #1CE8C8;
+    width: 220px;
+    max-width: 70%;
+    padding: 0 2px;
+}
+
+.terminal-inline-input:disabled {
+    border-bottom-color: transparent;
+}
+
+/* NEW: distinguishes a program's own stderr/traceback (red) and a
+   timed-out run (amber) from normal stdout - previously "Run Code"
+   had no real execution, so no error state existed to style. */
+.output-error {
+    color: #f87171;
+}
+
+.output-timeout {
+    color: #fbbf24;
 }
 
 /* --- Saved Snippets --- */
