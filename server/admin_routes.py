@@ -61,6 +61,10 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     save_coding_exercise, parse_test_cases_from_form,
 )
 from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise  # Task #111 & #112
+from video_tutorials import (  # NEW: New Video Tutorial DB integration - Category -> Module -> Lesson cascade + Save Draft/Publish
+    save_video_tutorial, get_video_tutorial,
+)
+from video_upload import save_video_file  # NEW: New Video Tutorial - video file validation/storage (MP4/WebM/MOV, max 2GB)
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -2041,19 +2045,111 @@ def achievements():
 def reports():
     return render_placeholder("Reports")
 
-@admin_bp.route('/upload-video-tutorial')
+@admin_bp.route('/upload-video-tutorial', methods=['GET'])
 def upload_video_tutorial():
     """
-    Front-end only for now: renders the standalone Upload Video Tutorial
-    page. No save/publish logic is wired up yet - Category options are
-    real (get_categories(), same as upload_resource()), but the
-    Module/Lesson dropdowns and the actual file/description save are
-    still placeholders.
+    Renders the New Video Tutorial page. Category options are real
+    (get_categories(), same as upload_resource()/create_learning_
+    activity_page()) - never hardcoded. The Module and Lesson
+    dropdowns start empty/disabled in the template and are populated
+    live by upload-video-tutorial-ui.js, reusing the SAME dependent-
+    dropdown endpoints Create Learning Activity / Create Coding
+    Exercise already use:
+        /admin/upload-resource/modules-by-category
+        /admin/create-learning-activity/lessons-by-module
+    - no duplicate Category -> Module -> Lesson endpoints created for
+    this page.
+
+    On GET, an optional ?video_id= query param reloads a previously
+    saved video tutorial's fields back into the form via
+    video_tutorials.get_video_tutorial(), mirroring upload_resource()'s
+    own ?resource_id=-based reload (Task #45) and
+    create_coding_exercise()'s ?exercise_id=-based reload.
     """
+    video_id = request.args.get('video_id', '') or None
+    existing_video = get_video_tutorial(video_id) if video_id else None
+
     return render_template(
         'upload-video-tutorial.html',
         categories=get_categories(),
+        existing_video=existing_video,
     )
+
+
+# ============================================================
+# ROUTE: NEW VIDEO TUTORIAL - SAVE DRAFT / PUBLISH
+# ============================================================
+def _handle_video_tutorial_submit(status):
+    """
+    Shared handler for both Save Draft and Publish below - a thin HTTP
+    wrapper only. All validation/persistence logic lives in
+    video_tutorials.py (DB) and video_upload.py (file storage), per
+    this project's existing convention (see
+    upload_resource_save_draft() / save_coding_exercise_draft()) - no
+    new backend logic lives inline here.
+
+    Expects multipart/form-data (not JSON) since a video file may be
+    attached: video_tutorial_id, video_title, category_id, module_id,
+    resource_id, description, and an optional video_file.
+    """
+    video_file = request.files.get('video_file')
+    file_path = None
+    file_size = None
+
+    if video_file and video_file.filename:
+        upload_ok, relative_path, size_bytes, upload_err = save_video_file(video_file, ADMIN_DIR)
+        if not upload_ok:
+            return jsonify({"success": False, "message": upload_err}), 400
+        file_path = relative_path
+        file_size = size_bytes
+
+    data = {
+        "video_tutorial_id": request.form.get('video_tutorial_id'),
+        "video_title": request.form.get('video_title'),
+        "category_id": request.form.get('category_id'),
+        "module_id": request.form.get('module_id'),
+        "resource_id": request.form.get('resource_id'),
+        "description": request.form.get('description'),
+        "file_path": file_path,
+        "file_size": file_size,
+    }
+
+    success, video_tutorial_id, message = save_video_tutorial(
+        data, status=status, uploaded_by=session.get('admin_id')
+    )
+
+    return jsonify({
+        "success": success,
+        "message": message,
+        "video_tutorial_id": video_tutorial_id,
+        "file_path": file_path,
+        "file_size": file_size,
+    }), (200 if success else 400)
+
+
+@admin_bp.route('/upload-video-tutorial/save-draft', methods=['POST'])
+def upload_video_tutorial_save_draft():
+    """
+    Saves the New Video Tutorial form's current in-progress values
+    (title, Category/Module/Lesson, description, and - if chosen this
+    request - a video file) as a real Draft row in video_tutorials_tbl,
+    mirroring upload_resource_save_draft() / save_coding_exercise_draft()'s
+    pattern. Does NOT require a video file or description (Task #10) -
+    only Category, Module, Lesson and Title.
+    """
+    return _handle_video_tutorial_submit(status="Draft")
+
+
+@admin_bp.route('/upload-video-tutorial/publish', methods=['POST'])
+def upload_video_tutorial_publish():
+    """
+    Publishes the New Video Tutorial form - the SAME save path as Save
+    Draft (video_tutorials.save_video_tutorial()), just with
+    status="Published", which additionally requires a video file
+    (either uploaded this request or already attached from a prior
+    Save Draft) and a description (Task #11).
+    """
+    return _handle_video_tutorial_submit(status="Published")
 
 
 @admin_bp.route('/upload-resource', methods=['GET', 'POST'])

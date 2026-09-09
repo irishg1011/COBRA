@@ -30,7 +30,7 @@
                             <i class="fa-solid fa-arrow-left"></i> Back
                         </a>
                         <h1>Manage Learning Resources</h1>
-                        <p>Good afternoon, Irish!</p>
+                        <p>{{ greeting }}, {{ current_admin.full_name if current_admin else 'Administrator' }}!</p>
                         <small class="text-muted">Upload and manage tutorial videos and lessons.</small>
                     </div>
                     <div class="header-actions-group">
@@ -39,10 +39,10 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="header-actions">
-                            <button type="button" class="btn btn-light-custom">
+                            <button type="button" class="btn btn-light-custom" id="previewVideoBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Video
                             </button>
-                            <button type="button" class="btn btn-light-custom" id="saveVideoDraftBtn">
+                            <button type="button" class="btn btn-success-custom" id="saveVideoDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
                             <button type="button" class="btn btn-success-custom" id="publishVideoBtn">
@@ -58,26 +58,34 @@
                     <h2>New Video Tutorial</h2>
                 </div>
 
-                <!-- Category / Module / Lesson - front-end only, not yet wired to real cascading data -->
+                <!-- Category / Module / Lesson - Task: real DB-driven cascading
+                     dropdowns, wired up by upload-video-tutorial-ui.js via the
+                     SAME dependent-dropdown endpoints Create Learning Activity /
+                     Create Coding Exercise already use (no duplicate endpoints). -->
+                <input type="hidden" id="videoTutorialIdInput" value="{{ existing_video.video_tutorial_id if existing_video else '' }}">
+                <input type="hidden" id="existingVideoFilePathInput" value="{{ existing_video.file_path if existing_video else '' }}">
+                <input type="hidden" id="existingVideoFileSizeInput" value="{{ existing_video.file_size if existing_video else '' }}">
+                <input type="hidden" id="existingVideoFileUrlInput" value="{{ url_for('admin_bp.static', filename=existing_video.file_path) if existing_video and existing_video.file_path else '' }}">
+                <input type="hidden" id="hiddenVideoDescription">
                 <div class="lesson-meta-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 18px;">
                     <div class="form-group">
                         <label for="videoCategorySelect">Category</label>
                         <select id="videoCategorySelect" class="form-control">
-                            <option value="" disabled selected>Select category...</option>
+                            <option value="" disabled {{ 'selected' if not existing_video }}>Select category...</option>
                             {% for cat in categories %}
-                            <option value="{{ cat.cat_id }}">{{ cat.category_name }}</option>
+                            <option value="{{ cat.cat_id }}" {{ 'selected' if existing_video and existing_video.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="videoModuleSelect">Module</label>
-                        <select id="videoModuleSelect" class="form-control" disabled>
+                        <select id="videoModuleSelect" class="form-control" disabled data-preselect-module-id="{{ existing_video.module_id if existing_video else '' }}">
                             <option value="" disabled selected>Select module...</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="videoLessonSelect">Lesson</label>
-                        <select id="videoLessonSelect" class="form-control" disabled>
+                        <select id="videoLessonSelect" class="form-control" disabled data-preselect-resource-id="{{ existing_video.resource_id if existing_video else '' }}">
                             <option value="" disabled selected>Select lesson...</option>
                         </select>
                     </div>
@@ -90,7 +98,7 @@
                         <div class="card-box padded-card" style="margin-bottom: 18px;">
                             <div class="form-group">
                                 <label for="videoTitleInput">Video Tutorial Title</label>
-                                <input type="text" id="videoTitleInput" class="form-control" placeholder="Enter video tutorial title...">
+                                <input type="text" id="videoTitleInput" class="form-control" placeholder="Enter video tutorial title..." value="{{ existing_video.video_title if existing_video else '' }}">
                             </div>
                         </div>
 
@@ -111,7 +119,7 @@
                                 <button type="button" title="Insert Image"><i class="fa-regular fa-image"></i></button>
                                 <button type="button" title="Insert Link"><i class="fa-solid fa-link"></i></button>
                             </div>
-                            <div id="videoDescriptionEditor" class="video-desc-textarea" contenteditable="true" data-placeholder="Write a description about the video..."></div>
+                            <div id="videoDescriptionEditor" class="video-desc-textarea" contenteditable="true" data-placeholder="Write a description about the video...">{{ existing_video.description | safe if existing_video and existing_video.description else '' }}</div>
                             <span class="video-desc-char-counter" id="videoDescCounter">0 / 2000</span>
                         </div>
 
@@ -173,6 +181,7 @@
                 </div>
 
             </div>
+            {% include 'confirm-action-modal.html' %}
         </main>
     </div>
 

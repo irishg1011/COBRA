@@ -146,6 +146,14 @@
                             <tr data-resource-id="{{ resource.resource_id }}">
                                 <td>
                                     <strong class="table-item-title">{{ resource.resource_title }}</strong>
+                                    {% if resource.video_tutorial_id and resource.video_file_path %}
+                                    <a href="{{ url_for('admin_bp.upload_video_tutorial', video_id=resource.video_tutorial_id) }}" title="Edit attached video" style="margin-left: 8px; color: #6b7280;">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </a>
+                                    <a href="{{ url_for('admin_bp.static', filename=resource.video_file_path) }}" target="_blank" rel="noopener" title="View/download attached video" style="margin-left: 6px; color: #09B300;">
+                                        <i class="fa-solid fa-circle-play"></i>
+                                    </a>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if 'video' in resource.type|lower %}

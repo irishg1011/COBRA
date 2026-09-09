@@ -71,6 +71,26 @@
 
         let currentPage = 1;
         let totalPages = 1;
+
+        // BUG FIX: these used to stay hardcoded at 1/1 until some other
+        // action (search/type/date filter) happened to trigger the first
+        // loadResources() call - since this script intentionally does NOT
+        // fetch on page load (it reuses the rows Flask already rendered),
+        // totalPages never picked up the REAL total_pages Flask rendered
+        // into #resourcesPageLabel (e.g. "1 of 2"). That silently broke
+        // the Next button: its click handler only calls loadResources()
+        // when currentPage < totalPages, which was always false (1 < 1)
+        // on a fresh page load, no matter how many pages actually
+        // existed. Reading the already-rendered label here fixes Next
+        // (and keeps Prev/disabled-state correct) without needing an
+        // extra network request.
+        if (pageLabel) {
+            const initialMatch = (pageLabel.textContent || "").match(/(\d+)\s*of\s*(\d+)/);
+            if (initialMatch) {
+                currentPage = parseInt(initialMatch[1], 10) || 1;
+                totalPages = parseInt(initialMatch[2], 10) || 1;
+            }
+        }
         let debounceTimer = null;
         let activeRequestId = 0;
 
@@ -172,6 +192,14 @@
             return `<a href="/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}" title="Edit" class="table-action-icon js-edit-resource-btn" data-resource-id="${resourceId}" data-status="${escapeHtml(status || '')}"><i class="fa-solid fa-pen-to-square"></i></a>`;
         }
 
+        function videoLinkHtml(videoTutorialId, videoFilePath) {
+            if (!videoTutorialId || !videoFilePath) return "";
+            const fileUrl = `/admin/assets/${videoFilePath}`;
+            const editUrl = `/admin/upload-video-tutorial?video_id=${encodeURIComponent(videoTutorialId)}`;
+            return ` <a href="${editUrl}" title="Edit attached video" style="margin-left: 8px; color: #6b7280;"><i class="fa-solid fa-pen-to-square"></i></a>`
+                 + ` <a href="${encodeURI(fileUrl)}" target="_blank" rel="noopener" title="View/download attached video" style="margin-left: 6px; color: #09B300;"><i class="fa-solid fa-circle-play"></i></a>`;
+        }
+
         function renderRows(resources) {
             if (!resources || resources.length === 0) {
                 // Task #37, Requirement #7: empty state only ever shown
@@ -193,7 +221,7 @@
             tableBody.innerHTML = resources.map(r => `
                 <tr data-resource-id="${r.resource_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(r.resource_title)}</strong>
+                        <strong class="table-item-title">${escapeHtml(r.resource_title)}</strong>${videoLinkHtml(r.video_tutorial_id, r.video_file_path)}
                     </td>
                     <td>${typeBadgeHtml(r.type)}</td>
                     <td class="text-muted">${escapeHtml(r.category)}</td>

@@ -91,6 +91,10 @@ LR_STATS_TABLE = "learning_resources_stats_tbl"
 # NEW - Task #43: needed to resolve each resource's parent module status.
 MODULES_TABLE = "modules_tbl"
 MODULE_STATS_TABLE = "module_stats_tbl"
+# NEW: needed so a Lesson's row can surface whether a Video Tutorial is
+# attached to it (see video_tutorials.py - a video's resource_id points
+# back at this Lesson).
+VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
 
 
 def _fmt_date(dt):
@@ -370,7 +374,13 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                 lr.uploaded_by, p.firstname, p.lastname,
                 lr.lr_stats_id, lrs.lr_stats_name,
                 lr.module_id, mst.module_stats_name,
-                lr.created_at, lr.updated_at
+                lr.created_at, lr.updated_at,
+                (SELECT vt.video_tutorial_id FROM {VIDEO_TUTORIALS_TABLE} vt
+                    WHERE vt.resource_id = lr.resource_id
+                    ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_tutorial_id,
+                (SELECT vt.file_path FROM {VIDEO_TUTORIALS_TABLE} vt
+                    WHERE vt.resource_id = lr.resource_id
+                    ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_file_path
             {base_query}
             ORDER BY lr.created_at DESC
             LIMIT %s OFFSET %s
@@ -410,6 +420,15 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                 "module_status": row.get("module_stats_name") or "Draft",
                 "created_at": _fmt_date(row.get("created_at")),
                 "updated_at": _fmt_datetime(row.get("updated_at")),
+                # NEW: if this Lesson has a Video Tutorial attached (see
+                # video_tutorials.py - a video's resource_id points back
+                # at its parent Lesson), surface the video's id/file path
+                # so the frontend can show a "View Video" link on this
+                # row - a correlated subquery, never a JOIN, so a Lesson
+                # with multiple attached videos still returns exactly
+                # one row here (only the most recent video is linked).
+                "video_tutorial_id": row.get("video_tutorial_id"),
+                "video_file_path": row.get("video_file_path"),
             })
 
         return {
