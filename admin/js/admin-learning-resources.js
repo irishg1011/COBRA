@@ -49,6 +49,60 @@
         const prevBtn = document.getElementById("resourcesPrevBtn");
         const nextBtn = document.getElementById("resourcesNextBtn");
 
+        // ------------------------------------------------------------
+        // Video preview - clicking the green play icon next to a
+        // Lesson that has a Video Tutorial attached opens an inline
+        // embedded preview (a real, playable YouTube <iframe>) instead
+        // of navigating anywhere. Delegated on the table body itself
+        // (not per-row) so this keeps working whether the row came
+        // from Flask's initial server render or from this script's own
+        // renderRows() re-render below - and placed ahead of the
+        // searchInput/tableBody guard below so it works independently
+        // of the search/filter wiring.
+        // ------------------------------------------------------------
+        function showVideoPreviewModal(videoId) {
+            if (!videoId) return;
+            let overlay = document.getElementById("videoPreviewModalOverlay");
+            if (overlay) overlay.remove();
+
+            overlay = document.createElement("div");
+            overlay.id = "videoPreviewModalOverlay";
+            overlay.className = "modal-overlay";
+            overlay.innerHTML = `
+                <div style="position: relative; width: 100%; max-width: 720px; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);">
+                    <button type="button" id="videoPreviewModalCloseBtn" class="modal-close-btn" style="top: 8px; right: 12px; color: #ffffff;" title="Close">&times;</button>
+                    <div style="position: relative; width: 100%; aspect-ratio: 16 / 9;">
+                        <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1" style="position:absolute; top:0; left:0; width:100%; height:100%; border:none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            function closeModal() {
+                overlay.remove();
+                document.removeEventListener("keydown", onEscKey);
+            }
+            function onEscKey(e) {
+                if (e.key === "Escape") closeModal();
+            }
+
+            overlay.addEventListener("click", (e) => {
+                if (e.target === overlay) closeModal();
+            });
+            const closeBtn = overlay.querySelector("#videoPreviewModalCloseBtn");
+            if (closeBtn) closeBtn.addEventListener("click", closeModal);
+            document.addEventListener("keydown", onEscKey);
+        }
+
+        if (tableBody) {
+            tableBody.addEventListener("click", (e) => {
+                const trigger = e.target.closest(".video-preview-trigger");
+                if (!trigger) return;
+                e.preventDefault();
+                showVideoPreviewModal(trigger.dataset.videoId);
+            });
+        }
+
         if (!searchInput || !tableBody) return;
 
         // ------------------------------------------------------------
@@ -192,12 +246,11 @@
             return `<a href="/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}" title="Edit" class="table-action-icon js-edit-resource-btn" data-resource-id="${resourceId}" data-status="${escapeHtml(status || '')}"><i class="fa-solid fa-pen-to-square"></i></a>`;
         }
 
-        function videoLinkHtml(videoTutorialId, videoFilePath) {
-            if (!videoTutorialId || !videoFilePath) return "";
-            const fileUrl = `/admin/assets/${videoFilePath}`;
+        function videoLinkHtml(videoTutorialId, videoId) {
+            if (!videoTutorialId || !videoId) return "";
             const editUrl = `/admin/upload-video-tutorial?video_id=${encodeURIComponent(videoTutorialId)}`;
             return ` <a href="${editUrl}" title="Edit attached video" style="margin-left: 8px; color: #6b7280;"><i class="fa-solid fa-pen-to-square"></i></a>`
-                 + ` <a href="${encodeURI(fileUrl)}" target="_blank" rel="noopener" title="View/download attached video" style="margin-left: 6px; color: #09B300;"><i class="fa-solid fa-circle-play"></i></a>`;
+                 + ` <button type="button" class="video-preview-trigger" data-video-id="${escapeHtml(videoId)}" title="Preview video" style="margin-left: 6px; color: #09B300; background: none; border: none; padding: 0; cursor: pointer; font-size: inherit;"><i class="fa-solid fa-circle-play"></i></button>`;
         }
 
         function renderRows(resources) {

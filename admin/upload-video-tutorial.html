@@ -63,9 +63,7 @@
                      SAME dependent-dropdown endpoints Create Learning Activity /
                      Create Coding Exercise already use (no duplicate endpoints). -->
                 <input type="hidden" id="videoTutorialIdInput" value="{{ existing_video.video_tutorial_id if existing_video else '' }}">
-                <input type="hidden" id="existingVideoFilePathInput" value="{{ existing_video.file_path if existing_video else '' }}">
-                <input type="hidden" id="existingVideoFileSizeInput" value="{{ existing_video.file_size if existing_video else '' }}">
-                <input type="hidden" id="existingVideoFileUrlInput" value="{{ url_for('admin_bp.static', filename=existing_video.file_path) if existing_video and existing_video.file_path else '' }}">
+                <input type="hidden" id="existingVideoIdInput" value="{{ existing_video.video_id if existing_video else '' }}">
                 <input type="hidden" id="hiddenVideoDescription">
                 <div class="lesson-meta-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 18px;">
                     <div class="form-group">
@@ -108,36 +106,15 @@
                                 <button type="button" title="Bold"><i class="fa-solid fa-bold"></i></button>
                                 <button type="button" title="Italic"><i class="fa-solid fa-italic"></i></button>
                                 <button type="button" title="Underline"><i class="fa-solid fa-underline"></i></button>
-                                <div class="toolbar-divider"></div>
-                                <button type="button" title="Bullet List"><i class="fa-solid fa-list-ul"></i></button>
-                                <button type="button" title="Numbered List"><i class="fa-solid fa-list-ol"></i></button>
-                                <div class="toolbar-divider"></div>
-                                <button type="button" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
-                                <button type="button" title="Align Center"><i class="fa-solid fa-align-center"></i></button>
-                                <button type="button" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
-                                <div class="toolbar-divider"></div>
-                                <button type="button" title="Insert Image"><i class="fa-regular fa-image"></i></button>
-                                <button type="button" title="Insert Link"><i class="fa-solid fa-link"></i></button>
                             </div>
                             <div id="videoDescriptionEditor" class="video-desc-textarea" contenteditable="true" data-placeholder="Write a description about the video...">{{ existing_video.description | safe if existing_video and existing_video.description else '' }}</div>
                             <span class="video-desc-char-counter" id="videoDescCounter">0 / 2000</span>
                         </div>
 
                         <div class="card-box padded-card">
-                            <label class="form-label" style="display:block; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #374151;">Video File</label>
-                            <div id="videoDropzone" class="video-dropzone">
-                                <div class="video-dropzone-icon"><i class="fa-regular fa-folder-open"></i></div>
-                                <div class="video-dropzone-title">Upload Video File</div>
-                                <div class="video-dropzone-subtext">Drag and drop your video or</div>
-                                <button type="button" class="video-browse-btn" id="videoBrowseBtn">Browse File</button>
-                                <input type="file" id="videoFileInput" accept="video/mp4,video/webm,video/quicktime" style="display: none;">
-                                <div class="video-dropzone-hint">Supported format: MP4, WebM, MOV &nbsp;|&nbsp; Max size: 2GB</div>
-                            </div>
-                            <div id="videoSelectedFile" class="video-selected-file">
-                                <i class="fa-solid fa-file-video"></i>
-                                <span id="videoSelectedFileName">—</span>
-                                <button type="button" class="remove-video-file-btn" id="removeVideoFileBtn" title="Remove"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
+                            <label class="form-label" style="display:block; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #374151;">YouTube Video Link</label>
+                            <input type="url" id="videoUrlInput" class="form-control" placeholder="Paste a YouTube video link..." value="{{ existing_video.youtube_url if existing_video else '' }}">
+                            <div class="video-dropzone-hint" id="videoUrlHint" style="margin-top: 8px;">Paste a link from youtube.com or youtu.be - it will be embedded and playable below, the link itself is never shown to learners.</div>
                         </div>
                     </div>
 

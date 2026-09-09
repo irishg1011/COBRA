@@ -14,6 +14,21 @@ video_tutorials_tbl (existing, per cobra_db.sql) only ships with:
     file_path          varchar(255)
     file_size          varchar(50)
 
+Task: New Video Tutorial no longer uploads a file to disk/the database
+at all - the admin pastes a YouTube link instead, which gets embedded
+(never a visible/clickable raw link - see upload-video-tutorial-ui.js's
+inline <iframe> embed). Rather than add a new column for this (this
+project's own convention - see coding_exercises.py's is_archived
+column - is to extend a table via idempotent "ADD COLUMN IF NOT
+EXISTS" only when genuinely needed), the EXISTING file_path column is
+reused to store just the 11-character YouTube video id (e.g.
+"dQw4w9WgXcQ") - short, stable, and exactly what an <iframe
+src="https://www.youtube.com/embed/{id}"> needs, without storing
+tracking query params or which exact URL format the admin pasted.
+file_size no longer applies to a YouTube-hosted video and is always
+left NULL going forward (still present in the table for any old rows
+from before this change).
+
 Exactly like coding_exercises_tbl (own exercise_title, a resource_id
 FK to the parent Lesson, no cat_id/module_id of its own),
 video_tutorials_tbl's resource_id points at an EXISTING Lesson (a
@@ -36,6 +51,8 @@ Status (Draft/Published/Archived) reuses learning_activities_stats_tbl
 its own exercise_stats_id - rather than creating a second stats table.
 """
 
+import re
+
 from mysql.connector import Error
 from cobradb import get_db_connection
 
@@ -47,8 +64,43 @@ LA_STATS_TABLE = "learning_activities_stats_tbl"  # reused, same table coding_ex
 
 DEFAULT_VIDEO_STATUSES = ["Draft", "Published", "Archived"]
 
+# Matches the video id out of every common YouTube URL shape an admin
+# might paste: youtu.be/ID, youtube.com/watch?v=ID (with or without
+# other query params), youtube.com/embed/ID, youtube.com/shorts/ID.
+_YOUTUBE_ID_PATTERN = re.compile(
+    r"(?:youtube(?:-nocookie)?\.com/(?:watch\?v=|embed/|shorts/|v/)|youtu\.be/)([A-Za-z0-9_-]{11})"
+)
+
 _video_columns_ensured = False
 _video_stats_ensured = False
+
+
+def extract_youtube_video_id(url):
+    """
+    Pulls the 11-character video id out of any common YouTube URL
+    shape. Returns None if `url` isn't a recognizable YouTube link at
+    all (also None for empty/whitespace-only input).
+    """
+    if not url:
+        return None
+    match = _YOUTUBE_ID_PATTERN.search(url.strip())
+    return match.group(1) if match else None
+
+
+def validate_youtube_url(url):
+    """
+    Returns (is_valid: bool, error_message: str | None, video_id: str | None).
+    An empty/blank url is treated as "no video provided yet" (valid,
+    video_id None) - Save Draft doesn't require one; save_video_tutorial()
+    below is what actually enforces "required for Publish".
+    """
+    cleaned = (url or "").strip()
+    if not cleaned:
+        return True, None, None
+    video_id = extract_youtube_video_id(cleaned)
+    if not video_id:
+        return False, "Please paste a valid YouTube video link.", None
+    return True, None, video_id
 
 
 def ensure_video_tutorials_columns(connection):
@@ -239,7 +291,7 @@ def get_video_tutorial(video_tutorial_id):
         cursor.execute(
             f"""
             SELECT
-                vt.video_tutorial_id, vt.resource_id, vt.file_path, vt.file_size,
+                vt.video_tutorial_id, vt.resource_id, vt.file_path AS video_id, vt.file_size,
                 vt.video_title, vt.description, vt.video_stats_id,
                 lr.cat_id, lr.module_id, lr.resource_title,
                 stats.la_stats_name AS status
@@ -252,6 +304,8 @@ def get_video_tutorial(video_tutorial_id):
         )
         row = cursor.fetchone()
         cursor.close()
+        if row and row.get("video_id"):
+            row["youtube_url"] = f"https://www.youtube.com/watch?v={row['video_id']}"
         return row
     except Error as e:
         print(f"video_tutorials: failed to get video tutorial {video_tutorial_id}: {e}")
@@ -278,8 +332,8 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
             "module_id": int | str,
             "resource_id": int | str,       # the selected Lesson
             "description": str,
-            "file_path": str | None,        # set only when a NEW file was uploaded this request
-            "file_size": int | str | None,
+            "video_url": str | None,        # a pasted YouTube link - validated/
+                                             # normalized to just its video id here
         }
         status ("Draft" | "Published")
         uploaded_by (str | None): the saving admin's acc_id (from
@@ -327,31 +381,30 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
         description = (data.get("description") or "").strip()
         status_name = status if status in ("Draft", "Published", "Archived") else "Draft"
 
-        # Task #10 vs #11: Publish requires a video file (either
-        # uploaded THIS request, or already attached from a prior Save
-        # Draft) and a description - Save Draft does not.
-        new_file_path = data.get("file_path") or None
-        new_file_size = data.get("file_size") or None
+        url_ok, url_err, new_video_id = validate_youtube_url(data.get("video_url"))
+        if not url_ok:
+            cursor.close()
+            return False, None, url_err
 
-        existing_file_path = None
-        existing_file_size = None
+        # Task #10 vs #11: Publish requires a YouTube video link
+        # (either provided THIS request, or already attached from a
+        # prior Save Draft) and a description - Save Draft does not.
+        existing_video_id = None
         if video_tutorial_id:
             cursor.execute(
-                f"SELECT file_path, file_size FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s",
+                f"SELECT file_path FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s",
                 (video_tutorial_id,)
             )
             existing_row = cursor.fetchone()
             if existing_row:
-                existing_file_path = existing_row.get("file_path")
-                existing_file_size = existing_row.get("file_size")
+                existing_video_id = existing_row.get("file_path")
 
-        final_file_path = new_file_path or existing_file_path
-        final_file_size = new_file_size or existing_file_size
+        final_video_id = new_video_id or existing_video_id
 
         if status_name == "Published":
-            if not final_file_path:
+            if not final_video_id:
                 cursor.close()
-                return False, None, "Please upload a video file before publishing."
+                return False, None, "Please add a YouTube video link before publishing."
             if not description:
                 cursor.close()
                 return False, None, "Please write a description about the video before publishing."
@@ -362,7 +415,6 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
             return False, None, "Could not resolve the status for this video tutorial."
 
         uploader = uploaded_by or data.get("uploaded_by") or None
-        final_file_size_str = str(final_file_size) if final_file_size else None
 
         if video_tutorial_id:
             cursor.execute(
@@ -377,12 +429,12 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
                 f"""
                 UPDATE {VIDEO_TUTORIALS_TABLE}
                 SET resource_id = %s, video_title = %s, description = %s,
-                    file_path = %s, file_size = %s, video_stats_id = %s,
+                    file_path = %s, file_size = NULL, video_stats_id = %s,
                     updated_at = NOW()
                 WHERE video_tutorial_id = %s
                 """,
-                (resource_id, formatted_title, description, final_file_path,
-                 final_file_size_str, status_id, video_tutorial_id)
+                (resource_id, formatted_title, description, final_video_id,
+                 status_id, video_tutorial_id)
             )
             connection.commit()
             cursor.close()
@@ -394,10 +446,10 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
             INSERT INTO {VIDEO_TUTORIALS_TABLE}
             (resource_id, video_title, description, file_path, file_size,
              video_stats_id, uploaded_by, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            VALUES (%s, %s, %s, %s, NULL, %s, %s, NOW(), NOW())
             """,
-            (resource_id, formatted_title, description, final_file_path,
-             final_file_size_str, status_id, uploader)
+            (resource_id, formatted_title, description, final_video_id,
+             status_id, uploader)
         )
         new_id = cursor.lastrowid
         connection.commit()

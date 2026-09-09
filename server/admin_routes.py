@@ -64,7 +64,6 @@ from coding_exercise_publishing import publish_exercise, unpublish_exercise, arc
 from video_tutorials import (  # NEW: New Video Tutorial DB integration - Category -> Module -> Lesson cascade + Save Draft/Publish
     save_video_tutorial, get_video_tutorial,
 )
-from video_upload import save_video_file  # NEW: New Video Tutorial - video file validation/storage (MP4/WebM/MOV, max 2GB)
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -2083,35 +2082,25 @@ def _handle_video_tutorial_submit(status):
     """
     Shared handler for both Save Draft and Publish below - a thin HTTP
     wrapper only. All validation/persistence logic lives in
-    video_tutorials.py (DB) and video_upload.py (file storage), per
-    this project's existing convention (see
+    video_tutorials.py, per this project's existing convention (see
     upload_resource_save_draft() / save_coding_exercise_draft()) - no
     new backend logic lives inline here.
 
-    Expects multipart/form-data (not JSON) since a video file may be
-    attached: video_tutorial_id, video_title, category_id, module_id,
-    resource_id, description, and an optional video_file.
+    Task: New Video Tutorial no longer uploads a file - the admin
+    pastes a YouTube link instead (validated/normalized to just its
+    video id in video_tutorials.save_video_tutorial()) - so this is
+    now plain JSON, not multipart/form-data.
     """
-    video_file = request.files.get('video_file')
-    file_path = None
-    file_size = None
-
-    if video_file and video_file.filename:
-        upload_ok, relative_path, size_bytes, upload_err = save_video_file(video_file, ADMIN_DIR)
-        if not upload_ok:
-            return jsonify({"success": False, "message": upload_err}), 400
-        file_path = relative_path
-        file_size = size_bytes
+    payload = request.get_json(silent=True) or {}
 
     data = {
-        "video_tutorial_id": request.form.get('video_tutorial_id'),
-        "video_title": request.form.get('video_title'),
-        "category_id": request.form.get('category_id'),
-        "module_id": request.form.get('module_id'),
-        "resource_id": request.form.get('resource_id'),
-        "description": request.form.get('description'),
-        "file_path": file_path,
-        "file_size": file_size,
+        "video_tutorial_id": payload.get('video_tutorial_id'),
+        "video_title": payload.get('video_title'),
+        "category_id": payload.get('category_id'),
+        "module_id": payload.get('module_id'),
+        "resource_id": payload.get('resource_id'),
+        "description": payload.get('description'),
+        "video_url": payload.get('video_url'),
     }
 
     success, video_tutorial_id, message = save_video_tutorial(
@@ -2122,8 +2111,6 @@ def _handle_video_tutorial_submit(status):
         "success": success,
         "message": message,
         "video_tutorial_id": video_tutorial_id,
-        "file_path": file_path,
-        "file_size": file_size,
     }), (200 if success else 400)
 
 
@@ -2131,10 +2118,10 @@ def _handle_video_tutorial_submit(status):
 def upload_video_tutorial_save_draft():
     """
     Saves the New Video Tutorial form's current in-progress values
-    (title, Category/Module/Lesson, description, and - if chosen this
-    request - a video file) as a real Draft row in video_tutorials_tbl,
-    mirroring upload_resource_save_draft() / save_coding_exercise_draft()'s
-    pattern. Does NOT require a video file or description (Task #10) -
+    (title, Category/Module/Lesson, description, and a YouTube video
+    link) as a real Draft row in video_tutorials_tbl, mirroring
+    upload_resource_save_draft() / save_coding_exercise_draft()'s
+    pattern. Does NOT require a video link or description (Task #10) -
     only Category, Module, Lesson and Title.
     """
     return _handle_video_tutorial_submit(status="Draft")
@@ -2145,9 +2132,9 @@ def upload_video_tutorial_publish():
     """
     Publishes the New Video Tutorial form - the SAME save path as Save
     Draft (video_tutorials.save_video_tutorial()), just with
-    status="Published", which additionally requires a video file
-    (either uploaded this request or already attached from a prior
-    Save Draft) and a description (Task #11).
+    status="Published", which additionally requires a YouTube video
+    link (either provided this request or already attached from a
+    prior Save Draft) and a description (Task #11).
     """
     return _handle_video_tutorial_submit(status="Published")
 

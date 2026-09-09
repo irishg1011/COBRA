@@ -9,14 +9,15 @@
  *       GET /admin/upload-resource/modules-by-category?cat_id=
  *       GET /admin/create-learning-activity/lessons-by-module?module_id=
  *   - The Description About the Video rich-text toolbar (Bold, Italic,
- *     Underline, Bullet/Numbered List, Alignment, Insert Image, Insert
- *     Link) via document.execCommand, matched against each button's
- *     existing `title` attribute so no HTML markup has to change.
- *   - Video File drag-and-drop / Browse File selection, with client-side
- *     format (MP4/WebM/MOV) and size (2GB) validation, and a real
- *     <video> element injected into the existing .video-preview-player
- *     container (replacing its mock placeholder only once a valid file
- *     is chosen, and restoring the original mock UI when it's removed).
+ *     Underline) via document.execCommand, matched against each
+ *     button's existing `title` attribute so no HTML markup has to
+ *     change.
+ *   - The YouTube Video Link input: validates the pasted link client-
+ *     side, extracts its video id, and embeds it as a real, playable
+ *     <iframe> injected into the existing .video-preview-player
+ *     container - the raw URL is never shown or made clickable, only
+ *     the embedded player is, and it plays inline with no click-
+ *     through required. No file is ever uploaded to disk/the server.
  *   - The read-only Video Information panel, updated live from the
  *     selected Category/Module/Lesson option text.
  *   - Preview Video / Save Draft / Publish, each validating through the
@@ -33,8 +34,6 @@
 
     const TOAST_DURATION_MS = 2000;
     const DESC_MAX = 2000;
-    const ALLOWED_VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
-    const MAX_VIDEO_SIZE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 
     function escapeHtml(str) {
         const div = document.createElement("div");
@@ -104,12 +103,7 @@
         const descCounter = document.getElementById("videoDescCounter");
         const hiddenDescription = document.getElementById("hiddenVideoDescription");
 
-        const dropzone = document.getElementById("videoDropzone");
-        const browseBtn = document.getElementById("videoBrowseBtn");
-        const fileInput = document.getElementById("videoFileInput");
-        const selectedFileBox = document.getElementById("videoSelectedFile");
-        const selectedFileName = document.getElementById("videoSelectedFileName");
-        const removeFileBtn = document.getElementById("removeVideoFileBtn");
+        const videoUrlInput = document.getElementById("videoUrlInput");
 
         const previewPlayer = document.querySelector(".video-preview-player");
         const previewPlaceholder = document.getElementById("videoPreviewTitleText");
@@ -124,9 +118,7 @@
         const publishBtn = document.getElementById("publishVideoBtn");
 
         const videoTutorialIdInput = document.getElementById("videoTutorialIdInput");
-        const existingFilePathInput = document.getElementById("existingVideoFilePathInput");
-        const existingFileSizeInput = document.getElementById("existingVideoFileSizeInput");
-        const existingFileUrlInput = document.getElementById("existingVideoFileUrlInput");
+        const existingVideoIdInput = document.getElementById("existingVideoIdInput");
 
         const confirmActionModal = document.getElementById("confirmActionModal");
         const confirmActionTitle = document.getElementById("confirmActionTitle");
@@ -135,7 +127,6 @@
         const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
 
         let pendingConfirmAction = null;
-        let selectedVideoFile = null; // File object chosen this session (null until a new one is picked)
 
         /* =========================================================
            Shared confirmation modal (Task pattern: #confirmActionModal)
@@ -196,64 +187,6 @@
             };
             if (confirmActionConfirmBtn) confirmActionConfirmBtn.addEventListener("click", restore);
             confirmActionModal.addEventListener("click", overlayRestore);
-        }
-
-        /* =========================================================
-           Lightweight URL-prompt modal (for Insert Image / Insert
-           Link) - built entirely at runtime, reusing the SAME
-           .modal-overlay / .modal-card / .modal-confirm-title /
-           .form-control / .modal-confirm-actions / .modal-btn-cancel
-           / .modal-btn-save classes already defined in admin-
-           style.css for every other modal on this admin, so no CSS
-           file is touched and no native prompt() is used.
-        ========================================================= */
-        function promptForUrl(labelText, onSubmit) {
-            let overlay = document.getElementById("videoUrlPromptModal");
-            if (overlay) overlay.remove();
-
-            overlay = document.createElement("div");
-            overlay.id = "videoUrlPromptModal";
-            overlay.className = "modal-overlay";
-            overlay.style.display = "flex";
-            overlay.innerHTML = `
-                <div class="modal-card modal-card-confirm">
-                    <h3 class="modal-confirm-title">${escapeHtml(labelText)}</h3>
-                    <input type="url" class="form-control" id="videoUrlPromptInput" placeholder="https://" style="margin: 10px 0 18px 0;">
-                    <div class="modal-confirm-actions">
-                        <button type="button" class="modal-btn-cancel" id="videoUrlPromptCancel">Cancel</button>
-                        <button type="button" class="modal-btn-save" id="videoUrlPromptOk">Insert</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(overlay);
-
-            const input = overlay.querySelector("#videoUrlPromptInput");
-            const cancelBtn = overlay.querySelector("#videoUrlPromptCancel");
-            const okBtn = overlay.querySelector("#videoUrlPromptOk");
-
-            function cleanup() {
-                overlay.remove();
-            }
-
-            cancelBtn.addEventListener("click", cleanup);
-            overlay.addEventListener("click", (e) => {
-                if (e.target === overlay) cleanup();
-            });
-            okBtn.addEventListener("click", () => {
-                const value = (input.value || "").trim();
-                cleanup();
-                if (value) onSubmit(value);
-            });
-            input.addEventListener("keydown", (e) => {
-                if (e.key === "Enter") {
-                    e.preventDefault();
-                    okBtn.click();
-                } else if (e.key === "Escape") {
-                    cleanup();
-                }
-            });
-
-            if (input) input.focus();
         }
 
         /* =========================================================
@@ -412,41 +345,6 @@
                         case "Underline":
                             document.execCommand("underline", false, null);
                             break;
-                        case "Bullet List":
-                            document.execCommand("insertUnorderedList", false, null);
-                            break;
-                        case "Numbered List":
-                            document.execCommand("insertOrderedList", false, null);
-                            break;
-                        case "Align Left":
-                            document.execCommand("justifyLeft", false, null);
-                            break;
-                        case "Align Center":
-                            document.execCommand("justifyCenter", false, null);
-                            break;
-                        case "Align Right":
-                            document.execCommand("justifyRight", false, null);
-                            break;
-                        case "Insert Image":
-                            promptForUrl("Insert Image URL", (url) => {
-                                descEditor.focus();
-                                document.execCommand("insertImage", false, url);
-                                markDirtyDesc();
-                            });
-                            return;
-                        case "Insert Link":
-                            promptForUrl("Insert Link URL", (url) => {
-                                descEditor.focus();
-                                const selectionText = window.getSelection().toString();
-                                if (selectionText) {
-                                    document.execCommand("createLink", false, url);
-                                } else {
-                                    document.execCommand("insertHTML", false,
-                                        `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`);
-                                }
-                                markDirtyDesc();
-                            });
-                            return;
                         default:
                             break;
                     }
@@ -466,132 +364,86 @@
         }
 
         /* =========================================================
-           Video File upload (Task #6) - Browse / Drag&Drop, client
-           validation (format + 2GB max), and real-time preview
-           (Task #7).
+           YouTube Video Link (Task update: replaces file upload) -
+           validates the pasted link client-side and embeds it as a
+           real, playable <iframe> injected into the existing
+           .video-preview-player container - the raw URL itself is
+           never shown or made clickable; only the embedded player is.
         ========================================================= */
-        function validateVideoFile(file) {
-            const extension = (file.name.split(".").pop() || "").toLowerCase();
-            if (!ALLOWED_VIDEO_EXTENSIONS.includes(extension)) {
-                return "Unsupported file type. Please upload a MP4, WebM, or MOV video file.";
-            }
-            if (file.size > MAX_VIDEO_SIZE_BYTES) {
-                return "This video exceeds the maximum allowed size of 2GB.";
-            }
-            if (file.size <= 0) {
-                return "The selected video file appears to be empty.";
-            }
-            return null;
+        function extractYouTubeVideoId(url) {
+            if (!url) return null;
+            const match = url.match(
+                /(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/
+            );
+            return match ? match[1] : null;
         }
 
-        function showSelectedFile(name) {
-            if (!selectedFileBox || !selectedFileName) return;
-            selectedFileName.textContent = name;
-            selectedFileBox.classList.add("show");
-        }
-
-        function clearSelectedFileDisplay() {
-            if (selectedFileBox) selectedFileBox.classList.remove("show");
-            if (selectedFileName) selectedFileName.textContent = "—";
-        }
-
-        // Injects a real <video controls> element into the existing
-        // .video-preview-player container, hiding (never deleting) the
-        // original mock placeholder/controls so the default no-selection
-        // UI is fully preserved and restorable.
-        function showVideoPreview(url) {
+        // Injects a real YouTube <iframe> into the existing
+        // .video-preview-player container, hiding (never deleting)
+        // the original mock placeholder/controls so the default
+        // no-link UI is fully preserved and restorable. The iframe
+        // plays inline right here - nothing to click through to.
+        function showVideoPreview(videoId) {
             if (!previewPlayer) return;
             if (previewPlaceholder) previewPlaceholder.style.display = "none";
             if (previewMockControls) previewMockControls.style.display = "none";
 
-            let videoEl = document.getElementById("videoPreviewPlayerEl");
-            if (!videoEl) {
-                videoEl = document.createElement("video");
-                videoEl.id = "videoPreviewPlayerEl";
-                videoEl.controls = true;
-                videoEl.style.width = "100%";
-                videoEl.style.height = "100%";
-                videoEl.style.objectFit = "contain";
-                videoEl.style.position = "absolute";
-                videoEl.style.top = "0";
-                videoEl.style.left = "0";
-                videoEl.style.background = "#000";
-                previewPlayer.appendChild(videoEl);
+            let iframeEl = document.getElementById("videoPreviewPlayerEl");
+            if (!iframeEl) {
+                iframeEl = document.createElement("iframe");
+                iframeEl.id = "videoPreviewPlayerEl";
+                iframeEl.style.width = "100%";
+                iframeEl.style.height = "100%";
+                iframeEl.style.position = "absolute";
+                iframeEl.style.top = "0";
+                iframeEl.style.left = "0";
+                iframeEl.style.border = "none";
+                iframeEl.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+                iframeEl.allowFullscreen = true;
+                previewPlayer.appendChild(iframeEl);
             }
-            videoEl.src = url;
+            iframeEl.src = `https://www.youtube.com/embed/${videoId}`;
         }
 
         function clearVideoPreview() {
-            const videoEl = document.getElementById("videoPreviewPlayerEl");
-            if (videoEl) {
-                if (videoEl.src && videoEl.src.startsWith("blob:")) {
-                    URL.revokeObjectURL(videoEl.src);
-                }
-                videoEl.remove();
-            }
+            const iframeEl = document.getElementById("videoPreviewPlayerEl");
+            if (iframeEl) iframeEl.remove();
             if (previewPlaceholder) previewPlaceholder.style.display = "";
             if (previewMockControls) previewMockControls.style.display = "";
         }
 
-        function handleFileSelected(file) {
-            if (!file) return;
-            const error = validateVideoFile(file);
-            if (error) {
-                showPopupAlert(error, "error");
-                if (fileInput) fileInput.value = "";
+        let currentVideoId = null; // the last successfully-validated YouTube video id
+
+        function handleVideoUrlInput() {
+            if (!videoUrlInput) return;
+            const raw = videoUrlInput.value.trim();
+            clearFieldError(videoUrlInput);
+
+            if (!raw) {
+                currentVideoId = null;
+                clearVideoPreview();
                 return;
             }
-            selectedVideoFile = file;
-            showSelectedFile(file.name);
-            const blobUrl = URL.createObjectURL(file);
-            showVideoPreview(blobUrl);
-            clearFieldError(dropzone);
-        }
 
-        if (browseBtn && fileInput) {
-            browseBtn.addEventListener("click", () => fileInput.click());
-            fileInput.addEventListener("change", () => {
-                if (fileInput.files && fileInput.files[0]) {
-                    handleFileSelected(fileInput.files[0]);
-                }
-            });
-        }
-
-        if (dropzone) {
-            ["dragenter", "dragover"].forEach((evt) => {
-                dropzone.addEventListener(evt, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropzone.classList.add("dragover");
-                });
-            });
-            ["dragleave", "drop"].forEach((evt) => {
-                dropzone.addEventListener(evt, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropzone.classList.remove("dragover");
-                });
-            });
-            dropzone.addEventListener("drop", (e) => {
-                const files = e.dataTransfer && e.dataTransfer.files;
-                if (files && files[0]) {
-                    if (fileInput) {
-                        try { fileInput.files = files; } catch (err) { /* read-only in some browsers */ }
-                    }
-                    handleFileSelected(files[0]);
-                }
-            });
-        }
-
-        if (removeFileBtn) {
-            removeFileBtn.addEventListener("click", () => {
-                selectedVideoFile = null;
-                if (fileInput) fileInput.value = "";
-                clearSelectedFileDisplay();
+            const videoId = extractYouTubeVideoId(raw);
+            if (!videoId) {
+                currentVideoId = null;
                 clearVideoPreview();
-                if (existingFilePathInput) existingFilePathInput.value = "";
-                if (existingFileSizeInput) existingFileSizeInput.value = "";
-                if (existingFileUrlInput) existingFileUrlInput.value = "";
+                return; // don't error-flag while the admin is still mid-typing/pasting
+            }
+
+            currentVideoId = videoId;
+            showVideoPreview(videoId);
+        }
+
+        if (videoUrlInput) {
+            videoUrlInput.addEventListener("input", handleVideoUrlInput);
+            videoUrlInput.addEventListener("blur", () => {
+                const raw = videoUrlInput.value.trim();
+                if (raw && !extractYouTubeVideoId(raw)) {
+                    setFieldError(videoUrlInput);
+                    showPopupAlert("Please paste a valid YouTube video link.", "error");
+                }
             });
         }
 
@@ -665,15 +517,15 @@
             }
 
             if (isPublish) {
-                const hasExistingFile = !!(existingFilePathInput && existingFilePathInput.value);
-                const hasFile = !!selectedVideoFile || hasExistingFile;
-                if (!hasFile) {
+                const hasExistingVideo = !!(existingVideoIdInput && existingVideoIdInput.value);
+                const hasVideo = !!currentVideoId || hasExistingVideo;
+                if (!hasVideo) {
                     isValid = false;
-                    setFieldError(dropzone);
-                    firstErrorMsg = firstErrorMsg || "Please upload a video file before publishing.";
-                    firstErrorField = firstErrorField || dropzone;
+                    setFieldError(videoUrlInput);
+                    firstErrorMsg = firstErrorMsg || "Please add a YouTube video link before publishing.";
+                    firstErrorField = firstErrorField || videoUrlInput;
                 } else {
-                    clearFieldError(dropzone);
+                    clearFieldError(videoUrlInput);
                 }
 
                 const descText = descEditor ? descEditor.textContent.trim() : "";
@@ -705,14 +557,14 @@
                 const modVal = moduleSelect ? moduleSelect.value : "";
                 const lesVal = lessonSelect ? lessonSelect.value : "";
                 const titleVal = titleInput ? titleInput.value.trim() : "";
-                const hasFile = !!selectedVideoFile || (existingFilePathInput && !!existingFilePathInput.value);
+                const hasVideo = !!currentVideoId || (existingVideoIdInput && !!existingVideoIdInput.value);
 
                 const missing = [];
                 if (!catVal) missing.push("Category");
                 if (!modVal) missing.push("Module");
                 if (!lesVal) missing.push("Lesson");
                 if (!titleVal) missing.push("Video Tutorial Title");
-                if (!hasFile) missing.push("Video File");
+                if (!hasVideo) missing.push("YouTube Video Link");
 
                 if (missing.length > 0) {
                     showInfoModal(
@@ -726,30 +578,25 @@
                 if (previewPlayer) {
                     previewPlayer.scrollIntoView({ behavior: "smooth", block: "center" });
                 }
-                const videoEl = document.getElementById("videoPreviewPlayerEl");
-                if (videoEl) {
-                    videoEl.play().catch(() => { /* autoplay may be blocked - controls remain usable */ });
-                }
             });
         }
 
         /* =========================================================
            Save Draft / Publish (Task #10, #11) - multipart/form-data
-           since a video file may be attached; JSON can't carry files.
+           since a YouTube link is plain text - no file to carry, so no
+           multipart/form-data needed anymore.
         ========================================================= */
-        function buildFormData() {
-            const formData = new FormData();
-            formData.append("video_tutorial_id", videoTutorialIdInput ? videoTutorialIdInput.value || "" : "");
-            formData.append("video_title", titleInput ? titleInput.value.trim() : "");
-            formData.append("category_id", categorySelect ? categorySelect.value : "");
-            formData.append("module_id", moduleSelect ? moduleSelect.value : "");
-            formData.append("resource_id", lessonSelect ? lessonSelect.value : "");
+        function buildPayload() {
             syncHiddenDescription();
-            formData.append("description", hiddenDescription ? hiddenDescription.value : "");
-            if (selectedVideoFile) {
-                formData.append("video_file", selectedVideoFile);
-            }
-            return formData;
+            return {
+                video_tutorial_id: videoTutorialIdInput ? videoTutorialIdInput.value || "" : "",
+                video_title: titleInput ? titleInput.value.trim() : "",
+                category_id: categorySelect ? categorySelect.value : "",
+                module_id: moduleSelect ? moduleSelect.value : "",
+                resource_id: lessonSelect ? lessonSelect.value : "",
+                description: hiddenDescription ? hiddenDescription.value : "",
+                video_url: currentVideoId ? `https://www.youtube.com/watch?v=${currentVideoId}` : "",
+            };
         }
 
         async function submitVideoTutorial(endpoint, isPublish, button) {
@@ -765,7 +612,8 @@
                 const response = await fetch(endpoint, {
                     method: "POST",
                     credentials: "include",
-                    body: buildFormData(),
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(buildPayload()),
                 });
                 const result = await response.json();
 
@@ -777,10 +625,9 @@
                 if (videoTutorialIdInput && result.video_tutorial_id) {
                     videoTutorialIdInput.value = result.video_tutorial_id;
                 }
-                if (result.file_path && existingFilePathInput) {
-                    existingFilePathInput.value = result.file_path;
+                if (currentVideoId && existingVideoIdInput) {
+                    existingVideoIdInput.value = currentVideoId;
                 }
-                selectedVideoFile = null;
 
                 if (isPublish) {
                     showSuccessToast(result.message || "Video tutorial published successfully.");
@@ -844,9 +691,10 @@
             updateVideoInfoPanel();
         }
 
-        if (existingFileUrlInput && existingFileUrlInput.value) {
-            showSelectedFile("Previously uploaded video");
-            showVideoPreview(existingFileUrlInput.value);
+        if (existingVideoIdInput && existingVideoIdInput.value) {
+            currentVideoId = existingVideoIdInput.value;
+            if (videoUrlInput) videoUrlInput.value = `https://www.youtube.com/watch?v=${currentVideoId}`;
+            showVideoPreview(currentVideoId);
         }
     });
 })();

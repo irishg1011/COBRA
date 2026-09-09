@@ -150,9 +150,9 @@
                                     <a href="{{ url_for('admin_bp.upload_video_tutorial', video_id=resource.video_tutorial_id) }}" title="Edit attached video" style="margin-left: 8px; color: #6b7280;">
                                         <i class="fa-solid fa-pen-to-square"></i>
                                     </a>
-                                    <a href="{{ url_for('admin_bp.static', filename=resource.video_file_path) }}" target="_blank" rel="noopener" title="View/download attached video" style="margin-left: 6px; color: #09B300;">
+                                    <button type="button" class="video-preview-trigger" data-video-id="{{ resource.video_file_path }}" title="Preview video" style="margin-left: 6px; color: #09B300; background: none; border: none; padding: 0; cursor: pointer; font-size: inherit;">
                                         <i class="fa-solid fa-circle-play"></i>
-                                    </a>
+                                    </button>
                                     {% endif %}
                                 </td>
                                 <td>
