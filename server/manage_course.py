@@ -1223,3 +1223,120 @@ def get_modules_by_category(cat_id):
     finally:
         if connection.is_connected():
             connection.close()
+
+# ================================================================
+# ARCHIVE ELIGIBILITY CHECKS (backs the "check before archive" flow
+# admin-relational-archive.js already calls, previously missing entirely)
+# ================================================================
+def check_module_archive_eligibility(module_id):
+    """
+    Reports WHETHER archive_module(module_id) would currently succeed,
+    and why not if it wouldn't - without actually archiving anything.
+    Mirrors archive_module()'s own two rejection reasons exactly (a
+    Published module, or one with attached active learning resources),
+    so this check can never say "eligible" when the real archive call
+    would then turn around and reject it.
+
+    Returns (success: bool, eligible: bool | None, blockers: list[str], message: str | None)
+    """
+    if not module_id:
+        return False, None, [], "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, None, [], "Could not connect to the database."
+
+    try:
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"""SELECT m.is_archived, ms.module_stats_name
+                FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.module_id = %s""",
+            (module_id,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, None, [], "Module not found."
+
+        is_archived, status_name = row
+        if is_archived:
+            cursor.close()
+            return False, None, [], "This module is already archived."
+
+        blockers = []
+        if status_name == "Published":
+            blockers.append("This module itself is Published - change it to Draft first")
+
+        cursor.execute(
+            f"""SELECT COUNT(*)
+                FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.module_id = %s
+                  AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')""",
+            (module_id,)
+        )
+        (resource_count,) = cursor.fetchone()
+        if resource_count > 0:
+            blockers.append(f"{resource_count} attached learning resource(s) - delete or reassign them first")
+
+        cursor.close()
+        return True, len(blockers) == 0, blockers, None
+    except Error as e:
+        print(f"manage_course: failed to check module archive eligibility: {e}")
+        return False, None, [], f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def check_category_archive_eligibility(cat_id):
+    """
+    Reports WHETHER archive_category(cat_id) would currently succeed,
+    mirroring its own single rejection reason (active modules still
+    belonging to it) exactly.
+
+    Returns (success: bool, eligible: bool | None, blockers: list[str], message: str | None)
+    """
+    if not cat_id:
+        return False, None, [], "Category ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, None, [], "Could not connect to the database."
+
+    try:
+        ensure_category_is_archived_column(connection)
+        ensure_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT is_archived FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, None, [], "Category not found."
+        if row[0]:
+            cursor.close()
+            return False, None, [], "This category is already archived."
+
+        cursor.execute(
+            f"SELECT COUNT(*) FROM {MODULES_TABLE} WHERE cat_id = %s AND is_archived = 0",
+            (cat_id,)
+        )
+        (active_count,) = cursor.fetchone()
+        cursor.close()
+
+        blockers = []
+        if active_count > 0:
+            blockers.append(f"{active_count} active module(s) still belong to it - archive or reassign them first")
+
+        return True, len(blockers) == 0, blockers, None
+    except Error as e:
+        print(f"manage_course: failed to check category archive eligibility: {e}")
+        return False, None, [], f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()

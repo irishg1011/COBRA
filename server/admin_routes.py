@@ -33,14 +33,17 @@ from manage_course import (
     permanently_delete_module,  # NEW - Task #80: Archived Modules permanent delete
     archive_category, restore_category, permanently_delete_category, get_archived_categories,  # NEW - Task #87: Unified Archives
     publish_module, unpublish_module,  # NEW - Task #90: Module Publish/Unpublish
+    check_module_archive_eligibility, check_category_archive_eligibility,  # NEW: fixes admin-relational-archive.js's pre-existing missing archive-check routes
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
     get_resources_by_module,  # NEW - Task #54: dependent Lesson dropdown lookup
 )
 from learning_activities import (  # NEW: Manage Learning Activities DB integration
-    get_learning_activities_overview, get_activity_types,
+    get_activity_types,
     delete_activity as db_delete_activity,
+    get_learning_activities_grouped_overview,  # NEW: Manage Learning Activities table restructure (grouped by Lesson)
+    get_activities_for_resource, archive_activity,  # NEW: Content preview / Edit dropdown / Archive checklist
 )
 from learning_activity_draft import save_activity_draft, get_activity_draft  # NEW: Unsaved Changes Protection - draft autosave for Create Learning Activity
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
@@ -63,6 +66,12 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
 from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise  # Task #111 & #112
 from video_tutorials import (  # NEW: New Video Tutorial DB integration - Category -> Module -> Lesson cascade + Save Draft/Publish
     save_video_tutorial, get_video_tutorial,
+    archive_video_tutorial,  # NEW: Manage Learning Resources Archive checklist - "Video Tutorial" option
+    get_archived_video_tutorials, restore_video_tutorial, permanently_delete_video_tutorial,  # NEW: Archived Learning Resources modal - "Video Tutorial" tab
+)
+from archived_items import (  # NEW: fixes the pre-existing Archived Learning Resources/Activities modals - this file already existed fully written but was never wired up to any route
+    get_archived_resources, restore_learning_resource, permanently_delete_learning_resource,
+    get_archived_activities, restore_learning_activity,
 )
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -1425,6 +1434,22 @@ def manage_course_update_category(cat_id):
     return jsonify({"success": success, "message": message}), (200 if success else 400)
  
  
+@admin_bp.route('/manage-course/categories/<int:cat_id>/archive-check', methods=['GET'])
+def manage_course_category_archive_check(cat_id):
+    """
+    Backs admin-relational-archive.js's "check -> warn OR confirm ->
+    archive" flow for Categories - this route was already being called
+    by that existing JS, it just never existed on the backend (a
+    pre-existing gap, not something introduced here), which is why
+    clicking the Category archive icon showed "Could not reach the
+    server."
+    """
+    success, eligible, blockers, message = check_category_archive_eligibility(cat_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
+
+
 @admin_bp.route('/manage-course/categories/<int:cat_id>/delete', methods=['POST'])
 def manage_course_delete_category(cat_id):
     success, message = delete_category(cat_id)
@@ -1451,6 +1476,19 @@ def manage_course_update_module(module_id):
     return jsonify({"success": success, "message": message}), (200 if success else 400)
  
  
+@admin_bp.route('/manage-course/modules/<int:module_id>/archive-check', methods=['GET'])
+def manage_course_module_archive_check(module_id):
+    """
+    Same fix as manage_course_category_archive_check() above, for
+    Modules - admin-relational-archive.js was already calling this
+    exact URL before ever attempting the actual archive.
+    """
+    success, eligible, blockers, message = check_module_archive_eligibility(module_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
+
+
 @admin_bp.route('/manage-course/modules/<int:module_id>/delete', methods=['POST'])
 def manage_course_delete_module(module_id):
     """
@@ -1748,6 +1786,71 @@ def archive_learning_resource(resource_id):
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
+# ============================================================
+# ROUTES: ARCHIVED LEARNING RESOURCES MODAL (Lesson Content / Video Tutorial tabs)
+# ============================================================
+@admin_bp.route('/learning-resources/archived')
+def learning_resources_archived():
+    """
+    Backs the Archived Learning Resources modal (archived-resources-
+    modal.html / admin-archived-resources.js). This route - and its
+    restore/permanent-delete counterparts below - previously didn't
+    exist at all despite the modal's JS already calling them (a
+    pre-existing gap, not something introduced here): archived_items.py
+    already had a complete, correct implementation for the "Lesson
+    Content" tab, it just had never been imported/wired into any route.
+
+    The "Video Tutorial" tab uses a SEPARATE function
+    (video_tutorials.get_archived_video_tutorials()) rather than
+    archived_items.get_archived_resources(resource_type="Video
+    Tutorial"), because a Video Tutorial is its own row in
+    video_tutorials_tbl attached to an existing Lesson - never a
+    learning_resources_tbl row of its own - so archived_items.py's
+    resource_type_name-based filter would never match it.
+    """
+    resource_type = request.args.get('type', '')
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    if resource_type.strip().lower() == "video tutorial":
+        overview = get_archived_video_tutorials(search_query=search, page=page)
+    else:
+        overview = get_archived_resources(resource_type=resource_type, search_query=search, page=page)
+
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/learning-resources/<int:resource_id>/restore', methods=['POST'])
+def restore_learning_resource_route(resource_id):
+    """
+    type=Video%20Tutorial routes to video_tutorials.restore_video_
+    tutorial() instead (a video's own video_tutorial_id and a Lesson's
+    resource_id are separate id spaces that can numerically collide,
+    so the tab the request came from - passed by admin-archived-
+    resources.js as ?type= - is what disambiguates which table this
+    id actually belongs to, not the id's value alone).
+    """
+    resource_type = request.args.get('type', '')
+    if resource_type.strip().lower() == "video tutorial":
+        success, message = restore_video_tutorial(resource_id)
+    else:
+        success, message = restore_learning_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-resources/<int:resource_id>/permanent-delete', methods=['POST'])
+def permanently_delete_learning_resource_route(resource_id):
+    """See restore_learning_resource_route() above for why ?type= is required to disambiguate."""
+    resource_type = request.args.get('type', '')
+    if resource_type.strip().lower() == "video tutorial":
+        success, message = permanently_delete_video_tutorial(resource_id)
+    else:
+        success, message = permanently_delete_learning_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
 @admin_bp.route('/learning-activities')
 def learning_activities():
     """
@@ -1768,18 +1871,18 @@ def learning_activities():
     updated_from = request.args.get('updated_from', '') or None
     updated_to = request.args.get('updated_to', '') or None
 
-    overview = get_learning_activities_overview(
+    overview = get_learning_activities_grouped_overview(
         search_query=search, type_filter=type_filter, page=page,
         sort_by=sort,
         created_from=created_from, created_to=created_to,
         updated_from=updated_from, updated_to=updated_to,
     )
     if overview is None:
-        overview = {"activities": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
+        overview = {"lessons": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
 
     return render_template(
         'manage-learning-activities.html',
-        activities=overview["activities"],
+        lessons=overview["lessons"],
         total_activities=overview["total"],
         page=overview["page"],
         total_pages=overview["total_pages"],
@@ -1838,7 +1941,7 @@ def learning_activities_data():
             "message": "Updated At: end date must be on or after the start date.",
         }), 400
 
-    overview = get_learning_activities_overview(
+    overview = get_learning_activities_grouped_overview(
         search_query=search, type_filter=type_filter, page=page,
         sort_by=sort,
         created_from=created_from, created_to=created_to,
@@ -1847,6 +1950,79 @@ def learning_activities_data():
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500
     return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/learning-activities/preview')
+def learning_activities_preview():
+    """
+    Read-only preview for the ACTIVITY column's icon buttons AND the
+    data source for the Edit dropdown / Archive checklist on Manage
+    Learning Activities - all three need the SAME "every individual
+    activity this Lesson has, with full content" shape, so one route
+    (backed by learning_activities.get_activities_for_resource())
+    serves all three rather than three near-duplicate endpoints.
+    """
+    resource_id = request.args.get('resource_id', '')
+    activities = get_activities_for_resource(resource_id) if resource_id else []
+    return jsonify({"success": True, "activities": activities}), 200
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/archive', methods=['POST'])
+def archive_learning_activity(activity_id):
+    """
+    Task: finally implements the route the ACTIONS column's Archive
+    checklist actually calls - the pre-existing /js-archive-activity-
+    btn click handler was already fetching this exact URL, but only a
+    hard-delete /delete route existed, so archiving silently 404'd.
+    Soft-archives via learning_activities.archive_activity() (flips
+    la_stats_id to "Archived") - never a DELETE.
+    """
+    success, message = archive_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# ROUTES: ARCHIVED LEARNING ACTIVITIES MODAL (MCT / FIB / Flashcards tabs)
+# ============================================================
+@admin_bp.route('/learning-activities/archived')
+def learning_activities_archived():
+    """
+    Backs the Archived Learning Activities modal (archived-activities-
+    modal.html / admin-archived-activities.js). Same pre-existing gap
+    as learning_resources_archived() above: archived_items.py already
+    had a complete, correct get_archived_activities() implementation
+    (it already handles "Multiple Choice"/"Fill in the Blanks"/
+    "Flashcards" as well as short "mct"/"fib"/"fc" aliases), it just
+    had never been imported/wired into any route.
+    """
+    activity_type = request.args.get('type', '')
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    overview = get_archived_activities(activity_type=activity_type, search_query=search, page=page)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/restore', methods=['POST'])
+def restore_learning_activity_route(activity_id):
+    success, message = restore_learning_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/permanent-delete', methods=['POST'])
+def permanently_delete_learning_activity_route(activity_id):
+    """
+    Reuses the SAME db_delete_activity() (learning_activities.
+    delete_activity()) the existing /learning-activities/<id>/delete
+    route already calls - a real hard delete with correct cascading
+    cleanup of mcq_options_tbl/mcq_questions_tbl/fill_blanks_tbl/
+    flashcards_tbl - rather than a second, separately-written copy of
+    the same operation.
+    """
+    success, message = db_delete_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
 # ============================================================
@@ -2159,6 +2335,20 @@ def upload_video_tutorial_publish():
     prior Save Draft) and a description (Task #11).
     """
     return _handle_video_tutorial_submit(status="Published")
+
+
+@admin_bp.route('/upload-video-tutorial/<int:video_tutorial_id>/archive', methods=['POST'])
+def archive_video_tutorial_route(video_tutorial_id):
+    """
+    Backs the "Video Tutorial" option in Manage Learning Resources'
+    Archive checklist modal - archives just the video
+    (video_tutorials.archive_video_tutorial(), flips video_stats_id to
+    "Archived") independently of its parent Lesson's own status, since
+    a Lesson can keep its text content active while its attached video
+    is retired, or vice versa.
+    """
+    success, message = archive_video_tutorial(video_tutorial_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
 @admin_bp.route('/upload-resource', methods=['GET', 'POST'])

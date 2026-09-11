@@ -201,11 +201,13 @@
                                            {% if resource.video_tutorial_id %}data-video-edit-url="{{ url_for('admin_bp.upload_video_tutorial', video_id=resource.video_tutorial_id) }}"{% endif %}>
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </button>
-                                        <a href="#" title="Archive"
-                                           class="table-action-icon delete-action js-archive-resource-btn"
-                                           data-resource-id="{{ resource.resource_id }}">
+                                        <button type="button" title="Archive"
+                                           class="table-action-icon delete-action js-archive-resource-trigger"
+                                           data-resource-id="{{ resource.resource_id }}"
+                                           data-status="{{ resource.status }}"
+                                           {% if resource.video_tutorial_id %}data-video-tutorial-id="{{ resource.video_tutorial_id }}" data-video-status="{{ resource.video_status }}"{% endif %}>
                                             <i class="fa-solid fa-box-archive"></i>
-                                        </a>
+                                        </button>
                                     </div>
                                 </td>
                                 <!--

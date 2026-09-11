@@ -248,7 +248,8 @@
 
                 restoreBtn.style.pointerEvents = "none";
                 try {
-                    const resp = await fetch(`/admin/learning-resources/${id}/restore`, {
+                    const typeParam = activeTab === "video_tutorial" ? "Video Tutorial" : "Lesson Content";
+                    const resp = await fetch(`/admin/learning-resources/${id}/restore?type=${encodeURIComponent(typeParam)}`, {
                         method: "POST",
                         credentials: "include"
                     });
@@ -280,7 +281,8 @@
 
                 deleteBtn.style.pointerEvents = "none";
                 try {
-                    const resp = await fetch(`/admin/learning-resources/${id}/permanent-delete`, {
+                    const typeParam = activeTab === "video_tutorial" ? "Video Tutorial" : "Lesson Content";
+                    const resp = await fetch(`/admin/learning-resources/${id}/permanent-delete?type=${encodeURIComponent(typeParam)}`, {
                         method: "POST",
                         credentials: "include"
                     });

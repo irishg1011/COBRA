@@ -95,6 +95,10 @@ MODULE_STATS_TABLE = "module_stats_tbl"
 # attached to it (see video_tutorials.py - a video's resource_id points
 # back at this Lesson).
 VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
+# NEW: a Video Tutorial's own status (video_stats_id) reuses this SAME
+# shared table (see video_tutorials.py) - needed here to exclude an
+# archived video from the video-preview subquery above.
+LA_STATS_TABLE = "learning_activities_stats_tbl"
 
 
 def _fmt_date(dt):
@@ -376,11 +380,20 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                 lr.module_id, mst.module_stats_name,
                 lr.created_at, lr.updated_at,
                 (SELECT vt.video_tutorial_id FROM {VIDEO_TUTORIALS_TABLE} vt
+                    LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
                     WHERE vt.resource_id = lr.resource_id
+                      AND (vts.la_stats_name IS NULL OR vts.la_stats_name != 'Archived')
                     ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_tutorial_id,
                 (SELECT vt.file_path FROM {VIDEO_TUTORIALS_TABLE} vt
+                    LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
                     WHERE vt.resource_id = lr.resource_id
-                    ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_file_path
+                      AND (vts.la_stats_name IS NULL OR vts.la_stats_name != 'Archived')
+                    ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_file_path,
+                (SELECT vts.la_stats_name FROM {VIDEO_TUTORIALS_TABLE} vt
+                    LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
+                    WHERE vt.resource_id = lr.resource_id
+                      AND (vts.la_stats_name IS NULL OR vts.la_stats_name != 'Archived')
+                    ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_status
             {base_query}
             ORDER BY lr.created_at DESC
             LIMIT %s OFFSET %s
@@ -429,6 +442,11 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                 # one row here (only the most recent video is linked).
                 "video_tutorial_id": row.get("video_tutorial_id"),
                 "video_file_path": row.get("video_file_path"),
+                # NEW: the video's OWN status (independent of the Lesson's)
+                # - needed so the Archive checklist can warn specifically
+                # about archiving a Published video, not just a Published
+                # Lesson.
+                "video_status": row.get("video_status") or "Draft",
             })
 
         return {

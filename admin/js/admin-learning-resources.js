@@ -247,9 +247,9 @@
         // videoEditUrl (optional): when set, the Edit dropdown offers
         // BOTH "Edit lesson content" and "Edit video"; omitted means
         // only "Edit lesson content" is offered (no video attached).
-        function actionsHtml(resourceId, status, videoEditUrl) {
+        function actionsHtml(resourceId, status, videoEditUrl, videoTutorialId, videoStatus) {
             if (window.cobraByteResourceActions) {
-                return window.cobraByteResourceActions.actionsHtml(resourceId, null, status, videoEditUrl);
+                return window.cobraByteResourceActions.actionsHtml(resourceId, null, status, videoEditUrl, videoTutorialId, videoStatus);
             }
             return `<a href="/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}" title="Edit" class="table-action-icon js-edit-resource-btn" data-resource-id="${resourceId}" data-status="${escapeHtml(status || '')}"><i class="fa-solid fa-pen-to-square"></i></a>`;
         }
@@ -602,7 +602,7 @@
                     <td class="text-muted js-status-cell">${statusBadgeHtml(r.status)}</td>
                     <td class="text-muted">${escapeHtml(r.created_at)}</td>
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>
-                    <td class="text-right">${actionsHtml(r.resource_id, r.status, videoEditUrl)}</td>
+                    <td class="text-right">${actionsHtml(r.resource_id, r.status, videoEditUrl, r.video_tutorial_id, r.video_status)}</td>
                     <td class="text-right">${publishButtonHtml(r.resource_id, r.status, r.module_status)}</td>
                 </tr>
             `;

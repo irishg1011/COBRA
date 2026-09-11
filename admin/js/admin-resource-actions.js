@@ -188,25 +188,160 @@
          * BOTH "Edit lesson content" and "Edit video"; omitted/falsy
          * means only "Edit lesson content" is offered.
          */
-        function actionsHtml(resourceId, editUrl, status, videoEditUrl) {
+        function actionsHtml(resourceId, editUrl, status, videoEditUrl, videoTutorialId, videoStatus) {
             const href = editUrl || `/admin/upload-resource?resource_id=${encodeURIComponent(resourceId)}`;
             const statusAttr = status ? ` data-status="${escapeHtml(status)}"` : "";
             const videoAttr = videoEditUrl ? ` data-video-edit-url="${escapeHtml(videoEditUrl)}"` : "";
+            const videoIdAttr = videoTutorialId ? ` data-video-tutorial-id="${escapeHtml(String(videoTutorialId))}"` : "";
+            const videoStatusAttr = videoTutorialId ? ` data-video-status="${escapeHtml(videoStatus || 'Draft')}"` : "";
             return `
                 <div class="table-actions-group">
                     <button type="button" title="Edit" class="table-action-icon js-edit-resource-trigger"
                        data-resource-id="${resourceId}" data-edit-url="${escapeHtml(href)}"${statusAttr}${videoAttr}>
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
-                    <a href="#" title="Archive"
-                       class="table-action-icon delete-action js-archive-resource-btn"
-                       data-resource-id="${resourceId}">
+                    <button type="button" title="Archive"
+                       class="table-action-icon delete-action js-archive-resource-trigger"
+                       data-resource-id="${resourceId}"${statusAttr}${videoIdAttr}${videoStatusAttr}>
                         <i class="fa-solid fa-box-archive"></i>
-                    </a>
+                    </button>
                 </div>`;
         }
 
         window.cobraByteResourceActions = { actionsHtml };
+
+        /**
+         * Archive checklist modal - "Lesson Content" is always offered
+         * (archives via the EXISTING /admin/learning-resources/<id>/
+         * archive route, unchanged); "Video Tutorial" only appears when
+         * this Lesson actually has one attached (archives via the new
+         * /admin/upload-video-tutorial/<id>/archive route,
+         * independent of the Lesson's own status). A "Select all"
+         * toggle checks every option at once for convenience - it is
+         * not a separate third archive action, just a shortcut for
+         * checking everything shown.
+         */
+        function openResourceArchiveChecklist(resourceId, videoTutorialId, resourceStatus, videoStatus, row) {
+            let overlay = document.getElementById("resourceArchiveModalOverlay");
+            if (overlay) overlay.remove();
+
+            const options = [
+                { key: "lesson", label: "Lesson Content", icon: "fa-regular fa-file-lines", status: resourceStatus },
+            ];
+            if (videoTutorialId) {
+                options.push({ key: "video", label: "Video Tutorial", icon: "fa-solid fa-circle-play", status: videoStatus });
+            }
+
+            const itemsHtml = options.map((o) => `
+                <label class="archive-checklist-item">
+                    <input type="checkbox" class="archive-checklist-checkbox" value="${o.key}">
+                    <span><i class="${o.icon}"></i> ${escapeHtml(o.label)}${o.status === "Published" ? ' <span style="color:#b45309; font-weight:600;">(Published)</span>' : ""}</span>
+                </label>
+            `).join("");
+
+            overlay = document.createElement("div");
+            overlay.id = "resourceArchiveModalOverlay";
+            overlay.className = "modal-overlay";
+            overlay.innerHTML = `
+                <div class="content-preview-card" style="max-width: 420px;">
+                    <div class="content-preview-header">
+                        <strong>Archive which content?</strong>
+                        <button type="button" id="resourceArchiveCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
+                    </div>
+                    <div class="content-preview-body">
+                        ${options.length > 1 ? `
+                        <label class="archive-checklist-item archive-checklist-select-all">
+                            <input type="checkbox" id="resourceArchiveSelectAll">
+                            <span><strong>All</strong></span>
+                        </label>` : ""}
+                        ${itemsHtml}
+                        <div style="margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px;">
+                            <button type="button" class="modal-btn-cancel" id="resourceArchiveCancelBtn">Cancel</button>
+                            <button type="button" class="modal-btn-save" id="resourceArchiveConfirmBtn">Archive Selected</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            function closeModal() { overlay.remove(); }
+            overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+            overlay.querySelector("#resourceArchiveCloseBtn").addEventListener("click", closeModal);
+            overlay.querySelector("#resourceArchiveCancelBtn").addEventListener("click", closeModal);
+
+            const selectAll = overlay.querySelector("#resourceArchiveSelectAll");
+            const checkboxes = Array.from(overlay.querySelectorAll(".archive-checklist-checkbox"));
+            if (selectAll) {
+                selectAll.addEventListener("change", () => {
+                    checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+                });
+            }
+
+            async function performArchive(selectedKeys) {
+                const confirmBtn = overlay.querySelector("#resourceArchiveConfirmBtn");
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = "Archiving...";
+
+                const requests = [];
+                if (selectedKeys.includes("lesson")) {
+                    requests.push(fetch(`/admin/learning-resources/${resourceId}/archive`, { method: "POST", credentials: "include" }));
+                }
+                if (selectedKeys.includes("video") && videoTutorialId) {
+                    requests.push(fetch(`/admin/upload-video-tutorial/${videoTutorialId}/archive`, { method: "POST", credentials: "include" }));
+                }
+
+                try {
+                    await Promise.all(requests);
+                } catch (err) {
+                    // Best-effort - the row's own state below reflects
+                    // whatever the table shows on next reload regardless.
+                }
+
+                closeModal();
+
+                if (selectedKeys.includes("lesson")) {
+                    // The Lesson itself was archived - it disappears from
+                    // the active list entirely, video or not.
+                    if (row) row.remove();
+                } else {
+                    // Only the video was archived - the Lesson row stays,
+                    // just without its video icon/edit option. A full
+                    // reload is the simplest correct way to reflect that.
+                    window.location.reload();
+                }
+            }
+
+            overlay.querySelector("#resourceArchiveConfirmBtn").addEventListener("click", () => {
+                const selectedKeys = checkboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+                if (selectedKeys.length === 0) {
+                    closeModal();
+                    return;
+                }
+
+                // Published-state interception, same rule as Edit: archiving
+                // Draft content proceeds immediately; archiving anything
+                // currently Published requires an explicit confirm first.
+                // Task fix: closes THIS checklist overlay before opening
+                // the shared confirm modal, rather than stacking them -
+                // both use the same .modal-overlay z-index, and since
+                // #confirmActionModal is a static element already in the
+                // DOM at page load while this checklist is appended later
+                // at runtime, the checklist would otherwise always paint
+                // on top and silently hide the confirm dialog underneath it.
+                const publishedSelections = options.filter((o) => selectedKeys.includes(o.key) && o.status === "Published");
+                if (publishedSelections.length > 0) {
+                    const names = publishedSelections.map((o) => o.label).join(" and ");
+                    closeModal();
+                    showConfirmModal(
+                        `You are about to archive published content (${names}). Do you wish to continue?`,
+                        () => performArchive(selectedKeys),
+                        "Archive Published Content?"
+                    );
+                } else {
+                    performArchive(selectedKeys);
+                }
+            });
+        }
 
         tableBody.addEventListener("click", async (e) => {
             const editTrigger = e.target.closest(".js-edit-resource-trigger");
@@ -222,57 +357,17 @@
                 return;
             }
 
-            const archiveBtn = e.target.closest(".js-archive-resource-btn");
-            if (!archiveBtn) return;
+            const archiveTrigger = e.target.closest(".js-archive-resource-trigger");
+            if (!archiveTrigger) return;
             e.preventDefault();
 
-            const resourceId = archiveBtn.dataset.resourceId;
+            const resourceId = archiveTrigger.dataset.resourceId;
             if (!resourceId) return;
+            const videoTutorialId = archiveTrigger.dataset.videoTutorialId || null;
+            const resourceStatus = archiveTrigger.dataset.status || "Draft";
+            const videoStatus = archiveTrigger.dataset.videoStatus || "Draft";
 
-            const confirmMsg = "Are you sure you want to archive this resource? " +
-                "It will be removed from active use, but its content is preserved.";
-            const confirmTitle = "Archive Resource?";
-
-            showConfirmModal(confirmMsg, async () => {
-                const icon = archiveBtn.querySelector("i");
-                const originalClass = icon ? icon.className : "";
-                if (icon) icon.className = "fa-solid fa-spinner fa-spin";
-                archiveBtn.style.pointerEvents = "none";
-
-                try {
-                    const response = await fetch(`/admin/learning-resources/${resourceId}/archive`, {
-                        method: "POST",
-                        credentials: "include",
-                    });
-                    const result = await response.json();
-
-                    if (!result.success) {
-                        alert(result.message || "Could not archive this resource.");
-                        if (icon) icon.className = originalClass;
-                        archiveBtn.style.pointerEvents = "";
-                        return;
-                    }
-
-                    // Row no longer belongs in the active list - remove it
-                    // in place rather than a full page reload, same UX as
-                    // admin-manage-course.js's own archive-module flow.
-                    const row = archiveBtn.closest("tr");
-                    if (row) row.remove();
-
-                    if (!tableBody.querySelector("tr")) {
-                        tableBody.innerHTML = `
-                            <tr>
-                                <td colspan="9" class="text-muted table-empty-message">
-                                    No resources found.
-                                </td>
-                            </tr>`;
-                    }
-                } catch (err) {
-                    alert("Could not reach the server. Please try again.");
-                    if (icon) icon.className = originalClass;
-                    archiveBtn.style.pointerEvents = "";
-                }
-            }, confirmTitle);
+            openResourceArchiveChecklist(resourceId, videoTutorialId, resourceStatus, videoStatus, archiveTrigger.closest("tr"));
         });
     });
 })();

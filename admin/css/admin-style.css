@@ -2111,9 +2111,15 @@ textarea.form-control-custom {
 /* Content column icon buttons (document icon = always present, preview
    the Lesson's own text content; video icon = only when a Video
    Tutorial is attached) - a plain, borderless icon button, matching
-   the visual weight of .table-action-icon used in the Actions column. */
+   the visual weight of .table-action-icon used in the Actions column.
+   .activity-content-trigger is the SAME idea on Manage Learning
+   Activities' own Activity column (Multiple Choice/Fill in the
+   Blanks/Flashcards icons) - grouped into this same reset since it was
+   missed when that column was first added, leaving those buttons with
+   the browser's default background/border/padding. */
 .resource-content-trigger,
-.video-preview-trigger {
+.video-preview-trigger,
+.activity-content-trigger {
     background: none;
     border: none;
     padding: 0;
@@ -2125,7 +2131,8 @@ textarea.form-control-custom {
 }
 
 .resource-content-trigger:hover,
-.video-preview-trigger:hover {
+.video-preview-trigger:hover,
+.activity-content-trigger:hover {
     color: #1d4ed8;
 }
 
@@ -2417,4 +2424,44 @@ textarea.form-control-custom {
 
 .editor-terminal-prompt-text {
     color: #94a3b8;
+}
+
+/* ==========================================================================
+   ARCHIVE CHECKLIST MODALS (Manage Learning Activities & Manage
+   Learning Resources) - pick one, several, or "All" items to archive
+   at once, rather than a single all-or-nothing Archive action.
+   ========================================================================== */
+.archive-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 14px;
+    color: #374151;
+    cursor: pointer;
+}
+
+.archive-checklist-item:last-of-type {
+    border-bottom: none;
+}
+
+.archive-checklist-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.archive-checklist-item i {
+    width: 16px;
+    text-align: center;
+    color: #6b7280;
+    margin-right: 4px;
+}
+
+.archive-checklist-select-all {
+    padding-bottom: 12px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
 }

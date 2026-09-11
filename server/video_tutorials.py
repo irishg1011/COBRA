@@ -464,3 +464,257 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
     finally:
         if connection.is_connected():
             connection.close()
+
+
+def archive_video_tutorial(video_tutorial_id):
+    """
+    Soft-archives one Video Tutorial by flipping its video_stats_id to
+    "Archived" - reuses the SAME learning_activities_stats_tbl lookup
+    (and its already-seeded "Archived" row) this file already relies
+    on for Draft/Published, never a DELETE and never a new table/
+    column. Backs Manage Learning Resources' new Archive checklist
+    ("Lesson Content" / "Video Tutorial" / "All") when "Video Tutorial"
+    is checked - independent of archive_resource() in
+    resource_publishing.py, since a video's own status
+    (video_stats_id) is separate from its parent Lesson's (lr_stats_id).
+
+    Returns (bool, str) - (success, message).
+    """
+    if not video_tutorial_id:
+        return False, "Video tutorial ID is required."
+    try:
+        vid = int(video_tutorial_id)
+    except (TypeError, ValueError):
+        return False, "Invalid video tutorial ID."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_video_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT video_tutorial_id FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s", (vid,))
+        if not cursor.fetchone():
+            cursor.close()
+            return False, "Video tutorial not found."
+
+        status_id = _get_status_id(connection, "Archived")
+        if not status_id:
+            cursor.close()
+            return False, "Could not resolve the Archived status."
+
+        cursor.execute(
+            f"UPDATE {VIDEO_TUTORIALS_TABLE} SET video_stats_id = %s, updated_at = NOW() WHERE video_tutorial_id = %s",
+            (status_id, vid)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Video tutorial archived successfully."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"video_tutorials: failed to archive video tutorial {vid}: {e}")
+        return False, "Could not archive this video tutorial."
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_archived_video_tutorials(search_query=None, page=1, per_page=8):
+    """
+    Fetches paginated archived Video Tutorials, for the "Video Tutorial"
+    tab of the Archived Learning Resources modal. Separate from
+    archived_items.get_archived_resources() because a Video Tutorial is
+    its own row in video_tutorials_tbl (see this file's module
+    docstring) attached to an existing Lesson via resource_id - never a
+    learning_resources_tbl row of its own - so it needs its own query,
+    joined back to learning_resources_tbl/category_tbl/modules_tbl only
+    to display which Lesson/Category/Module it's attached to.
+
+    Returns the SAME {resource_id, resource_title, category, module,
+    updated_at, ...} shape archived_items.get_archived_resources() uses
+    (resource_id/resource_title populated with this video's OWN
+    video_tutorial_id/video_title, not the parent Lesson's) so the
+    existing admin-archived-resources.js's renderRows() needs no
+    changes to display either tab.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        ensure_video_stats(connection)
+        cursor = connection.cursor(dictionary=True)
+
+        base_query = f"""
+            FROM {VIDEO_TUTORIALS_TABLE} vt
+            LEFT JOIN {LEARNING_RESOURCES_TABLE} lr ON vt.resource_id = lr.resource_id
+            LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
+            LEFT JOIN {MODULES_TABLE} m ON lr.module_id = m.module_id
+            LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
+            WHERE LOWER(COALESCE(vts.la_stats_name, '')) = 'archived'
+        """
+        params = []
+
+        term = (search_query or "").strip()
+        if term:
+            base_query += """
+                AND (
+                    LOWER(vt.video_title) LIKE %s
+                    OR LOWER(COALESCE(lr.resource_title, '')) LIKE %s
+                    OR LOWER(COALESCE(c.category_name, '')) LIKE %s
+                    OR LOWER(COALESCE(m.module_name, '')) LIKE %s
+                )
+            """
+            like_term = f"%{term.lower()}%"
+            params.extend([like_term] * 4)
+
+        cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
+        total = cursor.fetchone()["total"]
+
+        page = max(1, int(page))
+        per_page = max(1, int(per_page))
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
+
+        cursor.execute(
+            f"""
+            SELECT vt.video_tutorial_id, vt.video_title,
+                   c.category_name, m.module_name,
+                   vt.updated_at AS raw_updated_at
+            {base_query}
+            ORDER BY vt.updated_at DESC, vt.video_tutorial_id DESC
+            LIMIT %s OFFSET %s
+            """,
+            tuple(params + [per_page, offset])
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+
+        resources = []
+        for r in rows:
+            resources.append({
+                "resource_id": r["video_tutorial_id"],
+                "resource_title": r.get("video_title") or "Untitled video",
+                "category": r.get("category_name") or "—",
+                "module": r.get("module_name") or "—",
+                "updated_at": _format_archived_datetime(r.get("raw_updated_at")),
+            })
+
+        return {
+            "resources": resources,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+        }
+    except Error as e:
+        print(f"video_tutorials: failed to load archived video tutorials: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def _format_archived_datetime(dt):
+    if not dt:
+        return "—"
+    return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
+
+
+def restore_video_tutorial(video_tutorial_id):
+    """Restores an archived Video Tutorial back to 'Draft' status."""
+    if not video_tutorial_id:
+        return False, "Video tutorial ID is required."
+    try:
+        vid = int(video_tutorial_id)
+    except (TypeError, ValueError):
+        return False, "Invalid video tutorial ID."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_video_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT video_tutorial_id FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s", (vid,))
+        if not cursor.fetchone():
+            cursor.close()
+            return False, "Video tutorial not found."
+
+        draft_id = _get_status_id(connection, "Draft")
+        if not draft_id:
+            cursor.close()
+            return False, "Could not resolve the Draft status."
+
+        cursor.execute(
+            f"UPDATE {VIDEO_TUTORIALS_TABLE} SET video_stats_id = %s, updated_at = NOW() WHERE video_tutorial_id = %s",
+            (draft_id, vid)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Video tutorial restored successfully."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"video_tutorials: failed to restore video tutorial {vid}: {e}")
+        return False, "Could not restore this video tutorial."
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def permanently_delete_video_tutorial(video_tutorial_id):
+    """
+    Permanently removes an archived Video Tutorial row. No dependent
+    tables reference video_tutorial_id (unlike a Lesson, which
+    activities/exercises can reference), so this is a simple delete -
+    the parent Lesson itself is never touched.
+    """
+    if not video_tutorial_id:
+        return False, "Video tutorial ID is required."
+    try:
+        vid = int(video_tutorial_id)
+    except (TypeError, ValueError):
+        return False, "Invalid video tutorial ID."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""
+            SELECT vt.video_tutorial_id, vts.la_stats_name AS status
+            FROM {VIDEO_TUTORIALS_TABLE} vt
+            LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
+            WHERE vt.video_tutorial_id = %s
+            """,
+            (vid,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Video tutorial not found."
+        if (row.get("status") or "").lower() != "archived":
+            cursor.close()
+            return False, "This video tutorial must be archived before it can be permanently deleted."
+
+        cursor.execute(f"DELETE FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s", (vid,))
+        connection.commit()
+        cursor.close()
+        return True, "Video tutorial permanently deleted."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"video_tutorials: failed to permanently delete video tutorial {vid}: {e}")
+        return False, "Could not permanently delete this video tutorial."
+    finally:
+        if connection.is_connected():
+            connection.close()
