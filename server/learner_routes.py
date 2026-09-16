@@ -28,6 +28,7 @@ from learner_exercise import (
     record_exercise_progress,
     get_latest_submission,
 )
+from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 
@@ -985,6 +986,30 @@ def mark_lesson_complete():
         if connection.is_connected():
             connection.close()
 
+# ============================================================
+# ROUTE: LESSON SUMMARY (JSON API) - performance recap + what's next
+# ============================================================
+@learner_bp.route("/api/lesson-summary", methods=["GET"])
+def lesson_summary_data():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    resource_id = request.args.get("resource_id", type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    summary = get_lesson_performance_summary(acc_id, resource_id)
+    if summary is None:
+        return jsonify({"success": False, "message": "Could not load lesson summary."}), 500
+
+    next_info = get_next_lesson_info(resource_id)
+
+    return jsonify({
+        "success": True,
+        **summary,
+        "next": next_info,
+    }), 200
 
 # ============================================================
 # ROUTE: LEARNER FOLDER ASSETS (css/js/etc.)

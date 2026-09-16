@@ -20,6 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const activitiesContainer = document.getElementById('activitiesContainer');
     const backToLessonsLink = document.getElementById('backToLessonsLink');
 
+    const viewSummaryFromActivitiesBtn = document.getElementById('viewSummaryFromActivitiesBtn');
+    const viewSummaryFromExerciseBtn = document.getElementById('viewSummaryFromExerciseBtn');
+
+    const summaryStep = document.getElementById('summaryStep');
+    const perfBanner = document.getElementById('perfBanner');
+    const perfRing = document.getElementById('perfRing');
+    const perfRingLabel = document.getElementById('perfRingLabel');
+    const summaryList = document.getElementById('summaryList');
+    const summaryContinueBtn = document.getElementById('summaryContinueBtn');
+
     const exerciseStep = document.getElementById('exerciseStep');
     const exerciseTitle = document.getElementById('exerciseTitle');
     const exerciseSituation = document.getElementById('exerciseSituation');
@@ -82,7 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
         contentStep.style.display = key === "content" ? "block" : "none";
         activitiesStep.style.display = key === "activities" ? "block" : "none";
         exerciseStep.style.display = key === "exercise" ? "block" : "none";
+        summaryStep.style.display = key === "summary" ? "block" : "none";
         renderStepper(key);
+        if (key === "summary") loadSummary();
     }
 
     // ---------------- Video step (YouTube IFrame API) ----------------
@@ -566,9 +578,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lessonData.is_completed) {
                 lessonCompleteStatus.style.display = 'inline-flex';
                 lessonInProgressStatus.style.display = 'none';
+                viewSummaryFromActivitiesBtn.style.display = 'inline-flex';
             } else {
                 lessonCompleteStatus.style.display = 'none';
                 lessonInProgressStatus.style.display = 'inline-flex';
+                viewSummaryFromActivitiesBtn.style.display = 'none';
             }
         }
 
@@ -580,6 +594,71 @@ document.addEventListener('DOMContentLoaded', () => {
         // it just never got the chance to run before this fix.
         if (typeof window.cobraByteInitLessonActivities === 'function') {
             window.cobraByteInitLessonActivities(resourceId, activitiesContainer, onActivitiesDone);
+        }
+    }
+
+    viewSummaryFromActivitiesBtn.addEventListener('click', () => goToStep("summary"));
+    viewSummaryFromExerciseBtn.addEventListener('click', () => goToStep("summary"));
+
+    // ---------------- Summary step ----------------
+    let summaryLoaded = false;
+
+    async function loadSummary() {
+        if (summaryLoaded) return; // built once per page load, same as video/exercise content
+        summaryLoaded = true;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lesson-summary?resource_id=${encodeURIComponent(resourceId)}`, {
+                credentials: 'include'
+            });
+            const data = await response.json();
+            if (!data.success) throw new Error('Unexpected response');
+            renderSummary(data);
+        } catch (err) {
+            console.error('Error loading summary:', err);
+            summaryList.innerHTML = '<p style="color:#e02424;">Could not load your results. Please refresh and try again.</p>';
+            summaryContinueBtn.textContent = "Back to Lessons";
+            summaryContinueBtn.disabled = false;
+            summaryContinueBtn.addEventListener('click', () => { window.location.href = backToLessonsLink.href; });
+        }
+    }
+
+    function renderSummary(data) {
+        if (data.performance_percent !== null && data.performance_percent !== undefined) {
+            perfBanner.style.display = 'flex';
+            perfRing.style.setProperty('--pct', data.performance_percent);
+            perfRingLabel.textContent = data.performance_percent + '%';
+        }
+
+        const rows = [];
+        rows.push(`<div class="summary-row"><span>Video Tutorial</span><span class="${data.video_watched ? 'ok' : 'pending'}">${data.video_watched ? 'Completed' : 'Not watched'}</span></div>`);
+        rows.push(`<div class="summary-row"><span>Lesson Content</span><span class="${data.content_read ? 'ok' : 'pending'}">${data.content_read ? 'Completed' : 'Not read'}</span></div>`);
+
+        (data.activities || []).forEach(a => {
+            const label = a.total > 0 ? `${a.score}/${a.total} points` : (a.completed ? 'Completed' : 'Not completed');
+            rows.push(`<div class="summary-row"><span>${a.activity_title} — ${a.activity_type}</span><span class="${a.completed ? 'ok' : 'pending'}">${label}</span></div>`);
+        });
+
+        if (data.exercise) {
+            const ex = data.exercise;
+            rows.push(`<div class="summary-row"><span>Exercise — ${ex.exercise_title}</span><span class="${ex.completed ? 'ok' : 'pending'}">${ex.points_earned}/${ex.points_total} test cases${ex.completed ? ' (Passed)' : ''}</span></div>`);
+        }
+
+        summaryList.innerHTML = rows.join('');
+
+        const next = data.next;
+        if (!next || next.type === "end") {
+            summaryContinueBtn.textContent = "Back to Lessons";
+            summaryContinueBtn.disabled = false;
+            summaryContinueBtn.addEventListener('click', () => { window.location.href = backToLessonsLink.href; });
+        } else if (next.type === "chapter") {
+            summaryContinueBtn.textContent = `Continue to ${next.category_name}`;
+            summaryContinueBtn.disabled = false;
+            summaryContinueBtn.addEventListener('click', () => { window.location.href = `/lesson-content?resource_id=${next.resource_id}`; });
+        } else {
+            summaryContinueBtn.textContent = `Continue to ${next.resource_title}`;
+            summaryContinueBtn.disabled = false;
+            summaryContinueBtn.addEventListener('click', () => { window.location.href = `/lesson-content?resource_id=${next.resource_id}`; });
         }
     }
 
@@ -639,12 +718,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Build step order - Video and Exercise are only included if
-            // this lesson actually has one.
+            // this lesson actually has one. Summary is always last.
             stepOrder = [];
             if (data.video) stepOrder.push({ key: "video", label: "Video" });
             stepOrder.push({ key: "content", label: "Content" });
             stepOrder.push({ key: "activities", label: "Activities" });
             if (data.exercise) stepOrder.push({ key: "exercise", label: "Exercise" });
+            stepOrder.push({ key: "summary", label: "Summary" });
 
             // The video player is built once here regardless of watch
             // status, so reviewing it later (via the stepper) always

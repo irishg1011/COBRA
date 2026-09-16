@@ -106,6 +106,7 @@
                 <span id="lessonInProgressStatus" class="lesson-in-progress-label" style="display: none;">
                     Finish the activities above to complete this lesson.
                 </span>
+                <button type="button" class="lesson-step-btn" id="viewSummaryFromActivitiesBtn" style="display: none;">View Summary</button>
             </div>
         </div>
 
@@ -142,6 +143,23 @@
                 <span id="exerciseCompleteStatus" class="mark-complete-confirm" style="display: none;">
                     <i class="fa-solid fa-circle-check"></i> Lesson completed!
                 </span>
+                <button type="button" class="lesson-step-btn" id="viewSummaryFromExerciseBtn">View Summary</button>
+            </div>
+        </div>
+
+        <!-- STEP: SUMMARY -->
+        <div id="summaryStep" class="lesson-step" style="display: none;">
+            <p class="lesson-step-eyebrow" id="summaryEyebrow">Lesson Summary</p>
+
+            <div class="perf-banner" id="perfBanner" style="display: none;">
+                <div class="perf-ring" id="perfRing" style="--pct: 0;"><span id="perfRingLabel">0%</span></div>
+                <p class="perf-banner-title" id="perfBannerTitle">Performance</p>
+            </div>
+
+            <div class="summary-list" id="summaryList"></div>
+
+            <div class="stage-footer">
+                <button class="lesson-step-btn" id="summaryContinueBtn" disabled>Loading...</button>
             </div>
         </div>
     </div>

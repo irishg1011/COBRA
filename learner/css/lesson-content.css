@@ -535,3 +535,81 @@
     color: #991b1b;
     border: 1px solid #fca5a5;
 }
+
+/* ===================== Summary step ===================== */
+.perf-banner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+}
+
+.perf-ring {
+    --pct: 0;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: conic-gradient(#16a34a calc(var(--pct) * 1%), #d8f3e0 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.perf-ring span {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 800;
+    color: #15803d;
+}
+
+.perf-banner-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.summary-list {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6px;
+    margin-bottom: 24px;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    font-size: 14px;
+    border-bottom: 1px dashed #e2e8f0;
+}
+
+.summary-row:last-child { border-bottom: none; }
+
+.summary-row .ok {
+    color: #15803d;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.summary-row .pending {
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.stage-footer {
+    display: flex;
+    justify-content: flex-end;
+}
