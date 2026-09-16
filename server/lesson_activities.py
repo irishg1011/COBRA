@@ -7,7 +7,7 @@ routing (mcq_questions_tbl/mcq_options_tbl, fill_blanks_tbl,
 flashcards_tbl) but is READ-ONLY from the learner's point of view for
 question content, and NEVER returns the correct answer to the client -
 answer checking happens entirely server-side in check_mcq_answer() /
-check_fill_blank_answer() below.
+check_fill_blank_answer() / check_flashcard_answer() below.
 
 This file never touches Flask/session state directly - learner_routes.py
 is the only place these get turned into HTTP responses, matching the
@@ -24,6 +24,7 @@ MCQ_QUESTIONS_TABLE = "mcq_questions_tbl"
 MCQ_OPTIONS_TABLE = "mcq_options_tbl"
 FILL_BLANKS_TABLE = "fill_blanks_tbl"
 FLASHCARDS_TABLE = "flashcards_tbl"
+FLASHCARD_ANSWERS_TABLE = "flashcard_learner_answers_tbl"
 PROGRESS_TABLE = "learner_activity_progress_tbl"
 
 
@@ -201,6 +202,73 @@ def check_fill_blank_answer(fib_id, submitted_answer):
     except Error as e:
         print(f"lesson_activities: failed to check fill-blank answer for fib_id={fib_id}: {e}")
         return False, "Could not check this answer.", None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def check_flashcard_answer(acc_id, flashcard_id, submitted_answer):
+    """
+    Grades a flashcard attempt against flashcards_tbl.back_text and logs
+    it as a new row in flashcard_learner_answers_tbl (append-only, never
+    updated in place - attempt_number increments per (acc_id,
+    flashcard_id) pair, matching the same convention as the other
+    attempt-log tables).
+
+    Grading: exact match on back_text (case-sensitive) = "correct";
+    case-insensitive match only = "close" (half credit, decided by
+    Cobra); anything else = "incorrect".
+
+    Returns (status, feedback, correct_answer) on success, or None on
+    any failure (flashcard not found, DB unreachable).
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""SELECT back_text, correct_feedback, incorrect_feedback
+                FROM {FLASHCARDS_TABLE} WHERE flashcard_id = %s""",
+            (flashcard_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return None
+
+        back_text = (row.get("back_text") or "").strip()
+        submitted = (submitted_answer or "").strip()
+
+        if submitted and back_text and submitted == back_text:
+            status = "correct"
+        elif submitted and back_text and submitted.lower() == back_text.lower():
+            status = "close"
+        else:
+            status = "incorrect"
+
+        feedback = (row.get("correct_feedback") if status == "correct" else row.get("incorrect_feedback")) or ""
+
+        cursor.execute(
+            f"SELECT COUNT(*) AS cnt FROM {FLASHCARD_ANSWERS_TABLE} WHERE acc_id = %s AND flashcard_id = %s",
+            (acc_id, flashcard_id)
+        )
+        attempt_number = cursor.fetchone()["cnt"] + 1
+
+        cursor.execute(
+            f"""INSERT INTO {FLASHCARD_ANSWERS_TABLE}
+                (acc_id, flashcard_id, answer_given, attempt_number, status, source, recommendation_id, feedback_given, answered_at)
+                VALUES (%s, %s, %s, %s, %s, 'self', NULL, %s, NOW())""",
+            (acc_id, flashcard_id, submitted, attempt_number, status, feedback)
+        )
+        connection.commit()
+        cursor.close()
+        return status, feedback, back_text
+    except Error as e:
+        connection.rollback()
+        print(f"lesson_activities: failed to check flashcard answer for flashcard_id={flashcard_id}: {e}")
+        return None
     finally:
         if connection.is_connected():
             connection.close()

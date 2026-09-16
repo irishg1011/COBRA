@@ -17,6 +17,7 @@ from lesson_activities import (
     get_published_activities_for_resource,
     check_mcq_answer,
     check_fill_blank_answer,
+    check_flashcard_answer,
     record_activity_progress,
     get_activities_completion_summary,
 )
@@ -73,6 +74,7 @@ def get_current_learner_acc_id():
         if connection.is_connected():
             connection.close()
 
+
 def get_published_video_for_resource(cursor, resource_id):
     """
     Returns the most recently uploaded PUBLISHED video_tutorials_tbl row
@@ -91,6 +93,7 @@ def get_published_video_for_resource(cursor, resource_id):
         (resource_id,)
     )
     return cursor.fetchone()
+
 
 # ============================================================
 # ROUTE: DASHBOARD PAGE
@@ -640,6 +643,7 @@ def lesson_content_data():
         if connection.is_connected():
             connection.close()
 
+
 # ============================================================
 # ROUTE: MARK VIDEO STEP WATCHED
 # ============================================================
@@ -739,6 +743,7 @@ def mark_content_read():
         if connection.is_connected():
             connection.close()
 
+
 # ============================================================
 # ROUTE: LESSON ACTIVITIES (JSON API) - Multiple Choice / Fill in the
 # Blanks / Flashcards attached to a lesson. Answers are NEVER included
@@ -785,7 +790,7 @@ def lesson_activities_data():
 
 
 # ============================================================
-# ROUTE: CHECK A SINGLE ACTIVITY ANSWER (MCQ or Fill in the Blanks)
+# ROUTE: CHECK A SINGLE ACTIVITY ANSWER (MCQ / Fill in the Blanks / Flashcards)
 # ============================================================
 @learner_bp.route("/api/lesson-activities/check-answer", methods=["POST"])
 def lesson_activities_check_answer():
@@ -818,12 +823,26 @@ def lesson_activities_check_answer():
             "correct_answer": correct_answer
         }), 200
 
+    if answer_type == "flashcard":
+        result = check_flashcard_answer(acc_id, data.get("flashcard_id"), data.get("answer"))
+        if result is None:
+            return jsonify({"success": False, "message": "This flashcard could not be checked."}), 500
+        status, feedback, correct_answer = result
+        points = 1 if status == "correct" else 0.5 if status == "close" else 0
+        return jsonify({
+            "success": True,
+            "status": status,
+            "points": points,
+            "feedback": feedback,
+            "correct_answer": correct_answer
+        }), 200
+
     return jsonify({"success": False, "message": "Unknown answer type."}), 400
 
 
 # ============================================================
-# ROUTE: MARK ONE ACTIVITY AS COMPLETE (MCQ/Fill-in-the-Blanks after
-# the last item, or Flashcards after reviewing every card)
+# ROUTE: MARK ONE ACTIVITY AS COMPLETE (MCQ/Fill-in-the-Blanks/Flashcards
+# after the last item)
 # ============================================================
 @learner_bp.route("/api/lesson-activities/mark-complete", methods=["POST"])
 def lesson_activities_mark_complete():

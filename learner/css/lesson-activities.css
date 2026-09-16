@@ -162,29 +162,6 @@
     background: #0369a1;
 }
 
-.activity-flashcard-box {
-    min-height: 160px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 32px;
-    background: #f8fafc;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 14px;
-    font-size: 18px;
-    font-weight: 700;
-    color: #0f172a;
-    cursor: pointer;
-    margin-bottom: 12px;
-    user-select: none;
-}
-
-.activity-flashcard-box.flipped {
-    background: #f0fdf4;
-    border-color: #86efac;
-}
-
 .activity-flashcard-hint {
     text-align: center;
     font-size: 13px;
@@ -210,3 +187,60 @@
     font-weight: 600;
     font-size: 14px;
 }
+
+/* ===================== Flashcards: flip-card reveal ===================== */
+.flip-card-scene { perspective: 1200px; margin-bottom: 8px; }
+
+.flip-card-inner {
+    position: relative;
+    width: 100%;
+    min-height: 140px;
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(.4,.2,.2,1);
+}
+
+.flip-card-inner.flipped { transform: rotateY(180deg); }
+
+.flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 28px;
+    border-radius: 14px;
+    border: 1.5px solid #e2e8f0;
+}
+
+.flip-face.front {
+    background: #f8fafc;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.flip-face.back {
+    background: #f0fdf4;
+    border-color: #86efac;
+    transform: rotateY(180deg);
+}
+
+.flip-face.back.is-close { background: #fffbeb; border-color: #fcd34d; }
+.flip-face.back.is-incorrect { background: #fef2f2; border-color: #fca5a5; }
+
+.flip-back-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: #64748b;
+    margin-bottom: 6px;
+}
+
+.flip-back-answer { font-size: 19px; font-weight: 800; color: #0f172a; }
+
+.flip-back-compare { font-size: 13px; color: #64748b; margin-top: 8px; }
+.flip-back-compare b { color: #0f172a; }

@@ -189,46 +189,113 @@
     }
 
     // ---------------- Flashcards ----------------
+    // Type-and-check, not flip-and-click: grading always happens
+    // server-side (see /api/lesson-activities/check-answer, type
+    // "flashcard") the moment the learner submits a guess. The flip is
+    // purely a confirmation reveal AFTER grading, showing the real back
+    // side next to what they typed - it never gates the score itself.
     function renderFlashcards(activity, container, onActivityDone) {
         let currentIndex = 0;
+        let totalPoints = 0;
         const total = activity.items.length;
-        let flipped = false;
+        let answered = false;
+        let lastResult = null; // { answer, status, correct_answer, feedback }
 
         function renderCard() {
-            flipped = false;
+            answered = false;
+            lastResult = null;
             container.innerHTML = "";
             const card = activity.items[currentIndex];
 
             container.appendChild(el("p", "activity-progress-label", `Card ${currentIndex + 1} of ${total}`));
 
-            const flashcardBox = el("div", "activity-flashcard-box", card.front);
-            flashcardBox.addEventListener("click", () => {
-                flipped = !flipped;
-                flashcardBox.textContent = flipped ? card.back : card.front;
-                flashcardBox.classList.toggle("flipped", flipped);
-            });
-            container.appendChild(flashcardBox);
-            container.appendChild(el("p", "activity-flashcard-hint", "Click the card to flip it."));
+            const scene = el("div", "flip-card-scene");
+            const inner = el("div", "flip-card-inner");
+            inner.id = "fcFlipInner";
+            const front = el("div", "flip-face front", card.front);
+            const back = el("div", "flip-face back");
+            back.id = "fcFlipBack";
+            inner.appendChild(front);
+            inner.appendChild(back);
+            scene.appendChild(inner);
+            container.appendChild(scene);
 
-            const nextBtn = el("button", "activity-next-btn", currentIndex === total - 1 ? "Finish" : "Next Card");
-            nextBtn.type = "button";
-            nextBtn.addEventListener("click", () => {
-                currentIndex += 1;
-                if (currentIndex >= total) {
-                    finishActivity();
+            container.appendChild(el("p", "activity-flashcard-hint", "Type what the back of this card says."));
+            container.appendChild(el("p", "activity-question-text", "Your answer"));
+
+            const input = el("input", "activity-fillblank-input");
+            input.type = "text";
+            input.placeholder = "Type your answer...";
+            input.id = "fcInput";
+            container.appendChild(input);
+
+            const feedbackBox = el("div", "activity-feedback-box");
+            feedbackBox.style.display = "none";
+            feedbackBox.id = "fcFeedback";
+            container.appendChild(feedbackBox);
+
+            const actionBtn = el("button", "activity-next-btn", "Submit");
+            actionBtn.type = "button";
+            container.appendChild(actionBtn);
+
+            actionBtn.addEventListener("click", async () => {
+                if (!answered) {
+                    if (!input.value.trim()) { input.focus(); return; }
+                    actionBtn.disabled = true;
+                    const result = await checkAnswer({
+                        type: "flashcard",
+                        flashcard_id: card.flashcard_id,
+                        answer: input.value
+                    });
+                    actionBtn.disabled = false;
+
+                    lastResult = {
+                        answer: input.value.trim(),
+                        status: result.status,
+                        correct_answer: result.correct_answer,
+                        feedback: result.feedback
+                    };
+                    totalPoints += (result.points || 0);
+                    answered = true;
+                    input.disabled = true;
+
+                    // Fill the back face BEFORE flipping, then flip a beat
+                    // later so the reveal reads as deliberate.
+                    back.className = "flip-face back is-" + lastResult.status;
+                    back.innerHTML = `
+                        <div class="flip-back-label">${lastResult.status === "correct" ? "Match!" : lastResult.status === "close" ? "Almost — case differs" : "Expected answer"}</div>
+                        <div class="flip-back-answer">${lastResult.correct_answer}</div>
+                        <div class="flip-back-compare">You typed: <b>"${lastResult.answer}"</b></div>
+                    `;
+
+                    feedbackBox.style.display = "block";
+                    feedbackBox.className = "activity-feedback-box is-" + (lastResult.status === "incorrect" ? "incorrect" : "correct");
+                    feedbackBox.textContent = lastResult.feedback || (
+                        lastResult.status === "correct" ? "Correct! Full credit."
+                        : lastResult.status === "close" ? "Close — right word, wrong case. Half credit."
+                        : `Not quite. Correct answer: ${lastResult.correct_answer}`
+                    );
+
+                    setTimeout(() => inner.classList.add("flipped"), 150);
+                    actionBtn.textContent = currentIndex === total - 1 ? "Finish" : "Next Card";
                 } else {
-                    renderCard();
+                    currentIndex += 1;
+                    if (currentIndex >= total) {
+                        finishActivity();
+                    } else {
+                        renderCard();
+                    }
                 }
             });
-            container.appendChild(nextBtn);
         }
 
         function finishActivity() {
             container.innerHTML = "";
             const summary = el("div", "activity-summary");
-            summary.innerHTML = `<p>You reviewed all ${total} flashcards in "${activity.activity_title}".</p>`;
+            const roundedScore = Math.round(totalPoints);
+            summary.innerHTML = `<p>You scored <strong>${totalPoints} / ${total}</strong> on "${activity.activity_title}".</p>`;
             container.appendChild(summary);
-            markActivityComplete(activity.la_id, 0).finally(() => onActivityDone());
+            markActivityComplete(activity.la_id, roundedScore).finally(() => onActivityDone());
         }
 
         renderCard();
