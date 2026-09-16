@@ -427,3 +427,111 @@
     align-items: center;
     gap: 6px;
 }
+
+/* ===================== Exercise step ===================== */
+.exercise-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 14px;
+}
+
+.exercise-prompt {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+}
+
+.exercise-prompt p {
+    font-size: 14.5px;
+    color: #334155;
+    margin: 0 0 10px;
+    line-height: 1.6;
+}
+
+.exercise-prompt p:last-child { margin-bottom: 0; }
+
+.exercise-clue {
+    color: #64748b !important;
+    font-style: italic;
+}
+
+.exercise-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+    .exercise-editor-grid { grid-template-columns: 1fr; }
+}
+
+.exercise-pane {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.exercise-pane-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #111827;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.exercise-run-btn {
+    background: #06b6d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.exercise-run-btn:hover { background: #0891b2; }
+.exercise-run-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.exercise-code-box,
+.exercise-output-box {
+    padding: 14px;
+    font-family: monospace;
+    font-size: 13.5px;
+    color: #374151;
+    min-height: 160px;
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+}
+
+.exercise-output-box { color: #64748b; }
+
+.exercise-result {
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 16px 0;
+}
+
+.exercise-result.pass {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.exercise-result.fail {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}

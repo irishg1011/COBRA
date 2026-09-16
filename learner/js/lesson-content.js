@@ -20,6 +20,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const activitiesContainer = document.getElementById('activitiesContainer');
     const backToLessonsLink = document.getElementById('backToLessonsLink');
 
+    const exerciseStep = document.getElementById('exerciseStep');
+    const exerciseTitle = document.getElementById('exerciseTitle');
+    const exerciseSituation = document.getElementById('exerciseSituation');
+    const exerciseProblem = document.getElementById('exerciseProblem');
+    const exerciseClue = document.getElementById('exerciseClue');
+    const exerciseCodeBox = document.getElementById('exerciseCodeBox');
+    const exerciseOutputBox = document.getElementById('exerciseOutputBox');
+    const exerciseRunBtn = document.getElementById('exerciseRunBtn');
+    const exerciseSubmitBtn = document.getElementById('exerciseSubmitBtn');
+    const exerciseResultBox = document.getElementById('exerciseResultBox');
+    const exerciseCompleteRow = document.getElementById('exerciseCompleteRow');
+    const exerciseCompleteStatus = document.getElementById('exerciseCompleteStatus');
+
     const videoStep = document.getElementById('videoStep');
     const lessonVideoFrame = document.getElementById('lessonVideoFrame');
     const lessonVideoTitle = document.getElementById('lessonVideoTitle');
@@ -68,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         videoStep.style.display = key === "video" ? "block" : "none";
         contentStep.style.display = key === "content" ? "block" : "none";
         activitiesStep.style.display = key === "activities" ? "block" : "none";
+        exerciseStep.style.display = key === "exercise" ? "block" : "none";
         renderStepper(key);
     }
 
@@ -413,6 +427,114 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---------------- Exercise step ----------------
+    // Deterministic run used ONLY for grading: input() answers come from
+    // a pre-supplied queue (this test case's test_input, split by line)
+    // instead of prompting the learner - no UI, no waiting. The free
+    // "Run" button below reuses the existing interactive runPythonCode()
+    // instead, since that's meant for the learner trying things out by
+    // hand with real prompts.
+    async function runExerciseForGrading(code, testInput) {
+        let pyodide;
+        try {
+            pyodide = await getPyodideInstance();
+        } catch (err) {
+            return null;
+        }
+
+        const inputLines = (testInput || "").split("\n");
+        pyodide.globals.set("_cobrabyte_grade_code", code || "");
+        pyodide.globals.set("_cobrabyte_grade_inputs", inputLines);
+
+        try {
+            const result = await pyodide.runPythonAsync(
+                "import sys, io, traceback, builtins\n" +
+                "_cobrabyte_grade_stdout = io.StringIO()\n" +
+                "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
+                "sys.stdout = sys.stderr = _cobrabyte_grade_stdout\n" +
+                "_cobrabyte_grade_queue = list(_cobrabyte_grade_inputs.to_py())\n" +
+                "def _cobrabyte_grade_input(prompt=''):\n" +
+                "    return _cobrabyte_grade_queue.pop(0) if _cobrabyte_grade_queue else ''\n" +
+                "_old_input = builtins.input\n" +
+                "builtins.input = _cobrabyte_grade_input\n" +
+                "try:\n" +
+                "    exec(_cobrabyte_grade_code, {'__name__': '__main__'})\n" +
+                "except Exception:\n" +
+                "    traceback.print_exc()\n" +
+                "finally:\n" +
+                "    builtins.input = _old_input\n" +
+                "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
+                "_cobrabyte_grade_stdout.getvalue()\n"
+            );
+            return result;
+        } catch (err) {
+            return "Error running code: " + (err && err.message ? err.message : String(err));
+        }
+    }
+
+    exerciseRunBtn.addEventListener('click', async () => {
+        const code = exerciseCodeBox.innerText.trim();
+        if (!code) return;
+        exerciseRunBtn.disabled = true;
+        exerciseRunBtn.textContent = "Running...";
+        activeOutputBox = exerciseOutputBox;
+        exerciseOutputBox.textContent = "";
+        const output = await runPythonCode(code, [], "");
+        activeOutputBox = null;
+        exerciseOutputBox.textContent = (output || "").trim();
+        exerciseRunBtn.disabled = false;
+        exerciseRunBtn.textContent = "Run";
+    });
+
+    exerciseSubmitBtn.addEventListener('click', async () => {
+        const code = exerciseCodeBox.innerText;
+        if (!code.trim()) return;
+
+        exerciseSubmitBtn.disabled = true;
+        exerciseSubmitBtn.textContent = "Running tests...";
+
+        const actualOutputs = [];
+        for (const tc of lessonData.exercise.test_cases) {
+            const output = await runExerciseForGrading(code, tc.test_input);
+            actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    resource_id: resourceId,
+                    exercise_id: lessonData.exercise.exercise_id,
+                    submitted_code: code,
+                    actual_outputs: actualOutputs
+                })
+            });
+            const result = await response.json();
+
+            exerciseResultBox.style.display = "block";
+            if (result.success && result.status === "correct") {
+                exerciseResultBox.className = "exercise-result pass";
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${result.feedback} (${result.passed}/${result.total} test cases passed)`;
+                exerciseCompleteRow.style.display = "flex";
+                exerciseCompleteStatus.style.display = "inline-flex";
+                await attemptCompleteLesson();
+            } else if (result.success) {
+                exerciseResultBox.className = "exercise-result fail";
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${result.feedback} (${result.passed}/${result.total} test cases passed)`;
+            } else {
+                exerciseResultBox.className = "exercise-result fail";
+                exerciseResultBox.textContent = result.message || "Could not check your submission.";
+            }
+        } catch (err) {
+            console.error('Error submitting exercise:', err);
+        }
+
+        exerciseSubmitBtn.disabled = false;
+        exerciseSubmitBtn.textContent = "Submit";
+    });
+
     // ---------------- Activities step (unchanged behavior from before) ----------------
     async function attemptCompleteLesson() {
         try {
@@ -435,18 +557,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startActivitiesStep() {
-        lessonCompleteRow.style.display = 'flex';
+        // A lesson with an exercise finishes THERE instead - this panel's
+        // own complete row is only ever used for lessons with no exercise.
+        const onActivitiesDone = lessonData.exercise ? (() => goToStep("exercise")) : attemptCompleteLesson;
 
-        if (lessonData.is_completed) {
-            lessonCompleteStatus.style.display = 'inline-flex';
-            lessonInProgressStatus.style.display = 'none';
-            activitiesContainer.style.display = 'none';
-        } else {
-            lessonCompleteStatus.style.display = 'none';
-            lessonInProgressStatus.style.display = 'inline-flex';
-            if (typeof window.cobraByteInitLessonActivities === 'function') {
-                window.cobraByteInitLessonActivities(resourceId, activitiesContainer, attemptCompleteLesson);
+        if (!lessonData.exercise) {
+            lessonCompleteRow.style.display = 'flex';
+            if (lessonData.is_completed) {
+                lessonCompleteStatus.style.display = 'inline-flex';
+                lessonInProgressStatus.style.display = 'none';
+            } else {
+                lessonCompleteStatus.style.display = 'none';
+                lessonInProgressStatus.style.display = 'inline-flex';
             }
+        }
+
+        // Always (re)build the activities UI, even when this lesson is
+        // already completed - navigating back here via the stepper is a
+        // review, not a first attempt. cobraByteInitLessonActivities()
+        // already knows how to show "you already completed this" per
+        // activity (see activity.completed in lesson-activities.js) -
+        // it just never got the chance to run before this fix.
+        if (typeof window.cobraByteInitLessonActivities === 'function') {
+            window.cobraByteInitLessonActivities(resourceId, activitiesContainer, onActivitiesDone);
         }
     }
 
@@ -480,11 +613,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 backToLessonsLink.href = `/lessons?cat_id=${data.cat_id}`;
             }
 
-            // Build step order - Video only included if this lesson has one
+            // Populate the exercise panel once here regardless of step
+            // shown, same reasoning as the video player - so reviewing it
+            // later has something to show.
+            if (data.exercise) {
+                exerciseTitle.textContent = data.exercise.exercise_title;
+                exerciseSituation.textContent = data.exercise.situation;
+                exerciseProblem.textContent = data.exercise.problem_question;
+                exerciseClue.textContent = data.exercise.clue;
+                if (data.exercise_completed) {
+                    exerciseCompleteRow.style.display = "flex";
+                    exerciseCompleteStatus.style.display = "inline-flex";
+                }
+
+                const lastSub = data.exercise_last_submission;
+                if (lastSub) {
+                    if (lastSub.submitted_code) {
+                        exerciseCodeBox.textContent = lastSub.submitted_code;
+                    }
+                    exerciseResultBox.style.display = "block";
+                    const passed = lastSub.status === "correct";
+                    exerciseResultBox.className = "exercise-result " + (passed ? "pass" : "fail");
+                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${lastSub.feedback_given || ""} (${lastSub.test_cases_passed}/${lastSub.test_cases_total} test cases passed)`;
+                }
+            }
+
+            // Build step order - Video and Exercise are only included if
+            // this lesson actually has one.
             stepOrder = [];
             if (data.video) stepOrder.push({ key: "video", label: "Video" });
             stepOrder.push({ key: "content", label: "Content" });
             stepOrder.push({ key: "activities", label: "Activities" });
+            if (data.exercise) stepOrder.push({ key: "exercise", label: "Exercise" });
 
             // The video player is built once here regardless of watch
             // status, so reviewing it later (via the stepper) always

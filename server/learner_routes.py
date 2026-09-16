@@ -21,6 +21,13 @@ from lesson_activities import (
     record_activity_progress,
     get_activities_completion_summary,
 )
+from learner_exercise import (
+    get_published_exercise_for_resource,
+    is_exercise_completed,
+    grade_exercise_submission,
+    record_exercise_progress,
+    get_latest_submission,
+)
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 
@@ -605,6 +612,13 @@ def lesson_content_data():
                 "description": video_row.get("description") or "",
             }
 
+        exercise = get_published_exercise_for_resource(resource_id)
+        exercise_completed = False
+        exercise_last_submission = None
+        if exercise:
+            exercise_completed = is_exercise_completed(acc_id, exercise["exercise_id"])
+            exercise_last_submission = get_latest_submission(acc_id, exercise["exercise_id"])
+
         # Ensure a progress row exists (first time opening this lesson),
         # without downgrading an already-completed one.
         cursor.execute(
@@ -630,6 +644,9 @@ def lesson_content_data():
             "cat_id": resource["cat_id"],
             "content_html": content_html,
             "video": video,
+            "exercise": exercise,
+            "exercise_completed": exercise_completed,
+            "exercise_last_submission": exercise_last_submission,
             "is_completed": progress_row["status"] == "completed",
             "progress": {
                 "video_watched": progress_row["video_watched_at"] is not None,
@@ -743,6 +760,38 @@ def mark_content_read():
         if connection.is_connected():
             connection.close()
 
+# ============================================================
+# ROUTE: SUBMIT A CODING EXERCISE
+# ============================================================
+@learner_bp.route("/api/lesson-exercise/submit", methods=["POST"])
+def lesson_exercise_submit():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    exercise_id = data.get("exercise_id")
+    submitted_code = data.get("submitted_code", "")
+    actual_outputs = data.get("actual_outputs") or []
+
+    if not exercise_id:
+        return jsonify({"success": False, "message": "exercise_id is required."}), 400
+
+    result = grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_outputs)
+    if result is None:
+        return jsonify({"success": False, "message": "Could not grade this submission."}), 500
+
+    passed, total, status, feedback = result
+    if status == "correct":
+        record_exercise_progress(acc_id, exercise_id)
+
+    return jsonify({
+        "success": True,
+        "passed": passed,
+        "total": total,
+        "status": status,
+        "feedback": feedback
+    }), 200
 
 # ============================================================
 # ROUTE: LESSON ACTIVITIES (JSON API) - Multiple Choice / Fill in the
@@ -887,6 +936,14 @@ def mark_lesson_complete():
         return jsonify({
             "success": False,
             "message": "Please complete all activities before finishing this lesson."
+        }), 400
+
+    # Same hard gate for the exercise, if this lesson has one.
+    exercise = get_published_exercise_for_resource(resource_id)
+    if exercise and not is_exercise_completed(acc_id, exercise["exercise_id"]):
+        return jsonify({
+            "success": False,
+            "message": "Please pass the coding exercise before finishing this lesson."
         }), 400
 
     connection = get_db_connection()

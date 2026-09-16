@@ -307,7 +307,13 @@
             const already = el("div", "activity-summary");
             already.innerHTML = `<p><i class="fa-solid fa-circle-check"></i> You already completed "${activity.activity_title}".</p>`;
             container.appendChild(already);
-            onActivityDone();
+
+            const continueBtn = el("button", "activity-next-btn", "Continue");
+            continueBtn.type = "button";
+            continueBtn.style.display = "block";
+            continueBtn.style.margin = "0 auto";
+            continueBtn.addEventListener("click", () => onActivityDone());
+            container.appendChild(continueBtn);
             return;
         }
 

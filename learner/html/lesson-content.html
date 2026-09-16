@@ -95,21 +95,57 @@
                 </div>
             </div>
 
-            <!-- STEP: ACTIVITIES + COMPLETE (unchanged for now - reworked in a later phase) -->
-            <div id="activitiesStep" class="lesson-step" style="display: none;">
-                <div id="activitiesContainer" class="activities-container" style="display: none;"></div>
+        <!-- STEP: ACTIVITIES + COMPLETE (no exercise on this lesson takes this path) -->
+        <div id="activitiesStep" class="lesson-step" style="display: none;">
+            <div id="activitiesContainer" class="activities-container" style="display: none;"></div>
 
-                <div class="lesson-complete-row" id="lessonCompleteRow" style="display: none;">
-                    <span id="lessonCompleteStatus" class="mark-complete-confirm" style="display: none;">
-                        <i class="fa-solid fa-circle-check"></i> Lesson completed!
-                    </span>
-                    <span id="lessonInProgressStatus" class="lesson-in-progress-label" style="display: none;">
-                        Finish the activities above to complete this lesson.
-                    </span>
-                </div>
+            <div class="lesson-complete-row" id="lessonCompleteRow" style="display: none;">
+                <span id="lessonCompleteStatus" class="mark-complete-confirm" style="display: none;">
+                    <i class="fa-solid fa-circle-check"></i> Lesson completed!
+                </span>
+                <span id="lessonInProgressStatus" class="lesson-in-progress-label" style="display: none;">
+                    Finish the activities above to complete this lesson.
+                </span>
             </div>
         </div>
-    </main>
+
+        <!-- STEP: EXERCISE (only built/shown if this lesson has a Published exercise) -->
+        <div id="exerciseStep" class="lesson-step" style="display: none;">
+            <p class="lesson-step-eyebrow">Coding Exercise</p>
+            <h2 class="exercise-title" id="exerciseTitle"></h2>
+
+            <div class="exercise-prompt">
+                <p><strong>Situation:</strong> <span id="exerciseSituation"></span></p>
+                <p><strong>Problem:</strong> <span id="exerciseProblem"></span></p>
+                <p class="exercise-clue"><i class="fa-solid fa-lightbulb"></i> <span id="exerciseClue"></span></p>
+            </div>
+
+            <div class="exercise-editor-grid">
+                <div class="exercise-pane">
+                    <div class="exercise-pane-head">Your Code <button type="button" class="exercise-run-btn" id="exerciseRunBtn">Run</button></div>
+                    <pre class="exercise-code-box" id="exerciseCodeBox" contenteditable="true" spellcheck="false"># Write your code here
+</pre>
+                </div>
+                <div class="exercise-pane">
+                    <div class="exercise-pane-head">Output</div>
+                    <pre class="exercise-output-box" id="exerciseOutputBox">Run your code to see the output.</pre>
+                </div>
+            </div>
+
+            <div class="exercise-result" id="exerciseResultBox" style="display: none;"></div>
+
+            <div class="lesson-step-footer">
+                <button class="lesson-step-btn" id="exerciseSubmitBtn">Submit</button>
+            </div>
+
+            <div class="lesson-complete-row" id="exerciseCompleteRow" style="display: none;">
+                <span id="exerciseCompleteStatus" class="mark-complete-confirm" style="display: none;">
+                    <i class="fa-solid fa-circle-check"></i> Lesson completed!
+                </span>
+            </div>
+        </div>
+    </div>
+</main>
 
     <div id="logoutModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 2000; align-items: center; justify-content: center;">
         <div class="modal-card" style="background: white; padding: 28px 24px; border-radius: 12px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); font-family: 'Inter', sans-serif;">
