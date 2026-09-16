@@ -64,22 +64,49 @@
             Back to Lessons
         </a>
 
+        <div class="lesson-stepper" id="lessonStepper"></div>
+
         <div class="lesson-card">
             <p class="lesson-loading" id="lessonLoading">Loading lesson...</p>
             <p class="lesson-error" id="lessonError" style="display: none;">Could not load this lesson. Please refresh the page.</p>
 
             <h1 id="lessonResourceTitle" style="display: none;"></h1>
-            <div id="lessonContentBody" class="lesson-content-body"></div>
 
-            <div id="activitiesContainer" class="activities-container" style="display: none;"></div>
+            <!-- STEP: VIDEO -->
+            <div id="videoStep" class="lesson-step" style="display: none;">
+                <p class="lesson-step-eyebrow">Video Tutorial</p>
+                <div class="lesson-video-frame" id="lessonVideoFrame"></div>
+                <p class="lesson-video-title" id="lessonVideoTitle"></p>
+                <div class="lesson-step-footer">
+                    <span class="lesson-step-locked-note" id="videoLockedNote"><i class="fa-solid fa-lock"></i> Watch the video to continue</span>
+                    <button class="lesson-step-btn" id="videoContinueBtn" disabled>Continue to Lesson Content</button>
+                </div>
+            </div>
 
-            <div class="lesson-complete-row" id="lessonCompleteRow" style="display: none;">
-                <span id="lessonCompleteStatus" class="mark-complete-confirm" style="display: none;">
-                    <i class="fa-solid fa-circle-check"></i> Lesson completed!
-                </span>
-                <span id="lessonInProgressStatus" class="lesson-in-progress-label" style="display: none;">
-                    Finish the activities above to complete this lesson.
-                </span>
+            <!-- STEP: CONTENT -->
+            <div id="contentStep" class="lesson-step" style="display: none;">
+                <p class="lesson-step-eyebrow">Lesson Content</p>
+                <div class="lesson-content-scroll" id="lessonContentScroll">
+                    <div id="lessonContentBody" class="lesson-content-body"></div>
+                </div>
+                <div class="lesson-step-footer">
+                    <span class="lesson-step-locked-note" id="contentLockedNote"><i class="fa-solid fa-lock"></i> Scroll to the bottom to continue</span>
+                    <button class="lesson-step-btn" id="contentContinueBtn" disabled>Continue to Activities</button>
+                </div>
+            </div>
+
+            <!-- STEP: ACTIVITIES + COMPLETE (unchanged for now - reworked in a later phase) -->
+            <div id="activitiesStep" class="lesson-step" style="display: none;">
+                <div id="activitiesContainer" class="activities-container" style="display: none;"></div>
+
+                <div class="lesson-complete-row" id="lessonCompleteRow" style="display: none;">
+                    <span id="lessonCompleteStatus" class="mark-complete-confirm" style="display: none;">
+                        <i class="fa-solid fa-circle-check"></i> Lesson completed!
+                    </span>
+                    <span id="lessonInProgressStatus" class="lesson-in-progress-label" style="display: none;">
+                        Finish the activities above to complete this lesson.
+                    </span>
+                </div>
             </div>
         </div>
     </main>
