@@ -239,6 +239,20 @@
                 </label>
             `).join("");
 
+            // Task #120: Lesson/Category context, read straight from this
+            // row's own cells (Resource, Content, Category, in that column
+            // order) - no fetch, no backend change needed. Shown once,
+            // since every option listed here belongs to this same Lesson.
+            const contextParts = row
+                ? [row.cells[2] ? row.cells[2].textContent.trim() : "", row.cells[0] ? row.cells[0].textContent.trim() : ""]
+                    .filter((part) => part && part !== "—")
+                : [];
+            const contextHtml = contextParts.length
+                ? `<p style="margin: 0 0 16px; padding: 8px 12px; background: #f1f5f9; border-radius: 8px; font-size: 13px; color: #475569;">
+                       <i class="fa-solid fa-location-dot" style="margin-right: 6px; color: #64748b;"></i>${contextParts.map(escapeHtml).join(" &rsaquo; ")}
+                   </p>`
+                : "";
+
             overlay = document.createElement("div");
             overlay.id = "resourceArchiveModalOverlay";
             overlay.className = "modal-overlay";
@@ -249,6 +263,7 @@
                         <button type="button" id="resourceArchiveCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
                     </div>
                     <div class="content-preview-body">
+                        ${contextHtml}
                         ${options.length > 1 ? `
                         <label class="archive-checklist-item archive-checklist-select-all">
                             <input type="checkbox" id="resourceArchiveSelectAll">
@@ -258,6 +273,7 @@
                         <div style="margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px;">
                             <button type="button" class="modal-btn-cancel" id="resourceArchiveCancelBtn">Cancel</button>
                             <button type="button" class="modal-btn-save" id="resourceArchiveConfirmBtn">Archive Selected</button>
+
                         </div>
                     </div>
                 </div>

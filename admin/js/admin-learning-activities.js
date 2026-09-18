@@ -477,13 +477,28 @@
         // /admin/learning-activities/<id>/archive route, called once
         // per selection - no batch-specific backend logic needed.
         // ------------------------------------------------------------
-        function openActivityArchiveChecklist(resourceId, activities) {
+        function openActivityArchiveChecklist(resourceId, activities, lessonContext) {
             let overlay = document.getElementById("activityArchiveModalOverlay");
             if (overlay) overlay.remove();
 
             overlay = document.createElement("div");
             overlay.id = "activityArchiveModalOverlay";
             overlay.className = "modal-overlay";
+
+            // Task #120: every listed item shares this same Lesson (this
+            // modal is always opened from one specific Lesson's Archive
+            // icon), so the Category/Module/Lesson context is shown once,
+            // prominently, right under the title - rather than repeated
+            // identically on every single checklist row, which would just
+            // be noise. Built entirely from data already rendered in the
+            // table row - no fetch, no backend change needed.
+            const contextParts = [lessonContext?.category, lessonContext?.module, lessonContext?.lessonName]
+                .filter((part) => part && part !== "—");
+            const contextHtml = contextParts.length
+                ? `<p style="margin: 0 0 16px; padding: 8px 12px; background: #f1f5f9; border-radius: 8px; font-size: 13px; color: #475569;">
+                       <i class="fa-solid fa-location-dot" style="margin-right: 6px; color: #64748b;"></i>${contextParts.map(escapeHtml).join(" &rsaquo; ")}
+                   </p>`
+                : "";
 
             const itemsHtml = activities.map((a) => `
                 <label class="archive-checklist-item">
@@ -499,6 +514,7 @@
                         <button type="button" id="activityArchiveCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
                     </div>
                     <div class="content-preview-body">
+                        ${contextHtml}
                         <label class="archive-checklist-item archive-checklist-select-all">
                             <input type="checkbox" id="activityArchiveSelectAll">
                             <span><strong>Select all</strong></span>
@@ -701,7 +717,18 @@
                     showAlertModal("This lesson has no activities to archive.", "Nothing to Archive");
                     return;
                 }
-                openActivityArchiveChecklist(resourceId, activities);
+                // Task #120: Lesson/Module/Category context for the modal -
+                // read straight from this row's own cells (Resource,
+                // Activity, Module, Category, in that column order), since
+                // the table already has all of it rendered; no extra
+                // fetch or backend change needed.
+                const row = archiveTrigger.closest("tr");
+                const lessonContext = row ? {
+                    lessonName: row.cells[0] ? row.cells[0].textContent.trim() : "",
+                    module: row.cells[2] ? row.cells[2].textContent.trim() : "",
+                    category: row.cells[3] ? row.cells[3].textContent.trim() : "",
+                } : null;
+                openActivityArchiveChecklist(resourceId, activities, lessonContext);
                 return;
             }
 
