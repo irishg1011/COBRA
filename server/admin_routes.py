@@ -72,6 +72,7 @@ from video_tutorials import (  # NEW: New Video Tutorial DB integration - Catego
 from archived_items import (  # NEW: fixes the pre-existing Archived Learning Resources/Activities modals - this file already existed fully written but was never wired up to any route
     get_archived_resources, restore_learning_resource, permanently_delete_learning_resource,
     get_archived_activities, restore_learning_activity,
+    get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,  # NEW: same fix for Archived Coding Exercises modal
 )
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
@@ -1544,6 +1545,32 @@ def manage_course_restore_module(module_id):
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
+@admin_bp.route('/manage-course/modules/<int:module_id>/restore-options')
+def manage_course_module_restore_options(module_id):
+    """
+    Backs admin-relational-archive.js's "restore with connected items"
+    modal for Modules. archive_module() blocks archiving a module
+    outright if it still has any active resources - it never cascades
+    an archive down to children - so there's never anything connected
+    to list here. Returns empty groups on purpose; the JS already
+    falls back to "No connected items were archived alongside this
+    module" when every group is empty.
+    """
+    return jsonify({"success": True, "resources": [], "activities": [], "exercises": []}), 200
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/restore-selected', methods=['POST'])
+def manage_course_module_restore_selected(module_id):
+    """
+    Since restore-options above never reports any connected items to
+    select, this just restores the module itself - same operation as
+    manage_course_restore_module() above, called from the "connected
+    items" modal's Confirm button instead of the plain Restore icon.
+    """
+    success, message = restore_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
 @admin_bp.route('/manage-course/modules/<int:module_id>/permanent-delete', methods=['POST'])
 def manage_course_permanently_delete_module(module_id):
     """
@@ -1581,6 +1608,24 @@ def manage_course_restore_category(cat_id):
     """
     Task #87: Flips a category's is_archived flag back to 0.
     """
+    success, message = restore_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/restore-options')
+def manage_course_category_restore_options(cat_id):
+    """
+    Same fix as manage_course_module_restore_options() above, for
+    Categories - archive_category() blocks archiving outright if any
+    active modules still belong to it, so nothing is ever cascade-
+    archived alongside it either.
+    """
+    return jsonify({"success": True, "modules": [], "resources": [], "activities": [], "exercises": []}), 200
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/restore-selected', methods=['POST'])
+def manage_course_category_restore_selected(cat_id):
+    """Restores the category itself - see manage_course_module_restore_selected() above for why."""
     success, message = restore_category(cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
@@ -2190,6 +2235,39 @@ def unpublish_coding_exercise(exercise_id):
     Returns JSON: { "success": bool, "message": str }
     """
     success, message = unpublish_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# ROUTES: ARCHIVED CODING EXERCISES MODAL
+# ============================================================
+@admin_bp.route('/coding-exercises/archived')
+def coding_exercises_archived():
+    """
+    Backs the Archived Coding Exercises modal (admin-archived-exercises.js).
+    Same pre-existing gap as the Resources/Activities modals: this route
+    never existed even though the JS was already calling it -
+    archived_items.get_archived_exercises() was already written and
+    just needed wiring up.
+    """
+    search = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+
+    overview = get_archived_exercises(search_query=search, page=page)
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/coding-exercises/<int:exercise_id>/restore', methods=['POST'])
+def restore_coding_exercise_route(exercise_id):
+    success, message = restore_coding_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/coding-exercises/<int:exercise_id>/permanent-delete', methods=['POST'])
+def permanently_delete_coding_exercise_route(exercise_id):
+    success, message = permanently_delete_coding_exercise(exercise_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 

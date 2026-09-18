@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 11, 2026 at 09:30 AM
+-- Generation Time: Sep 18, 2026 at 09:28 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -47,12 +47,12 @@ CREATE TABLE `account_tbl` (
 --
 
 INSERT INTO `account_tbl` (`acc_id`, `email`, `username`, `password`, `u_type`, `status`, `failed_attempts`, `is_deleted`, `deleted_at`, `lockout_until`, `created_at`, `last_login`) VALUES
-('ACC00001', 'gregorioirish1111@gmail.com', 'aydatkam', 'scrypt:32768:8:1$q3mR6E8pnyRGMU5K$67e6b333b12078dd07fb530dcf3415bf783d73fa67c08e8e902d766c32287b5e51cf2b41b9f4ac118d5c559729e98c9bc1a30676341a63d84133c15a97d8ba2c', 1, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-11 13:15:37'),
+('ACC00001', 'gregorioirish1111@gmail.com', 'aydatkam', 'scrypt:32768:8:1$q3mR6E8pnyRGMU5K$67e6b333b12078dd07fb530dcf3415bf783d73fa67c08e8e902d766c32287b5e51cf2b41b9f4ac118d5c559729e98c9bc1a30676341a63d84133c15a97d8ba2c', 1, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-17 02:03:10'),
 ('ACC00002', 'mijoynicole.cdsga@gmail.com', 'nikol', 'scrypt:32768:8:1$mwyd9c3Y67xLIEGm$8469035001056f301321122ed4873b5dcee4daba7e3d313e8503479fcc0983b0f421a27b52e3b92105d8d37988b3506efdfd9d0e96e164a93a508e18a3cfaf17', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-08-02 20:43:06'),
-('ACC00003', 'espchristiangold@gmail.com', 'golfd123', 'scrypt:32768:8:1$IsEtD5n42e53y41W$b389c3d54171ff36e399645912c01927c47253cf7901b50fa58c1df0f01918f46c61cd9650e99b3fb32afb090a87f322152481bbfe7161734789739a065a2093', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-08-02 20:43:06'),
+('ACC00003', 'espchristiangold@gmail.com', 'golfd123', 'scrypt:32768:8:1$F8uxYEYjJ298xDAe$67ba5a80ecaf090633f9c8b87db5b488947330f2cfdb5676282e026241c1faccaa34be02a993d040ee422deaef7b7ff4ab8fd7b9faa8a99eab1225db878b5dbf', 2, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-18 13:28:55'),
 ('ACC00004', 'danzenaquino@gmail.com', 'danzen123', 'scrypt:32768:8:1$rt1ybreR60SN0xiy$71bf5e05d4bfe44995bf97febaea36c1c55c018bcc01896c5182c51d07d94a56483ba1a7f0445c8e7c055022b6fe3432f2c43d61ade861830cd639f031a156e0', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-08-02 20:43:06'),
-('ACC00005', 'gregorioirish1971@gmail.com', 'aydatkam8', 'scrypt:32768:8:1$d5Q3wGF1VQ7iOzTk$22d973c79f05c86174443c84b3f54b91d90bd28dd9c4a53fb5667c54e316541b05eacd8c34047cf761968a1caa4f3deadb1917a988d9cafc540c9d7d5a42adcf', 2, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-11 13:11:59'),
-('ACC00006', 'mijoynicole@gmail.com', 'taleng', 'scrypt:32768:8:1$mJfMSpNbOm3nmNuQ$6a4ffbcac742f69fa860986a60b65ceecdd70a100870f49a69bdcf3c8dc6c7cd200bf2eca3a1147efb565b0ece407fc66bbb969b43da368f40de06df0fa50e98', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-07-30 17:09:11'),
+('ACC00005', 'gregorioirish1971@gmail.com', 'aydatkam8', 'scrypt:32768:8:1$d5Q3wGF1VQ7iOzTk$22d973c79f05c86174443c84b3f54b91d90bd28dd9c4a53fb5667c54e316541b05eacd8c34047cf761968a1caa4f3deadb1917a988d9cafc540c9d7d5a42adcf', 2, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-18 13:30:40'),
+('ACC00006', 'mijoynicole@gmail.com', 'taleng', 'scrypt:32768:8:1$mJfMSpNbOm3nmNuQ$6a4ffbcac742f69fa860986a60b65ceecdd70a100870f49a69bdcf3c8dc6c7cd200bf2eca3a1147efb565b0ece407fc66bbb969b43da368f40de06df0fa50e98', 2, 'Inactive', 1, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-07-30 17:09:11'),
 ('LR2607300001', 'emmanuelspicer123@gmail.com', 'spicer', 'scrypt:32768:8:1$jZJZqv2Vp709B1ih$10fc3def14498aa07ad23e71ada0bf1b598bf78600a0b8d1efffb4321152fe0a254cfac3079de3464840680d2987696cf0f45f0bc9d14c97007069d422769dca', 1, 'Active', 0, 0, NULL, NULL, '2026-07-30 08:48:22', '2026-09-09 14:06:15'),
 ('LR2607300002', 'gmark7688@gmail.com', 'markgil', 'scrypt:32768:8:1$aVlZNwBE6RAC9DrM$93eacd71c16d3528717ec247150a2721952b77114aa27b526c2e5230a9708ab7a3f898b213b7f8ffc2e8407e1304365a114925708f4e0eb92246aecb307f6f5b', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 08:58:41', '2026-08-06 14:05:53'),
 ('LR2608010001', 'gefreedom7688@gmail.com', 'markgil7688', 'scrypt:32768:8:1$iMe1rOuCKJA9dfyt$1205b855adb80174b4b4187fad8e0a382bd54ce02ef92ed0fee379c626304d960909ddfc55029c8dff7a7feeb6738d65c20032baa98246567a42c93f37f6fc81', 1, 'Inactive', 0, 0, NULL, NULL, '2026-08-01 08:45:30', '2026-08-06 15:26:06');
@@ -70,6 +70,13 @@ CREATE TABLE `active_sessions_tbl` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `last_seen_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `active_sessions_tbl`
+--
+
+INSERT INTO `active_sessions_tbl` (`session_id`, `acc_id`, `session_token`, `created_at`, `last_seen_at`) VALUES
+(4814, 'ACC00005', '2f7e56261d308382b2af015b6a870db56450b86bf1a874ab3fba96a14d8b6dc1', '2026-09-18 05:30:40', '2026-09-18 05:30:40');
 
 -- --------------------------------------------------------
 
@@ -142,7 +149,65 @@ CREATE TABLE `coding_exercises_tbl` (
 --
 
 INSERT INTO `coding_exercises_tbl` (`exercise_id`, `exercise_title`, `resource_id`, `points`, `exercise_stats_id`, `instruction`, `situation`, `problem_question`, `clue`, `expected_answer`, `correct_feedback`, `uploaded_by`, `created_at`, `updated_at`, `is_archived`) VALUES
-(1, 'Hi', 3, 10, 2, 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssss', 'Sssssssssssssssssssssssssssssss', 'sdsdsdsds', 'Sdsdsdsdsdsdsd', 'ACC00001', '2026-08-28 14:55:46', '2026-08-28 14:58:27', 0);
+(1, 'Hi', 3, 10, 2, 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssss', 'Sssssssssssssssssssssssssssssss', 'sdsdsdsds', 'Sdsdsdsdsdsdsd', 'ACC00001', '2026-08-28 14:55:46', '2026-08-28 14:58:27', 0),
+(2, 'Greet the user', 5, 10, 2, 'Read the situation and problem below carefully. write your code in the editor, then click run to test it before submitting.', 'You\'ve learned that print() displays text on the screen. now it\'s time to make your program interactive by asking the user for information.', 'Write a program that asks the user for their name using input(), then prints a greeting in the exact format: hello, <name>!', 'Use input() to store what the user types into a variable, then use an f-string or string concatenation with print() to build the greeting.', 'name = input()\r\nprint(f\"Hello, {name}!\")', 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', 'ACC00001', '2026-09-16 21:26:16', '2026-09-16 21:26:19', 0);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `exercise_submissions_tbl`
+--
+
+CREATE TABLE `exercise_submissions_tbl` (
+  `submission_id` int(10) NOT NULL,
+  `acc_id` varchar(15) NOT NULL,
+  `exercise_id` int(10) NOT NULL,
+  `submitted_code` text NOT NULL,
+  `test_cases_passed` int(5) NOT NULL,
+  `test_cases_total` int(5) NOT NULL,
+  `attempt_number` int(5) NOT NULL,
+  `status` varchar(20) NOT NULL,
+  `source` varchar(20) NOT NULL,
+  `recommendation_id` int(10) DEFAULT NULL,
+  `feedback_given` text DEFAULT NULL,
+  `submitted_at` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `exercise_submissions_tbl`
+--
+
+INSERT INTO `exercise_submissions_tbl` (`submission_id`, `acc_id`, `exercise_id`, `submitted_code`, `test_cases_passed`, `test_cases_total`, `attempt_number`, `status`, `source`, `recommendation_id`, `feedback_given`, `submitted_at`) VALUES
+(1, 'ACC00005', 2, '# Write your code here\n', 0, 2, 1, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:38:31'),
+(2, 'ACC00005', 2, '# Write your code here\n', 0, 2, 2, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:38:35'),
+(3, 'ACC00005', 2, 'name = input(\"name: \")\nprint(\"hello, \" + name)', 0, 2, 3, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:40:16'),
+(4, 'ACC00005', 2, 'name = input(\"name: \")\nprint(\"hello, \" + name)', 0, 2, 4, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:40:18'),
+(5, 'ACC00005', 2, 'name = input(\"name: \")\nprint(\"hello, \" + name)', 0, 2, 5, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:40:19'),
+(6, 'ACC00005', 2, 'name = input()\nprint(f\"Hello, {name}!\")\n', 2, 2, 6, 'correct', 'self', NULL, 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', '2026-09-16 21:41:10'),
+(7, 'ACC00005', 2, 'name = input()\nprint(f\"Hello, {name}!\")\n', 2, 2, 7, 'correct', 'self', NULL, 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', '2026-09-16 21:41:13'),
+(8, 'ACC00005', 2, 'name = input()\nprint(f\"Hello, {name}!\")\n', 2, 2, 8, 'correct', 'self', NULL, 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', '2026-09-16 21:41:53'),
+(9, 'ACC00005', 2, 'name = input()\nprint(f\"Hello, {name}!\")\n', 2, 2, 9, 'correct', 'self', NULL, 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', '2026-09-16 21:41:56'),
+(10, 'ACC00005', 2, '# Write your code here\n', 0, 2, 10, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:47:02'),
+(11, 'ACC00005', 2, '# Write your code here\n', 0, 2, 11, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:56:25');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `fib_learner_answers_tbl`
+--
+
+CREATE TABLE `fib_learner_answers_tbl` (
+  `answer_id` int(10) NOT NULL,
+  `acc_id` varchar(15) NOT NULL,
+  `fib_id` int(10) NOT NULL,
+  `answer_given` varchar(255) NOT NULL,
+  `attempt_number` int(5) NOT NULL,
+  `status` varchar(20) NOT NULL,
+  `source` varchar(20) NOT NULL,
+  `recommendation_id` int(10) DEFAULT NULL,
+  `feedback_given` text DEFAULT NULL,
+  `answered_at` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -193,6 +258,25 @@ INSERT INTO `flashcards_tbl` (`flashcard_id`, `la_id`, `front_text`, `back_text`
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `flashcard_learner_answers_tbl`
+--
+
+CREATE TABLE `flashcard_learner_answers_tbl` (
+  `answer_id` int(10) NOT NULL,
+  `acc_id` varchar(15) NOT NULL,
+  `flashcard_id` int(10) NOT NULL,
+  `answer_given` varchar(255) NOT NULL,
+  `attempt_number` int(5) NOT NULL,
+  `status` varchar(20) NOT NULL,
+  `source` varchar(20) NOT NULL,
+  `recommendation_id` int(10) DEFAULT NULL,
+  `feedback_given` text DEFAULT NULL,
+  `answered_at` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `gender_tbl`
 --
 
@@ -229,10 +313,8 @@ CREATE TABLE `learner_activity_progress_tbl` (
 --
 
 INSERT INTO `learner_activity_progress_tbl` (`progress_id`, `acc_id`, `la_id`, `status`, `score`, `completed_at`) VALUES
-(1, 'ACC00001', 2, 'completed', 2, '2026-09-09 00:45:27'),
-(2, 'ACC00001', 3, 'completed', 0, '2026-09-09 00:45:36'),
-(3, 'ACC00005', 2, 'completed', 2, '2026-09-09 01:19:41'),
-(4, 'ACC00005', 3, 'completed', 0, '2026-09-09 01:19:48');
+(7, 'ACC00005', 2, 'completed', 2, '2026-09-16 21:38:11'),
+(8, 'ACC00005', 3, 'completed', 0, '2026-09-16 21:38:18');
 
 -- --------------------------------------------------------
 
@@ -248,6 +330,13 @@ CREATE TABLE `learner_exercise_progress_tbl` (
   `completed_at` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `learner_exercise_progress_tbl`
+--
+
+INSERT INTO `learner_exercise_progress_tbl` (`progress_id`, `acc_id`, `exercise_id`, `status`, `completed_at`) VALUES
+(1, 'ACC00005', 2, 'completed', '2026-09-16 21:41:10');
+
 -- --------------------------------------------------------
 
 --
@@ -260,6 +349,8 @@ CREATE TABLE `learner_resource_progress_tbl` (
   `resource_id` int(10) NOT NULL,
   `status` varchar(20) NOT NULL,
   `started_at` datetime(5) NOT NULL,
+  `video_watched_at` datetime DEFAULT NULL,
+  `content_read_at` datetime DEFAULT NULL,
   `completed_at` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -267,18 +358,18 @@ CREATE TABLE `learner_resource_progress_tbl` (
 -- Dumping data for table `learner_resource_progress_tbl`
 --
 
-INSERT INTO `learner_resource_progress_tbl` (`progress_id`, `acc_id`, `resource_id`, `status`, `started_at`, `completed_at`) VALUES
-(1, 'ACC00005', 3, 'completed', '2026-09-08 18:50:15.00000', '2026-09-08 18:53:33'),
-(2, 'ACC00001', 3, 'completed', '2026-09-08 21:11:01.00000', '2026-09-08 21:28:12'),
-(3, 'ACC00005', 5, 'completed', '2026-09-08 21:48:44.00000', '2026-09-11 13:12:43'),
-(4, 'ACC00005', 6, 'completed', '2026-09-08 21:49:21.00000', '2026-09-09 10:59:08'),
-(5, 'ACC00001', 5, 'completed', '2026-09-08 21:58:41.00000', '2026-09-09 00:45:36'),
-(6, 'ACC00001', 6, 'completed', '2026-09-08 21:58:49.00000', '2026-09-09 00:46:15'),
-(7, 'ACC00001', 10, 'completed', '2026-09-08 21:59:03.00000', '2026-09-08 21:59:05'),
-(8, 'ACC00001', 11, 'completed', '2026-09-08 21:59:10.00000', '2026-09-08 21:59:11'),
-(9, 'ACC00001', 7, 'completed', '2026-09-08 21:59:22.00000', '2026-09-08 21:59:24'),
-(10, 'ACC00001', 8, 'completed', '2026-09-08 21:59:31.00000', '2026-09-08 21:59:32'),
-(11, 'ACC00001', 9, 'completed', '2026-09-08 21:59:39.00000', '2026-09-08 21:59:43');
+INSERT INTO `learner_resource_progress_tbl` (`progress_id`, `acc_id`, `resource_id`, `status`, `started_at`, `video_watched_at`, `content_read_at`, `completed_at`) VALUES
+(1, 'ACC00005', 3, 'completed', '2026-09-08 18:50:15.00000', NULL, NULL, '2026-09-08 18:53:33'),
+(2, 'ACC00001', 3, 'completed', '2026-09-08 21:11:01.00000', NULL, NULL, '2026-09-08 21:28:12'),
+(4, 'ACC00005', 6, 'completed', '2026-09-08 21:49:21.00000', NULL, NULL, '2026-09-09 10:59:08'),
+(6, 'ACC00001', 6, 'completed', '2026-09-08 21:58:49.00000', NULL, NULL, '2026-09-09 00:46:15'),
+(7, 'ACC00001', 10, 'completed', '2026-09-08 21:59:03.00000', NULL, NULL, '2026-09-08 21:59:05'),
+(8, 'ACC00001', 11, 'completed', '2026-09-08 21:59:10.00000', NULL, NULL, '2026-09-08 21:59:11'),
+(9, 'ACC00001', 7, 'completed', '2026-09-08 21:59:22.00000', NULL, NULL, '2026-09-08 21:59:24'),
+(10, 'ACC00001', 8, 'completed', '2026-09-08 21:59:31.00000', NULL, NULL, '2026-09-08 21:59:32'),
+(11, 'ACC00001', 9, 'completed', '2026-09-08 21:59:39.00000', NULL, NULL, '2026-09-08 21:59:43'),
+(13, 'ACC00005', 5, 'completed', '2026-09-16 21:37:28.00000', '2026-09-16 21:37:55', '2026-09-16 21:38:00', '2026-09-16 21:41:56'),
+(14, 'ACC00003', 5, 'in_progress', '2026-09-18 13:29:12.00000', NULL, NULL, '0000-00-00 00:00:00');
 
 -- --------------------------------------------------------
 
@@ -377,17 +468,17 @@ CREATE TABLE `learning_resources_tbl` (
 --
 
 INSERT INTO `learning_resources_tbl` (`resource_id`, `resource_title`, `resource_type_id`, `cat_id`, `module_id`, `uploaded_by`, `lr_stats_id`, `created_at`, `updated_at`) VALUES
-(1, '12345', 1, 2, 1, 'ACC00001', 3, '2026-08-21 13:37:07', '2026-08-21 13:37:23'),
+(1, '12345', 1, 2, 1, 'ACC00001', 1, '2026-08-21 13:37:07', '2026-09-11 17:16:58'),
 (2, 'Mod 2.2.1', 1, 3, 2, 'ACC00001', 1, '2026-08-21 13:49:20', '2026-08-28 13:35:44'),
 (3, 'Run hello world.py.', 1, 5, 6, 'ACC00001', 1, '2026-08-28 13:52:46', '2026-09-08 21:32:11'),
 (4, 'Lesson 2 sample', 1, 5, 6, 'ACC00001', 2, '2026-09-08 21:39:28', '2026-09-08 21:57:53'),
 (5, 'Lesson 1 sample for ch1', 1, 2, 5, 'ACC00001', 2, '2026-09-08 21:44:18', '2026-09-08 21:57:49'),
 (6, 'Lesson 2 saple for ch1', 1, 2, 5, 'ACC00001', 2, '2026-09-08 21:45:05', '2026-09-08 21:57:46'),
 (7, 'Ch2 lesson ex1m1', 1, 4, 4, 'ACC00001', 2, '2026-09-08 21:46:09', '2026-09-08 21:57:42'),
-(8, 'Cch2 l2 m1', 1, 4, 4, 'ACC00001', 2, '2026-09-08 21:46:37', '2026-09-08 21:57:40'),
-(9, 'Ch2 l3', 1, 4, 4, 'ACC00001', 2, '2026-09-08 21:47:13', '2026-09-08 21:57:37'),
-(10, 'Ch2 m2l1', 1, 4, 3, 'ACC00001', 2, '2026-09-08 21:47:37', '2026-09-09 07:27:59'),
-(11, 'Ch2l2m2', 1, 4, 3, 'ACC00001', 2, '2026-09-08 21:48:10', '2026-09-08 21:57:32'),
+(8, 'Cch2 l2 m1', 1, 4, 4, 'ACC00001', 1, '2026-09-08 21:46:37', '2026-09-11 17:16:37'),
+(9, 'Ch2 l3', 1, 4, 4, 'ACC00001', 1, '2026-09-08 21:47:13', '2026-09-11 17:16:43'),
+(10, 'Ch2 m2l1', 1, 4, 3, 'ACC00001', 1, '2026-09-08 21:47:37', '2026-09-11 17:16:47'),
+(11, 'Ch2l2m2', 1, 4, 3, 'ACC00001', 1, '2026-09-08 21:48:10', '2026-09-11 17:16:53'),
 (12, 'Adalovelace', 1, 4, 4, 'LR2607300001', 1, '2026-09-09 07:28:36', '2026-09-09 07:28:36');
 
 -- --------------------------------------------------------
@@ -419,6 +510,22 @@ INSERT INTO `lesson_content_tbl` (`lesson_content_id`, `resource_id`, `content_b
 (10, 10, '<div>hehehehehhe hiihihihihihi</div>'),
 (11, 11, '<div>oh ano matatapos pa ba natin to ha hatdog</div>'),
 (12, 12, '<div>aandjkasnkdjasnkdjnakjdaksjnda</div>');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `lesson_recommendations_tbl`
+--
+
+CREATE TABLE `lesson_recommendations_tbl` (
+  `recommendation_id` int(10) NOT NULL,
+  `acc_id` varchar(15) NOT NULL,
+  `module_id` int(10) NOT NULL,
+  `resource_id` int(10) NOT NULL,
+  `reason` varchar(255) DEFAULT NULL,
+  `generated_at` datetime NOT NULL,
+  `resolved` tinyint(1) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -644,7 +751,43 @@ INSERT INTO `login_logs_tbl` (`log_id`, `acc_id`, `ip_address`, `attempt_status`
 (191, 'ACC00005', '127.0.0.1', 'Failed', '2026-09-11 05:11:49'),
 (192, 'ACC00005', '127.0.0.1', 'Success', '2026-09-11 05:11:59'),
 (193, 'ACC00001', '127.0.0.1', 'Failed', '2026-09-11 05:14:06'),
-(194, 'ACC00001', '127.0.0.1', 'Success', '2026-09-11 05:14:20');
+(194, 'ACC00001', '127.0.0.1', 'Success', '2026-09-11 05:14:20'),
+(195, 'ACC00001', '127.0.0.1', 'Success', '2026-09-11 09:15:34'),
+(196, 'ACC00005', '127.0.0.1', 'Success', '2026-09-15 06:03:36'),
+(197, 'ACC00001', '127.0.0.1', 'Failed', '2026-09-15 06:46:18'),
+(198, 'ACC00001', '127.0.0.1', 'Success', '2026-09-15 06:46:23'),
+(199, 'ACC00005', '127.0.0.1', 'Failed', '2026-09-16 10:26:20'),
+(200, 'ACC00005', '127.0.0.1', 'Success', '2026-09-16 10:26:25'),
+(201, 'ACC00005', '127.0.0.1', 'Success', '2026-09-16 10:28:53'),
+(202, 'ACC00005', '127.0.0.1', 'Success', '2026-09-16 10:30:15'),
+(203, 'ACC00001', '127.0.0.1', 'Success', '2026-09-16 13:24:32'),
+(204, 'ACC00005', '127.0.0.1', 'Failed', '2026-09-16 13:28:51'),
+(205, 'ACC00005', '127.0.0.1', 'Success', '2026-09-16 13:28:56'),
+(206, 'ACC00001', '127.0.0.1', 'Success', '2026-09-16 17:58:26'),
+(207, 'ACC00005', '127.0.0.1', 'Success', '2026-09-16 17:59:47'),
+(208, 'ACC00001', '127.0.0.1', 'Success', '2026-09-16 18:03:10'),
+(209, 'ACC00006', '127.0.0.1', 'Failed', '2026-09-18 05:26:22'),
+(210, 'ACC00003', '127.0.0.1', 'Success', '2026-09-18 05:28:55'),
+(211, 'ACC00005', '127.0.0.1', 'Success', '2026-09-18 05:30:40');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `mcq_learner_answers_tbl`
+--
+
+CREATE TABLE `mcq_learner_answers_tbl` (
+  `answer_id` int(10) NOT NULL,
+  `acc_id` varchar(15) NOT NULL,
+  `q_id` int(10) NOT NULL,
+  `option_id` int(10) DEFAULT NULL,
+  `attempt_number` int(5) NOT NULL,
+  `status` varchar(20) NOT NULL,
+  `source` varchar(20) NOT NULL,
+  `recommendation_id` int(10) DEFAULT NULL,
+  `feedback_given` text DEFAULT NULL,
+  `answered_at` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -776,7 +919,8 @@ INSERT INTO `password_reset_logs_tbl` (`reset_id`, `acc_id`, `reset_at`) VALUES
 (1, 'ACC00005', '2026-08-07 09:03:12'),
 (2, 'ACC00001', '2026-08-16 06:41:37'),
 (3, 'ACC00001', '2026-08-16 14:40:49'),
-(4, 'ACC00005', '2026-09-06 19:48:49');
+(4, 'ACC00005', '2026-09-06 19:48:49'),
+(5, 'ACC00003', '2026-09-18 05:28:07');
 
 -- --------------------------------------------------------
 
@@ -895,7 +1039,9 @@ CREATE TABLE `test_cases_tbl` (
 
 INSERT INTO `test_cases_tbl` (`test_case_id`, `exercise_id`, `test_order`, `test_input`, `expected_output`) VALUES
 (7, 1, 1, '123', 'qq'),
-(8, 1, 2, 'aa', 'aa');
+(8, 1, 2, 'aa', 'aa'),
+(9, 2, 1, 'Alice', 'Hello, Alice!'),
+(10, 2, 2, 'Bob', 'Hello, Bob!');
 
 -- --------------------------------------------------------
 
@@ -988,6 +1134,24 @@ ALTER TABLE `coding_exercises_tbl`
   ADD KEY `fk_ce_resource_id` (`resource_id`);
 
 --
+-- Indexes for table `exercise_submissions_tbl`
+--
+ALTER TABLE `exercise_submissions_tbl`
+  ADD PRIMARY KEY (`submission_id`),
+  ADD KEY `fk_exsub_account_id` (`acc_id`),
+  ADD KEY `fk_exsub_exercise_id` (`exercise_id`),
+  ADD KEY `fk_exsub_recommendation_id` (`recommendation_id`);
+
+--
+-- Indexes for table `fib_learner_answers_tbl`
+--
+ALTER TABLE `fib_learner_answers_tbl`
+  ADD PRIMARY KEY (`answer_id`),
+  ADD KEY `fk_fibans_account_id` (`acc_id`),
+  ADD KEY `fk_fibans_fib_id` (`fib_id`),
+  ADD KEY `fk_fibans_recommendation_id` (`recommendation_id`);
+
+--
 -- Indexes for table `fill_blanks_tbl`
 --
 ALTER TABLE `fill_blanks_tbl`
@@ -1000,6 +1164,15 @@ ALTER TABLE `fill_blanks_tbl`
 ALTER TABLE `flashcards_tbl`
   ADD PRIMARY KEY (`flashcard_id`),
   ADD KEY `fk_flashcards_la_id` (`la_id`);
+
+--
+-- Indexes for table `flashcard_learner_answers_tbl`
+--
+ALTER TABLE `flashcard_learner_answers_tbl`
+  ADD PRIMARY KEY (`answer_id`),
+  ADD KEY `fk_fcans_account_id` (`acc_id`),
+  ADD KEY `fk_fcans_flashcard_id` (`flashcard_id`),
+  ADD KEY `fk_fcans_recommendation_id` (`recommendation_id`);
 
 --
 -- Indexes for table `gender_tbl`
@@ -1076,6 +1249,15 @@ ALTER TABLE `lesson_content_tbl`
   ADD KEY `fk_lc_resource_id` (`resource_id`);
 
 --
+-- Indexes for table `lesson_recommendations_tbl`
+--
+ALTER TABLE `lesson_recommendations_tbl`
+  ADD PRIMARY KEY (`recommendation_id`),
+  ADD KEY `fk_lrec_account_id` (`acc_id`),
+  ADD KEY `fk_lrec_module_id` (`module_id`),
+  ADD KEY `fk_lrec_resource_id` (`resource_id`);
+
+--
 -- Indexes for table `lockout_logs_tbl`
 --
 ALTER TABLE `lockout_logs_tbl`
@@ -1087,6 +1269,16 @@ ALTER TABLE `lockout_logs_tbl`
 ALTER TABLE `login_logs_tbl`
   ADD PRIMARY KEY (`log_id`),
   ADD KEY `fk_login_logs_account_id` (`acc_id`);
+
+--
+-- Indexes for table `mcq_learner_answers_tbl`
+--
+ALTER TABLE `mcq_learner_answers_tbl`
+  ADD PRIMARY KEY (`answer_id`),
+  ADD KEY `fk_mcqans_account_id` (`acc_id`),
+  ADD KEY `fk_mcqans_question_id` (`q_id`),
+  ADD KEY `fk_mcqans_option_id` (`option_id`),
+  ADD KEY `fk_mcqans_recommendation_id` (`recommendation_id`);
 
 --
 -- Indexes for table `mcq_options_tbl`
@@ -1179,7 +1371,7 @@ ALTER TABLE `video_tutorials_tbl`
 -- AUTO_INCREMENT for table `active_sessions_tbl`
 --
 ALTER TABLE `active_sessions_tbl`
-  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4668;
+  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4815;
 
 --
 -- AUTO_INCREMENT for table `activity_types_tbl`
@@ -1197,7 +1389,19 @@ ALTER TABLE `category_tbl`
 -- AUTO_INCREMENT for table `coding_exercises_tbl`
 --
 ALTER TABLE `coding_exercises_tbl`
-  MODIFY `exercise_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `exercise_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `exercise_submissions_tbl`
+--
+ALTER TABLE `exercise_submissions_tbl`
+  MODIFY `submission_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+
+--
+-- AUTO_INCREMENT for table `fib_learner_answers_tbl`
+--
+ALTER TABLE `fib_learner_answers_tbl`
+  MODIFY `answer_id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `fill_blanks_tbl`
@@ -1212,6 +1416,12 @@ ALTER TABLE `flashcards_tbl`
   MODIFY `flashcard_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `flashcard_learner_answers_tbl`
+--
+ALTER TABLE `flashcard_learner_answers_tbl`
+  MODIFY `answer_id` int(10) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `gender_tbl`
 --
 ALTER TABLE `gender_tbl`
@@ -1221,19 +1431,19 @@ ALTER TABLE `gender_tbl`
 -- AUTO_INCREMENT for table `learner_activity_progress_tbl`
 --
 ALTER TABLE `learner_activity_progress_tbl`
-  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `learner_exercise_progress_tbl`
 --
 ALTER TABLE `learner_exercise_progress_tbl`
-  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `learner_resource_progress_tbl`
 --
 ALTER TABLE `learner_resource_progress_tbl`
-  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `learning_activities_stats_tbl`
@@ -1266,6 +1476,12 @@ ALTER TABLE `lesson_content_tbl`
   MODIFY `lesson_content_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
+-- AUTO_INCREMENT for table `lesson_recommendations_tbl`
+--
+ALTER TABLE `lesson_recommendations_tbl`
+  MODIFY `recommendation_id` int(10) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `lockout_logs_tbl`
 --
 ALTER TABLE `lockout_logs_tbl`
@@ -1275,7 +1491,13 @@ ALTER TABLE `lockout_logs_tbl`
 -- AUTO_INCREMENT for table `login_logs_tbl`
 --
 ALTER TABLE `login_logs_tbl`
-  MODIFY `log_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=195;
+  MODIFY `log_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=212;
+
+--
+-- AUTO_INCREMENT for table `mcq_learner_answers_tbl`
+--
+ALTER TABLE `mcq_learner_answers_tbl`
+  MODIFY `answer_id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `mcq_options_tbl`
@@ -1305,7 +1527,7 @@ ALTER TABLE `module_stats_tbl`
 -- AUTO_INCREMENT for table `password_reset_logs_tbl`
 --
 ALTER TABLE `password_reset_logs_tbl`
-  MODIFY `reset_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `reset_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `profile_tbl`
@@ -1335,7 +1557,7 @@ ALTER TABLE `sandbox_snippets_tbl`
 -- AUTO_INCREMENT for table `test_cases_tbl`
 --
 ALTER TABLE `test_cases_tbl`
-  MODIFY `test_case_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `test_case_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `usertype_tbl`
@@ -1368,6 +1590,22 @@ ALTER TABLE `coding_exercises_tbl`
   ADD CONSTRAINT `fk_ce_uploaded_by` FOREIGN KEY (`uploaded_by`) REFERENCES `account_tbl` (`acc_id`);
 
 --
+-- Constraints for table `exercise_submissions_tbl`
+--
+ALTER TABLE `exercise_submissions_tbl`
+  ADD CONSTRAINT `fk_exsub_account_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`),
+  ADD CONSTRAINT `fk_exsub_exercise_id` FOREIGN KEY (`exercise_id`) REFERENCES `coding_exercises_tbl` (`exercise_id`),
+  ADD CONSTRAINT `fk_exsub_recommendation_id` FOREIGN KEY (`recommendation_id`) REFERENCES `lesson_recommendations_tbl` (`recommendation_id`);
+
+--
+-- Constraints for table `fib_learner_answers_tbl`
+--
+ALTER TABLE `fib_learner_answers_tbl`
+  ADD CONSTRAINT `fk_fibans_account_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`),
+  ADD CONSTRAINT `fk_fibans_fib_id` FOREIGN KEY (`fib_id`) REFERENCES `fill_blanks_tbl` (`fib_id`),
+  ADD CONSTRAINT `fk_fibans_recommendation_id` FOREIGN KEY (`recommendation_id`) REFERENCES `lesson_recommendations_tbl` (`recommendation_id`);
+
+--
 -- Constraints for table `fill_blanks_tbl`
 --
 ALTER TABLE `fill_blanks_tbl`
@@ -1378,6 +1616,14 @@ ALTER TABLE `fill_blanks_tbl`
 --
 ALTER TABLE `flashcards_tbl`
   ADD CONSTRAINT `fk_flashcards_la_id` FOREIGN KEY (`la_id`) REFERENCES `learning_activities_tbl` (`la_id`);
+
+--
+-- Constraints for table `flashcard_learner_answers_tbl`
+--
+ALTER TABLE `flashcard_learner_answers_tbl`
+  ADD CONSTRAINT `fk_fcans_account_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`),
+  ADD CONSTRAINT `fk_fcans_flashcard_id` FOREIGN KEY (`flashcard_id`) REFERENCES `flashcards_tbl` (`flashcard_id`),
+  ADD CONSTRAINT `fk_fcans_recommendation_id` FOREIGN KEY (`recommendation_id`) REFERENCES `lesson_recommendations_tbl` (`recommendation_id`);
 
 --
 -- Constraints for table `learner_activity_progress_tbl`
@@ -1426,10 +1672,27 @@ ALTER TABLE `lesson_content_tbl`
   ADD CONSTRAINT `fk_lc_resource_id` FOREIGN KEY (`resource_id`) REFERENCES `learning_resources_tbl` (`resource_id`);
 
 --
+-- Constraints for table `lesson_recommendations_tbl`
+--
+ALTER TABLE `lesson_recommendations_tbl`
+  ADD CONSTRAINT `fk_lrec_account_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`),
+  ADD CONSTRAINT `fk_lrec_module_id` FOREIGN KEY (`module_id`) REFERENCES `modules_tbl` (`module_id`),
+  ADD CONSTRAINT `fk_lrec_resource_id` FOREIGN KEY (`resource_id`) REFERENCES `learning_resources_tbl` (`resource_id`);
+
+--
 -- Constraints for table `login_logs_tbl`
 --
 ALTER TABLE `login_logs_tbl`
   ADD CONSTRAINT `fk_login_logs_account_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`);
+
+--
+-- Constraints for table `mcq_learner_answers_tbl`
+--
+ALTER TABLE `mcq_learner_answers_tbl`
+  ADD CONSTRAINT `fk_mcqans_account_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`),
+  ADD CONSTRAINT `fk_mcqans_option_id` FOREIGN KEY (`option_id`) REFERENCES `mcq_options_tbl` (`option_id`),
+  ADD CONSTRAINT `fk_mcqans_question_id` FOREIGN KEY (`q_id`) REFERENCES `mcq_questions_tbl` (`q_id`),
+  ADD CONSTRAINT `fk_mcqans_recommendation_id` FOREIGN KEY (`recommendation_id`) REFERENCES `lesson_recommendations_tbl` (`recommendation_id`);
 
 --
 -- Constraints for table `mcq_options_tbl`
