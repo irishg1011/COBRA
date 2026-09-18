@@ -210,7 +210,7 @@
                         statusCell.innerHTML = statusBadgeHtml(newStatus);
                     }
                 } catch (err) {
-                    alert("Could not reach the server. Please try again.");
+                    showAlertModal("Could not reach the server. Please try again.", "Error");
                     btn.disabled = false;
                     btn.textContent = originalText;
                 }

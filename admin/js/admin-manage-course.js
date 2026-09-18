@@ -89,6 +89,8 @@
         pendingConfirmAction = onConfirm;
         if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
         if (confirmActionText) confirmActionText.textContent = message;
+        if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+        if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "Confirm";
         confirmActionModal.classList.remove("modal-hidden");
         confirmActionModal.style.display = "flex";
     }
@@ -98,7 +100,22 @@
             confirmActionModal.classList.add("modal-hidden");
             confirmActionModal.style.display = "none";
         }
+        if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
         pendingConfirmAction = null;
+    }
+
+    // Info-only variant (single OK button, no Cancel) - replaces this
+    // file's many previous native alert() calls, reusing the SAME
+    // #confirmActionModal shell as showConfirmModal() above.
+    function showAlertModal(message, title = "Notice") {
+        if (!confirmActionModal) { alert(message); return; }
+        pendingConfirmAction = null;
+        if (confirmActionTitle) confirmActionTitle.textContent = title;
+        if (confirmActionText) confirmActionText.textContent = message;
+        if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "none";
+        if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "OK";
+        confirmActionModal.classList.remove("modal-hidden");
+        confirmActionModal.style.display = "flex";
     }
 
     if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
@@ -364,9 +381,9 @@
                         });
                         const result = await resp.json();
                         if (!result.success) {
-                            alert(result.message);
+                            showAlertModal(result.message, "Error");
                         } else {
-                            alert("Module archived successfully.");
+                            showAlertModal("Module archived successfully.", "Archived");
                         }
                         loadModules();
                         refreshCategoriesModal();
@@ -399,7 +416,7 @@
                             const result = await resp.json();
 
                             if (!result.success) {
-                                alert(result.message || "Could not update module status.");
+                                showAlertModal(result.message || "Could not update module status.", "Error");
                                 togglePublishBtn.disabled = false;
                                 togglePublishBtn.textContent = originalText;
                                 return;
@@ -421,7 +438,7 @@
                             refreshCategoriesModal();
                             showChangesSavedToast("Changes Saved");
                         } catch (err) {
-                            alert("Could not reach the server. Please try again.");
+                            showAlertModal("Could not reach the server. Please try again.", "Error");
                             togglePublishBtn.disabled = false;
                             togglePublishBtn.textContent = originalText;
                         }
@@ -488,12 +505,19 @@
 
         function attemptCloseCreateModuleModal() {
             if (!createModuleModal || createModuleModal.style.display === "none") return;
+            const doClose = () => {
+                createModuleModal.style.display = "none";
+                if (createModuleForm) createModuleForm.reset();
+            };
             if (createModuleHasInputs()) {
-                const confirmed = confirm("Are you sure you want to cancel? Any entered input data will be deleted and cannot be undone.");
-                if (!confirmed) return;
+                showConfirmModal(
+                    "Are you sure you want to cancel? Any entered input data will be deleted and cannot be undone.",
+                    doClose,
+                    "Discard Changes?"
+                );
+            } else {
+                doClose();
             }
-            createModuleModal.style.display = "none";
-            if (createModuleForm) createModuleForm.reset();
         }
 
         if (openCreateModuleBtn) {
@@ -548,7 +572,7 @@
                 const catId = newModuleCategory ? newModuleCategory.value : "";
 
                 if (!name || !desc || !catId) {
-                    alert("Module name, description, and category are all required.");
+                    showAlertModal("Module name, description, and category are all required.", "Missing Information");
                     return;
                 }
 
@@ -568,7 +592,7 @@
                     });
                     const result = await resp.json();
                     if (!result.success) {
-                        alert(result.message);
+                        showAlertModal(result.message, "Error");
                         return;
                     }
 
@@ -606,12 +630,19 @@
 
         function attemptCloseCreateCategoryModal() {
             if (!createCategoryModal || createCategoryModal.style.display === "none") return;
+            const doClose = () => {
+                createCategoryModal.style.display = "none";
+                if (createCategoryForm) createCategoryForm.reset();
+            };
             if (createCategoryHasInputs()) {
-                const confirmed = confirm("Are you sure you want to cancel? Any entered input data will be deleted and cannot be undone.");
-                if (!confirmed) return;
+                showConfirmModal(
+                    "Are you sure you want to cancel? Any entered input data will be deleted and cannot be undone.",
+                    doClose,
+                    "Discard Changes?"
+                );
+            } else {
+                doClose();
             }
-            createCategoryModal.style.display = "none";
-            if (createCategoryForm) createCategoryForm.reset();
         }
 
         if (openCreateCategoryBtn) {
@@ -639,7 +670,7 @@
                 if (submittingCreateCategory) return;
 
                 const name = newCategoryName ? newCategoryName.value.trim() : "";
-                if (!name) { alert("Category name is required."); return; }
+                if (!name) { showAlertModal("Category name is required.", "Missing Information"); return; }
 
                 submittingCreateCategory = true;
                 try {
@@ -648,7 +679,7 @@
                         body: new URLSearchParams({ category_name: name })
                     });
                     const result = await resp.json();
-                    if (!result.success) { alert(result.message); return; }
+                    if (!result.success) { showAlertModal(result.message, "Error"); return; }
 
                     createCategoryModal.style.display = "none";
                     createCategoryForm.reset();
@@ -738,9 +769,9 @@
                         });
                         const result = await resp.json();
                         if (!result.success) {
-                            alert(result.message);
+                            showAlertModal(result.message, "Error");
                         } else {
-                            alert("Category archived successfully.");
+                            showAlertModal("Category archived successfully.", "Archived");
                         }
                         refreshCategoriesModal();
                         loadModules();
@@ -872,7 +903,7 @@
                 const catId = editModuleCategorySelect.value;
 
                 if (!formattedName || !formattedDesc || !catId) {
-                    alert("Module name, description, and category are all required.");
+                    showAlertModal("Module name, description, and category are all required.", "Missing Information");
                     return;
                 }
 
@@ -890,34 +921,33 @@
                 }
 
                 // Changes occurred - prompt confirmation alert
-                const confirmed = confirm("Are you sure you want to save the changes to this module?");
-                if (!confirmed) return;
+                showConfirmModal("Are you sure you want to save the changes to this module?", async () => {
+                    submittingEditModule = true;
+                    try {
+                        const body = new URLSearchParams({
+                            module_name: formattedName,
+                            description: formattedDesc,
+                            cat_id: catId
+                        });
+                        const resp = await fetch(`/admin/manage-course/modules/${id}/update`, {
+                            method: "POST", credentials: "include", body
+                        });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            showAlertModal(result.message || "Could not update module.", "Error");
+                            return;
+                        }
 
-                submittingEditModule = true;
-                try {
-                    const body = new URLSearchParams({
-                        module_name: formattedName,
-                        description: formattedDesc,
-                        cat_id: catId
-                    });
-                    const resp = await fetch(`/admin/manage-course/modules/${id}/update`, {
-                        method: "POST", credentials: "include", body
-                    });
-                    const result = await resp.json();
-                    if (!result.success) {
-                        alert(result.message || "Could not update module.");
-                        return;
+                        closeEditModuleModal();
+                        loadModules();
+                        refreshCategoriesModal();
+                        showChangesSavedToast("Changes Saved");
+                    } catch (err) {
+                        showAlertModal("Could not reach the server. Please try again.", "Error");
+                    } finally {
+                        submittingEditModule = false;
                     }
-
-                    closeEditModuleModal();
-                    loadModules();
-                    refreshCategoriesModal();
-                    showChangesSavedToast("Changes Saved");
-                } catch (err) {
-                    alert("Could not reach the server. Please try again.");
-                } finally {
-                    submittingEditModule = false;
-                }
+                }, "Save Changes?");
             });
         }
 
@@ -962,7 +992,7 @@
                 });
                 const result = await resp.json();
                 if (!result.success) {
-                    alert(result.message);
+                    showAlertModal(result.message, "Error");
                     return;
                 }
                 closeEditCategoryModal();
@@ -1198,112 +1228,116 @@
 
         // Archived Modules Event Delegation
         if (archivedModulesTableBody) {
-            archivedModulesTableBody.addEventListener("click", async (e) => {
+            archivedModulesTableBody.addEventListener("click", (e) => {
                 const restoreBtn = e.target.closest(".js-restore-module");
                 const permanentDeleteBtn = e.target.closest(".js-permanent-delete-module");
 
                 if (restoreBtn) {
                     e.preventDefault();
                     const id = restoreBtn.dataset.id;
-                    if (!confirm("Are you sure you want to restore this module?")) return;
-                    const resp = await fetch(`/admin/manage-course/modules/${id}/restore`, {
-                        method: "POST", credentials: "include"
-                    });
-                    const result = await resp.json();
-                    if (!result.success) {
-                        alert(result.message);
-                    } else {
-                        alert("Module restored successfully.");
-                    }
-                    loadArchivedModules();
-                    loadModules();
-                    refreshCategoriesModal();
+                    showConfirmModal("Are you sure you want to restore this module?", async () => {
+                        const resp = await fetch(`/admin/manage-course/modules/${id}/restore`, {
+                            method: "POST", credentials: "include"
+                        });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            showAlertModal(result.message, "Error");
+                        } else {
+                            showAlertModal("Module restored successfully.", "Restored");
+                        }
+                        loadArchivedModules();
+                        loadModules();
+                        refreshCategoriesModal();
+                    }, "Restore Module?");
                     return;
                 }
 
                 if (permanentDeleteBtn) {
                     e.preventDefault();
                     const id = permanentDeleteBtn.dataset.id;
-                    const confirmed = confirm(
+                    showConfirmModal(
                         "Are you sure you want to permanently delete this module? " +
                         "This action cannot be undone and the module will be permanently " +
-                        "removed from the system."
+                        "removed from the system.",
+                        async () => {
+                            permanentDeleteBtn.style.pointerEvents = "none";
+                            try {
+                                const resp = await fetch(`/admin/manage-course/modules/${id}/permanent-delete`, {
+                                    method: "POST", credentials: "include"
+                                });
+                                const result = await resp.json();
+                                if (!result.success) {
+                                    showAlertModal(result.message || "Could not permanently delete this module.", "Error");
+                                    permanentDeleteBtn.style.pointerEvents = "";
+                                    return;
+                                }
+                                showAlertModal(result.message || "Module permanently deleted.", "Deleted");
+                                loadArchivedModules();
+                            } catch (err) {
+                                showAlertModal("Could not reach the server. Please try again.", "Error");
+                                permanentDeleteBtn.style.pointerEvents = "";
+                            }
+                        },
+                        "Permanently Delete Module?"
                     );
-                    if (!confirmed) return;
-
-                    permanentDeleteBtn.style.pointerEvents = "none";
-                    try {
-                        const resp = await fetch(`/admin/manage-course/modules/${id}/permanent-delete`, {
-                            method: "POST", credentials: "include"
-                        });
-                        const result = await resp.json();
-                        if (!result.success) {
-                            alert(result.message || "Could not permanently delete this module.");
-                            permanentDeleteBtn.style.pointerEvents = "";
-                            return;
-                        }
-                        alert(result.message || "Module permanently deleted.");
-                        loadArchivedModules();
-                    } catch (err) {
-                        alert("Could not reach the server. Please try again.");
-                        permanentDeleteBtn.style.pointerEvents = "";
-                    }
                 }
             });
         }
 
         // Archived Categories Event Delegation
         if (archivedCategoriesTableBody) {
-            archivedCategoriesTableBody.addEventListener("click", async (e) => {
+            archivedCategoriesTableBody.addEventListener("click", (e) => {
                 const restoreBtn = e.target.closest(".js-restore-category");
                 const permanentDeleteBtn = e.target.closest(".js-permanent-delete-category");
 
                 if (restoreBtn) {
                     e.preventDefault();
                     const id = restoreBtn.dataset.id;
-                    if (!confirm("Are you sure you want to restore this category?")) return;
-                    const resp = await fetch(`/admin/manage-course/categories/${id}/restore`, {
-                        method: "POST", credentials: "include"
-                    });
-                    const result = await resp.json();
-                    if (!result.success) {
-                        alert(result.message);
-                    } else {
-                        alert("Category restored successfully.");
-                    }
-                    loadArchivedCategories();
-                    refreshCategoriesModal();
-                    loadModules();
+                    showConfirmModal("Are you sure you want to restore this category?", async () => {
+                        const resp = await fetch(`/admin/manage-course/categories/${id}/restore`, {
+                            method: "POST", credentials: "include"
+                        });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            showAlertModal(result.message, "Error");
+                        } else {
+                            showAlertModal("Category restored successfully.", "Restored");
+                        }
+                        loadArchivedCategories();
+                        refreshCategoriesModal();
+                        loadModules();
+                    }, "Restore Category?");
                     return;
                 }
 
                 if (permanentDeleteBtn) {
                     e.preventDefault();
                     const id = permanentDeleteBtn.dataset.id;
-                    const confirmed = confirm(
+                    showConfirmModal(
                         "Are you sure you want to permanently delete this category? " +
                         "This action cannot be undone and the category will be permanently " +
-                        "removed from the system."
+                        "removed from the system.",
+                        async () => {
+                            permanentDeleteBtn.style.pointerEvents = "none";
+                            try {
+                                const resp = await fetch(`/admin/manage-course/categories/${id}/permanent-delete`, {
+                                    method: "POST", credentials: "include"
+                                });
+                                const result = await resp.json();
+                                if (!result.success) {
+                                    showAlertModal(result.message || "Could not permanently delete this category.", "Error");
+                                    permanentDeleteBtn.style.pointerEvents = "";
+                                    return;
+                                }
+                                showAlertModal(result.message || "Category permanently deleted.", "Deleted");
+                                loadArchivedCategories();
+                            } catch (err) {
+                                showAlertModal("Could not reach the server. Please try again.", "Error");
+                                permanentDeleteBtn.style.pointerEvents = "";
+                            }
+                        },
+                        "Permanently Delete Category?"
                     );
-                    if (!confirmed) return;
-
-                    permanentDeleteBtn.style.pointerEvents = "none";
-                    try {
-                        const resp = await fetch(`/admin/manage-course/categories/${id}/permanent-delete`, {
-                            method: "POST", credentials: "include"
-                        });
-                        const result = await resp.json();
-                        if (!result.success) {
-                            alert(result.message || "Could not permanently delete this category.");
-                            permanentDeleteBtn.style.pointerEvents = "";
-                            return;
-                        }
-                        alert(result.message || "Category permanently deleted.");
-                        loadArchivedCategories();
-                    } catch (err) {
-                        alert("Could not reach the server. Please try again.");
-                        permanentDeleteBtn.style.pointerEvents = "";
-                    }
                 }
             });
         }

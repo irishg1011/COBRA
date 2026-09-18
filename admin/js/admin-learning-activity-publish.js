@@ -231,7 +231,7 @@
                         result.message || (newStatus === "Published" ? "Activity published successfully." : "Activity moved back to Draft.")
                     );
                 } catch (err) {
-                    alert("Could not reach the server. Please try again.");
+                    showAlertModal("Could not reach the server. Please try again.", "Error");
                     btn.disabled = false;
                     btn.textContent = originalText;
                 }

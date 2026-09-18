@@ -196,7 +196,7 @@
                         result.message || (newStatus === "Published" ? "Coding exercise published successfully." : "Coding exercise moved back to Draft.")
                     );
                 } catch (err) {
-                    alert("Could not reach the server. Please try again.");
+                    showAlertModal("Could not reach the server. Please try again.", "Error");
                     btn.disabled = false;
                     btn.textContent = originalText;
                 }
@@ -232,7 +232,7 @@
                     const result = await response.json();
 
                     if (!result.success) {
-                        alert(result.message || "Could not archive this coding exercise.");
+                        showAlertModal(result.message || "Could not archive this coding exercise.", "Error");
                         if (icon) icon.className = originalClass;
                         archiveBtn.style.pointerEvents = "";
                         return;
@@ -265,7 +265,7 @@
 
                     showSuccessToast(result.message || "Coding exercise archived successfully.");
                 } catch (err) {
-                    alert("Could not reach the server. Please try again.");
+                    showAlertModal("Could not reach the server. Please try again.", "Error");
                     if (icon) icon.className = originalClass;
                     archiveBtn.style.pointerEvents = "";
                 }

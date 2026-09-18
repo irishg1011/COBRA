@@ -1,5 +1,44 @@
 document.addEventListener("DOMContentLoaded", function () {
     const editor = document.getElementById("editorContent");
+
+    // ------------------------------------------------------------
+    // Shared alert modal (#confirmActionModal) - replaces this file's
+    // previous native alert() calls, matching the same styled-modal
+    // convention used everywhere else in this admin. Looks up the
+    // modal elements fresh on each call rather than caching them, so
+    // it works correctly regardless of which nested function inside
+    // this listener calls it.
+    // ------------------------------------------------------------
+    function showEditorAlertModal(message, title = "Notice") {
+        const modal = document.getElementById("confirmActionModal");
+        if (!modal) { alert(message); return; }
+        const modalTitle = document.getElementById("confirmActionTitle");
+        const modalText = document.getElementById("confirmActionText");
+        const cancelBtn = document.getElementById("confirmActionCancelBtn");
+        const confirmBtn = document.getElementById("confirmActionConfirmBtn");
+        if (modalTitle) modalTitle.textContent = title;
+        if (modalText) modalText.textContent = message;
+        if (cancelBtn) cancelBtn.style.display = "none";
+        if (confirmBtn) {
+            confirmBtn.textContent = "OK";
+            confirmBtn.className = "modal-btn-save";
+        }
+        modal.classList.remove("modal-hidden");
+        modal.style.display = "flex";
+
+        function cleanup() {
+            modal.classList.add("modal-hidden");
+            modal.style.display = "none";
+            if (cancelBtn) cancelBtn.style.display = "";
+            if (confirmBtn) confirmBtn.removeEventListener("click", onOk);
+            modal.removeEventListener("click", onOverlay);
+        }
+        function onOk() { cleanup(); }
+        function onOverlay(e) { if (e.target === modal) cleanup(); }
+        if (confirmBtn) confirmBtn.addEventListener("click", onOk);
+        modal.addEventListener("click", onOverlay);
+    }
+
     const form = document.getElementById("uploadModuleForm");
     const hiddenInput = document.getElementById("hiddenModuleContent");
     
@@ -411,7 +450,7 @@ window.cobraByteTerminalInput = showTerminalInputPrompt;
         runBtn.addEventListener("click", async function () {
             const code = consoleBox.innerText.trim();
             if (!code) {
-                alert("Write some example code in the Console first.");
+                showEditorAlertModal("Write some example code in the Console first.");
                 return;
             }
 
@@ -973,7 +1012,7 @@ function blockHasUserInput(wrapper) {
         });
 
         if (restoredAny) {
-            alert("Console and terminal blocks can only be removed using their delete (trash) button.");
+            showEditorAlertModal("Console and terminal blocks can only be removed using their delete (trash) button.");
         }
     });
     blockRemovalGuard.observe(editor, { childList: true, subtree: true });
@@ -1052,7 +1091,7 @@ function blockHasUserInput(wrapper) {
         const adjacentWrapper = findAdjacentBlockWrapper(e.key);
         if (adjacentWrapper) {
             e.preventDefault();
-            alert("Console and terminal blocks can only be removed using their delete (trash) button.");
+            showEditorAlertModal("Console and terminal blocks can only be removed using their delete (trash) button.");
         }
     });
 
@@ -1139,7 +1178,7 @@ function blockHasUserInput(wrapper) {
             // leaves the editor and its undo stack completely untouched.
             if ((action === "codeBlock" || action === "terminalBlock") && !hasEnoughLessonContentForBlock()) {
                 const blockLabel = action === "codeBlock" ? "console" : "terminal";
-                alert(
+                showEditorAlertModal(
                     `Please write some lesson content before adding a ${blockLabel} block.`
                 );
                 return;

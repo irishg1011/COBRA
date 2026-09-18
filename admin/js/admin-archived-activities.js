@@ -49,6 +49,70 @@
 
         if (!modal || !openBtn) return;
 
+        // ------------------------------------------------------------
+        // Shared confirm/alert modal (#confirmActionModal) - replaces
+        // this file's previous native confirm()/alert() calls, matching
+        // the same styled-modal convention used everywhere else in
+        // this admin.
+        // ------------------------------------------------------------
+        const confirmActionModal = document.getElementById("confirmActionModal");
+        const confirmActionTitle = document.getElementById("confirmActionTitle");
+        const confirmActionText = document.getElementById("confirmActionText");
+        const confirmActionCancelBtn = document.getElementById("confirmActionCancelBtn");
+        const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
+        let pendingConfirmAction = null;
+
+        function closeSharedModal() {
+            if (confirmActionModal) {
+                confirmActionModal.classList.add("modal-hidden");
+                confirmActionModal.style.display = "none";
+            }
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            pendingConfirmAction = null;
+        }
+
+        function showAlertModal(message, title = "Notice") {
+            if (!confirmActionModal) { alert(message); return; }
+            pendingConfirmAction = null;
+            if (confirmActionTitle) confirmActionTitle.textContent = title;
+            if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "none";
+            if (confirmActionConfirmBtn) {
+                confirmActionConfirmBtn.textContent = "OK";
+                confirmActionConfirmBtn.className = "modal-btn-save";
+            }
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+        }
+
+        function showConfirmModal(message, onConfirm, title = "Confirm Action") {
+            if (!confirmActionModal) { if (window.confirm(message)) onConfirm(); return; }
+            pendingConfirmAction = onConfirm;
+            if (confirmActionTitle) confirmActionTitle.textContent = title;
+            if (confirmActionText) confirmActionText.textContent = message;
+            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
+            if (confirmActionConfirmBtn) {
+                confirmActionConfirmBtn.textContent = "Confirm";
+                confirmActionConfirmBtn.className = "modal-btn-save";
+            }
+            confirmActionModal.classList.remove("modal-hidden");
+            confirmActionModal.style.display = "flex";
+        }
+
+        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeSharedModal);
+        if (confirmActionConfirmBtn) {
+            confirmActionConfirmBtn.addEventListener("click", () => {
+                const action = pendingConfirmAction;
+                closeSharedModal();
+                if (typeof action === "function") action();
+            });
+        }
+        if (confirmActionModal) {
+            confirmActionModal.addEventListener("click", (e) => {
+                if (e.target === confirmActionModal) closeSharedModal();
+            });
+        }
+
         let activeTab = "mct"; // "mct" | "fib" | "fc"
         let mctPage = 1, mctTotalPages = 1;
         let fibPage = 1, fibTotalPages = 1;
@@ -274,64 +338,65 @@
             }
         }
 
-        async function handleActionClick(e) {
+        function handleActionClick(e) {
             const restoreBtn = e.target.closest(".js-restore-activity");
             const deleteBtn = e.target.closest(".js-permanent-delete-activity");
 
             if (restoreBtn) {
                 e.preventDefault();
                 const id = restoreBtn.dataset.id;
-                if (!confirm("Are you sure you want to restore this activity?")) return;
-
-                restoreBtn.style.pointerEvents = "none";
-                try {
-                    const resp = await fetch(`/admin/learning-activities/${id}/restore`, {
-                        method: "POST",
-                        credentials: "include"
-                    });
-                    const result = await resp.json();
-                    if (!result.success) {
-                        alert(result.message || "Could not restore activity.");
-                    } else {
-                        alert(result.message || "Learning activity restored successfully.");
-                        refreshCurrentTab();
-                        refreshMainActivityTable();
+                showConfirmModal("Are you sure you want to restore this activity?", async () => {
+                    restoreBtn.style.pointerEvents = "none";
+                    try {
+                        const resp = await fetch(`/admin/learning-activities/${id}/restore`, {
+                            method: "POST",
+                            credentials: "include"
+                        });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            showAlertModal(result.message || "Could not restore activity.", "Error");
+                        } else {
+                            showAlertModal(result.message || "Learning activity restored successfully.", "Restored");
+                            refreshCurrentTab();
+                            refreshMainActivityTable();
+                        }
+                    } catch (err) {
+                        showAlertModal("Could not reach the server. Please try again.", "Error");
+                    } finally {
+                        restoreBtn.style.pointerEvents = "";
                     }
-                } catch (err) {
-                    alert("Could not reach the server. Please try again.");
-                } finally {
-                    restoreBtn.style.pointerEvents = "";
-                }
+                }, "Restore Activity?");
                 return;
             }
 
             if (deleteBtn) {
                 e.preventDefault();
                 const id = deleteBtn.dataset.id;
-                const confirmed = confirm(
+                showConfirmModal(
                     "Are you sure you want to permanently delete this learning activity? " +
-                    "This action cannot be undone and will permanently remove the activity and all its questions from the system."
+                    "This action cannot be undone and will permanently remove the activity and all its questions from the system.",
+                    async () => {
+                        deleteBtn.style.pointerEvents = "none";
+                        try {
+                            const resp = await fetch(`/admin/learning-activities/${id}/permanent-delete`, {
+                                method: "POST",
+                                credentials: "include"
+                            });
+                            const result = await resp.json();
+                            if (!result.success) {
+                                showAlertModal(result.message || "Could not permanently delete activity.", "Error");
+                            } else {
+                                showAlertModal(result.message || "Learning activity permanently deleted.", "Deleted");
+                                refreshCurrentTab();
+                            }
+                        } catch (err) {
+                            showAlertModal("Could not reach the server. Please try again.", "Error");
+                        } finally {
+                            deleteBtn.style.pointerEvents = "";
+                        }
+                    },
+                    "Permanently Delete Activity?"
                 );
-                if (!confirmed) return;
-
-                deleteBtn.style.pointerEvents = "none";
-                try {
-                    const resp = await fetch(`/admin/learning-activities/${id}/permanent-delete`, {
-                        method: "POST",
-                        credentials: "include"
-                    });
-                    const result = await resp.json();
-                    if (!result.success) {
-                        alert(result.message || "Could not permanently delete activity.");
-                    } else {
-                        alert(result.message || "Learning activity permanently deleted.");
-                        refreshCurrentTab();
-                    }
-                } catch (err) {
-                    alert("Could not reach the server. Please try again.");
-                } finally {
-                    deleteBtn.style.pointerEvents = "";
-                }
             }
         }
 
