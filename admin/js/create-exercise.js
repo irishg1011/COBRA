@@ -333,6 +333,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const testCaseContainer = document.getElementById('testCasesContainer');
     if (testCaseContainer && testCaseContainer.children.length === 0) {
         addTestCaseRow('', '');
+    } else if (testCaseContainer) {
+        // Task #119: rows already rendered server-side (editing an
+        // existing exercise) never pass through addTestCaseRow(), so
+        // they need their duplicate-check wired up here instead.
+        testCaseContainer.querySelectorAll('.test-case-row').forEach((row) => {
+            wireTestCaseDuplicateCheck(row);
+            checkTestCaseDuplicate(row);
+        });
     }
 
     // Add Test Case button listener (using 'once' or checking to prevent duplicate triggers)
@@ -973,7 +981,7 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
     const row = document.createElement('div');
     row.className = 'test-case-row';
     row.dataset.index = index;
-    row.style.cssText = "display: flex; align-items: center; gap: 16px; margin-bottom: 12px; background: #ffffff; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px;";
+    row.style.cssText = "display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 12px; background: #ffffff; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px;";
 
     row.innerHTML = `
         <div class="test-case-badge" style="font-weight: 500; color: #64748b; min-width: 20px; text-align: center; font-size: 14px;">${num}</div>
@@ -991,9 +999,41 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
         <div style="display: flex; align-items: center; padding-top: 20px;">
             <button type="button" class="icon-control-btn text-danger" title="Delete" onclick="removeTestCaseRow(this)" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 15px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'"><i class="fa-solid fa-trash-can"></i></button>
         </div>
+
+        <div class="test-case-duplicate-warning" style="display: none; flex-basis: 100%; padding: 8px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">⚠️ Warning: Identical Input and Output</div>
     `;
 
     container.appendChild(row);
+    wireTestCaseDuplicateCheck(row);
+    checkTestCaseDuplicate(row);
+}
+
+/**
+ * Task #119: Live duplicate-value warning for a single test case row -
+ * shows/hides ⚠️ inline whenever Input and Expected Output are both
+ * non-empty and identical (trimmed). Never blocks Save/Publish on its
+ * own; it's a warning, not a validation failure.
+ */
+function checkTestCaseDuplicate(row) {
+    if (!row) return;
+    const inputField = row.querySelector('input[name*="[input]"]');
+    const outputField = row.querySelector('input[name*="[output]"]');
+    const warning = row.querySelector('.test-case-duplicate-warning');
+    if (!inputField || !outputField || !warning) return;
+
+    const inputVal = inputField.value.trim();
+    const outputVal = outputField.value.trim();
+    const isDuplicate = inputVal !== '' && outputVal !== '' && inputVal === outputVal;
+
+    warning.style.display = isDuplicate ? 'block' : 'none';
+}
+
+function wireTestCaseDuplicateCheck(row) {
+    if (!row) return;
+    const inputField = row.querySelector('input[name*="[input]"]');
+    const outputField = row.querySelector('input[name*="[output]"]');
+    if (inputField) inputField.addEventListener('input', () => checkTestCaseDuplicate(row));
+    if (outputField) outputField.addEventListener('input', () => checkTestCaseDuplicate(row));
 }
 
 function isTestCaseRowPopulated(row) {

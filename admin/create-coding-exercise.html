@@ -104,13 +104,13 @@
                             <div class="form-grid-2">
                                 <div>
                                     <label class="form-label" for="exercisePoints">Points *</label>
-                                        <input type="number" id="exercisePoints" name="points" class="form-control" placeholder="e.g., 10" min="1" value="{{ existing_exercise.points if existing_exercise else 10 }}" readonly required>
+                                    <input type="number" id="exercisePoints" name="points" class="form-control" placeholder="e.g., 10" min="1" value="{{ existing_exercise.points if existing_exercise else 10 }}" readonly required>
                                 </div>
                                 <div>
                                     <label class="form-label" for="exerciseStatus">Status *</label>
                                     <input type="text" id="exerciseStatus" name="status" class="form-control" value="{{ existing_exercise.status if existing_exercise else 'Draft' }}" readonly required style="background-color: #f8fafc !important; cursor: not-allowed;">
                                 </div>
-                            </div>  
+                            </div>
                         </div>
 
                     <!-- Section 2: Instruction -->
@@ -195,7 +195,7 @@
                         <div id="testCasesContainer" class="test-cases-list-wrapper mb-20">
                             {% if existing_exercise and existing_exercise.test_cases %}
                                 {% for tc in existing_exercise.test_cases %}
-                                <div class="test-case-row" data-index="{{ loop.index0 }}" style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px; background: #ffffff; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                                <div class="test-case-row" data-index="{{ loop.index0 }}" style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 12px; background: #ffffff; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px;">
                                     <div class="test-case-badge" style="font-weight: 500; color: #64748b; min-width: 20px; text-align: center; font-size: 14px;">{{ loop.index }}</div>
                                     <div style="flex: 1;">
                                         <label class="form-label" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display: block;">Input</label>
@@ -208,6 +208,7 @@
                                     <div style="display: flex; align-items: center; padding-top: 20px;">
                                         <button type="button" class="icon-control-btn text-danger" title="Delete" onclick="removeTestCaseRow(this)" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 15px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'"><i class="fa-solid fa-trash-can"></i></button>
                                     </div>
+                                    <div class="test-case-duplicate-warning" style="display: none; flex-basis: 100%; padding: 8px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">⚠️ Warning: Identical Input and Output</div>
                                 </div>
                                 {% endfor %}
                             {% endif %}
