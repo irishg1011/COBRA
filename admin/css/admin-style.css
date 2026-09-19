@@ -811,6 +811,28 @@ body {
 
 .data-table td {
     padding: 12px 0;
+    vertical-align: middle;
+}
+
+/* Task #125: every cell's content sits on one clean baseline, table-
+   wide - previously only enforced per-table via duplicated
+   `vertical-align: middle !important` overrides (Activities,
+   Exercises), which meant any OTHER table (Resources, Modules,
+   Categories) never reliably got it.
+
+   `.btn` is `display: flex` (see its own rule) so it can center an
+   icon + label together - correct for a standalone button, but flex
+   is block-level, so a Publish/Unpublish button inside a right-
+   aligned cell would stretch instead of hugging the right edge, since
+   text-align has no effect on a block-level flex box. This single
+   rule - covering every button in every admin table regardless of
+   its specific JS-hook class name (js-toggle-publish-btn, js-toggle-
+   activity-publish-btn, js-toggle-exercise-publish-btn, etc.) - fixes
+   that everywhere at once, rather than requiring a fresh per-class
+   override each time a new table/button is added. */
+.data-table td .btn {
+    display: inline-flex;
+    vertical-align: middle;
 }
 
 .profile-cell {
