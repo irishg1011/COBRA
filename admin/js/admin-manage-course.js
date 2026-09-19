@@ -243,6 +243,21 @@
                     </td>
                 </tr>
             `).join("");
+
+            // Task #124: post-restore row highlight (Modules) - shares
+            // the SAME window.cobraByteHighlightRestoredId signal used
+            // for the other four entities, even though the restore
+            // handler here lives in this same file, for consistency.
+            flashRestoredRow(tableBody, `tr[data-module-id="${window.cobraByteHighlightRestoredId}"]`);
+        }
+
+        function flashRestoredRow(container, selector) {
+            if (!container || !window.cobraByteHighlightRestoredId) return;
+            const row = container.querySelector(selector);
+            window.cobraByteHighlightRestoredId = null;
+            if (!row) return;
+            row.classList.add("row-restored-highlight");
+            setTimeout(() => row.classList.remove("row-restored-highlight"), 4000);
         }
 
         function buildParams() {
@@ -733,6 +748,11 @@
                     </div>
                 </div>
             `).join("");
+
+            // Task #124: post-restore highlight (Categories) - same
+            // shared signal/helper as Modules above, just targeting the
+            // accordion item's own container instead of a <tr>.
+            flashRestoredRow(categoriesListView, `.category-accordion-item[data-cat-id="${window.cobraByteHighlightRestoredId}"]`);
 
             categoriesListView.querySelectorAll(".category-accordion-toggle").forEach(toggle => {
                 toggle.addEventListener("click", (e) => {
@@ -1244,6 +1264,9 @@
                             showAlertModal(result.message, "Error");
                         } else {
                             showAlertModal("Module restored successfully.", "Restored");
+                            // Task #124: signal WHICH row to flash once
+                            // loadModules() below finishes re-rendering.
+                            window.cobraByteHighlightRestoredId = id;
                         }
                         loadArchivedModules();
                         loadModules();
@@ -1302,6 +1325,10 @@
                             showAlertModal(result.message, "Error");
                         } else {
                             showAlertModal("Category restored successfully.", "Restored");
+                            // Task #124: signal WHICH accordion item to
+                            // flash once refreshCategoriesModal() below
+                            // finishes re-rendering.
+                            window.cobraByteHighlightRestoredId = id;
                         }
                         loadArchivedCategories();
                         refreshCategoriesModal();

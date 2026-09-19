@@ -2478,3 +2478,25 @@ textarea.form-control-custom {
     margin-bottom: 8px;
     border-bottom: 1px solid #e5e7eb;
 }
+
+/* ==========================================================================
+   TASK #124: POST-RESTORE ROW HIGHLIGHT - applied to a table row right
+   after it reappears from a restore action (Categories, Modules,
+   Lessons/Learning Resources, Activities, Coding Exercises alike), so
+   the admin can immediately spot it in the refreshed table. A soft
+   green flash (matching this admin's existing "success/restored"
+   color language) that fades smoothly over ~4 seconds back to the
+   row's normal background - never a hard cut. The JS side (duplicated
+   as a small flashRestoredRow() helper per file, since each main
+   table's own render function is the only thing that knows exactly
+   when its rows exist in the DOM) adds this class right after
+   rendering the matching row, then removes it once the animation ends.
+   ========================================================================== */
+@keyframes rowRestoredFlash {
+    0% { background-color: #bbf7d0; }
+    100% { background-color: transparent; }
+}
+
+.row-restored-highlight {
+    animation: rowRestoredFlash 4s ease-out;
+}

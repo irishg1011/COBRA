@@ -233,6 +233,12 @@
                         } else {
                             showAlertModal(result.message || "Coding exercise restored successfully.", "Restored");
                             loadArchivedExercises();
+                            // Task #124: signal WHICH row to flash once the
+                            // main table's own reload (triggered below)
+                            // finishes rendering - see the matching
+                            // flashRestoredRow() call in admin-coding-
+                            // exercises.js's renderRows().
+                            window.cobraByteHighlightRestoredId = id;
                             refreshMainExercisesTable();
                         }
                     } catch (err) {

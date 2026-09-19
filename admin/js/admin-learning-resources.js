@@ -607,6 +607,20 @@
                 </tr>
             `;
             }).join("");
+
+            // Task #124: post-restore row highlight - see the matching
+            // note in admin-coding-exercises.js's renderRows() for how
+            // this cross-file signal works.
+            flashRestoredRow(tableBody, `tr[data-resource-id="${window.cobraByteHighlightRestoredId}"]`);
+        }
+
+        function flashRestoredRow(container, selector) {
+            if (!container || !window.cobraByteHighlightRestoredId) return;
+            const row = container.querySelector(selector);
+            window.cobraByteHighlightRestoredId = null;
+            if (!row) return;
+            row.classList.add("row-restored-highlight");
+            setTimeout(() => row.classList.remove("row-restored-highlight"), 4000);
         }
 
         function buildParams() {

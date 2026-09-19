@@ -177,7 +177,7 @@
                     <td class="text-muted">${escapeHtml(a.updated_at)}</td>
                     <td class="text-right">
                         <div class="table-actions-group">
-                            <a href="#" title="Restore" class="archive-action-icon restore-action js-restore-activity" data-id="${a.activity_id}">
+                            <a href="#" title="Restore" class="archive-action-icon restore-action js-restore-activity" data-id="${a.activity_id}" data-resource-id="${a.resource_id || ''}">
                                 <i class="fa-solid fa-rotate-left"></i>
                             </a>
                             <a href="#" title="Permanently Delete" class="archive-action-icon delete-action js-permanent-delete-activity" data-id="${a.activity_id}">
@@ -345,6 +345,7 @@
             if (restoreBtn) {
                 e.preventDefault();
                 const id = restoreBtn.dataset.id;
+                const resourceId = restoreBtn.dataset.resourceId;
                 showConfirmModal("Are you sure you want to restore this activity?", async () => {
                     restoreBtn.style.pointerEvents = "none";
                     try {
@@ -358,6 +359,12 @@
                         } else {
                             showAlertModal(result.message || "Learning activity restored successfully.", "Restored");
                             refreshCurrentTab();
+                            // Task #124: the Activities table is grouped
+                            // BY LESSON, not by individual activity - the
+                            // row to flash is the Lesson's own row
+                            // (data-resource-id), which is why this needs
+                            // the activity's resource_id, not its own id.
+                            if (resourceId) window.cobraByteHighlightRestoredId = resourceId;
                             refreshMainActivityTable();
                         }
                     } catch (err) {

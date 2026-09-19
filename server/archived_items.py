@@ -353,6 +353,7 @@ def get_archived_activities(activity_type=None, search_query=None, page=1, per_p
         select_sql = f"""
             SELECT
                 la.la_id,
+                la.resource_id,
                 la.activity_title,
                 atp.activity_type_name,
                 lr.resource_title AS lesson_name,
@@ -375,6 +376,7 @@ def get_archived_activities(activity_type=None, search_query=None, page=1, per_p
         for r in rows:
             activities.append({
                 "activity_id": r["la_id"],
+                "resource_id": r.get("resource_id"),
                 "activity_name": r["activity_title"],
                 "activity_type": r.get("activity_type_name") or "Multiple Choice",
                 "lesson_name": r.get("lesson_name") or "—",

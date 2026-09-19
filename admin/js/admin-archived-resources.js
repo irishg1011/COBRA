@@ -321,8 +321,19 @@
                             showAlertModal(result.message || "Could not restore resource.", "Error");
                         } else {
                             showAlertModal(result.message || "Resource restored successfully.", "Restored");
-                            if (activeTab === "lesson_content") loadArchivedLessonContent();
-                            else loadArchivedVideoTutorials();
+                            if (activeTab === "lesson_content") {
+                                loadArchivedLessonContent();
+                                // Task #124: only the Lesson Content tab
+                                // maps to an actual row in the main
+                                // Resources table - restoring a Video
+                                // Tutorial alone doesn't reveal a new row,
+                                // just an icon on its already-active
+                                // parent Lesson, so there's nothing
+                                // distinct to flash in that case.
+                                window.cobraByteHighlightRestoredId = id;
+                            } else {
+                                loadArchivedVideoTutorials();
+                            }
                             refreshMainResourcesTable();
                         }
                     } catch (err) {

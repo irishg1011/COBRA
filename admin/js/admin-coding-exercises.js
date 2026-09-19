@@ -138,6 +138,27 @@
                     </td>
                 </tr>
             `}).join("");
+
+            // Task #124: post-restore row highlight - flashRestoredRow()
+            // consumes (reads then clears) window.cobraByteHighlightRestoredId,
+            // a shared, well-known signal set by admin-archived-exercises.js
+            // right before it triggers this table's own reload, since the
+            // restore itself happens in a completely different script/modal.
+            flashRestoredRow(tableBody, `tr[data-exercise-id="${window.cobraByteHighlightRestoredId}"]`);
+        }
+
+        // Task #124: duplicated as a small, self-contained helper in each
+        // admin table's own render file (rather than a shared module),
+        // matching this project's existing convention - each file already
+        // owns its row template and knows exactly when its own rows exist
+        // in the DOM.
+        function flashRestoredRow(container, selector) {
+            if (!container || !window.cobraByteHighlightRestoredId) return;
+            const row = container.querySelector(selector);
+            window.cobraByteHighlightRestoredId = null;
+            if (!row) return;
+            row.classList.add("row-restored-highlight");
+            setTimeout(() => row.classList.remove("row-restored-highlight"), 4000);
         }
 
         function updatePagination(total, page, pages) {

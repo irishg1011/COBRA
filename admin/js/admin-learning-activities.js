@@ -175,6 +175,22 @@
                     <td class="text-right publish-status-column">${publishButtonHtml(l.resource_id, l.status, l.module_status)}</td>
                 </tr>
             `).join("");
+
+            // Task #124: post-restore row highlight - flashes the whole
+            // Lesson row (this table is grouped by Lesson, not by
+            // individual activity), consuming the signal set by
+            // admin-archived-activities.js right before it triggers
+            // this table's reload.
+            flashRestoredRow(tableBody, `tr[data-resource-id="${window.cobraByteHighlightRestoredId}"]`);
+        }
+
+        function flashRestoredRow(container, selector) {
+            if (!container || !window.cobraByteHighlightRestoredId) return;
+            const row = container.querySelector(selector);
+            window.cobraByteHighlightRestoredId = null;
+            if (!row) return;
+            row.classList.add("row-restored-highlight");
+            setTimeout(() => row.classList.remove("row-restored-highlight"), 4000);
         }
 
         function buildParams() {
