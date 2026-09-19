@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const snippetsList = document.getElementById('snippetsList');
     const snippetsEmpty = document.getElementById('snippetsEmpty');
     const snippetsCount = document.getElementById('snippetsCount');
+    const snippetsSeeAllBtn = document.getElementById('snippetsSeeAllBtn');
+    const snippetsSearchInput = document.getElementById('snippetsSearchInput');
 
     // Tracks which saved snippet (if any) the current editor contents
     // came from - null means "freshly typed, never saved/loaded this
@@ -288,42 +290,194 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===============================
     // Saved Snippets - persisted to the learner's OWN account (see
     // sandbox_snippets.py), never to the local file explorer. Loaded
-    // from the server on page load, and clicking a saved snippet
-    // loads its full code back into the editor.
+    // from the server on page load. Task #121: the panel only ever
+    // previews the SNIPPET_PREVIEW_LIMIT most recent snippets by
+    // default to keep the sandbox layout clean; "See All" expands the
+    // SAME card in place (never a separate popup) to show every saved
+    // snippet plus a search box, since the full list can run up to 50.
+    // Every row - collapsed or expanded - gets Load/Copy/Delete
+    // buttons via one shared snippetRowHtml()/wireSnippetRowActions()
+    // pair so the two states can never drift out of sync.
     // ===============================
+    const SNIPPET_PREVIEW_LIMIT = 5;
     let savedSnippets = [];
+    let snippetsExpanded = false;
+    let snippetsSearchTerm = '';
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+    }
+
+    function snippetRowHtml(snippet) {
+        return `
+            <li class="snippet-item" data-snippet-id="${snippet.snippet_id}">
+                <div class="snippet-info">
+                    <span class="snippet-label">${escapeHtml(snippet.title)}</span>
+                    <span class="snippet-time">${escapeHtml(snippet.updated_at || snippet.created_at)}</span>
+                </div>
+                <div class="snippet-actions">
+                    <button type="button" class="snippet-action-btn snippet-load-btn" data-id="${snippet.snippet_id}" title="Load into editor"><i class="fa-solid fa-arrow-up-from-bracket"></i></button>
+                    <button type="button" class="snippet-action-btn snippet-copy-btn" data-id="${snippet.snippet_id}" title="Copy code"><i class="fa-regular fa-copy"></i></button>
+                    <button type="button" class="snippet-action-btn snippet-delete-btn" data-id="${snippet.snippet_id}" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+                </div>
+            </li>
+        `;
+    }
+
+    // Delegated once on the (single, shared) list container - works
+    // for rows re-rendered later (search filtering, expand/collapse,
+    // deletions) without ever re-attaching listeners.
+    function wireSnippetRowActions(container) {
+        if (!container || container.dataset.actionsWired) return;
+        container.dataset.actionsWired = 'true';
+        container.addEventListener('click', (e) => {
+            const loadBtn = e.target.closest('.snippet-load-btn');
+            const copyBtn = e.target.closest('.snippet-copy-btn');
+            const deleteBtn = e.target.closest('.snippet-delete-btn');
+
+            if (loadBtn) {
+                loadSnippet(loadBtn.dataset.id);
+            } else if (copyBtn) {
+                copySnippetCode(copyBtn.dataset.id, copyBtn);
+            } else if (deleteBtn) {
+                confirmDeleteSnippet(deleteBtn.dataset.id);
+            }
+        });
+    }
 
     function renderSnippets() {
         if (!snippetsList || !snippetsEmpty || !snippetsCount) return;
 
         snippetsCount.textContent = `${savedSnippets.length} saved`;
+        if (snippetsSeeAllBtn) {
+            snippetsSeeAllBtn.style.display = savedSnippets.length > SNIPPET_PREVIEW_LIMIT ? '' : 'none';
+            snippetsSeeAllBtn.textContent = snippetsExpanded ? 'Show Less' : 'See All';
+        }
+        if (snippetsSearchInput) {
+            snippetsSearchInput.style.display = snippetsExpanded ? '' : 'none';
+        }
+        snippetsList.classList.toggle('snippets-list-expanded', snippetsExpanded);
 
-        if (savedSnippets.length === 0) {
+        const term = snippetsSearchTerm.trim().toLowerCase();
+        const source = (snippetsExpanded && term)
+            ? savedSnippets.filter((s) => s.title.toLowerCase().includes(term))
+            : savedSnippets;
+        const visible = snippetsExpanded ? source : source.slice(0, SNIPPET_PREVIEW_LIMIT);
+
+        if (visible.length === 0) {
             snippetsEmpty.style.display = 'block';
+            snippetsEmpty.textContent = term
+                ? 'No snippets match your search.'
+                : 'No saved snippets yet. Write some code and click "Save Code".';
             snippetsList.innerHTML = '';
             return;
         }
 
         snippetsEmpty.style.display = 'none';
-        snippetsList.innerHTML = '';
+        snippetsList.innerHTML = visible.map(snippetRowHtml).join('');
+        wireSnippetRowActions(snippetsList);
+    }
 
-        savedSnippets.forEach((snippet) => {
-            const li = document.createElement('li');
-            li.className = 'snippet-item';
-            li.style.cursor = 'pointer';
-            li.title = 'Click to load this snippet into the editor';
+    if (snippetsSeeAllBtn) {
+        snippetsSeeAllBtn.addEventListener('click', () => {
+            snippetsExpanded = !snippetsExpanded;
+            if (!snippetsExpanded) {
+                snippetsSearchTerm = '';
+                if (snippetsSearchInput) snippetsSearchInput.value = '';
+            }
+            renderSnippets();
+        });
+    }
 
-            const label = document.createElement('span');
-            label.textContent = snippet.title;
+    if (snippetsSearchInput) {
+        snippetsSearchInput.addEventListener('input', (e) => {
+            snippetsSearchTerm = e.target.value;
+            renderSnippets();
+        });
+    }
 
-            const time = document.createElement('span');
-            time.className = 'snippet-time';
-            time.textContent = snippet.created_at;
+    // ------------------------------------------------------------
+    // Copy - fetches the snippet's full code (the list endpoint only
+    // carries title/dates, not code) then writes it to the clipboard.
+    // ------------------------------------------------------------
+    async function copySnippetCode(snippetId, btn) {
+        try {
+            const response = await fetch(`/api/sandbox/snippets/${snippetId}`, { credentials: 'include' });
+            const result = await response.json();
+            if (!result.success) return;
 
-            li.appendChild(label);
-            li.appendChild(time);
-            li.addEventListener('click', () => loadSnippet(snippet.snippet_id));
-            snippetsList.appendChild(li);
+            await navigator.clipboard.writeText(result.snippet.code);
+
+            if (btn) {
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                setTimeout(() => { btn.innerHTML = originalHtml; }, 1200);
+            }
+        } catch (err) {
+            // Clipboard permission denied or snippet fetch failed -
+            // not worth interrupting the learner over; they can just
+            // use Load instead.
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Delete - small custom confirm built at runtime (this project
+    // never uses native confirm()/alert()), reusing the same
+    // .sandbox-modal-overlay/.sandbox-modal-card classes as "See All"
+    // for visual consistency.
+    // ------------------------------------------------------------
+    function confirmDeleteSnippet(snippetId) {
+        const snippet = savedSnippets.find((s) => String(s.snippet_id) === String(snippetId));
+        const label = snippet ? snippet.title : 'this snippet';
+
+        const overlay = document.createElement('div');
+        overlay.id = 'deleteSnippetConfirmModal';
+        overlay.className = 'sandbox-modal-overlay';
+        overlay.style.zIndex = '2100'; // above the "See All" modal, if open
+        overlay.innerHTML = `
+            <div class="sandbox-modal-card" style="max-width: 380px;">
+                <div class="sandbox-modal-header">
+                    <h3>Delete Snippet?</h3>
+                    <button type="button" class="sandbox-modal-close-btn" id="deleteSnippetCloseBtn" title="Close">&times;</button>
+                </div>
+                <div class="sandbox-modal-body">
+                    <p style="margin: 0 0 20px; color: #475569; font-size: 14px;">Delete "<strong>${escapeHtml(label)}</strong>"? This can't be undone.</p>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                        <button type="button" class="sandbox-modal-btn-cancel" id="deleteSnippetCancelBtn">Cancel</button>
+                        <button type="button" class="sandbox-modal-btn-danger" id="deleteSnippetConfirmBtn">Delete</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        function closeThis() { overlay.remove(); }
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeThis(); });
+        overlay.querySelector('#deleteSnippetCloseBtn').addEventListener('click', closeThis);
+        overlay.querySelector('#deleteSnippetCancelBtn').addEventListener('click', closeThis);
+        overlay.querySelector('#deleteSnippetConfirmBtn').addEventListener('click', async () => {
+            const confirmBtn = overlay.querySelector('#deleteSnippetConfirmBtn');
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Deleting...';
+
+            try {
+                const response = await fetch(`/api/sandbox/snippets/${snippetId}/delete`, {
+                    method: 'POST',
+                    credentials: 'include',
+                });
+                const result = await response.json();
+                if (result.success) {
+                    savedSnippets = savedSnippets.filter((s) => String(s.snippet_id) !== String(snippetId));
+                    if (String(currentSnippetId) === String(snippetId)) currentSnippetId = null;
+                    renderSnippets();
+                }
+            } catch (err) {
+                // Best-effort - the list simply won't reflect the
+                // deletion if this failed; the learner can retry.
+            }
+            closeThis();
         });
     }
 

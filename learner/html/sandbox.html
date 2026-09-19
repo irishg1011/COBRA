@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../static/animations.css">
     <link rel="stylesheet" href="../learner/css/sandbox.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body data-auth-guard-mode="refresh">
 
@@ -28,7 +29,7 @@
                 </svg>
                 Dashboard
             </a>
-            <a href="/learning-map" class="dashboard-nav-link">
+            <a href="#" class="dashboard-nav-link">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
                 </svg>
@@ -132,8 +133,12 @@
         <div class="snippets-card">
             <div class="snippets-header">
                 <h2>Your Saved Snippets</h2>
-                <span class="snippets-count" id="snippetsCount">0 saved</span>
+                <div class="snippets-header-actions">
+                    <span class="snippets-count" id="snippetsCount">0 saved</span>
+                    <button type="button" class="snippets-see-all-btn" id="snippetsSeeAllBtn">See All</button>
+                </div>
             </div>
+            <input type="text" class="snippets-search-input" id="snippetsSearchInput" placeholder="Search snippets by name..." style="display: none;">
             <p class="snippets-empty" id="snippetsEmpty">No saved snippets yet. Write some code and click "Save Code".</p>
             <ul class="snippets-list" id="snippetsList"></ul>
         </div>

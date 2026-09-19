@@ -3,10 +3,10 @@
    ========================================================================== */
 
 .sandbox-container {
-    max-width: 1600px;      /* was 1200px */
+    max-width: 1200px;
     width: 100%;
     margin: 0 auto;
-    padding: 50px 3% 80px;  /* was 50px 8% 80px */
+    padding: 50px 8% 80px;
 }
 
 /* --- Heading Row --- */
@@ -283,6 +283,27 @@
     margin-bottom: 6px;
 }
 
+.snippets-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.snippets-see-all-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1CE8C8;
+    cursor: pointer;
+}
+
+.snippets-see-all-btn:hover {
+    color: #0fb89c;
+    text-decoration: underline;
+}
+
 .snippets-header h2 {
     font-size: 19px;
     font-weight: 700;
@@ -324,9 +345,158 @@
     color: #334155;
 }
 
+.snippet-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.snippet-info .snippet-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .snippet-item span.snippet-time {
     color: #94a3b8;
     font-size: 12px;
+}
+
+/* Task #121: per-snippet Load / Copy / Delete buttons - used both in
+   the Sandbox's inline preview list and the "See All" modal, so the
+   styling lives here once rather than being duplicated inline. */
+.snippet-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.snippet-action-btn {
+    background: none;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}
+
+.snippet-action-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.snippet-action-btn.snippet-delete-btn:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* "See All" modal - built at runtime (see sandbox.js), reusing this
+   page's own dark/light conventions rather than a separate stylesheet
+   for a single modal. */
+.sandbox-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.sandbox-modal-card {
+    background: #ffffff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sandbox-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sandbox-modal-header h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.sandbox-modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #64748b;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.sandbox-modal-body {
+    padding: 16px 24px 24px;
+    overflow-y: auto;
+}
+
+/* Task #121: inline search shown only while the snippets panel is
+   expanded ("See All" toggled on) - the list itself expands within
+   the SAME card, never a separate popup. */
+.snippets-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 14px 0 0;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-family: inherit;
+}
+
+.snippets-list.snippets-list-expanded {
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.sandbox-modal-btn-cancel,
+.sandbox-modal-btn-danger {
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+}
+
+.sandbox-modal-btn-cancel {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.sandbox-modal-btn-cancel:hover {
+    background: #e2e8f0;
+}
+
+.sandbox-modal-btn-danger {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.sandbox-modal-btn-danger:hover {
+    background: #b91c1c;
 }
 
 /* --- Responsive --- */

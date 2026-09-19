@@ -254,3 +254,57 @@ def get_snippet(acc_id, snippet_id):
     finally:
         if connection.is_connected():
             connection.close()
+
+
+def delete_snippet(acc_id, snippet_id):
+    """
+    Task #121: permanently deletes one of THIS learner's own saved
+    snippets (backs the Delete button in both the Sandbox's inline
+    preview list and the "See All" modal). Scoped to acc_id exactly
+    like get_snippet() - a learner can never delete another learner's
+    snippet by guessing/incrementing an id, since the WHERE clause
+    requires both to match.
+
+    A real DELETE (not a soft-archive): these are personal scratch
+    saves with no "restore later" browsing feature planned, unlike the
+    admin-side Lesson/Activity/Exercise content this project otherwise
+    always soft-archives.
+
+    Returns (success: bool, message: str)
+    """
+    if not acc_id:
+        return False, "Not logged in."
+    if not snippet_id:
+        return False, "Snippet ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        _ensure_table(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT snippet_id FROM {SANDBOX_SNIPPETS_TABLE} WHERE snippet_id = %s AND acc_id = %s",
+            (snippet_id, acc_id)
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            return False, "Snippet not found."
+
+        cursor.execute(
+            f"DELETE FROM {SANDBOX_SNIPPETS_TABLE} WHERE snippet_id = %s AND acc_id = %s",
+            (snippet_id, acc_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Snippet deleted."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"sandbox_snippets: failed to delete snippet {snippet_id}: {e}")
+        return False, "Could not delete this snippet."
+    finally:
+        if connection.is_connected():
+            connection.close()
