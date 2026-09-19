@@ -2460,6 +2460,19 @@ textarea.form-control-custom {
     margin-right: 4px;
 }
 
+/* Task #123: Published items in an archive checklist are shown, not
+   hidden - but never selectable, and the checklist's Archive button
+   is disabled outright while any of these remain (see admin-resource-
+   actions.js / admin-learning-activities.js). */
+.archive-checklist-item-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.archive-checklist-item-disabled input[type="checkbox"] {
+    cursor: not-allowed;
+}
+
 .archive-checklist-select-all {
     padding-bottom: 12px;
     margin-bottom: 8px;

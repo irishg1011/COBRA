@@ -220,6 +220,23 @@ def archive_exercise(exercise_id):
             cursor.close()
             return False, "Coding exercise not found."
 
+        # Task #123: backend-level guard, not just the frontend archive-
+        # check - a Published exercise can never be archived directly,
+        # matching the same rule enforced for Modules/Categories.
+        cursor.execute(
+            f"""SELECT last.la_stats_name FROM {CODING_EXERCISES_TABLE} ce
+                LEFT JOIN {LA_STATS_TABLE} last ON ce.exercise_stats_id = last.la_stats_id
+                WHERE ce.exercise_id = %s""",
+            (exercise_id,)
+        )
+        (current_status,) = cursor.fetchone()
+        if current_status == "Published":
+            cursor.close()
+            return False, (
+                "This exercise is Published. You must unpublish it first "
+                "before you can archive it."
+            )
+
         archived_id = get_archived_status_id(connection)
         if not archived_id:
             cursor.close()

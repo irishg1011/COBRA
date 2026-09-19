@@ -16,6 +16,15 @@ MODULES_TABLE = "modules_tbl"
 MODULE_STATS_TABLE = "module_stats_tbl"
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 LR_STATS_TABLE = "learning_resources_stats_tbl"
+# NEW (Task #123): needed for the recursive Published-dependency check
+# and cascade-archive - a Category/Module's "children" go all the way
+# down through its Resources' own Video Tutorial, Activities, and
+# Coding Exercises, each living in a separate table/status system.
+VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
+LA_STATS_TABLE = "learning_activities_stats_tbl"  # shared Draft/Published/Archived table - reused by video_stats_id, la_stats_id, and exercise_stats_id alike
+LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
+ACTIVITY_TYPES_TABLE = "activity_types_tbl"
+CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 
 # Task requirement: these three statuses must exist in module_stats_tbl.
 # Never hardcoded anywhere else in the app - every other file reads them
@@ -299,17 +308,45 @@ def archive_category(cat_id):
             cursor.close()
             return False, "This category is already archived."
 
-        # Prevent archiving if active modules still reference this category
+        # Task #123: replaces the old "blocks on ANY active module"
+        # rule - only a PUBLISHED module (or anything Published
+        # further down in its resources/video/activities/exercises)
+        # blocks the archive. Draft modules and everything under them
+        # get cascade-archived below instead of blocking anything.
+        category_name_row = None
+        cursor.execute(f"SELECT category_name FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        category_name_row = cursor.fetchone()
+        category_name = category_name_row[0] if category_name_row else None
+
+        blockers = get_published_dependents_for_category(cursor, cat_id, category_name)
+        if blockers:
+            cursor.close()
+            names = ", ".join(f"{b['title']} ({b['type']})" for b in blockers[:3])
+            more = f" and {len(blockers) - 3} more" if len(blockers) > 3 else ""
+            return False, (
+                f"Cannot archive this category - it still has Published content: {names}{more}. "
+                "You must unpublish these items first before you can archive this parent record."
+            )
+
+        archived_status_id = _get_archived_status_id(cursor)
+        lr_archived_status_id = _get_lr_archived_status_id(cursor)
         cursor.execute(
-            f"SELECT COUNT(*) FROM {MODULES_TABLE} WHERE cat_id = %s AND is_archived = 0",
+            f"SELECT module_id FROM {MODULES_TABLE} WHERE cat_id = %s AND is_archived = 0",
             (cat_id,)
         )
-        (active_count,) = cursor.fetchone()
-        if active_count > 0:
-            cursor.close()
-            return False, (
-                f"Cannot archive this category - {active_count} active module(s) still belong to it. "
-                "Please archive or reassign those modules first."
+        module_ids = [row[0] for row in cursor.fetchall()]
+        for m_id in module_ids:
+            for resource_id, _title, _status in _get_active_resources_for_module(cursor, m_id):
+                if archived_status_id:
+                    _cascade_archive_resource_children(cursor, resource_id, archived_status_id)
+                if lr_archived_status_id:
+                    cursor.execute(
+                        f"UPDATE {LEARNING_RESOURCES_TABLE} SET lr_stats_id = %s, updated_at = NOW() WHERE resource_id = %s",
+                        (lr_archived_status_id, resource_id)
+                    )
+            cursor.execute(
+                f"UPDATE {MODULES_TABLE} SET is_archived = 1, updated_at = NOW() WHERE module_id = %s",
+                (m_id,)
             )
 
         cursor.execute(
@@ -809,22 +846,32 @@ def archive_module(module_id):
                 "module status to Draft first."
             )
 
-        # Task #91: Check if there are active learning resources attached to this module
-        cursor.execute(
-            f"""SELECT COUNT(*)
-                FROM {LEARNING_RESOURCES_TABLE} lr
-                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
-                WHERE lr.module_id = %s
-                  AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')""",
-            (module_id,)
-        )
-        (resource_count,) = cursor.fetchone()
-        if resource_count > 0:
+        # Task #123: replaces the old "blocks on ANY active resource"
+        # rule - now only a PUBLISHED descendant (this module's own
+        # resources, or THEIR video/activities/exercises) blocks the
+        # archive. Everything else here is Draft and gets cascade-
+        # archived below, so nothing is left orphaned under an
+        # archived module.
+        blockers = get_published_dependents_for_module(cursor, module_id, None, None)
+        if blockers:
             cursor.close()
+            names = ", ".join(f"{b['title']} ({b['type']})" for b in blockers[:3])
+            more = f" and {len(blockers) - 3} more" if len(blockers) > 3 else ""
             return False, (
-                "Cannot archive this module because it has attached learning resources. "
-                "Please delete or reassign the resources first."
+                f"Cannot archive this module - it still has Published content: {names}{more}. "
+                "You must unpublish these items first before you can archive this parent record."
             )
+
+        archived_status_id = _get_archived_status_id(cursor)
+        lr_archived_status_id = _get_lr_archived_status_id(cursor)
+        for resource_id, _title, _status in _get_active_resources_for_module(cursor, module_id):
+            if archived_status_id:
+                _cascade_archive_resource_children(cursor, resource_id, archived_status_id)
+            if lr_archived_status_id:
+                cursor.execute(
+                    f"UPDATE {LEARNING_RESOURCES_TABLE} SET lr_stats_id = %s, updated_at = NOW() WHERE resource_id = %s",
+                    (lr_archived_status_id, resource_id)
+                )
 
         cursor.execute(
             f"""UPDATE {MODULES_TABLE}
@@ -1225,19 +1272,184 @@ def get_modules_by_category(cat_id):
             connection.close()
 
 # ================================================================
+# TASK #123: RECURSIVE PUBLISHED-DEPENDENCY CHECK & CASCADE ARCHIVE
+# ================================================================
+# Replaces the old "blocks on ANY active child, published or not"
+# rule with: blocks ONLY on a PUBLISHED descendant, anywhere in the
+# hierarchy (a Resource's own Lesson Content status, its Video
+# Tutorial, its Activities, its Coding Exercises). Once nothing
+# Published remains, archiving a Module or Category now CASCADES -
+# every Draft descendant is soft-archived right along with it, so
+# nothing is left silently orphaned under an archived parent. This is
+# the one and only place either rule lives; archive_module()/
+# archive_category() and their eligibility-check counterparts below
+# all go through these same two functions.
+
+def _get_published_dependents_for_resource(cursor, resource_id, category_name, module_name, lesson_name):
+    """
+    Uses an ALREADY-OPEN cursor (this is called while walking a whole
+    Module or Category's hierarchy - opening a fresh connection per
+    Resource would be wasteful). Returns a list of blocker dicts:
+    {type, title, category, module, lesson} for anything Published
+    attached to this one Resource - its Video Tutorial, Activities,
+    and Coding Exercises (the Resource's OWN Published/Draft status is
+    checked by the caller, since that's a property of the resource
+    itself, not a "dependent").
+    """
+    blockers = []
+
+    cursor.execute(
+        f"""SELECT vt.video_title, vts.la_stats_name
+            FROM {VIDEO_TUTORIALS_TABLE} vt
+            LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
+            WHERE vt.resource_id = %s
+              AND (vts.la_stats_name IS NULL OR vts.la_stats_name != 'Archived')
+            ORDER BY vt.video_tutorial_id DESC LIMIT 1""",
+        (resource_id,)
+    )
+    row = cursor.fetchone()
+    if row and row[1] == 'Published':
+        blockers.append({"type": "Video Tutorial", "title": row[0] or "Untitled video",
+                          "category": category_name, "module": module_name, "lesson": lesson_name})
+
+    cursor.execute(
+        f"""SELECT la.activity_title, last.la_stats_name, atp.activity_type_name
+            FROM {LEARNING_ACTIVITIES_TABLE} la
+            LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
+            LEFT JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
+            WHERE la.resource_id = %s
+              AND (last.la_stats_name IS NULL OR last.la_stats_name != 'Archived')""",
+        (resource_id,)
+    )
+    for title, status, atype in cursor.fetchall():
+        if status == 'Published':
+            blockers.append({"type": atype or "Activity", "title": title,
+                              "category": category_name, "module": module_name, "lesson": lesson_name})
+
+    cursor.execute(
+        f"""SELECT ce.exercise_title, last.la_stats_name
+            FROM {CODING_EXERCISES_TABLE} ce
+            LEFT JOIN {LA_STATS_TABLE} last ON ce.exercise_stats_id = last.la_stats_id
+            WHERE ce.resource_id = %s
+              AND (last.la_stats_name IS NULL OR last.la_stats_name != 'Archived')""",
+        (resource_id,)
+    )
+    for title, status in cursor.fetchall():
+        if status == 'Published':
+            blockers.append({"type": "Coding Exercise", "title": title,
+                              "category": category_name, "module": module_name, "lesson": lesson_name})
+
+    return blockers
+
+
+def _get_active_resources_for_module(cursor, module_id):
+    """Returns [(resource_id, resource_title, lr_stats_name), ...] for non-archived resources under a module."""
+    cursor.execute(
+        f"""SELECT lr.resource_id, lr.resource_title, lrs.lr_stats_name
+            FROM {LEARNING_RESOURCES_TABLE} lr
+            LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            WHERE lr.module_id = %s
+              AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')""",
+        (module_id,)
+    )
+    return cursor.fetchall()
+
+
+def get_published_dependents_for_module(cursor, module_id, category_name, module_name):
+    """
+    Walks every active Resource under this Module and collects every
+    Published thing found - the Resource itself (if Published) plus
+    its Video/Activities/Exercises. Uses an ALREADY-OPEN cursor.
+    """
+    blockers = []
+    for resource_id, resource_title, lr_status in _get_active_resources_for_module(cursor, module_id):
+        if lr_status == 'Published':
+            blockers.append({"type": "Lesson Content", "title": resource_title,
+                              "category": category_name, "module": module_name, "lesson": resource_title})
+        blockers.extend(_get_published_dependents_for_resource(
+            cursor, resource_id, category_name, module_name, resource_title
+        ))
+    return blockers
+
+
+def get_published_dependents_for_category(cursor, cat_id, category_name):
+    """Walks every active Module under this Category (and each Module's own Resources)."""
+    blockers = []
+    cursor.execute(
+        f"""SELECT m.module_id, m.module_name, ms.module_stats_name
+            FROM {MODULES_TABLE} m
+            LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+            WHERE m.cat_id = %s AND m.is_archived = 0""",
+        (cat_id,)
+    )
+    for module_id, module_name, module_status in cursor.fetchall():
+        if module_status == 'Published':
+            blockers.append({"type": "Module", "title": module_name,
+                              "category": category_name, "module": module_name, "lesson": "—"})
+        blockers.extend(get_published_dependents_for_module(cursor, module_id, category_name, module_name))
+    return blockers
+
+
+def _cascade_archive_resource_children(cursor, resource_id, archived_status_id):
+    """
+    Archives every remaining (Draft) Video Tutorial, Activity, and
+    Coding Exercise attached to a Resource that's about to be
+    archived. Only ever called after the caller has already confirmed
+    zero Published descendants exist - never touches a Published row
+    (there shouldn't be one left by this point, but the WHERE clause
+    guards against archiving one anyway, as a last line of defense).
+    """
+    cursor.execute(
+        f"""UPDATE {VIDEO_TUTORIALS_TABLE} vt
+            LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
+            SET vt.video_stats_id = %s, vt.updated_at = NOW()
+            WHERE vt.resource_id = %s
+              AND (vts.la_stats_name IS NULL OR vts.la_stats_name NOT IN ('Archived', 'Published'))""",
+        (archived_status_id, resource_id)
+    )
+    cursor.execute(
+        f"""UPDATE {LEARNING_ACTIVITIES_TABLE} la
+            LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
+            SET la.la_stats_id = %s, la.updated_at = NOW()
+            WHERE la.resource_id = %s
+              AND (last.la_stats_name IS NULL OR last.la_stats_name NOT IN ('Archived', 'Published'))""",
+        (archived_status_id, resource_id)
+    )
+    cursor.execute(
+        f"""UPDATE {CODING_EXERCISES_TABLE} ce
+            LEFT JOIN {LA_STATS_TABLE} last ON ce.exercise_stats_id = last.la_stats_id
+            SET ce.exercise_stats_id = %s, ce.updated_at = NOW()
+            WHERE ce.resource_id = %s
+              AND (last.la_stats_name IS NULL OR last.la_stats_name NOT IN ('Archived', 'Published'))""",
+        (archived_status_id, resource_id)
+    )
+
+
+def _get_archived_status_id(cursor):
+    cursor.execute(f"SELECT la_stats_id FROM {LA_STATS_TABLE} WHERE la_stats_name = 'Archived'")
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def _get_lr_archived_status_id(cursor):
+    cursor.execute(f"SELECT lr_stats_id FROM {LR_STATS_TABLE} WHERE lr_stats_name = 'Archived'")
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+# ================================================================
 # ARCHIVE ELIGIBILITY CHECKS (backs the "check before archive" flow
-# admin-relational-archive.js already calls, previously missing entirely)
+# admin-relational-archive.js already calls)
 # ================================================================
 def check_module_archive_eligibility(module_id):
     """
     Reports WHETHER archive_module(module_id) would currently succeed,
-    and why not if it wouldn't - without actually archiving anything.
-    Mirrors archive_module()'s own two rejection reasons exactly (a
-    Published module, or one with attached active learning resources),
-    so this check can never say "eligible" when the real archive call
-    would then turn around and reject it.
+    and lists exactly what's blocking it if not - every Published
+    descendant, with full Category/Module/Lesson context, per Task
+    #123 - without actually archiving anything.
 
-    Returns (success: bool, eligible: bool | None, blockers: list[str], message: str | None)
+    Returns (success: bool, eligible: bool | None, blockers: list[dict], message: str | None)
+    Each blocker dict: {type, title, category, module, lesson}
     """
     if not module_id:
         return False, None, [], "Module ID is required."
@@ -1251,9 +1463,10 @@ def check_module_archive_eligibility(module_id):
         cursor = connection.cursor()
 
         cursor.execute(
-            f"""SELECT m.is_archived, ms.module_stats_name
+            f"""SELECT m.is_archived, ms.module_stats_name, m.module_name, c.category_name
                 FROM {MODULES_TABLE} m
                 LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                LEFT JOIN {CATEGORY_TABLE} c ON m.cat_id = c.cat_id
                 WHERE m.module_id = %s""",
             (module_id,)
         )
@@ -1262,26 +1475,16 @@ def check_module_archive_eligibility(module_id):
             cursor.close()
             return False, None, [], "Module not found."
 
-        is_archived, status_name = row
+        is_archived, status_name, module_name, category_name = row
         if is_archived:
             cursor.close()
             return False, None, [], "This module is already archived."
 
         blockers = []
         if status_name == "Published":
-            blockers.append("This module itself is Published - change it to Draft first")
-
-        cursor.execute(
-            f"""SELECT COUNT(*)
-                FROM {LEARNING_RESOURCES_TABLE} lr
-                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
-                WHERE lr.module_id = %s
-                  AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')""",
-            (module_id,)
-        )
-        (resource_count,) = cursor.fetchone()
-        if resource_count > 0:
-            blockers.append(f"{resource_count} attached learning resource(s) - delete or reassign them first")
+            blockers.append({"type": "Module", "title": module_name,
+                              "category": category_name, "module": module_name, "lesson": "—"})
+        blockers.extend(get_published_dependents_for_module(cursor, module_id, category_name, module_name))
 
         cursor.close()
         return True, len(blockers) == 0, blockers, None
@@ -1295,11 +1498,10 @@ def check_module_archive_eligibility(module_id):
 
 def check_category_archive_eligibility(cat_id):
     """
-    Reports WHETHER archive_category(cat_id) would currently succeed,
-    mirroring its own single rejection reason (active modules still
-    belonging to it) exactly.
+    Same as check_module_archive_eligibility() above, for Categories -
+    recursively walks every Module and their Resources.
 
-    Returns (success: bool, eligible: bool | None, blockers: list[str], message: str | None)
+    Returns (success: bool, eligible: bool | None, blockers: list[dict], message: str | None)
     """
     if not cat_id:
         return False, None, [], "Category ID is required."
@@ -1313,29 +1515,171 @@ def check_category_archive_eligibility(cat_id):
         ensure_is_archived_column(connection)
         cursor = connection.cursor()
 
-        cursor.execute(f"SELECT is_archived FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        cursor.execute(f"SELECT is_archived, category_name FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
         row = cursor.fetchone()
         if row is None:
             cursor.close()
             return False, None, [], "Category not found."
-        if row[0]:
+        is_archived, category_name = row
+        if is_archived:
             cursor.close()
             return False, None, [], "This category is already archived."
 
-        cursor.execute(
-            f"SELECT COUNT(*) FROM {MODULES_TABLE} WHERE cat_id = %s AND is_archived = 0",
-            (cat_id,)
-        )
-        (active_count,) = cursor.fetchone()
+        blockers = get_published_dependents_for_category(cursor, cat_id, category_name)
         cursor.close()
-
-        blockers = []
-        if active_count > 0:
-            blockers.append(f"{active_count} active module(s) still belong to it - archive or reassign them first")
-
         return True, len(blockers) == 0, blockers, None
     except Error as e:
         print(f"manage_course: failed to check category archive eligibility: {e}")
+        return False, None, [], f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def check_resource_archive_eligibility(resource_id):
+    """
+    Task #123: same shape as check_module_archive_eligibility() above,
+    scoped to a single Resource - used by Manage Learning Resources'
+    Archive checklist, which needs to know about Published Activities/
+    Coding Exercises attached to a Lesson (a real pre-existing gap:
+    that checklist only ever checked the Lesson's own status and its
+    Video Tutorial, never its quizzes or exercises).
+
+    Returns (success: bool, eligible: bool | None, blockers: list[dict], message: str | None)
+    """
+    if not resource_id:
+        return False, None, [], "Resource ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, None, [], "Could not connect to the database."
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"""SELECT lr.resource_title, lrs.lr_stats_name, c.category_name, m.module_name
+                FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
+                LEFT JOIN {MODULES_TABLE} m ON lr.module_id = m.module_id
+                WHERE lr.resource_id = %s""",
+            (resource_id,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return False, None, [], "Resource not found."
+
+        resource_title, lr_status, category_name, module_name = row
+
+        blockers = []
+        if lr_status == "Published":
+            blockers.append({"type": "Lesson Content", "title": resource_title,
+                              "category": category_name, "module": module_name, "lesson": resource_title})
+        blockers.extend(_get_published_dependents_for_resource(
+            cursor, resource_id, category_name, module_name, resource_title
+        ))
+
+        cursor.close()
+        return True, len(blockers) == 0, blockers, None
+    except Error as e:
+        print(f"manage_course: failed to check resource archive eligibility: {e}")
+        return False, None, [], f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def check_activity_archive_eligibility(activity_id):
+    """
+    Task #123: same shape again, for a single Learning Activity - a
+    leaf node with no children of its own, so this is just a
+    self-status check (mirrors check_coding_exercise_archive_
+    eligibility() below).
+
+    Returns (success: bool, eligible: bool | None, blockers: list[dict], message: str | None)
+    """
+    if not activity_id:
+        return False, None, [], "Activity ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, None, [], "Could not connect to the database."
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"""SELECT la.activity_title, last.la_stats_name, atp.activity_type_name,
+                       c.category_name, m.module_name, lr.resource_title
+                FROM {LEARNING_ACTIVITIES_TABLE} la
+                LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
+                LEFT JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
+                LEFT JOIN {LEARNING_RESOURCES_TABLE} lr ON la.resource_id = lr.resource_id
+                LEFT JOIN {CATEGORY_TABLE} c ON la.cat_id = c.cat_id
+                LEFT JOIN {MODULES_TABLE} m ON la.module_id = m.module_id
+                WHERE la.la_id = %s""",
+            (activity_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        if row is None:
+            return False, None, [], "Activity not found."
+
+        title, status, atype, category_name, module_name, lesson_name = row
+        blockers = []
+        if status == "Published":
+            blockers.append({"type": atype or "Activity", "title": title,
+                              "category": category_name, "module": module_name, "lesson": lesson_name})
+        return True, len(blockers) == 0, blockers, None
+    except Error as e:
+        print(f"manage_course: failed to check activity archive eligibility: {e}")
+        return False, None, [], f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def check_coding_exercise_archive_eligibility(exercise_id):
+    """
+    Task #123: Coding Exercises are leaf nodes with no children of
+    their own, so "published dependency" here just means the exercise
+    itself - it must be Draft before it can be archived.
+
+    Returns (success: bool, eligible: bool | None, blockers: list[dict], message: str | None)
+    """
+    if not exercise_id:
+        return False, None, [], "Exercise ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, None, [], "Could not connect to the database."
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"""SELECT ce.exercise_title, last.la_stats_name,
+                       c.category_name, m.module_name, lr.resource_title
+                FROM {CODING_EXERCISES_TABLE} ce
+                LEFT JOIN {LA_STATS_TABLE} last ON ce.exercise_stats_id = last.la_stats_id
+                LEFT JOIN {LEARNING_RESOURCES_TABLE} lr ON ce.resource_id = lr.resource_id
+                LEFT JOIN {CATEGORY_TABLE} c ON lr.cat_id = c.cat_id
+                LEFT JOIN {MODULES_TABLE} m ON lr.module_id = m.module_id
+                WHERE ce.exercise_id = %s""",
+            (exercise_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        if row is None:
+            return False, None, [], "Exercise not found."
+
+        title, status, category_name, module_name, lesson_name = row
+        blockers = []
+        if status == "Published":
+            blockers.append({"type": "Coding Exercise", "title": title,
+                              "category": category_name, "module": module_name, "lesson": lesson_name})
+        return True, len(blockers) == 0, blockers, None
+    except Error as e:
+        print(f"manage_course: failed to check coding exercise archive eligibility: {e}")
         return False, None, [], f"Database error: {e}"
     finally:
         if connection.is_connected():

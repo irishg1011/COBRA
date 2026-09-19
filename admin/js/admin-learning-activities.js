@@ -501,11 +501,22 @@
                 : "";
 
             const itemsHtml = activities.map((a) => `
-                <label class="archive-checklist-item">
-                    <input type="checkbox" class="archive-checklist-checkbox" value="${a.activity_id}">
+                <label class="archive-checklist-item${a.status === "Published" ? " archive-checklist-item-disabled" : ""}">
+                    <input type="checkbox" class="archive-checklist-checkbox" value="${a.activity_id}" ${a.status === "Published" ? "disabled" : ""}>
                     <span><i class="${ACTIVITY_TYPE_ICONS[a.activity_type] || 'fa-solid fa-file-lines'}"></i> ${escapeHtml(a.activity_type)}: ${escapeHtml(a.activity_title)}${a.status === "Published" ? ' <span style="color:#b45309; font-weight:600;">(Published)</span>' : ""}</span>
                 </label>
             `).join("");
+
+            // Task #123: universal Published-dependency rule - the whole
+            // Archive Selected action is disabled outright while ANY
+            // activity in this Lesson is Published, not just that one
+            // item's own checkbox. No bypass/confirm-anyway option.
+            const hasAnyBlocker = activities.some((a) => a.status === "Published");
+            const warningHtml = hasAnyBlocker
+                ? `<p style="margin: 0 0 14px; padding: 10px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">
+                       You must unpublish these items first before you can archive this parent record.
+                   </p>`
+                : "";
 
             overlay.innerHTML = `
                 <div class="content-preview-card" style="max-width: 460px;">
@@ -515,6 +526,7 @@
                     </div>
                     <div class="content-preview-body">
                         ${contextHtml}
+                        ${warningHtml}
                         <label class="archive-checklist-item archive-checklist-select-all">
                             <input type="checkbox" id="activityArchiveSelectAll">
                             <span><strong>Select all</strong></span>
@@ -523,7 +535,7 @@
                         <p id="activityArchiveValidationMsg" style="display:none; color:#dc2626; font-size:13px; margin: 10px 0 0;"></p>
                         <div style="margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px;">
                             <button type="button" class="modal-btn-cancel" id="activityArchiveCancelBtn">Cancel</button>
-                            <button type="button" class="modal-btn-save" id="activityArchiveConfirmBtn">Archive Selected</button>
+                            <button type="button" class="modal-btn-save" id="activityArchiveConfirmBtn" ${hasAnyBlocker ? "disabled" : ""}>Archive Selected</button>
                         </div>
                     </div>
                 </div>
@@ -539,7 +551,7 @@
             const checkboxes = Array.from(overlay.querySelectorAll(".archive-checklist-checkbox"));
             const validationMsg = overlay.querySelector("#activityArchiveValidationMsg");
             selectAll.addEventListener("change", () => {
-                checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+                checkboxes.filter((cb) => !cb.disabled).forEach((cb) => { cb.checked = selectAll.checked; });
             });
 
             async function performArchive(selectedIds) {
@@ -580,15 +592,16 @@
             }
 
             overlay.querySelector("#activityArchiveConfirmBtn").addEventListener("click", () => {
-                const selectedIds = checkboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+                // Task #123: no bypass anymore - the button itself is
+                // disabled outright (see hasAnyBlocker above) whenever
+                // any activity here is Published, and each Published
+                // checkbox is individually disabled too, so this only
+                // ever runs with Draft selections already guaranteed.
+                const selectedIds = checkboxes.filter((cb) => cb.checked && !cb.disabled).map((cb) => cb.value);
                 if (selectedIds.length === 0) {
                     // Task fix: this used to silently close the modal with
                     // no feedback at all when nothing was checked, which
                     // reads exactly like "the button doesn't do anything."
-                    // Shown INLINE (not a second stacked modal) since both
-                    // share the same overlay z-index and a second overlay
-                    // could otherwise render behind/on top of this one
-                    // unpredictably.
                     if (validationMsg) {
                         validationMsg.textContent = "Please select at least one activity to archive.";
                         validationMsg.style.display = "block";
@@ -596,27 +609,7 @@
                     return;
                 }
                 if (validationMsg) validationMsg.style.display = "none";
-
-                // Published-state interception, same rule as Edit: archiving
-                // Draft activities proceeds immediately; archiving anything
-                // currently Published requires an explicit confirm first.
-                // Closes THIS checklist before opening the shared confirm
-                // modal rather than stacking them - see the identical note
-                // in admin-resource-actions.js's own archive checklist for
-                // why (same z-index, same static-vs-dynamic DOM ordering
-                // issue).
-                const publishedSelections = activities.filter((a) => selectedIds.includes(String(a.activity_id)) && a.status === "Published");
-                if (publishedSelections.length > 0) {
-                    const names = publishedSelections.map((a) => a.activity_title).join(", ");
-                    closeModal();
-                    showConfirmModal(
-                        `You are about to archive published activities (${names}). Do you wish to continue?`,
-                        () => performArchive(selectedIds),
-                        "Archive Published Activities?"
-                    );
-                } else {
-                    performArchive(selectedIds);
-                }
+                performArchive(selectedIds);
             });
         }
 

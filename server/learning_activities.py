@@ -769,6 +769,22 @@ def archive_activity(activity_id):
             cursor.close()
             return False, "Learning activity not found."
 
+        # Task #123: backend-level guard, not just the frontend archive-
+        # check - a Published activity can never be archived directly.
+        cursor.execute(
+            f"""SELECT last.la_stats_name FROM {LEARNING_ACTIVITIES_TABLE} la
+                LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
+                WHERE la.la_id = %s""",
+            (aid,)
+        )
+        (current_status,) = cursor.fetchone()
+        if current_status == "Published":
+            cursor.close()
+            return False, (
+                "This activity is Published. You must unpublish it first "
+                "before you can archive it."
+            )
+
         cursor.execute(f"SELECT la_stats_id FROM {LA_STATS_TABLE} WHERE la_stats_name = 'Archived'")
         status_row = cursor.fetchone()
         if not status_row:

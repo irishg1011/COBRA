@@ -284,9 +284,14 @@ def archive_resource(resource_id):
     manage_course.archive_module()'s soft-delete convention for
     modules but scoped to learning_resources_tbl instead.
 
-    No parent-status gate is needed to archive (same as unpublishing) -
-    taking a resource out of the active list is always allowed
-    regardless of its own or its parent module's current status.
+    Task #123 UPDATE: this used to have no parent-status gate at all
+    ("always allowed regardless of status") - that's now superseded.
+    A resource can no longer be archived while it, its Video Tutorial,
+    any of its Activities, or any of its Coding Exercises is
+    Published; the admin must unpublish those first. This backend
+    check exists independently of the frontend's own archive-check
+    call (manage_course.check_resource_archive_eligibility()) so a
+    direct API call can never bypass it either.
 
     Returns (bool, str) - (success, message).
     """
@@ -301,12 +306,38 @@ def archive_resource(resource_id):
         ensure_lr_stats(connection)
         cursor = connection.cursor()
         cursor.execute(
-            f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
+            f"""SELECT lr.resource_id, lrs.lr_stats_name FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.resource_id = %s""",
             (resource_id,)
         )
-        if cursor.fetchone() is None:
+        row = cursor.fetchone()
+        if row is None:
             cursor.close()
             return False, "Resource not found."
+
+        if row[1] == "Published":
+            cursor.close()
+            return False, (
+                "This resource's Lesson Content is Published. You must "
+                "unpublish it first before you can archive it."
+            )
+
+        # Task #123: also blocks on a Published Video Tutorial,
+        # Activity, or Coding Exercise attached to this resource -
+        # reuses the SAME recursive check the frontend's archive-check
+        # route calls, imported lazily to avoid a circular import
+        # (manage_course.py doesn't import resource_publishing.py).
+        from manage_course import check_resource_archive_eligibility
+        success, eligible, blockers, message = check_resource_archive_eligibility(resource_id)
+        if success and not eligible:
+            cursor.close()
+            names = ", ".join(f"{b['title']} ({b['type']})" for b in blockers[:3])
+            more = f" and {len(blockers) - 3} more" if len(blockers) > 3 else ""
+            return False, (
+                f"This resource still has published content: {names}{more}. "
+                "You must unpublish these items first before you can archive this parent record."
+            )
 
         archived_id = get_archived_status_id(connection)
         if not archived_id:

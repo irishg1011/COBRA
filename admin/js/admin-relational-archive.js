@@ -137,9 +137,18 @@
                         return;
                     }
                     if (!result.eligible) {
-                        const list = (result.blockers || []).map((b) => `\u2022 ${b}`).join("\n");
+                        // Task #123: blockers are now structured objects
+                        // ({type, title, category, module, lesson}) with
+                        // full context, not plain strings - and the
+                        // wording here is the exact instruction the task
+                        // specifies. This is a hard block: no confirm is
+                        // ever offered while any blocker remains.
+                        const list = (result.blockers || [])
+                            .map((b) => `\u2022 ${b.title} (${b.type}, Published) \u2014 ${[b.category, b.module, b.lesson].filter((p) => p && p !== "\u2014").join(" \u203a ")}`)
+                            .join("\n");
                         showAlert(
-                            `Cannot archive this ${itemLabel} - the following connected item(s) are still Published:\n\n${list}\n\nPlease unpublish them first.`,
+                            `This ${itemLabel} still has published content:\n\n${list}\n\n` +
+                            `You must unpublish these items first before you can archive this parent record.`,
                             "Cannot Archive"
                         );
                         return;

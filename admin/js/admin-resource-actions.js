@@ -221,9 +221,28 @@
          * not a separate third archive action, just a shortcut for
          * checking everything shown.
          */
-        function openResourceArchiveChecklist(resourceId, videoTutorialId, resourceStatus, videoStatus, row) {
+        async function openResourceArchiveChecklist(resourceId, videoTutorialId, resourceStatus, videoStatus, row) {
             let overlay = document.getElementById("resourceArchiveModalOverlay");
             if (overlay) overlay.remove();
+
+            // Task #123: universal Published-dependency check - this now
+            // also catches Activities/Coding Exercises attached to the
+            // Lesson (a real gap before: only the Lesson's own status and
+            // its Video were ever considered). Fetched BEFORE the modal
+            // is built so "Archive Selected" can be correctly disabled
+            // from the moment it first renders, never after the fact.
+            let blockers = [];
+            try {
+                const checkResp = await fetch(`/admin/learning-resources/${resourceId}/archive-check`, { credentials: "include" });
+                const checkResult = await checkResp.json();
+                if (checkResult.success) blockers = checkResult.blockers || [];
+            } catch (err) {
+                // If the check itself fails, fall back to the two known
+                // statuses already on hand (row-level data) rather than
+                // silently allowing an unverified archive.
+                if (resourceStatus === "Published") blockers.push({ type: "Lesson Content", title: "This lesson", category: "", module: "", lesson: "" });
+                if (videoTutorialId && videoStatus === "Published") blockers.push({ type: "Video Tutorial", title: "Attached video", category: "", module: "", lesson: "" });
+            }
 
             const options = [
                 { key: "lesson", label: "Lesson Content", icon: "fa-regular fa-file-lines", status: resourceStatus },
@@ -233,11 +252,32 @@
             }
 
             const itemsHtml = options.map((o) => `
-                <label class="archive-checklist-item">
-                    <input type="checkbox" class="archive-checklist-checkbox" value="${o.key}">
+                <label class="archive-checklist-item${o.status === "Published" ? " archive-checklist-item-disabled" : ""}">
+                    <input type="checkbox" class="archive-checklist-checkbox" value="${o.key}" ${o.status === "Published" ? "disabled" : ""}>
                     <span><i class="${o.icon}"></i> ${escapeHtml(o.label)}${o.status === "Published" ? ' <span style="color:#b45309; font-weight:600;">(Published)</span>' : ""}</span>
                 </label>
             `).join("");
+
+            // Task #123: any blocker NOT already represented by the two
+            // checkbox options above (e.g. a Published Activity or
+            // Coding Exercise, which aren't archivable from this modal
+            // at all) still needs to be visible - shown as a read-only
+            // line, and it still fully disables Archive Selected.
+            const shownTypes = new Set(["Lesson Content", "Video Tutorial"]);
+            const extraBlockers = blockers.filter((b) => !shownTypes.has(b.type));
+            const extraBlockersHtml = extraBlockers.map((b) => `
+                <div class="archive-checklist-item archive-checklist-item-disabled">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:#b45309;"></i>
+                    <span>${escapeHtml(b.type)}: ${escapeHtml(b.title)} <span style="color:#b45309; font-weight:600;">(Published)</span></span>
+                </div>
+            `).join("");
+
+            const hasAnyBlocker = blockers.length > 0;
+            const warningHtml = hasAnyBlocker
+                ? `<p style="margin: 0 0 14px; padding: 10px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">
+                       You must unpublish these items first before you can archive this parent record.
+                   </p>`
+                : "";
 
             // Task #120: Lesson/Category context, read straight from this
             // row's own cells (Resource, Content, Category, in that column
@@ -257,23 +297,24 @@
             overlay.id = "resourceArchiveModalOverlay";
             overlay.className = "modal-overlay";
             overlay.innerHTML = `
-                <div class="content-preview-card" style="max-width: 420px;">
+                <div class="content-preview-card" style="max-width: 440px;">
                     <div class="content-preview-header">
                         <strong>Archive which content?</strong>
                         <button type="button" id="resourceArchiveCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
                     </div>
                     <div class="content-preview-body">
                         ${contextHtml}
+                        ${warningHtml}
                         ${options.length > 1 ? `
                         <label class="archive-checklist-item archive-checklist-select-all">
                             <input type="checkbox" id="resourceArchiveSelectAll">
                             <span><strong>All</strong></span>
                         </label>` : ""}
                         ${itemsHtml}
+                        ${extraBlockersHtml}
                         <div style="margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px;">
                             <button type="button" class="modal-btn-cancel" id="resourceArchiveCancelBtn">Cancel</button>
-                            <button type="button" class="modal-btn-save" id="resourceArchiveConfirmBtn">Archive Selected</button>
-
+                            <button type="button" class="modal-btn-save" id="resourceArchiveConfirmBtn" ${hasAnyBlocker ? "disabled" : ""}>Archive Selected</button>
                         </div>
                     </div>
                 </div>
@@ -289,7 +330,7 @@
             const checkboxes = Array.from(overlay.querySelectorAll(".archive-checklist-checkbox"));
             if (selectAll) {
                 selectAll.addEventListener("change", () => {
-                    checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+                    checkboxes.filter((cb) => !cb.disabled).forEach((cb) => { cb.checked = selectAll.checked; });
                 });
             }
 
@@ -327,35 +368,18 @@
                 }
             }
 
+            // Task #123: NO bypass anymore - "Archive Selected" is
+            // disabled outright (see hasAnyBlocker above) whenever any
+            // blocker exists, and each Published checkbox is itself
+            // disabled, so this handler only ever runs with Draft
+            // selections already guaranteed.
             overlay.querySelector("#resourceArchiveConfirmBtn").addEventListener("click", () => {
-                const selectedKeys = checkboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+                const selectedKeys = checkboxes.filter((cb) => cb.checked && !cb.disabled).map((cb) => cb.value);
                 if (selectedKeys.length === 0) {
                     closeModal();
                     return;
                 }
-
-                // Published-state interception, same rule as Edit: archiving
-                // Draft content proceeds immediately; archiving anything
-                // currently Published requires an explicit confirm first.
-                // Task fix: closes THIS checklist overlay before opening
-                // the shared confirm modal, rather than stacking them -
-                // both use the same .modal-overlay z-index, and since
-                // #confirmActionModal is a static element already in the
-                // DOM at page load while this checklist is appended later
-                // at runtime, the checklist would otherwise always paint
-                // on top and silently hide the confirm dialog underneath it.
-                const publishedSelections = options.filter((o) => selectedKeys.includes(o.key) && o.status === "Published");
-                if (publishedSelections.length > 0) {
-                    const names = publishedSelections.map((o) => o.label).join(" and ");
-                    closeModal();
-                    showConfirmModal(
-                        `You are about to archive published content (${names}). Do you wish to continue?`,
-                        () => performArchive(selectedKeys),
-                        "Archive Published Content?"
-                    );
-                } else {
-                    performArchive(selectedKeys);
-                }
+                performArchive(selectedKeys);
             });
         }
 

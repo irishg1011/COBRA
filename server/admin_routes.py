@@ -34,6 +34,7 @@ from manage_course import (
     archive_category, restore_category, permanently_delete_category, get_archived_categories,  # NEW - Task #87: Unified Archives
     publish_module, unpublish_module,  # NEW - Task #90: Module Publish/Unpublish
     check_module_archive_eligibility, check_category_archive_eligibility,  # NEW: fixes admin-relational-archive.js's pre-existing missing archive-check routes
+    check_resource_archive_eligibility, check_activity_archive_eligibility, check_coding_exercise_archive_eligibility,  # NEW (Task #123): universal Published-dependency check
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -1816,6 +1817,20 @@ def unpublish_learning_resource(resource_id):
 # ============================================================
 # Task #81: ARCHIVE A LEARNING RESOURCE (ACTIONS column)
 # ============================================================
+@admin_bp.route('/learning-resources/<int:resource_id>/archive-check')
+def learning_resource_archive_check(resource_id):
+    """
+    Task #123: backs the universal Published-dependency check for the
+    Manage Learning Resources Archive checklist - now checks the
+    Lesson's own status AND its Video Tutorial/Activities/Coding
+    Exercises (previously only Video Tutorial was ever considered).
+    """
+    success, eligible, blockers, message = check_resource_archive_eligibility(resource_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
+
+
 @admin_bp.route('/learning-resources/<int:resource_id>/archive', methods=['POST'])
 def archive_learning_resource(resource_id):
     """
@@ -2010,6 +2025,15 @@ def learning_activities_preview():
     resource_id = request.args.get('resource_id', '')
     activities = get_activities_for_resource(resource_id) if resource_id else []
     return jsonify({"success": True, "activities": activities}), 200
+
+
+@admin_bp.route('/learning-activities/<int:activity_id>/archive-check')
+def learning_activity_archive_check(activity_id):
+    """Task #123: universal Published-dependency check for a single Learning Activity (a leaf node - self-status only)."""
+    success, eligible, blockers, message = check_activity_archive_eligibility(activity_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
 
 
 @admin_bp.route('/learning-activities/<int:activity_id>/archive', methods=['POST'])
@@ -2274,6 +2298,15 @@ def permanently_delete_coding_exercise_route(exercise_id):
 # ============================================================
 # ROUTE: ARCHIVE CODING EXERCISE
 # ============================================================
+@admin_bp.route('/coding-exercises/<int:exercise_id>/archive-check')
+def coding_exercise_archive_check(exercise_id):
+    """Task #123: universal Published-dependency check for a single Coding Exercise (a leaf node - self-status only)."""
+    success, eligible, blockers, message = check_coding_exercise_archive_eligibility(exercise_id)
+    if not success:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, "eligible": eligible, "blockers": blockers}), 200
+
+
 @admin_bp.route('/coding-exercises/<int:exercise_id>/archive', methods=['POST'])
 def archive_coding_exercise(exercise_id):
     """

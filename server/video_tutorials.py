@@ -500,6 +500,23 @@ def archive_video_tutorial(video_tutorial_id):
             cursor.close()
             return False, "Video tutorial not found."
 
+        # Task #123: backend-level guard - a Published video can never
+        # be archived directly, matching the same rule enforced
+        # everywhere else in this admin.
+        cursor.execute(
+            f"""SELECT vts.la_stats_name FROM {VIDEO_TUTORIALS_TABLE} vt
+                LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
+                WHERE vt.video_tutorial_id = %s""",
+            (vid,)
+        )
+        (current_status,) = cursor.fetchone()
+        if current_status == "Published":
+            cursor.close()
+            return False, (
+                "This video tutorial is Published. You must unpublish it "
+                "first before you can archive it."
+            )
+
         status_id = _get_status_id(connection, "Archived")
         if not status_id:
             cursor.close()

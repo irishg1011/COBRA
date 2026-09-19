@@ -204,13 +204,37 @@
         });
 
         // Task #112: Archive Coding Exercise Click Handler
-        tableBody.addEventListener("click", (e) => {
+        tableBody.addEventListener("click", async (e) => {
             const archiveBtn = e.target.closest(".js-archive-exercise-btn");
             if (!archiveBtn) return;
             e.preventDefault();
 
             const exerciseId = archiveBtn.dataset.exerciseId;
             if (!exerciseId) return;
+
+            // Task #123: universal Published-dependency check - a
+            // Coding Exercise is a leaf node (no children), so this is
+            // just a self-status check, but it's still done BEFORE
+            // ever showing the confirm dialog, exactly like every other
+            // area's archive-check. Hard block, no bypass.
+            try {
+                const checkResp = await fetch(`/admin/coding-exercises/${exerciseId}/archive-check`, { credentials: "include" });
+                const checkResult = await checkResp.json();
+                if (!checkResult.success) {
+                    showAlertModal(checkResult.message || "Could not verify this exercise's status.", "Error");
+                    return;
+                }
+                if (!checkResult.eligible) {
+                    showAlertModal(
+                        "This exercise is Published. You must unpublish it first before you can archive it.",
+                        "Cannot Archive"
+                    );
+                    return;
+                }
+            } catch (err) {
+                showAlertModal("Could not reach the server. Please try again.", "Error");
+                return;
+            }
 
             const confirmMsg = "Are you sure you want to archive this coding exercise? It will be removed from active use, but its content is preserved.";
             const confirmTitle = "Archive Coding Exercise?";
