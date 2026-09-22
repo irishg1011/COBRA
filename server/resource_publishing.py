@@ -365,9 +365,12 @@ def mark_ready_to_publish_resource(resource_id):
     """
     Task #publishing-schema: flips a resource's status to "Ready to
     Publish" - the queue the new Publishing page's Ready to Publish tab
-    reads from. Unlike publish_resource(), this never checks the parent
-    module's status - queueing something as ready doesn't make it live,
-    so there's nothing to gate here.
+    reads from.
+
+    Task #10 gate: a lesson can only queue as Ready to Publish if its
+    parent MODULE has itself already left Draft (i.e. is "Ready to
+    Publish" or "Published") - a child should never sit further along
+    the pipeline than its own parent.
 
     Returns (bool, str) - (success, message).
     """
@@ -380,14 +383,19 @@ def mark_ready_to_publish_resource(resource_id):
 
     try:
         ensure_lr_stats(connection)
-        cursor = connection.cursor()
-        cursor.execute(
-            f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
-            (resource_id,)
-        )
-        if cursor.fetchone() is None:
-            cursor.close()
+        parent = _get_resource_with_parent_status(connection, resource_id)
+        if parent is None:
             return False, "Resource not found."
+
+        module_status = parent.get("module_stats_name") or "Draft"
+        if module_status not in ("Ready to Publish", "Published"):
+            module_label = parent.get("module_name") or "its parent module"
+            return False, (
+                f"Cannot mark this resource Ready to Publish - {module_label} is still "
+                f"in Draft status. Mark the parent module Ready to Publish first."
+            )
+
+        cursor = connection.cursor()
 
         ready_id = get_ready_to_publish_status_id(connection)
         if not ready_id:

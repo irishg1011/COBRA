@@ -287,9 +287,12 @@ def mark_ready_to_publish_activity(activity_id):
     """
     Task #publishing-schema: flips a learning activity's status to
     "Ready to Publish" - the queue the new Publishing page's Ready to
-    Publish tab reads from. Unlike publish_activity(), this never
-    checks the parent module's status - queueing something as ready
-    doesn't make it live, so there's nothing to gate here.
+    Publish tab reads from.
+
+    Task #10 gate: an activity can only queue as Ready to Publish if
+    its parent LESSON has itself already left Draft (i.e. is "Ready to
+    Publish" or "Published") - a child should never sit further along
+    the pipeline than its own parent.
 
     Returns (bool, str) - (success, message).
     """
@@ -305,12 +308,27 @@ def mark_ready_to_publish_activity(activity_id):
         cursor = connection.cursor()
 
         cursor.execute(
-            f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
+            f"""
+            SELECT la.la_id, lr.resource_id, lrs.lr_stats_name
+            FROM {LEARNING_ACTIVITIES_TABLE} la
+            LEFT JOIN learning_resources_tbl lr ON la.resource_id = lr.resource_id
+            LEFT JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            WHERE la.la_id = %s
+            """,
             (activity_id,)
         )
-        if cursor.fetchone() is None:
+        row = cursor.fetchone()
+        if row is None:
             cursor.close()
             return False, "Learning activity not found."
+
+        lesson_status = row[2] or "Draft"
+        if lesson_status not in ("Ready to Publish", "Published"):
+            cursor.close()
+            return False, (
+                f"Cannot mark this activity Ready to Publish - its parent lesson is still "
+                f"in Draft status. Mark the parent lesson Ready to Publish first."
+            )
 
         ready_id = get_ready_to_publish_status_id(connection)
         if not ready_id:

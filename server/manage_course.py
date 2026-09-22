@@ -997,8 +997,12 @@ def mark_module_ready_to_publish(module_id):
     """
     Task #publishing-schema: flips a module's status to "Ready to
     Publish" - the queue the new Publishing page's Ready to Publish tab
-    reads from. Unlike publish_module(), this is never a live status
-    change, so nothing here needs gating.
+    reads from.
+
+    Task #10 gate: a module can only queue as Ready to Publish if its
+    parent CATEGORY has itself already left Draft (i.e. is "Ready to
+    Publish" or "Published") - a child should never be able to sit
+    further along the pipeline than its own parent.
     """
     if not module_id:
         return False, "Module ID is required."
@@ -1009,7 +1013,29 @@ def mark_module_ready_to_publish(module_id):
 
     try:
         ensure_module_stats(connection)
+        ensure_category_stats_id_column(connection)
         cursor = connection.cursor()
+
+        cursor.execute(
+            f"""SELECT COALESCE(cs.cat_stats_name, 'Draft')
+                FROM {MODULES_TABLE} m
+                LEFT JOIN {CATEGORY_TABLE} c ON m.cat_id = c.cat_id
+                LEFT JOIN {CATEGORY_STATS_TABLE} cs ON c.cat_stats_id = cs.cat_stats_id
+                WHERE m.module_id = %s""",
+            (module_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Module not found."
+
+        category_status = row[0]
+        if category_status not in ("Ready to Publish", "Published"):
+            cursor.close()
+            return False, (
+                f"Cannot mark this module Ready to Publish - its parent category is still "
+                f"in Draft status. Mark the parent category Ready to Publish first."
+            )
 
         cursor.execute(
             f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Ready to Publish' LIMIT 1"

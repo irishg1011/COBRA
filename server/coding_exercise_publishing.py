@@ -196,9 +196,12 @@ def mark_ready_to_publish_exercise(exercise_id):
     """
     Task #publishing-schema: flips a coding exercise's status to "Ready
     to Publish" - the queue the new Publishing page's Ready to Publish
-    tab reads from. Unlike publish_exercise(), this never checks the
-    parent module's status - queueing something as ready doesn't make
-    it live, so there's nothing to gate here.
+    tab reads from.
+
+    Task #10 gate: an exercise can only queue as Ready to Publish if
+    its parent LESSON has itself already left Draft (i.e. is "Ready to
+    Publish" or "Published") - a child should never sit further along
+    the pipeline than its own parent.
 
     Returns (bool, str) - (success, message).
     """
@@ -214,12 +217,27 @@ def mark_ready_to_publish_exercise(exercise_id):
         cursor = connection.cursor()
 
         cursor.execute(
-            f"SELECT exercise_id FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
+            f"""
+            SELECT ce.exercise_id, lr.resource_id, lrs.lr_stats_name
+            FROM {CODING_EXERCISES_TABLE} ce
+            LEFT JOIN learning_resources_tbl lr ON ce.resource_id = lr.resource_id
+            LEFT JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            WHERE ce.exercise_id = %s
+            """,
             (exercise_id,)
         )
-        if cursor.fetchone() is None:
+        row = cursor.fetchone()
+        if row is None:
             cursor.close()
             return False, "Coding exercise not found."
+
+        lesson_status = row[2] or "Draft"
+        if lesson_status not in ("Ready to Publish", "Published"):
+            cursor.close()
+            return False, (
+                f"Cannot mark this exercise Ready to Publish - its parent lesson is still "
+                f"in Draft status. Mark the parent lesson Ready to Publish first."
+            )
 
         ready_id = get_ready_to_publish_status_id(connection)
         if not ready_id:
