@@ -139,6 +139,8 @@
                                 <td class="js-status-cell">
                                     {% if lesson.status == 'Published' %}
                                     <span class="badge badge-active">{{ lesson.status }}</span>
+                                    {% elif lesson.status == 'Ready to Publish' %}
+                                    <span class="badge badge-ready">{{ lesson.status }}</span>
                                     {% else %}
                                     <span class="badge badge-draft">{{ lesson.status }}</span>
                                     {% endif %}
@@ -152,13 +154,13 @@
                                     </div>
                                 </td>
                                 <td class="text-right publish-status-column">
-                                    <button type="button"
-                                            class="btn {{ 'btn-unpublish-custom' if lesson.status == 'Published' else 'btn-success-custom' }} js-toggle-lesson-activities-publish-btn"
-                                            data-resource-id="{{ lesson.resource_id }}"
-                                            data-status="{{ lesson.status }}"
-                                            data-module-status="{{ lesson.module_status }}">
-                                        {{ 'Unpublish' if lesson.status == 'Published' else 'Publish' }}
-                                    </button>
+                                    {% if lesson.status == 'Published' %}
+                                    <button type="button" class="btn btn-unpublish-custom js-toggle-lesson-activities-publish-btn" data-resource-id="{{ lesson.resource_id }}" data-status="{{ lesson.status }}" data-module-status="{{ lesson.module_status }}">Unpublish</button>
+                                    {% elif lesson.status == 'Ready to Publish' %}
+                                    <button type="button" class="btn btn-movedraft-custom js-toggle-lesson-activities-publish-btn" data-resource-id="{{ lesson.resource_id }}" data-status="{{ lesson.status }}" data-module-status="{{ lesson.module_status }}">Move to Draft</button>
+                                    {% else %}
+                                    <button type="button" class="btn btn-ready-custom js-toggle-lesson-activities-publish-btn" data-resource-id="{{ lesson.resource_id }}" data-status="{{ lesson.status }}" data-module-status="{{ lesson.module_status }}">Ready to Publish</button>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% else %}

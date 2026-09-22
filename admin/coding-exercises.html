@@ -119,6 +119,8 @@
                                     <span class="badge badge-active">{{ exercise.status }}</span>
                                     {% elif exercise.status == 'Archived' %}
                                     <span class="badge badge-inactive">{{ exercise.status }}</span>
+                                    {% elif exercise.status == 'Ready to Publish' %}
+                                    <span class="badge badge-ready">{{ exercise.status }}</span>
                                     {% else %}
                                     <span class="badge badge-draft">{{ exercise.status }}</span>
                                     {% endif %}
@@ -137,13 +139,13 @@
                                     </div>
                                 </td>
                                 <td class="text-right publish-status-column">
-                                    <button type="button"
-                                            class="btn {{ 'btn-unpublish-custom' if exercise.status == 'Published' else 'btn-success-custom' }} js-toggle-exercise-publish-btn"
-                                            data-exercise-id="{{ exercise.exercise_id }}"
-                                            data-status="{{ exercise.status }}"
-                                            data-module-status="{{ exercise.module_status }}">
-                                        {{ 'Unpublish' if exercise.status == 'Published' else 'Publish' }}
-                                    </button>
+                                    {% if exercise.status == 'Published' %}
+                                    <button type="button" class="btn btn-unpublish-custom js-toggle-exercise-publish-btn" data-exercise-id="{{ exercise.exercise_id }}" data-status="{{ exercise.status }}" data-module-status="{{ exercise.module_status }}">Unpublish</button>
+                                    {% elif exercise.status == 'Ready to Publish' %}
+                                    <button type="button" class="btn btn-movedraft-custom js-toggle-exercise-publish-btn" data-exercise-id="{{ exercise.exercise_id }}" data-status="{{ exercise.status }}" data-module-status="{{ exercise.module_status }}">Move to Draft</button>
+                                    {% else %}
+                                    <button type="button" class="btn btn-ready-custom js-toggle-exercise-publish-btn" data-exercise-id="{{ exercise.exercise_id }}" data-status="{{ exercise.status }}" data-module-status="{{ exercise.module_status }}">Ready to Publish</button>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% else %}

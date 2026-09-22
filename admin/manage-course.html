@@ -157,12 +157,13 @@
                                     </div>
                                 </td>
                                 <td class="text-right">
-                                    <button type="button"
-                                            class="btn {{ 'btn-unpublish-custom' if module.status == 'Published' else 'btn-success-custom' }} js-toggle-publish-module-btn"
-                                            data-module-id="{{ module.module_id }}"
-                                            data-status="{{ module.status }}">
-                                        {{ 'Unpublish' if module.status == 'Published' else 'Publish' }}
-                                    </button>
+                                    {% if module.status == 'Published' %}
+                                    <button type="button" class="btn btn-unpublish-custom js-toggle-publish-module-btn" data-module-id="{{ module.module_id }}" data-status="{{ module.status }}">Unpublish</button>
+                                    {% elif module.status == 'Ready to Publish' %}
+                                    <button type="button" class="btn btn-movedraft-custom js-toggle-publish-module-btn" data-module-id="{{ module.module_id }}" data-status="{{ module.status }}">Move to Draft</button>
+                                    {% else %}
+                                    <button type="button" class="btn btn-ready-custom js-toggle-publish-module-btn" data-module-id="{{ module.module_id }}" data-status="{{ module.status }}">Ready to Publish</button>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% else %}

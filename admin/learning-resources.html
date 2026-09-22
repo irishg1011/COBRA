@@ -167,7 +167,13 @@
                                     or re-fetching the whole row.
                                 -->
                                 <td class="text-muted js-status-cell">
-                                    <span class="badge {{ 'badge-active' if resource.status == 'Published' else 'badge-draft' }}">{{ resource.status }}</span>
+                                    {% if resource.status == 'Published' %}
+                                    <span class="badge badge-active">{{ resource.status }}</span>
+                                    {% elif resource.status == 'Ready to Publish' %}
+                                    <span class="badge badge-ready">{{ resource.status }}</span>
+                                    {% else %}
+                                    <span class="badge badge-draft">{{ resource.status }}</span>
+                                    {% endif %}
                                 </td>
                                 <td class="text-muted">{{ resource.created_at }}</td>
                                 <td class="text-muted">{{ resource.updated_at }}</td>
@@ -223,13 +229,13 @@
                                     authoritatively regardless.
                                 -->
                                 <td class="text-right">
-                                    <button type="button"
-                                            class="btn {{ 'btn-unpublish-custom' if resource.status == 'Published' else 'btn-success-custom' }} js-toggle-publish-btn"
-                                            data-resource-id="{{ resource.resource_id }}"
-                                            data-status="{{ resource.status }}"
-                                            data-module-status="{{ resource.module_status }}">
-                                        {{ 'Unpublish' if resource.status == 'Published' else 'Publish' }}
-                                    </button>
+                                    {% if resource.status == 'Published' %}
+                                    <button type="button" class="btn btn-unpublish-custom js-toggle-publish-btn" data-resource-id="{{ resource.resource_id }}" data-status="{{ resource.status }}" data-module-status="{{ resource.module_status }}">Unpublish</button>
+                                    {% elif resource.status == 'Ready to Publish' %}
+                                    <button type="button" class="btn btn-movedraft-custom js-toggle-publish-btn" data-resource-id="{{ resource.resource_id }}" data-status="{{ resource.status }}" data-module-status="{{ resource.module_status }}">Move to Draft</button>
+                                    {% else %}
+                                    <button type="button" class="btn btn-ready-custom js-toggle-publish-btn" data-resource-id="{{ resource.resource_id }}" data-status="{{ resource.status }}" data-module-status="{{ resource.module_status }}">Ready to Publish</button>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% else %}
