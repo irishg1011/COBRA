@@ -238,7 +238,15 @@
         }
 
         function matchesTab(node) {
-            if (editOrder) return true;
+            if (editOrder) {
+                // Task: Edit Order shows Ready to Publish + Published
+                // combined, Draft excluded - never the whole tree.
+                if (node.status && node.status !== "Draft") return true;
+                if (node.children && node.children.some(matchesTab)) return true;
+                if (node.activities && node.activities.some((a) => a.status !== "Draft")) return true;
+                if (node.exercises && node.exercises.some((e) => e.status !== "Draft")) return true;
+                return false;
+            }
             const wanted = activeTab === "ready" ? "Ready to Publish" : "Published";
             if (node.status === wanted) return true;
             if (node.children && node.children.some(matchesTab)) return true;
