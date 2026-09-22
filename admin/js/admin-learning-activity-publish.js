@@ -137,15 +137,16 @@
         }
 
         function statusBadgeHtml(status) {
-            const normalized = (status || "").toLowerCase();
-            const cls = normalized === "published" ? "badge-active" : "badge-draft";
-            return `<span class="badge ${cls}">${escapeHtml(status || "Draft")}</span>`;
+            if (status === "Published") return `<span class="badge badge-active">${escapeHtml(status)}</span>`;
+            if (status === "Ready to Publish") return `<span class="badge badge-ready">${escapeHtml(status)}</span>`;
+            return `<span class="badge badge-draft">${escapeHtml(status || "Draft")}</span>`;
         }
 
         function publishButtonHtml(activityId, status, moduleStatus) {
-            const isPublished = status === "Published";
-            const label = isPublished ? "Unpublish" : "Publish";
-            const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+            let label, btnClass;
+            if (status === "Published") { label = "Unpublish"; btnClass = "btn-unpublish-custom"; }
+            else if (status === "Ready to Publish") { label = "Move to Draft"; btnClass = "btn-movedraft-custom"; }
+            else { label = "Ready to Publish"; btnClass = "btn-ready-custom"; }
             return `
                 <button type="button"
                         class="btn ${btnClass} js-toggle-activity-publish-btn"
@@ -169,33 +170,29 @@
 
             const activityId = btn.dataset.activityId;
             const currentStatus = btn.dataset.status || "Draft";
-            const moduleStatus = btn.dataset.moduleStatus || "";
-            const isPublished = currentStatus === "Published";
 
-            if (!isPublished) {
-                if (moduleStatus && moduleStatus !== "Published") {
-                    showAlertModal(
-                        `Cannot publish this activity - its parent module is still in ` +
-                        `${moduleStatus} status. Publish the parent module first.`,
-                        "Cannot Publish"
-                    );
-                    return;
-                }
+            let endpoint, confirmMsg, confirmTitle, busyText;
+            if (currentStatus === "Published") {
+                endpoint = `/admin/learning-activities/${activityId}/unpublish`;
+                confirmMsg = "Are you sure you want to unpublish this learning activity? It will be moved back to Draft and hidden from learners.";
+                confirmTitle = "Unpublish Activity?";
+                busyText = "Unpublishing...";
+            } else if (currentStatus === "Ready to Publish") {
+                endpoint = `/admin/learning-activities/${activityId}/unpublish`;
+                confirmMsg = "Are you sure you want to move this activity back to Draft?";
+                confirmTitle = "Move to Draft?";
+                busyText = "Moving to Draft...";
+            } else {
+                endpoint = `/admin/learning-activities/${activityId}/ready-to-publish`;
+                confirmMsg = "Are you sure you want to mark this activity as Ready to Publish?";
+                confirmTitle = "Ready to Publish?";
+                busyText = "Marking Ready...";
             }
 
-            const confirmMsg = isPublished
-                ? "Are you sure you want to unpublish this learning activity? It will be moved back to Draft and hidden from learners."
-                : "Are you sure you want to publish this learning activity? It will become visible to learners.";
-            const confirmTitle = isPublished ? "Unpublish Activity?" : "Publish Activity?";
-
             showConfirmModal(confirmMsg, async () => {
-                const endpoint = isPublished
-                    ? `/admin/learning-activities/${activityId}/unpublish`
-                    : `/admin/learning-activities/${activityId}/publish`;
-
                 btn.disabled = true;
                 const originalText = btn.textContent;
-                btn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+                btn.textContent = busyText;
 
                 try {
                     const response = await fetch(endpoint, {
@@ -205,31 +202,30 @@
                     const result = await response.json();
 
                     if (!result.success) {
-                        showAlertModal(result.message || "Could not update this activity's status.", "Cannot Publish");
+                        showAlertModal(result.message || "Could not update this activity's status.", "Error");
                         btn.disabled = false;
                         btn.textContent = originalText;
                         return;
                     }
 
-                    const newStatus = isPublished ? "Draft" : "Published";
+                    const newStatus = currentStatus === "Draft" ? "Ready to Publish" : "Draft";
 
-                    // Toggle the button itself into its new state.
                     btn.dataset.status = newStatus;
-                    btn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
-                    btn.classList.remove("btn-success-custom", "btn-unpublish-custom");
-                    btn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                    let newLabel, newClass;
+                    if (newStatus === "Ready to Publish") { newLabel = "Move to Draft"; newClass = "btn-movedraft-custom"; }
+                    else { newLabel = "Ready to Publish"; newClass = "btn-ready-custom"; }
+                    btn.textContent = newLabel;
+                    btn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-ready-custom", "btn-movedraft-custom");
+                    btn.classList.add(newClass);
                     btn.disabled = false;
 
-                    // Update this row's Status badge cell in place.
                     const row = btn.closest("tr");
                     const statusCell = row ? row.querySelector(".js-status-cell") : null;
                     if (statusCell) {
                         statusCell.innerHTML = statusBadgeHtml(newStatus);
                     }
 
-                    showSuccessToast(
-                        result.message || (newStatus === "Published" ? "Activity published successfully." : "Activity moved back to Draft.")
-                    );
+                    showSuccessToast(result.message || "Status updated.");
                 } catch (err) {
                     showAlertModal("Could not reach the server. Please try again.", "Error");
                     btn.disabled = false;

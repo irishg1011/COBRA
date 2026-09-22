@@ -69,6 +69,7 @@
 
     function statusBadgeHtml(status) {
         const cls = status === "Published" ? "badge-success-log"
+            : status === "Ready to Publish" ? "badge-ready"
             : status === "Draft" ? "badge-draft" : "badge-inactive";
         return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
     }
@@ -140,9 +141,10 @@
 
 
     function publishButtonHtml(moduleId, status) {
-        const isPublished = status === "Published";
-        const label = isPublished ? "Unpublish" : "Publish";
-        const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+        let label, btnClass;
+        if (status === "Published") { label = "Unpublish"; btnClass = "btn-unpublish-custom"; }
+        else if (status === "Ready to Publish") { label = "Move to Draft"; btnClass = "btn-movedraft-custom"; }
+        else { label = "Ready to Publish"; btnClass = "btn-ready-custom"; }
         return `
             <button type="button"
                     class="btn ${btnClass} js-toggle-publish-module-btn"
@@ -150,6 +152,14 @@
                     data-status="${escapeHtml(status || "Draft")}">
                 ${label}
             </button>`;
+    }
+
+    function categoryPublishButtonHtml(catId, status) {
+        let label, btnClass;
+        if (status === "Published") { label = "Unpublish"; btnClass = "btn-unpublish-custom"; }
+        else if (status === "Ready to Publish") { label = "Move to Draft"; btnClass = "btn-movedraft-custom"; }
+        else { label = "Ready to Publish"; btnClass = "btn-ready-custom"; }
+        return `<button type="button" class="btn ${btnClass} js-cat-publish-action" style="padding:6px 12px; font-size:12px;" data-cat-id="${catId}" data-status="${escapeHtml(status || "Draft")}">${label}</button>`;
     }
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -410,23 +420,31 @@
                     e.preventDefault();
                     const id = togglePublishBtn.dataset.moduleId;
                     const currentStatus = togglePublishBtn.dataset.status || "Draft";
-                    const isPublished = currentStatus === "Published";
 
-                    const promptMsg = isPublished
-                        ? "Are you sure you want to unpublish this module? It will be moved back to Draft and hidden from learners."
-                        : "Are you sure you want to publish this module? It will become visible to learners.";
-                    const promptTitle = isPublished ? "Unpublish Module?" : "Publish Module?";
+                    let endpoint, promptMsg, promptTitle, busyText;
+                    if (currentStatus === "Published") {
+                        endpoint = `/admin/manage-course/modules/${id}/unpublish`;
+                        promptMsg = "Are you sure you want to unpublish this module? It will be moved back to Draft and hidden from learners.";
+                        promptTitle = "Unpublish Module?";
+                        busyText = "Unpublishing...";
+                    } else if (currentStatus === "Ready to Publish") {
+                        endpoint = `/admin/manage-course/modules/${id}/unpublish`;
+                        promptMsg = "Are you sure you want to move this module back to Draft?";
+                        promptTitle = "Move to Draft?";
+                        busyText = "Moving to Draft...";
+                    } else {
+                        endpoint = `/admin/manage-course/modules/${id}/ready-to-publish`;
+                        promptMsg = "Are you sure you want to mark this module as Ready to Publish?";
+                        promptTitle = "Ready to Publish?";
+                        busyText = "Marking Ready...";
+                    }
 
                     showConfirmModal(promptMsg, async () => {
                         togglePublishBtn.disabled = true;
                         const originalText = togglePublishBtn.textContent;
-                        togglePublishBtn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+                        togglePublishBtn.textContent = busyText;
 
                         try {
-                            const endpoint = isPublished
-                                ? `/admin/manage-course/modules/${id}/unpublish`
-                                : `/admin/manage-course/modules/${id}/publish`;
-
                             const resp = await fetch(endpoint, { method: "POST", credentials: "include" });
                             const result = await resp.json();
 
@@ -437,11 +455,14 @@
                                 return;
                             }
 
-                            const newStatus = isPublished ? "Draft" : "Published";
+                            const newStatus = currentStatus === "Draft" ? "Ready to Publish" : "Draft";
                             togglePublishBtn.dataset.status = newStatus;
-                            togglePublishBtn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
-                            togglePublishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom");
-                            togglePublishBtn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                            let newLabel, newClass;
+                            if (newStatus === "Ready to Publish") { newLabel = "Move to Draft"; newClass = "btn-movedraft-custom"; }
+                            else { newLabel = "Ready to Publish"; newClass = "btn-ready-custom"; }
+                            togglePublishBtn.textContent = newLabel;
+                            togglePublishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-ready-custom", "btn-movedraft-custom");
+                            togglePublishBtn.classList.add(newClass);
                             togglePublishBtn.disabled = false;
 
                             const row = togglePublishBtn.closest("tr");
@@ -728,7 +749,9 @@
                     <div class="category-accordion-toggle">
                         <i class="fa-solid ${idx === 0 ? 'fa-chevron-down' : 'fa-chevron-right'} toggle-arrow"></i>
                         <span class="category-name">${escapeHtml(cat.category_name)}</span>
-                        <span class="module-row-actions js-cat-actions" style="margin-left:auto; display:flex; gap:10px;">
+                        <span class="badge ${cat.status_name === 'Published' ? 'badge-success-log' : (cat.status_name === 'Ready to Publish' ? 'badge-ready' : 'badge-draft')}" style="margin-left:10px;">${escapeHtml(cat.status_name || 'Draft')}</span>
+                        <span class="module-row-actions js-cat-actions" style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+                            ${categoryPublishButtonHtml(cat.cat_id, cat.status_name)}
                             <i class="fa-solid fa-square-plus js-add-module-to-category" title="Add Module"></i>
                             <i class="fa-solid fa-pen-to-square js-edit-category" title="Rename"></i>
                             <i class="fa-solid fa-trash js-delete-category" title="Archive Category"></i>
@@ -805,6 +828,38 @@
                     const item = icon.closest(".category-accordion-item");
                     const catId = item.dataset.catId;
                     openCreateModule(catId);
+                });
+            });
+
+            categoriesListView.querySelectorAll(".js-cat-publish-action").forEach(btn => {
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const catId = btn.dataset.catId;
+                    const currentStatus = btn.dataset.status || "Draft";
+
+                    let endpoint, confirmMsg, confirmTitle;
+                    if (currentStatus === "Draft") {
+                        endpoint = `/admin/manage-course/categories/${catId}/ready-to-publish`;
+                        confirmMsg = "Are you sure you want to mark this category as Ready to Publish?";
+                        confirmTitle = "Ready to Publish?";
+                    } else {
+                        endpoint = `/admin/manage-course/categories/${catId}/move-to-draft`;
+                        confirmMsg = currentStatus === "Published"
+                            ? "Are you sure you want to unpublish this category? It will be moved back to Draft."
+                            : "Are you sure you want to move this category back to Draft?";
+                        confirmTitle = currentStatus === "Published" ? "Unpublish Category?" : "Move to Draft?";
+                    }
+
+                    showConfirmModal(confirmMsg, async () => {
+                        const resp = await fetch(endpoint, { method: "POST", credentials: "include" });
+                        const result = await resp.json();
+                        if (!result.success) {
+                            showAlertModal(result.message || "Could not update this category's status.", "Error");
+                            return;
+                        }
+                        refreshCategoriesModal();
+                        showChangesSavedToast("Changes Saved");
+                    }, confirmTitle);
                 });
             });
         }

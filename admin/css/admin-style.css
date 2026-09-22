@@ -661,6 +661,59 @@ body {
 }
 
 /* ==========================================================================
+   TASK #PUBLISHING-SCHEMA: READY TO PUBLISH / MOVE TO DRAFT BUTTONS
+   Mirrors .btn-unpublish-custom's exact pattern for the two new Publish
+   Action states - yellow for "Ready to Publish" (Draft state), orange
+   for "Move to Draft" (Ready to Publish state).
+   ========================================================================== */
+.btn-ready-custom {
+    background: #EAB308 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    border: none !important;
+    text-decoration: none !important;
+    font-weight: 600 !important;
+}
+
+.btn-ready-custom:hover,
+.btn-ready-custom:focus,
+.btn-ready-custom:active {
+    background: #CA8A04 !important;
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+.btn-ready-custom * {
+    color: #ffffff !important;
+}
+
+.btn-movedraft-custom {
+    background: #F97316 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    border: none !important;
+    text-decoration: none !important;
+    font-weight: 600 !important;
+}
+
+.btn-movedraft-custom:hover,
+.btn-movedraft-custom:focus,
+.btn-movedraft-custom:active {
+    background: #EA580C !important;
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+.btn-movedraft-custom * {
+    color: #ffffff !important;
+}
+
+.badge-ready {
+    background: #FEF9C3;
+    color: #A16207;
+}
+
+/* ==========================================================================
    TASK #81 (follow-up): SPACING BETWEEN ACTIONS AND PUBLISH STATUS
    Both columns are right-aligned with no column padding by default
    (.data-table td { padding: 12px 0; }), so the Archive icon and the

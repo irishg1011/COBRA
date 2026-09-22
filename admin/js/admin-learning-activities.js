@@ -104,6 +104,7 @@
 
         function statusBadgeHtml(status) {
             if (status === "Published") return `<span class="badge badge-active">${escapeHtml(status)}</span>`;
+            if (status === "Ready to Publish") return `<span class="badge badge-ready">${escapeHtml(status)}</span>`;
             return `<span class="badge badge-draft">${escapeHtml(status || "Draft")}</span>`;
         }
 
@@ -134,9 +135,10 @@
         }
 
         function publishButtonHtml(resourceId, status, moduleStatus) {
-            const isPublished = status === "Published";
-            const label = isPublished ? "Unpublish" : "Publish";
-            const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+            let label, btnClass;
+            if (status === "Published") { label = "Unpublish"; btnClass = "btn-unpublish-custom"; }
+            else if (status === "Ready to Publish") { label = "Move to Draft"; btnClass = "btn-movedraft-custom"; }
+            else { label = "Ready to Publish"; btnClass = "btn-ready-custom"; }
             return `
                 <button type="button"
                         class="btn ${btnClass} js-toggle-lesson-activities-publish-btn"
@@ -753,30 +755,31 @@
                 e.preventDefault();
                 const resourceId = publishBtn.dataset.resourceId;
                 const currentStatus = publishBtn.dataset.status || "Draft";
-                const moduleStatus = publishBtn.dataset.moduleStatus || "";
-                const isPublished = currentStatus === "Published";
 
-                if (!isPublished && moduleStatus && moduleStatus !== "Published") {
-                    showAlertModal(
-                        `Cannot publish this lesson's activities - its parent module is still in ` +
-                        `${moduleStatus} status. Publish the parent module first.`,
-                        "Cannot Publish"
-                    );
-                    return;
+                let endpointSuffix, confirmMsg, confirmTitle, busyText;
+                if (currentStatus === "Published") {
+                    endpointSuffix = "unpublish";
+                    confirmMsg = "Are you sure you want to unpublish every activity in this lesson? They will be moved back to Draft and hidden from learners.";
+                    confirmTitle = "Unpublish Lesson's Activities?";
+                    busyText = "Unpublishing...";
+                } else if (currentStatus === "Ready to Publish") {
+                    endpointSuffix = "unpublish";
+                    confirmMsg = "Are you sure you want to move every activity in this lesson back to Draft?";
+                    confirmTitle = "Move to Draft?";
+                    busyText = "Moving to Draft...";
+                } else {
+                    endpointSuffix = "ready-to-publish";
+                    confirmMsg = "Are you sure you want to mark every activity in this lesson as Ready to Publish?";
+                    confirmTitle = "Ready to Publish?";
+                    busyText = "Marking Ready...";
                 }
-
-                const confirmMsg = isPublished
-                    ? "Are you sure you want to unpublish every activity in this lesson? They will be moved back to Draft and hidden from learners."
-                    : "Are you sure you want to publish every activity in this lesson? They will become visible to learners.";
-                const confirmTitle = isPublished ? "Unpublish Lesson's Activities?" : "Publish Lesson's Activities?";
 
                 showConfirmModal(confirmMsg, async () => {
                     publishBtn.disabled = true;
                     const originalText = publishBtn.textContent;
-                    publishBtn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+                    publishBtn.textContent = busyText;
 
                     const activities = await fetchActivitiesForResource(resourceId);
-                    const endpointSuffix = isPublished ? "unpublish" : "publish";
 
                     try {
                         await Promise.all(activities.map((a) =>
@@ -789,11 +792,14 @@
                         // succeeded via the row update below regardless.
                     }
 
-                    const newStatus = isPublished ? "Draft" : "Published";
+                    const newStatus = currentStatus === "Draft" ? "Ready to Publish" : "Draft";
                     publishBtn.dataset.status = newStatus;
-                    publishBtn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
-                    publishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom");
-                    publishBtn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                    let newLabel, newClass;
+                    if (newStatus === "Ready to Publish") { newLabel = "Move to Draft"; newClass = "btn-movedraft-custom"; }
+                    else { newLabel = "Ready to Publish"; newClass = "btn-ready-custom"; }
+                    publishBtn.textContent = newLabel;
+                    publishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-ready-custom", "btn-movedraft-custom");
+                    publishBtn.classList.add(newClass);
                     publishBtn.disabled = false;
 
                     const row = publishBtn.closest("tr");

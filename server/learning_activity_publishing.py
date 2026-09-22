@@ -224,6 +224,69 @@ def get_archived_status_id(connection):
     return _get_status_id(connection, "Archived")
 
 
+def get_ready_to_publish_status_id(connection):
+    """
+    Returns the la_stats_id for "Ready to Publish" (Task
+    #publishing-schema). Seeds learning_activities_stats_tbl first,
+    same convention as get_published_status_id() above.
+    """
+    ensure_la_stats(connection)
+    return _get_status_id(connection, "Ready to Publish")
+
+
+def mark_ready_to_publish_activity(activity_id):
+    """
+    Task #publishing-schema: flips a learning activity's status to
+    "Ready to Publish" - the queue the new Publishing page's Ready to
+    Publish tab reads from. Unlike publish_activity(), this never
+    checks the parent module's status - queueing something as ready
+    doesn't make it live, so there's nothing to gate here.
+
+    Returns (bool, str) - (success, message).
+    """
+    if not activity_id:
+        return False, "Activity ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_la_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
+            (activity_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Learning activity not found."
+
+        ready_id = get_ready_to_publish_status_id(connection)
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_ACTIVITIES_TABLE}
+                SET la_stats_id = %s, updated_at = NOW()
+                WHERE la_id = %s""",
+            (ready_id, activity_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Learning activity marked as Ready to Publish."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"learning_activity_publishing: failed to mark activity {activity_id} ready to publish: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def archive_activity(activity_id):
     """
     Archives a learning activity by setting its la_stats_id to Archived.
@@ -268,4 +331,4 @@ def archive_activity(activity_id):
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():
-            connection.close()
+            connection.close()

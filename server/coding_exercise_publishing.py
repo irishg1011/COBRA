@@ -187,6 +187,63 @@ def unpublish_exercise(exercise_id):
         if connection.is_connected():
             connection.close()
 
+def get_ready_to_publish_status_id(connection):
+    """Returns the la_stats_id for 'Ready to Publish' (Task #publishing-schema)."""
+    ensure_exercise_stats(connection)
+    return _get_status_id(connection, "Ready to Publish")
+
+
+def mark_ready_to_publish_exercise(exercise_id):
+    """
+    Task #publishing-schema: flips a coding exercise's status to "Ready
+    to Publish" - the queue the new Publishing page's Ready to Publish
+    tab reads from. Unlike publish_exercise(), this never checks the
+    parent module's status - queueing something as ready doesn't make
+    it live, so there's nothing to gate here.
+
+    Returns (bool, str) - (success, message).
+    """
+    if not exercise_id:
+        return False, "Exercise ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_exercise_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT exercise_id FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
+            (exercise_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Coding exercise not found."
+
+        ready_id = get_ready_to_publish_status_id(connection)
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"""UPDATE {CODING_EXERCISES_TABLE}
+                SET exercise_stats_id = %s, is_archived = 0, updated_at = NOW()
+                WHERE exercise_id = %s""",
+            (ready_id, exercise_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Coding exercise marked as Ready to Publish."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"coding_exercise_publishing: failed to mark exercise {exercise_id} ready to publish: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
 
 def archive_exercise(exercise_id):
     """

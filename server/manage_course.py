@@ -313,7 +313,14 @@ def get_categories_with_modules(include_archived=False):
         ensure_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
         where_clause = "" if include_archived else "WHERE COALESCE(is_archived, 0) = 0"
-        cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} {where_clause} ORDER BY category_name ASC")
+        cursor.execute(
+            f"""SELECT c.cat_id, c.category_name,
+                       COALESCE(cs.cat_stats_name, 'Draft') AS status_name
+                FROM {CATEGORY_TABLE} c
+                LEFT JOIN {CATEGORY_STATS_TABLE} cs ON c.cat_stats_id = cs.cat_stats_id
+                {where_clause}
+                ORDER BY c.category_name ASC"""
+        )
         categories = cursor.fetchall()
 
         cursor.execute(
@@ -869,6 +876,148 @@ def unpublish_module(module_id):
     except Error as e:
         connection.rollback()
         print(f"manage_course: failed to unpublish module: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def mark_module_ready_to_publish(module_id):
+    """
+    Task #publishing-schema: flips a module's status to "Ready to
+    Publish" - the queue the new Publishing page's Ready to Publish tab
+    reads from. Unlike publish_module(), this is never a live status
+    change, so nothing here needs gating.
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_module_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Ready to Publish' LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Ready to Publish status not found."
+        ready_id = row[0]
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET module_stats_id = %s, updated_at = NOW()
+                WHERE module_id = %s""",
+            (ready_id, module_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Module marked as Ready to Publish."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to mark module {module_id} ready to publish: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def _get_category_status_id(connection, name):
+    """Looks up a single cat_stats_id by its status name."""
+    ensure_category_stats_id_column(connection)
+    cursor = connection.cursor()
+    cursor.execute(f"SELECT cat_stats_id FROM {CATEGORY_STATS_TABLE} WHERE cat_stats_name = %s", (name,))
+    row = cursor.fetchone()
+    cursor.close()
+    return row[0] if row else None
+
+
+def mark_category_ready_to_publish(cat_id):
+    """
+    Task #publishing-schema: flips a category's status to "Ready to
+    Publish" - queueing it for the Publishing page. Never a live status
+    change, so this is always allowed regardless of anything else about
+    the category.
+    """
+    if not cat_id:
+        return False, "Category ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_category_stats_id_column(connection)
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Category not found."
+
+        ready_id = _get_category_status_id(connection, "Ready to Publish")
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"UPDATE {CATEGORY_TABLE} SET cat_stats_id = %s WHERE cat_id = %s",
+            (ready_id, cat_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Category marked as Ready to Publish."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to mark category {cat_id} ready to publish: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def move_category_to_draft(cat_id):
+    """
+    Task #publishing-schema: reverses mark_category_ready_to_publish()
+    or a live Published category - flips status back to "Draft". Backs
+    both the "Move to Draft" button (Ready to Publish state) and the
+    "Unpublish" button (Published state) on the Publish Action column -
+    both land here, since they perform the exact same operation.
+    """
+    if not cat_id:
+        return False, "Category ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_category_stats_id_column(connection)
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Category not found."
+
+        draft_id = _get_category_status_id(connection, "Draft")
+        if not draft_id:
+            cursor.close()
+            return False, "Could not resolve the Draft status."
+
+        cursor.execute(
+            f"UPDATE {CATEGORY_TABLE} SET cat_stats_id = %s WHERE cat_id = %s",
+            (draft_id, cat_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Category moved back to Draft."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to move category {cat_id} to draft: {e}")
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():

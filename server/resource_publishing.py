@@ -179,6 +179,14 @@ def get_archived_status_id(connection):
     return _get_status_id(connection, "Archived")
 
 
+def get_ready_to_publish_status_id(connection):
+    """Returns the lr_stats_id for "Ready to Publish" (Task
+    #publishing-schema). Reuses the caller's already-open connection,
+    same convention as get_published_status_id() above."""
+    ensure_lr_stats(connection)
+    return _get_status_id(connection, "Ready to Publish")
+
+
 def _get_resource_with_parent_status(connection, resource_id):
     """
     Looks up the resource plus its parent module's Published/Draft/
@@ -311,6 +319,55 @@ def unpublish_resource(resource_id):
         if connection.is_connected():
             connection.close()
 
+def mark_ready_to_publish_resource(resource_id):
+    """
+    Task #publishing-schema: flips a resource's status to "Ready to
+    Publish" - the queue the new Publishing page's Ready to Publish tab
+    reads from. Unlike publish_resource(), this never checks the parent
+    module's status - queueing something as ready doesn't make it live,
+    so there's nothing to gate here.
+
+    Returns (bool, str) - (success, message).
+    """
+    if not resource_id:
+        return False, "Resource ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_lr_stats(connection)
+        cursor = connection.cursor()
+        cursor.execute(
+            f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
+            (resource_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Resource not found."
+
+        ready_id = get_ready_to_publish_status_id(connection)
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                SET lr_stats_id = %s, updated_at = NOW()
+                WHERE resource_id = %s""",
+            (ready_id, resource_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Resource marked as Ready to Publish."
+    except Error as e:
+        connection.rollback()
+        print(f"resource_publishing: failed to mark resource {resource_id} ready to publish: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
 
 def archive_resource(resource_id):
     """

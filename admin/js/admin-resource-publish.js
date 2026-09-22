@@ -42,23 +42,17 @@
             return div.innerHTML;
         }
 
-        function statusBadgeHtml(status) {
-            const normalized = (status || "").toLowerCase();
-            const cls = normalized === "published" ? "badge-active" : "badge-draft";
-            return `<span class="badge ${cls}">${escapeHtml(status || "Draft")}</span>`;
+         function statusBadgeHtml(status) {
+            if (status === "Published") return `<span class="badge badge-active">${escapeHtml(status)}</span>`;
+            if (status === "Ready to Publish") return `<span class="badge badge-ready">${escapeHtml(status)}</span>`;
+            return `<span class="badge badge-draft">${escapeHtml(status || "Draft")}</span>`;
         }
 
-        function publishButtonHtml(resourceId, status, moduleStatus) {
-            const isPublished = status === "Published";
-            const label = isPublished ? "Unpublish" : "Publish";
-            // Task #81, Requirement #4: the old "btn-secondary-custom"
-            // class rendered as a near-white button with faint text -
-            // clickable, but easy to mistake for disabled. Unpublish
-            // now uses its own dedicated, high-contrast style
-            // (.btn-unpublish-custom, see admin-style.css) so it reads
-            // as an active, clickable button and stays visually
-            // distinct from the green Publish button.
-            const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+         function publishButtonHtml(resourceId, status, moduleStatus) {
+            let label, btnClass;
+            if (status === "Published") { label = "Unpublish"; btnClass = "btn-unpublish-custom"; }
+            else if (status === "Ready to Publish") { label = "Move to Draft"; btnClass = "btn-movedraft-custom"; }
+            else { label = "Ready to Publish"; btnClass = "btn-ready-custom"; }
             return `
                 <button type="button"
                         class="btn ${btnClass} js-toggle-publish-btn"
@@ -141,44 +135,36 @@
             }
         });
 
-        tableBody.addEventListener("click", (e) => {
+tableBody.addEventListener("click", (e) => {
             const btn = e.target.closest(".js-toggle-publish-btn");
             if (!btn) return;
             e.preventDefault();
 
             const resourceId = btn.dataset.resourceId;
             const currentStatus = btn.dataset.status || "Draft";
-            const moduleStatus = btn.dataset.moduleStatus || "";
-            const isPublished = currentStatus === "Published";
 
-            if (!isPublished) {
-                // Task #43: block publishing client-side first if the
-                // parent module isn't Published - fast feedback before
-                // ever hitting the server (which re-checks this exact
-                // rule authoritatively regardless).
-                if (moduleStatus && moduleStatus !== "Published") {
-                    showAlertModal(
-                        `Cannot publish this resource - its parent module is still in ` +
-                        `${moduleStatus} status. Publish the parent module first.`,
-                        "Cannot Publish"
-                    );
-                    return;
-                }
+            let endpoint, confirmMsg, confirmTitle, busyText;
+            if (currentStatus === "Published") {
+                endpoint = `/admin/learning-resources/${resourceId}/unpublish`;
+                confirmMsg = "Are you sure you want to unpublish this resource? It will be moved back to Draft and hidden from learners.";
+                confirmTitle = "Unpublish Resource?";
+                busyText = "Unpublishing...";
+            } else if (currentStatus === "Ready to Publish") {
+                endpoint = `/admin/learning-resources/${resourceId}/unpublish`;
+                confirmMsg = "Are you sure you want to move this resource back to Draft? It will come out of the Ready to Publish queue.";
+                confirmTitle = "Move to Draft?";
+                busyText = "Moving to Draft...";
+            } else {
+                endpoint = `/admin/learning-resources/${resourceId}/ready-to-publish`;
+                confirmMsg = "Are you sure you want to mark this resource as Ready to Publish?";
+                confirmTitle = "Ready to Publish?";
+                busyText = "Marking Ready...";
             }
 
-            const confirmMsg = isPublished
-                ? "Are you sure you want to unpublish this resource? It will be moved back to Draft and hidden from learners."
-                : "Are you sure you want to publish this resource? It will become visible to learners.";
-            const confirmTitle = isPublished ? "Unpublish Resource?" : "Publish Resource?";
-
             showConfirmModal(confirmMsg, async () => {
-                const endpoint = isPublished
-                    ? `/admin/learning-resources/${resourceId}/unpublish`
-                    : `/admin/learning-resources/${resourceId}/publish`;
-
                 btn.disabled = true;
                 const originalText = btn.textContent;
-                btn.textContent = isPublished ? "Unpublishing..." : "Publishing...";
+                btn.textContent = busyText;
 
                 try {
                     const response = await fetch(endpoint, {
@@ -188,22 +174,23 @@
                     const result = await response.json();
 
                     if (!result.success) {
-                        showAlertModal(result.message || "Could not update this resource's status.", "Cannot Publish");
+                        showAlertModal(result.message || "Could not update this resource's status.", "Error");
                         btn.disabled = false;
                         btn.textContent = originalText;
                         return;
                     }
 
-                    const newStatus = isPublished ? "Draft" : "Published";
+                    const newStatus = currentStatus === "Draft" ? "Ready to Publish" : "Draft";
 
-                    // Toggle the button itself into its new state.
                     btn.dataset.status = newStatus;
-                    btn.textContent = newStatus === "Published" ? "Unpublish" : "Publish";
-                    btn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-secondary-custom");
-                    btn.classList.add(newStatus === "Published" ? "btn-unpublish-custom" : "btn-success-custom");
+                    let newLabel, newClass;
+                    if (newStatus === "Ready to Publish") { newLabel = "Move to Draft"; newClass = "btn-movedraft-custom"; }
+                    else { newLabel = "Ready to Publish"; newClass = "btn-ready-custom"; }
+                    btn.textContent = newLabel;
+                    btn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-ready-custom", "btn-movedraft-custom", "btn-secondary-custom");
+                    btn.classList.add(newClass);
                     btn.disabled = false;
 
-                    // Update this row's Status badge cell in place.
                     const row = btn.closest("tr");
                     const statusCell = row ? row.querySelector(".js-status-cell") : null;
                     if (statusCell) {

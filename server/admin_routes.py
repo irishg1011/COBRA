@@ -35,6 +35,7 @@ from manage_course import (
     publish_module, unpublish_module,  # NEW - Task #90: Module Publish/Unpublish
     check_module_archive_eligibility, check_category_archive_eligibility,  # NEW: fixes admin-relational-archive.js's pre-existing missing archive-check routes
     check_resource_archive_eligibility, check_activity_archive_eligibility, check_coding_exercise_archive_eligibility,  # NEW (Task #123): universal Published-dependency check
+    mark_module_ready_to_publish, mark_category_ready_to_publish, move_category_to_draft,  # NEW - Task #publishing-schema: Ready to Publish queue actions
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -50,11 +51,12 @@ from learning_activity_draft import save_activity_draft, get_activity_draft  # N
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
     parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
 )
-from learning_activity_publishing import publish_activity, unpublish_activity  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern
+from learning_activity_publishing import publish_activity, unpublish_activity, mark_ready_to_publish_activity  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern; mark_ready_to_publish_activity added for Task #publishing-schema
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
     archive_resource,  # NEW - Task #81: Manage Learning Resources ACTIONS -> Archive
+    mark_ready_to_publish_resource,  # NEW - Task #publishing-schema
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 from resource_form_publish import save_and_publish_lesson  # NEW - Task #95: shared save-then-publish for New Lesson
@@ -64,7 +66,7 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
     save_coding_exercise, parse_test_cases_from_form,
 )
-from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise  # Task #111 & #112
+from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise, mark_ready_to_publish_exercise  # Task #111 & #112; mark_ready_to_publish_exercise added for Task #publishing-schema
 from video_tutorials import (  # NEW: New Video Tutorial DB integration - Category -> Module -> Lesson cascade + Save Draft/Publish
     save_video_tutorial, get_video_tutorial,
     archive_video_tutorial,  # NEW: Manage Learning Resources Archive checklist - "Video Tutorial" option
@@ -1434,6 +1436,20 @@ def manage_course_update_category(cat_id):
     data = request.form if request.form else (request.get_json(silent=True) or {})
     success, message = update_category(cat_id, data.get('category_name'))
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/ready-to-publish', methods=['POST'])
+def manage_course_category_ready_to_publish(cat_id):
+    """Task #publishing-schema: marks a category Ready to Publish (queue-only, not live)."""
+    success, message = mark_category_ready_to_publish(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/move-to-draft', methods=['POST'])
+def manage_course_category_move_to_draft(cat_id):
+    """Task #publishing-schema: reverts a category to Draft - backs both the "Move to Draft" and "Unpublish" buttons, which do the exact same thing."""
+    success, message = move_category_to_draft(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
  
  
 @admin_bp.route('/manage-course/categories/<int:cat_id>/archive-check', methods=['GET'])
@@ -1517,6 +1533,13 @@ def manage_course_publish_module(module_id):
 def manage_course_unpublish_module(module_id):
     """Task #90: Unpublish a module (sets status to Draft)."""
     success, message = unpublish_module(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/modules/<int:module_id>/ready-to-publish', methods=['POST'])
+def manage_course_ready_to_publish_module(module_id):
+    """Task #publishing-schema: marks a module Ready to Publish (queue-only, not live)."""
+    success, message = mark_module_ready_to_publish(module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -1811,6 +1834,13 @@ def unpublish_learning_resource(resource_id):
     Returns JSON: { "success": bool, "message": str }
     """
     success, message = unpublish_resource(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/learning-resources/<int:resource_id>/ready-to-publish', methods=['POST'])
+def ready_to_publish_learning_resource(resource_id):
+    """Task #publishing-schema: marks a resource Ready to Publish (queue-only, not live)."""
+    success, message = mark_ready_to_publish_resource(resource_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -2127,6 +2157,13 @@ def unpublish_learning_activity(activity_id):
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
+@admin_bp.route('/learning-activities/<int:activity_id>/ready-to-publish', methods=['POST'])
+def ready_to_publish_learning_activity(activity_id):
+    """Task #publishing-schema: marks a learning activity Ready to Publish (queue-only, not live)."""
+    success, message = mark_ready_to_publish_activity(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
 # ============================================================
 # ROUTE: DELETE LEARNING ACTIVITY
 # ============================================================
@@ -2259,6 +2296,13 @@ def unpublish_coding_exercise(exercise_id):
     Returns JSON: { "success": bool, "message": str }
     """
     success, message = unpublish_exercise(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/coding-exercises/<int:exercise_id>/ready-to-publish', methods=['POST'])
+def ready_to_publish_coding_exercise(exercise_id):
+    """Task #publishing-schema: marks a coding exercise Ready to Publish (queue-only, not live)."""
+    success, message = mark_ready_to_publish_exercise(exercise_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
