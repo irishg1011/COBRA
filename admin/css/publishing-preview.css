@@ -1,0 +1,356 @@
+/* ==========================================================================
+   TASK #20: Publishing page - Preview modal
+   Styled to echo the real learner-side look (cards, spacing) without
+   being a pixel clone of lessons.css. Uses the same badge color
+   language already established in publishing.css (yellow = Ready to
+   Publish, green = Published) for consistency across the whole page.
+   ========================================================================== */
+
+.preview-hidden {
+    display: none !important;
+}
+
+.preview-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 18, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+}
+
+.preview-modal-card {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 760px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.preview-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid #e7e3d6;
+    flex: none;
+}
+
+.preview-modal-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.preview-modal-header-left strong {
+    font-size: 16px;
+}
+
+.preview-back-btn {
+    background: #f3f4f1;
+    border: none;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1f2421;
+}
+
+.preview-close-btn {
+    background: none;
+    border: none;
+    font-size: 26px;
+    line-height: 1;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.preview-close-btn:hover {
+    color: #1f2421;
+}
+
+.preview-modal-body {
+    padding: 22px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.preview-loading {
+    color: #6b7280;
+    text-align: center;
+    padding: 32px;
+}
+
+/* ------------------------------------------------------------------
+   View 1: Learning Map (chapter cards)
+   ------------------------------------------------------------------ */
+
+.preview-chapters-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.preview-chapter-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    border: 1px solid #e7e3d6;
+    border-radius: 12px;
+    cursor: pointer;
+    background: #fbfaf7;
+}
+
+.preview-chapter-card:hover {
+    border-color: #178a47;
+    background: #f1f8f3;
+}
+
+.preview-chapter-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #dcfce7;
+    color: #178a47;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.preview-chapter-info {
+    flex: 1;
+}
+
+.preview-chapter-info h3 {
+    margin: 0 0 2px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.preview-chapter-info p {
+    margin: 0;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* ------------------------------------------------------------------
+   View 2: Lessons (modules + lesson cards)
+   ------------------------------------------------------------------ */
+
+.preview-category-name {
+    margin: 0 0 16px;
+    font-size: 18px;
+}
+
+.preview-modules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.preview-module-block {
+    border: 1px solid #e7e3d6;
+    border-radius: 12px;
+    padding: 14px 16px;
+}
+
+.preview-module-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.preview-module-header h4 {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+}
+
+.preview-lesson-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #fbfaf7;
+    margin-top: 6px;
+}
+
+.preview-lesson-row:hover {
+    background: #f1f8f3;
+}
+
+.preview-lesson-row .lesson-title {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+/* ------------------------------------------------------------------
+   Shared: status badges (matches publishing.css color language)
+   ------------------------------------------------------------------ */
+
+.preview-badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    flex: none;
+}
+
+.preview-badge.status-ready {
+    background: #fef9c3;
+    color: #a16207;
+}
+
+.preview-badge.status-published {
+    background: #dcfce7;
+    color: #178a47;
+}
+
+/* ------------------------------------------------------------------
+   View 3: Lesson Content
+   ------------------------------------------------------------------ */
+
+.preview-lesson-title {
+    margin: 0 0 14px;
+    font-size: 18px;
+}
+
+.preview-lesson-body {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.preview-activities-section,
+.preview-exercises-section {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid #e7e3d6;
+}
+
+.preview-activities-section h3,
+.preview-exercises-section h3 {
+    margin: 0 0 12px;
+    font-size: 15px;
+}
+
+.preview-activity-card,
+.preview-exercise-card {
+    border: 1px solid #e7e3d6;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.preview-activity-card .activity-title,
+.preview-exercise-card .exercise-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.preview-mcq-question,
+.preview-fib-item {
+    margin: 12px 0;
+}
+
+.preview-mcq-question p,
+.preview-fib-item p {
+    font-size: 13.5px;
+    margin: 0 0 8px;
+}
+
+.preview-mcq-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid #e7e3d6;
+    border-radius: 8px;
+    background: #ffffff;
+    margin-bottom: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.preview-mcq-option:hover {
+    border-color: #178a47;
+}
+
+.preview-mcq-option.correct {
+    border-color: #178a47;
+    background: #dcfce7;
+}
+
+.preview-mcq-option.incorrect {
+    border-color: #dc2626;
+    background: #fee2e2;
+}
+
+.preview-fib-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e7e3d6;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.preview-fib-check-btn {
+    background: #22a559;
+    color: #ffffff;
+    border: none;
+    border-radius: 7px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.preview-answer-feedback {
+    margin-top: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 7px;
+}
+
+.preview-answer-feedback.correct {
+    background: #dcfce7;
+    color: #178a47;
+}
+
+.preview-answer-feedback.incorrect {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.preview-flashcard {
+    border: 1px solid #e7e3d6;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 10px;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
