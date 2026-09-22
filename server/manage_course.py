@@ -979,6 +979,48 @@ def mark_category_ready_to_publish(cat_id):
         if connection.is_connected():
             connection.close()
 
+def publish_category(cat_id):
+    """
+    Task #publishing-page-backend: sets a category's status to
+    "Published" - the real, live-status action, reserved for the
+    Publishing page. Mirrors publish_module()'s shape, minus the
+    is_archived flip (categories don't have the same "publishing
+    un-archives it" convention modules do).
+    """
+    if not cat_id:
+        return False, "Category ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_category_stats_id_column(connection)
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Category not found."
+
+        published_id = _get_category_status_id(connection, "Published")
+        if not published_id:
+            cursor.close()
+            return False, "Could not resolve the Published status."
+
+        cursor.execute(
+            f"UPDATE {CATEGORY_TABLE} SET cat_stats_id = %s WHERE cat_id = %s",
+            (published_id, cat_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Category published successfully."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to publish category {cat_id}: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
 
 def move_category_to_draft(cat_id):
     """

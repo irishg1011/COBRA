@@ -1,0 +1,123 @@
+/* ==========================================================================
+   TASK #publishing-page-frontend: Publishing page - tabs, tree rows,
+   tag icons, and the name-click popover. Button colors
+   (.btn-ready-custom / .btn-movedraft-custom / .btn-unpublish-custom)
+   stay in admin-style.css since those are shared with the 4 manage
+   pages, not unique to this one.
+   ========================================================================== */
+
+.publishing-tabs-row {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 20px;
+}
+
+.publishing-tab {
+    background: none;
+    border: none;
+    padding: 12px 4px;
+    margin-right: 28px;
+    font-size: 15px;
+    color: #6b7280;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+}
+
+.publishing-tab.active {
+    color: #1f2421;
+    font-weight: 700;
+    border-bottom-color: #09B300;
+}
+
+.publishing-tab .badge {
+    margin-left: 6px;
+}
+
+.publishing-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 8px;
+}
+
+.publishing-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-top: 1px solid #f0ede4;
+    position: relative;
+}
+
+.publishing-row:first-child {
+    border-top: none;
+}
+
+.publishing-row-leaf {
+    padding: 8px 12px;
+}
+
+.publishing-spacer {
+    flex: 1;
+}
+
+.publishing-toggle-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    color: #6b7280;
+    display: inline-flex;
+    align-items: center;
+}
+
+.publishing-toggle-spacer {
+    display: inline-block;
+    width: 22px;
+}
+
+.publishing-name-wrap {
+    position: relative;
+}
+
+.publishing-name-btn {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    font-weight: 600;
+    border-radius: 5px;
+}
+
+.publishing-name-btn:hover {
+    background: #f5f4ee;
+}
+
+.publishing-name-btn.leaf {
+    font-weight: 500;
+    font-size: 13.5px;
+}
+
+.publishing-action-btn {
+    padding: 6px 14px;
+    font-size: 12.5px;
+}
+
+.publishing-tag {
+    border-radius: 7px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+.publishing-tag-ch { width: 24px; height: 24px; background: #DCFCE7; color: #178A47; font-size: 11px; }
+.publishing-tag-mod { width: 20px; height: 20px; background: #EDEBFD; color: #5B4FDB; font-size: 10px; }
+.publishing-tag-les { width: 20px; height: 20px; background: #FDE7EE; color: #C0356A; font-size: 10px; }
+.publishing-tag-leaf { width: 18px; height: 18px; background: #FFF3D6; color: #9A6700; font-size: 9px; }
+
+.publishing-empty {
+    padding: 32px;
+    text-align: center;
+}

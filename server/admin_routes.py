@@ -36,6 +36,7 @@ from manage_course import (
     check_module_archive_eligibility, check_category_archive_eligibility,  # NEW: fixes admin-relational-archive.js's pre-existing missing archive-check routes
     check_resource_archive_eligibility, check_activity_archive_eligibility, check_coding_exercise_archive_eligibility,  # NEW (Task #123): universal Published-dependency check
     mark_module_ready_to_publish, mark_category_ready_to_publish, move_category_to_draft,  # NEW - Task #publishing-schema: Ready to Publish queue actions
+    publish_category,  # NEW - Task #publishing-page-backend: real Publish action for categories, reserved for the Publishing page
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -1450,6 +1451,13 @@ def manage_course_category_ready_to_publish(cat_id):
 def manage_course_category_move_to_draft(cat_id):
     """Task #publishing-schema: reverts a category to Draft - backs both the "Move to Draft" and "Unpublish" buttons, which do the exact same thing."""
     success, message = move_category_to_draft(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/publish', methods=['POST'])
+def manage_course_publish_category(cat_id):
+    """Task #publishing-page-backend: publishes a category - the real, live-status action, only ever called from the Publishing page."""
+    success, message = publish_category(cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
  
  
