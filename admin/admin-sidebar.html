@@ -24,6 +24,9 @@
         <a href="{{ url_for('admin_bp.coding_exercises') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.coding_exercises', 'admin_bp.create_coding_exercise'] else '' }}">
             <img src="/assets/images/code-1.png" class="sidebar-icon"> Coding Exercises
         </a>
+        <a href="{{ url_for('admin_bp.publishing') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.publishing' else '' }}">
+            <img src="/assets/images/book-1.png" class="sidebar-icon"> Publishing
+        </a>
         <a href="{{ url_for('admin_bp.coding_sandbox') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
             <img src="/assets/images/programming-1.png" class="sidebar-icon"> Coding Sandbox
         </a>

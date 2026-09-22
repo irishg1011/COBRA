@@ -77,6 +77,7 @@ from archived_items import (  # NEW: fixes the pre-existing Archived Learning Re
     get_archived_activities, restore_learning_activity,
     get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,  # NEW: same fix for Archived Coding Exercises modal
 )
+from publishing import get_publishing_tree  # NEW - Task #publishing-page-backend
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1661,6 +1662,36 @@ def manage_course_permanently_delete_category(cat_id):
     """
     success, message = permanently_delete_category(cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# ROUTE: PUBLISHING PAGE (Task #publishing-page-backend)
+# ============================================================
+@admin_bp.route('/publishing')
+def publishing():
+    """
+    Renders the Publishing page with the full Category > Module >
+    Lesson > Activities/Exercises tree, in learner order, server-side
+    on load - same "server renders real data, JS takes over for live
+    updates" pattern as every other page here. The Ready to Publish /
+    Published tabs are a client-side filter over this same tree (see
+    publishing.py's own docstring for why), not two separate queries.
+    """
+    import json
+    tree = get_publishing_tree()
+    return render_template('publishing.html', tree_json=json.dumps(tree))
+
+
+@admin_bp.route('/publishing/data')
+def publishing_data():
+    """
+    JSON refresh of the same tree - called after a Publish/Unpublish/
+    reorder action instead of a full page reload, mirroring every
+    other page's own /data endpoint convention.
+
+    Returns JSON: { "success": bool, "tree": [...] }
+    """
+    return jsonify({"success": True, "tree": get_publishing_tree()}), 200
 
 
 # ------------------------------------------------------------------
