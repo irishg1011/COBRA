@@ -22,7 +22,7 @@ from lesson_activities import (
 )
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
-from learner_progress_unlocks import has_unlock, write_unlock  # NEW - Task #13: permanent category unlock check, replaces pure live recalculation
+from learner_progress_unlocks import has_unlock, write_unlock, get_unlocked_at  # NEW - Task #13: permanent category unlock check; get_unlocked_at added for Task #16's catch-up badge
 
 learner_bp = Blueprint('learner_bp', __name__)
 
@@ -439,8 +439,16 @@ def lessons_data():
             cursor.close()
             return jsonify({"success": False, "message": "Chapter not found."}), 404
 
+        # Task #16: the learner's own unlock timestamp for THIS
+        # category - anything created after this is new to them, even
+        # in a category they've already passed. None if they haven't
+        # reached this category at all yet (badge logic below simply
+        # never fires in that case, since nothing is browsable yet).
+        category_unlocked_at = get_unlocked_at(connection, acc_id, "category", cat_id)
+
         cursor.execute(
-            "SELECT module_id, module_name, description FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 ORDER BY module_id ASC",
+            "SELECT module_id, module_name, description, created_at FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 "
+            "ORDER BY cat_id ASC, COALESCE(display_order, 999999) ASC, module_id ASC",
             (cat_id,)
         )
         raw_modules = cursor.fetchall()
@@ -453,7 +461,7 @@ def lessons_data():
             module_id = module["module_id"]
 
             cursor.execute(
-                "SELECT resource_id, resource_title FROM learning_resources_tbl WHERE module_id = %s "
+                "SELECT resource_id, resource_title, created_at FROM learning_resources_tbl WHERE module_id = %s "
                 "ORDER BY COALESCE(display_order, 999999) ASC, resource_id ASC",
                 (module_id,)
             )
@@ -530,6 +538,13 @@ def lessons_data():
                 else:
                     status = "locked"
 
+                # Task #16: purely informational - never affects status/
+                # locking above, only whether the "New" badge shows.
+                is_new_lesson = bool(
+                    category_unlocked_at and resource.get("created_at")
+                    and resource["created_at"] > category_unlocked_at
+                )
+
                 lessons_out.append({
                     "resource_id": resource_id,
                     "resource_title": resource["resource_title"],
@@ -537,7 +552,8 @@ def lessons_data():
                     "activities_completed": activities_completed,
                     "activities_total": activities_total,
                     "has_exercise": has_exercise,
-                    "exercise_completed": exercise_completed if has_exercise else False
+                    "exercise_completed": exercise_completed if has_exercise else False,
+                    "is_new": is_new_lesson
                 })
 
                 overall_total += 1
@@ -552,13 +568,19 @@ def lessons_data():
 
             lessons_completed_in_module = sum(1 for l in lessons_out if l["status"] == "completed")
 
+            is_new_module = bool(
+                category_unlocked_at and module.get("created_at")
+                and module["created_at"] > category_unlocked_at
+            )
+
             modules_out.append({
                 "module_id": module_id,
                 "module_name": module["module_name"],
                 "description": module["description"],
                 "lessons_completed": lessons_completed_in_module,
                 "lessons_total": len(lessons_out),
-                "lessons": lessons_out
+                "lessons": lessons_out,
+                "is_new": is_new_module
             })
 
         overall_percent = round((overall_completed / overall_total) * 100) if overall_total > 0 else 0

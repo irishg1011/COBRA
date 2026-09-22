@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             header.innerHTML = `
                 <div class="module-flag-icon">${FLAG_ICON}</div>
                 <div>
-                    <h2>Module ${moduleIndex + 1}: ${module.module_name}</h2>
+                    <h2>Module ${moduleIndex + 1}: ${module.module_name} ${module.is_new ? '<span class="new-badge">New</span>' : ''}</h2>
                     <p>${module.description || ''}</p>
                 </div>
             `;
@@ -110,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="lesson-badges">
                             <span class="lesson-badge number">Lesson ${lessonIndex + 1}</span>
                             <span class="lesson-badge status-${lesson.status}">${statusLabel(lesson.status)}</span>
+                            ${lesson.is_new ? '<span class="lesson-badge new-badge">New</span>' : ''}
                         </div>
                         <h3>${lesson.resource_title}</h3>
                         <div class="lesson-mini-progress-row">

@@ -48,6 +48,30 @@ def has_unlock(connection, acc_id, entity_type, entity_id):
         return False
 
 
+def get_unlocked_at(connection, acc_id, entity_type, entity_id):
+    """
+    Task #16: returns the datetime this learner first unlocked
+    entity_type/entity_id, or None if they haven't (yet). Backs the
+    "New"/catch-up badge - content created AFTER this timestamp is
+    something the learner hasn't seen before, even in a category
+    they've already passed.
+    """
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"""SELECT unlocked_at FROM {LEARNER_UNLOCKS_TABLE}
+                WHERE acc_id = %s AND entity_type = %s AND entity_id = %s
+                LIMIT 1""",
+            (acc_id, entity_type, entity_id)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row[0] if row else None
+    except Error as e:
+        print(f"learner_progress_unlocks: failed to get unlocked_at for {acc_id}/{entity_type}/{entity_id}: {e}")
+        return None
+
+
 def write_unlock(connection, acc_id, entity_type, entity_id):
     """
     Writes a permanent unlock row the moment a learner is FIRST found
