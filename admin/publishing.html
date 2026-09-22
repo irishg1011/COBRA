@@ -25,13 +25,22 @@
                     </div>
                 </div>
 
-                <div class="publishing-tabs-row">
-                    <button type="button" id="pubTabReady" class="publishing-tab active" data-tab="ready">
-                        Ready to Publish <span class="badge badge-draft" id="pubReadyCount">0</span>
-                    </button>
-                    <button type="button" id="pubTabPublished" class="publishing-tab" data-tab="published">
-                        Published <span class="badge badge-active" id="pubPublishedCount">0</span>
-                    </button>
+                <div class="publishing-toolbar">
+                    <div class="publishing-tabs-row">
+                        <button type="button" id="pubTabReady" class="publishing-tab active" data-tab="ready">
+                            Ready to Publish <span class="badge badge-draft" id="pubReadyCount">0</span>
+                        </button>
+                        <button type="button" id="pubTabPublished" class="publishing-tab" data-tab="published">
+                            Published <span class="badge badge-active" id="pubPublishedCount">0</span>
+                        </button>
+                    </div>
+                    <div class="publishing-order-actions" id="pubOrderActions">
+                        <button type="button" id="pubEditOrderBtn" class="btn btn-editorder-custom">Edit Order</button>
+                    </div>
+                </div>
+
+                <div class="publishing-edit-banner" id="pubEditBanner">
+                    Reordering categories, modules and lessons. This is the order learners will see on the roadmap. Drag a row, or use the arrows, then Save.
                 </div>
 
                 <div class="publishing-card">
@@ -40,7 +49,7 @@
                     </div>
                 </div>
 
-                <p class="text-muted" style="margin-top:12px; font-size:13px;">Click a name to see Edit / Preview. Click the arrow to expand or collapse.</p>
+                <p class="text-muted publishing-hint" id="pubHint">Click a name to see Edit / Preview. Click the arrow to expand or collapse.</p>
 
             </div>
         </main>

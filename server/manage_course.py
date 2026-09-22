@@ -796,9 +796,88 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id=N
             connection.close()
 
 
+def _unpublish_children_of_module(cursor, module_id):
+    """
+    Task #publishing-cascade: flips every currently-Published lesson
+    under this module (and every currently-Published activity/exercise
+    under those lessons) back to Draft. Uses an ALREADY-OPEN cursor -
+    called both from unpublish_module() directly and from
+    move_category_to_draft() while walking a whole category's modules.
+
+    Returns (lesson_count, leaf_count) - how many of each were actually
+    changed, for the caller's success message. Both are 0 (a no-op) if
+    nothing under this module was Published, so this is always safe to
+    call regardless of the module's own prior status.
+    """
+    cursor.execute(
+        f"""SELECT lr.resource_id FROM {LEARNING_RESOURCES_TABLE} lr
+            LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+            WHERE lr.module_id = %s AND lrs.lr_stats_name = 'Published'""",
+        (module_id,)
+    )
+    resource_ids = [r[0] for r in cursor.fetchall()]
+    if not resource_ids:
+        return 0, 0
+
+    leaf_count = 0
+    placeholders = ", ".join(["%s"] * len(resource_ids))
+
+    cursor.execute(f"SELECT la_stats_id FROM {LA_STATS_TABLE} WHERE la_stats_name = 'Draft'")
+    row = cursor.fetchone()
+    la_draft_id = row[0] if row else None
+
+    if la_draft_id:
+        cursor.execute(
+            f"""SELECT COUNT(*) FROM {LEARNING_ACTIVITIES_TABLE} la
+                LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
+                WHERE la.resource_id IN ({placeholders}) AND last.la_stats_name = 'Published'""",
+            tuple(resource_ids)
+        )
+        leaf_count += cursor.fetchone()[0]
+        cursor.execute(
+            f"""UPDATE {LEARNING_ACTIVITIES_TABLE} la
+                LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
+                SET la.la_stats_id = %s, la.updated_at = NOW()
+                WHERE la.resource_id IN ({placeholders}) AND last.la_stats_name = 'Published'""",
+            tuple([la_draft_id] + resource_ids)
+        )
+
+        cursor.execute(
+            f"""SELECT COUNT(*) FROM {CODING_EXERCISES_TABLE} ce
+                LEFT JOIN {LA_STATS_TABLE} last ON ce.exercise_stats_id = last.la_stats_id
+                WHERE ce.resource_id IN ({placeholders}) AND last.la_stats_name = 'Published'""",
+            tuple(resource_ids)
+        )
+        leaf_count += cursor.fetchone()[0]
+        cursor.execute(
+            f"""UPDATE {CODING_EXERCISES_TABLE} ce
+                LEFT JOIN {LA_STATS_TABLE} last ON ce.exercise_stats_id = last.la_stats_id
+                SET ce.exercise_stats_id = %s, ce.updated_at = NOW()
+                WHERE ce.resource_id IN ({placeholders}) AND last.la_stats_name = 'Published'""",
+            tuple([la_draft_id] + resource_ids)
+        )
+
+    cursor.execute(f"SELECT lr_stats_id FROM {LR_STATS_TABLE} WHERE lr_stats_name = 'Draft'")
+    row = cursor.fetchone()
+    lr_draft_id = row[0] if row else None
+    if lr_draft_id:
+        cursor.execute(
+            f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                SET lr_stats_id = %s, updated_at = NOW()
+                WHERE resource_id IN ({placeholders})""",
+            tuple([lr_draft_id] + resource_ids)
+        )
+
+    return len(resource_ids), leaf_count
+
+
 def publish_module(module_id):
     """
-    Task #90: Sets a module's status to 'Published'.
+    Task #90: Sets a module's status to 'Published'. Task
+    #publishing-cascade adds the missing gate: a module can only be
+    published if its parent CATEGORY is itself already Published -
+    mirrors resource_publishing.publish_resource()'s own gate one
+    level up.
     """
     if not module_id:
         return False, "Module ID is required."
@@ -810,7 +889,29 @@ def publish_module(module_id):
     try:
         ensure_module_stats(connection)
         ensure_is_archived_column(connection)
+        ensure_category_stats_id_column(connection)
         cursor = connection.cursor()
+
+        cursor.execute(
+            f"""SELECT COALESCE(cs.cat_stats_name, 'Draft')
+                FROM {MODULES_TABLE} m
+                LEFT JOIN {CATEGORY_TABLE} c ON m.cat_id = c.cat_id
+                LEFT JOIN {CATEGORY_STATS_TABLE} cs ON c.cat_stats_id = cs.cat_stats_id
+                WHERE m.module_id = %s""",
+            (module_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Module not found."
+
+        category_status = row[0]
+        if category_status != "Published":
+            cursor.close()
+            return False, (
+                f"Cannot publish this module - its parent category is still in "
+                f"{category_status} status. Publish the parent category first."
+            )
 
         cursor.execute(
             f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Published' LIMIT 1"
@@ -870,8 +971,16 @@ def unpublish_module(module_id):
                 WHERE module_id = %s""",
             (draft_id, module_id)
         )
+
+        lesson_count, leaf_count = _unpublish_children_of_module(cursor, module_id)
+
         connection.commit()
         cursor.close()
+        if lesson_count or leaf_count:
+            return True, (
+                f"Module moved back to Draft. Also unpublished {lesson_count} lesson(s) "
+                f"and {leaf_count} activity/exercise item(s) under it."
+            )
         return True, "Module unpublished successfully."
     except Error as e:
         connection.rollback()
@@ -1029,6 +1138,15 @@ def move_category_to_draft(cat_id):
     both the "Move to Draft" button (Ready to Publish state) and the
     "Unpublish" button (Published state) on the Publish Action column -
     both land here, since they perform the exact same operation.
+
+    Task #publishing-cascade: also flips every currently-Published
+    module under this category (and their lessons/activities/
+    exercises, via _unpublish_children_of_module()) back to Draft. This
+    runs unconditionally rather than checking the category's prior
+    status first - a category that wasn't Published can never have had
+    a Published module under it in the first place (publish_module()'s
+    own gate prevents that), so the cascade queries simply find nothing
+    to do and this stays a safe no-op in that case.
     """
     if not cat_id:
         return False, "Category ID is required."
@@ -1054,8 +1172,41 @@ def move_category_to_draft(cat_id):
             f"UPDATE {CATEGORY_TABLE} SET cat_stats_id = %s WHERE cat_id = %s",
             (draft_id, cat_id)
         )
+
+        module_draft_id = None
+        cursor.execute(f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Draft'")
+        row = cursor.fetchone()
+        module_draft_id = row[0] if row else None
+
+        cursor.execute(
+            f"""SELECT m.module_id FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.cat_id = %s AND ms.module_stats_name = 'Published'""",
+            (cat_id,)
+        )
+        module_ids = [r[0] for r in cursor.fetchall()]
+
+        lesson_total = 0
+        leaf_total = 0
+        if module_ids and module_draft_id:
+            placeholders = ", ".join(["%s"] * len(module_ids))
+            cursor.execute(
+                f"UPDATE {MODULES_TABLE} SET module_stats_id = %s, updated_at = NOW() WHERE module_id IN ({placeholders})",
+                tuple([module_draft_id] + module_ids)
+            )
+            for m_id in module_ids:
+                l_count, leaf_count = _unpublish_children_of_module(cursor, m_id)
+                lesson_total += l_count
+                leaf_total += leaf_count
+
         connection.commit()
         cursor.close()
+
+        if module_ids:
+            return True, (
+                f"Category moved back to Draft. Also unpublished {len(module_ids)} module(s), "
+                f"{lesson_total} lesson(s), and {leaf_total} activity/exercise item(s) under it."
+            )
         return True, "Category moved back to Draft."
     except Error as e:
         connection.rollback()

@@ -308,8 +308,50 @@ def unpublish_resource(resource_id):
                 WHERE resource_id = %s""",
             (draft_id, resource_id)
         )
+
+        # Task #publishing-cascade: also flips every currently-Published
+        # activity/coding exercise attached to this lesson back to
+        # Draft - a published leaf under an unpublished lesson would be
+        # an orphaned/inconsistent state.
+        leaf_count = 0
+        cursor.execute("SELECT la_stats_id FROM learning_activities_stats_tbl WHERE la_stats_name = 'Draft'")
+        row = cursor.fetchone()
+        la_draft_id = row[0] if row else None
+        if la_draft_id:
+            cursor.execute(
+                """SELECT COUNT(*) FROM learning_activities_tbl la
+                   LEFT JOIN learning_activities_stats_tbl last ON la.la_stats_id = last.la_stats_id
+                   WHERE la.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (resource_id,)
+            )
+            leaf_count += cursor.fetchone()[0]
+            cursor.execute(
+                """UPDATE learning_activities_tbl la
+                   LEFT JOIN learning_activities_stats_tbl last ON la.la_stats_id = last.la_stats_id
+                   SET la.la_stats_id = %s, la.updated_at = NOW()
+                   WHERE la.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (la_draft_id, resource_id)
+            )
+
+            cursor.execute(
+                """SELECT COUNT(*) FROM coding_exercises_tbl ce
+                   LEFT JOIN learning_activities_stats_tbl last ON ce.exercise_stats_id = last.la_stats_id
+                   WHERE ce.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (resource_id,)
+            )
+            leaf_count += cursor.fetchone()[0]
+            cursor.execute(
+                """UPDATE coding_exercises_tbl ce
+                   LEFT JOIN learning_activities_stats_tbl last ON ce.exercise_stats_id = last.la_stats_id
+                   SET ce.exercise_stats_id = %s, ce.updated_at = NOW()
+                   WHERE ce.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (la_draft_id, resource_id)
+            )
+
         connection.commit()
         cursor.close()
+        if leaf_count:
+            return True, f"Resource moved back to Draft. Also unpublished {leaf_count} activity/exercise item(s) under it."
         return True, "Resource moved back to Draft."
     except Error as e:
         connection.rollback()

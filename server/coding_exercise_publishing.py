@@ -90,11 +90,10 @@ def publish_exercise(exercise_id):
 
         cursor.execute(
             f"""
-            SELECT ce.exercise_id, lr.module_id, ms.module_stats_name
+            SELECT ce.exercise_id, lr.resource_id, lrs.lr_stats_name
             FROM {CODING_EXERCISES_TABLE} ce
             LEFT JOIN learning_resources_tbl lr ON ce.resource_id = lr.resource_id
-            LEFT JOIN modules_tbl m ON lr.module_id = m.module_id
-            LEFT JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+            LEFT JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
             WHERE ce.exercise_id = %s
             """,
             (exercise_id,)
@@ -104,10 +103,10 @@ def publish_exercise(exercise_id):
             cursor.close()
             return False, "Coding exercise not found."
 
-        module_status = row[2] or "Draft"
-        if module_status != "Published":
+        lesson_status = row[2] or "Draft"
+        if lesson_status != "Published":
             cursor.close()
-            return False, f"Cannot publish this exercise - its parent module is still in {module_status} status. Publish the parent module first."
+            return False, f"Cannot publish this exercise - its parent lesson is still in {lesson_status} status. Publish the parent lesson first."
 
         published_id = get_published_status_id(connection)
         if not published_id:

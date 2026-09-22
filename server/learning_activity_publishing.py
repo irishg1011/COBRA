@@ -111,10 +111,10 @@ def publish_activity(activity_id):
 
         cursor.execute(
             f"""
-            SELECT la.la_id, la.module_id, ms.module_stats_name
+            SELECT la.la_id, lr.resource_id, lrs.lr_stats_name
             FROM {LEARNING_ACTIVITIES_TABLE} la
-            LEFT JOIN modules_tbl m ON la.module_id = m.module_id
-            LEFT JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+            LEFT JOIN learning_resources_tbl lr ON la.resource_id = lr.resource_id
+            LEFT JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
             WHERE la.la_id = %s
             """,
             (activity_id,)
@@ -124,11 +124,10 @@ def publish_activity(activity_id):
             cursor.close()
             return False, "Learning activity not found."
 
-        module_status = row[2] or "Draft"
-        if module_status != "Published":
+        lesson_status = row[2] or "Draft"
+        if lesson_status != "Published":
             cursor.close()
-            return False, f"Cannot publish this activity - its parent module is still in {module_status} status. Publish the parent module first."
-
+            return False, f"Cannot publish this activity - its parent lesson is still in {lesson_status} status. Publish the parent lesson first."
         published_id = get_published_status_id(connection)
         if not published_id:
             cursor.close()

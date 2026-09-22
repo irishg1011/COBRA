@@ -6,11 +6,20 @@
    pages, not unique to this one.
    ========================================================================== */
 
+.publishing-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
 .publishing-tabs-row {
     display: flex;
     gap: 0;
     border-bottom: 1px solid #e5e7eb;
     margin-bottom: 20px;
+    flex: 1;
 }
 
 .publishing-tab {
@@ -31,9 +40,129 @@
     border-bottom-color: #09B300;
 }
 
+.publishing-tab:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .publishing-tab .badge {
     margin-left: 6px;
 }
+
+.publishing-order-actions {
+    display: flex;
+    gap: 10px;
+    flex: none;
+    margin-bottom: 20px;
+}
+
+.btn-editorder-custom {
+    background: #ffffff !important;
+    color: #1f2421 !important;
+    border: 1.5px solid #1f2421 !important;
+    font-weight: 600 !important;
+}
+
+.btn-editorder-custom:hover,
+.btn-editorder-custom:focus,
+.btn-editorder-custom:active {
+    background: #1f2421 !important;
+    color: #ffffff !important;
+}
+
+.btn-ghost-custom {
+    background: #ffffff !important;
+    color: #6b7280 !important;
+    border: 1.5px solid #d1d5db !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+}
+
+.btn-ghost-custom:hover,
+.btn-ghost-custom:focus,
+.btn-ghost-custom:active {
+    background: #f3f4f6 !important;
+    color: #1f2421 !important;
+}
+
+/* ==========================================================================
+   TASK #publishing-reorder-frontend: Edit Order mode
+   ========================================================================== */
+
+.publishing-edit-banner {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: #fef9c3;
+    color: #a16207;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.publishing-edit-banner.show {
+    display: flex;
+}
+
+.publishing-hint.hide {
+    display: none;
+}
+
+.publishing-order-ctrls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: none;
+}
+
+.publishing-grip {
+    cursor: grab;
+    color: #6b7280;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.publishing-grip:active {
+    cursor: grabbing;
+}
+
+.publishing-arrow-btn {
+    background: #f3f4f1;
+    border: none;
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1f2421;
+}
+
+.publishing-arrow-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.publishing-name-static {
+    padding: 2px 4px;
+    font-weight: 600;
+}
+
+.publishing-row.drag-over {
+    border-top-color: #09B300;
+    border-top-width: 2px;
+}
+
+.publishing-row.dragging {
+    opacity: 0.4;
+}
+
+/* ------------------------------------------------------------------ */
 
 .publishing-card {
     background: #ffffff;
@@ -47,7 +176,7 @@
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    border-top: 1px solid #f0ede4;
+    border-top: 2px solid #f0ede4;
     position: relative;
 }
 
