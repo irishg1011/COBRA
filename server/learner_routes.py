@@ -248,13 +248,19 @@ def learning_map_data():
     try:
         cursor = connection.cursor(dictionary=True)
 
+        # Task #15: Publishing page's Edit Order writes display_order -
+        # this is the first place the learner side actually reads it.
+        # COALESCE falls back to cat_id for any row that somehow still
+        # has a NULL display_order, so nothing breaks if one is missing.
         cursor.execute(
-            "SELECT cat_id, category_name FROM category_tbl WHERE is_archived = 0 ORDER BY cat_id ASC"
+            "SELECT cat_id, category_name FROM category_tbl WHERE is_archived = 0 "
+            "ORDER BY COALESCE(display_order, 999999) ASC, cat_id ASC"
         )
         categories = cursor.fetchall()
 
         cursor.execute(
-            "SELECT module_id, cat_id FROM modules_tbl WHERE is_archived = 0 ORDER BY cat_id ASC, module_id ASC"
+            "SELECT module_id, cat_id FROM modules_tbl WHERE is_archived = 0 "
+            "ORDER BY cat_id ASC, COALESCE(display_order, 999999) ASC, module_id ASC"
         )
         modules = cursor.fetchall()
 
@@ -447,7 +453,8 @@ def lessons_data():
             module_id = module["module_id"]
 
             cursor.execute(
-                "SELECT resource_id, resource_title FROM learning_resources_tbl WHERE module_id = %s ORDER BY resource_id ASC",
+                "SELECT resource_id, resource_title FROM learning_resources_tbl WHERE module_id = %s "
+                "ORDER BY COALESCE(display_order, 999999) ASC, resource_id ASC",
                 (module_id,)
             )
             resources = cursor.fetchall()
