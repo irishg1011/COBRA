@@ -28,10 +28,22 @@
         const tabReady = document.getElementById("pubTabReady");
         const tabPublished = document.getElementById("pubTabPublished");
         const readyCountEl = document.getElementById("pubReadyCount");
-        const publishedCountEl = document.getElementById("pubPublishedCount");
         const orderActionsEl = document.getElementById("pubOrderActions");
         const editBannerEl = document.getElementById("pubEditBanner");
         const hintEl = document.getElementById("pubHint");
+
+        // Task #22: Preview button lives OUTSIDE #pubOrderActions on purpose -
+        // setOrderActionsHtml() below does orderActionsEl.innerHTML = ... on
+        // every Edit Order toggle, which would silently wipe this button out
+        // if it were nested inside that same container.
+        const previewBtn = document.getElementById("pubPreviewBtn");
+        if (previewBtn) {
+            previewBtn.addEventListener("click", () => {
+                if (window.CobraBytePublishingPreview) {
+                    window.CobraBytePublishingPreview.open();
+                }
+            });
+        }
 
         let tree = [];
         try {

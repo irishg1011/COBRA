@@ -276,3 +276,9 @@
     padding: 32px;
     text-align: center;
 }
+
+.publishing-toolbar-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}

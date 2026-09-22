@@ -6,6 +6,7 @@
     <title>CobraByte Admin - Publishing</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/publishing.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/publishing-preview.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -35,6 +36,7 @@
                         </button>
                     </div>
                     <div class="publishing-order-actions" id="pubOrderActions">
+                        <button type="button" id="pubPreviewBtn" class="btn btn-editorder-custom">Preview</button>
                         <button type="button" id="pubEditOrderBtn" class="btn btn-editorder-custom">Edit Order</button>
                     </div>
                 </div>
@@ -56,8 +58,10 @@
     </div>
 
     {% include 'confirm-action-modal.html' %}
+    {% include 'publishing-preview-modal.html' %}
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-publishing.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-publishing-preview.js') }}"></script>
 </body>
 </html>
