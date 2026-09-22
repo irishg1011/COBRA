@@ -123,23 +123,23 @@
             switch (type) {
                 case "cat": return {
                     publish: `/admin/manage-course/categories/${n}/publish`,
-                    unpublish: `/admin/manage-course/categories/${n}/move-to-draft`,
+                    unpublish: `/admin/publishing/categories/${n}/unpublish`,
                 };
                 case "mod": return {
                     publish: `/admin/manage-course/modules/${n}/publish`,
-                    unpublish: `/admin/manage-course/modules/${n}/unpublish`,
+                    unpublish: `/admin/publishing/modules/${n}/unpublish`,
                 };
                 case "res": return {
                     publish: `/admin/learning-resources/${n}/publish`,
-                    unpublish: `/admin/learning-resources/${n}/unpublish`,
+                    unpublish: `/admin/publishing/resources/${n}/unpublish`,
                 };
                 case "act": return {
                     publish: `/admin/learning-activities/${n}/publish`,
-                    unpublish: `/admin/learning-activities/${n}/unpublish`,
+                    unpublish: `/admin/publishing/activities/${n}/unpublish`,
                 };
                 case "ex": return {
                     publish: `/admin/coding-exercises/${n}/publish`,
-                    unpublish: `/admin/coding-exercises/${n}/unpublish`,
+                    unpublish: `/admin/publishing/exercises/${n}/unpublish`,
                 };
             }
             return {};
@@ -676,8 +676,8 @@
                 } else {
                     const descCount = node ? countPublishedDescendants(node) : 0;
                     confirmMsg = descCount > 0
-                        ? `Are you sure you want to unpublish "${label}"? This will also unpublish ${descCount} published item(s) under it.`
-                        : `Are you sure you want to unpublish "${label}"? It will be moved back to Draft and hidden from learners.`;
+                        ? `Are you sure you want to unpublish "${label}"? It will be moved to Ready to Publish, and ${descCount} other published item(s) under it will move to Ready to Publish too.`
+                        : `Are you sure you want to unpublish "${label}"? It will be moved back to Ready to Publish and hidden from learners.`;
                 }
 
                 showConfirmModal(confirmMsg, async () => {

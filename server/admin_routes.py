@@ -37,6 +37,7 @@ from manage_course import (
     check_resource_archive_eligibility, check_activity_archive_eligibility, check_coding_exercise_archive_eligibility,  # NEW (Task #123): universal Published-dependency check
     mark_module_ready_to_publish, mark_category_ready_to_publish, move_category_to_draft,  # NEW - Task #publishing-schema: Ready to Publish queue actions
     publish_category,  # NEW - Task #publishing-page-backend: real Publish action for categories, reserved for the Publishing page
+    unpublish_module_to_ready, unpublish_category_to_ready,  # NEW - Task #7: Publishing page's own Unpublish (targets Ready to Publish, not Draft)
 )
 from learning_resources import (  # NEW - Task #37, #38, #39 & #40: Learning Resources DB integration
     get_resource_types, get_learning_resources_overview,
@@ -52,12 +53,13 @@ from learning_activity_draft import save_activity_draft, get_activity_draft  # N
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
     parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
 )
-from learning_activity_publishing import publish_activity, unpublish_activity, mark_ready_to_publish_activity  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern; mark_ready_to_publish_activity added for Task #publishing-schema
+from learning_activity_publishing import publish_activity, unpublish_activity, mark_ready_to_publish_activity, unpublish_activity_to_ready  # NEW - Task #57 & #107: flips a saved activity's status between "Draft" and "Published", mirroring resource_publishing.py's publish_resource()/unpublish_resource() two-step pattern; mark_ready_to_publish_activity added for Task #publishing-schema; unpublish_activity_to_ready added for Task #7
 from lesson_validation import validate_lesson_title  # NEW - Task #42: global lesson-name uniqueness + sentence-case formatting
 from resource_publishing import (  # NEW - Task #43: Draft-default + Publish/Unpublish workflow for learning resources
     get_draft_status_id, publish_resource, unpublish_resource,
     archive_resource,  # NEW - Task #81: Manage Learning Resources ACTIONS -> Archive
     mark_ready_to_publish_resource,  # NEW - Task #publishing-schema
+    unpublish_resource_to_ready,  # NEW - Task #7: Publishing page's own Unpublish (targets Ready to Publish, not Draft)
 )
 from resource_draft import save_lesson_draft, get_lesson_draft  # NEW - Task #44: Upload Resource draft autosave; Task #45: reload saved content
 from resource_form_publish import save_and_publish_lesson  # NEW - Task #95: shared save-then-publish for New Lesson
@@ -67,7 +69,7 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
     save_coding_exercise, parse_test_cases_from_form,
 )
-from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise, mark_ready_to_publish_exercise  # Task #111 & #112; mark_ready_to_publish_exercise added for Task #publishing-schema
+from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise, mark_ready_to_publish_exercise, unpublish_exercise_to_ready  # Task #111 & #112; mark_ready_to_publish_exercise added for Task #publishing-schema; unpublish_exercise_to_ready added for Task #7
 from video_tutorials import (  # NEW: New Video Tutorial DB integration - Category -> Module -> Lesson cascade + Save Draft/Publish
     save_video_tutorial, get_video_tutorial,
     archive_video_tutorial,  # NEW: Manage Learning Resources Archive checklist - "Video Tutorial" option
@@ -1700,6 +1702,41 @@ def publishing_data():
     Returns JSON: { "success": bool, "tree": [...] }
     """
     return jsonify({"success": True, "tree": get_publishing_tree()}), 200
+
+
+@admin_bp.route('/publishing/categories/<int:cat_id>/unpublish', methods=['POST'])
+def publishing_unpublish_category(cat_id):
+    """Task #7: Publishing page's own Unpublish for a category - targets Ready to Publish, not Draft."""
+    success, message = unpublish_category_to_ready(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/publishing/modules/<int:module_id>/unpublish', methods=['POST'])
+def publishing_unpublish_module(module_id):
+    """Task #7: Publishing page's own Unpublish for a module - targets Ready to Publish, not Draft."""
+    success, message = unpublish_module_to_ready(module_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/publishing/resources/<int:resource_id>/unpublish', methods=['POST'])
+def publishing_unpublish_resource(resource_id):
+    """Task #7: Publishing page's own Unpublish for a lesson - targets Ready to Publish, not Draft."""
+    success, message = unpublish_resource_to_ready(resource_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/publishing/activities/<int:activity_id>/unpublish', methods=['POST'])
+def publishing_unpublish_activity(activity_id):
+    """Task #7: Publishing page's own Unpublish for a learning activity - targets Ready to Publish, not Draft."""
+    success, message = unpublish_activity_to_ready(activity_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/publishing/exercises/<int:exercise_id>/unpublish', methods=['POST'])
+def publishing_unpublish_exercise(exercise_id):
+    """Task #7: Publishing page's own Unpublish for a coding exercise - targets Ready to Publish, not Draft."""
+    success, message = unpublish_exercise_to_ready(exercise_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
 @admin_bp.route('/publishing/reorder', methods=['POST'])

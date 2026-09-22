@@ -795,14 +795,16 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id=N
         if connection.is_connected():
             connection.close()
 
-
-def _unpublish_children_of_module(cursor, module_id):
+def _unpublish_children_of_module(cursor, module_id, target_status_name="Draft"):
     """
-    Task #publishing-cascade: flips every currently-Published lesson
-    under this module (and every currently-Published activity/exercise
-    under those lessons) back to Draft. Uses an ALREADY-OPEN cursor -
-    called both from unpublish_module() directly and from
-    move_category_to_draft() while walking a whole category's modules.
+    Task #publishing-cascade / Task #7: flips every currently-Published
+    lesson under this module (and every currently-Published activity/
+    exercise under those lessons) to `target_status_name` - "Draft" when
+    called from unpublish_module()'s own Move-to-Draft path, "Ready to
+    Publish" when called from the Publishing page's Unpublish path.
+    Uses an ALREADY-OPEN cursor - called from unpublish_module(),
+    unpublish_module_to_ready(), and move_category_to_draft() while
+    walking a whole category's modules.
 
     Returns (lesson_count, leaf_count) - how many of each were actually
     changed, for the caller's success message. Both are 0 (a no-op) if
@@ -822,11 +824,11 @@ def _unpublish_children_of_module(cursor, module_id):
     leaf_count = 0
     placeholders = ", ".join(["%s"] * len(resource_ids))
 
-    cursor.execute(f"SELECT la_stats_id FROM {LA_STATS_TABLE} WHERE la_stats_name = 'Draft'")
+    cursor.execute(f"SELECT la_stats_id FROM {LA_STATS_TABLE} WHERE la_stats_name = %s", (target_status_name,))
     row = cursor.fetchone()
-    la_draft_id = row[0] if row else None
+    la_target_id = row[0] if row else None
 
-    if la_draft_id:
+    if la_target_id:
         cursor.execute(
             f"""SELECT COUNT(*) FROM {LEARNING_ACTIVITIES_TABLE} la
                 LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
@@ -839,7 +841,7 @@ def _unpublish_children_of_module(cursor, module_id):
                 LEFT JOIN {LA_STATS_TABLE} last ON la.la_stats_id = last.la_stats_id
                 SET la.la_stats_id = %s, la.updated_at = NOW()
                 WHERE la.resource_id IN ({placeholders}) AND last.la_stats_name = 'Published'""",
-            tuple([la_draft_id] + resource_ids)
+            tuple([la_target_id] + resource_ids)
         )
 
         cursor.execute(
@@ -854,18 +856,18 @@ def _unpublish_children_of_module(cursor, module_id):
                 LEFT JOIN {LA_STATS_TABLE} last ON ce.exercise_stats_id = last.la_stats_id
                 SET ce.exercise_stats_id = %s, ce.updated_at = NOW()
                 WHERE ce.resource_id IN ({placeholders}) AND last.la_stats_name = 'Published'""",
-            tuple([la_draft_id] + resource_ids)
+            tuple([la_target_id] + resource_ids)
         )
 
-    cursor.execute(f"SELECT lr_stats_id FROM {LR_STATS_TABLE} WHERE lr_stats_name = 'Draft'")
+    cursor.execute(f"SELECT lr_stats_id FROM {LR_STATS_TABLE} WHERE lr_stats_name = %s", (target_status_name,))
     row = cursor.fetchone()
-    lr_draft_id = row[0] if row else None
-    if lr_draft_id:
+    lr_target_id = row[0] if row else None
+    if lr_target_id:
         cursor.execute(
             f"""UPDATE {LEARNING_RESOURCES_TABLE}
                 SET lr_stats_id = %s, updated_at = NOW()
                 WHERE resource_id IN ({placeholders})""",
-            tuple([lr_draft_id] + resource_ids)
+            tuple([lr_target_id] + resource_ids)
         )
 
     return len(resource_ids), leaf_count
@@ -1211,6 +1213,140 @@ def move_category_to_draft(cat_id):
     except Error as e:
         connection.rollback()
         print(f"manage_course: failed to move category {cat_id} to draft: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unpublish_module_to_ready(module_id):
+    """
+    Task #7: the Publishing page's own Unpublish action for a module -
+    distinct from unpublish_module() (which is the manage pages' Move
+    to Draft, still targeting "Draft"). This targets "Ready to Publish"
+    instead: a published item pulled offline is still finished/
+    reviewed, not suddenly "not ready" - only Move to Draft demotes it
+    further. Cascades every Published descendant to "Ready to Publish"
+    too, via _unpublish_children_of_module().
+    """
+    if not module_id:
+        return False, "Module ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_module_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Ready to Publish' LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            return False, "Ready to Publish status not found."
+        ready_id = row[0]
+
+        cursor.execute(
+            f"""UPDATE {MODULES_TABLE}
+                SET module_stats_id = %s, updated_at = NOW()
+                WHERE module_id = %s""",
+            (ready_id, module_id)
+        )
+
+        lesson_count, leaf_count = _unpublish_children_of_module(cursor, module_id, target_status_name="Ready to Publish")
+
+        connection.commit()
+        cursor.close()
+        if lesson_count or leaf_count:
+            return True, (
+                f"Module moved back to Ready to Publish. Also moved {lesson_count} lesson(s) "
+                f"and {leaf_count} activity/exercise item(s) under it to Ready to Publish."
+            )
+        return True, "Module moved back to Ready to Publish."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to unpublish module {module_id} to ready: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unpublish_category_to_ready(cat_id):
+    """
+    Task #7: the Publishing page's own Unpublish action for a category
+    - mirrors unpublish_module_to_ready() one level up, and is
+    distinct from move_category_to_draft() (the manage-side Move to
+    Draft / old Unpublish, which targets "Draft"). Cascades every
+    Published module under this category (and their lessons/
+    activities/exercises) to "Ready to Publish" too.
+    """
+    if not cat_id:
+        return False, "Category ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_category_stats_id_column(connection)
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Category not found."
+
+        ready_id = _get_category_status_id(connection, "Ready to Publish")
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"UPDATE {CATEGORY_TABLE} SET cat_stats_id = %s WHERE cat_id = %s",
+            (ready_id, cat_id)
+        )
+
+        module_ready_id = None
+        cursor.execute(f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Ready to Publish'")
+        row = cursor.fetchone()
+        module_ready_id = row[0] if row else None
+
+        cursor.execute(
+            f"""SELECT m.module_id FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.cat_id = %s AND ms.module_stats_name = 'Published'""",
+            (cat_id,)
+        )
+        module_ids = [r[0] for r in cursor.fetchall()]
+
+        lesson_total = 0
+        leaf_total = 0
+        if module_ids and module_ready_id:
+            placeholders = ", ".join(["%s"] * len(module_ids))
+            cursor.execute(
+                f"UPDATE {MODULES_TABLE} SET module_stats_id = %s, updated_at = NOW() WHERE module_id IN ({placeholders})",
+                tuple([module_ready_id] + module_ids)
+            )
+            for m_id in module_ids:
+                l_count, leaf_count = _unpublish_children_of_module(cursor, m_id, target_status_name="Ready to Publish")
+                lesson_total += l_count
+                leaf_total += leaf_count
+
+        connection.commit()
+        cursor.close()
+
+        if module_ids:
+            return True, (
+                f"Category moved back to Ready to Publish. Also moved {len(module_ids)} module(s), "
+                f"{lesson_total} lesson(s), and {leaf_total} activity/exercise item(s) to Ready to Publish."
+            )
+        return True, "Category moved back to Ready to Publish."
+    except Error as e:
+        connection.rollback()
+        print(f"manage_course: failed to unpublish category {cat_id} to ready: {e}")
         return False, f"Database error: {e}"
     finally:
         if connection.is_connected():

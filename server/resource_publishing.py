@@ -411,6 +411,93 @@ def mark_ready_to_publish_resource(resource_id):
         if connection.is_connected():
             connection.close()
 
+def unpublish_resource_to_ready(resource_id):
+    """
+    Task #7: the Publishing page's own Unpublish action for a lesson -
+    distinct from unpublish_resource() (the manage-side Move to
+    Draft / old Unpublish, which targets "Draft"). Targets "Ready to
+    Publish" instead, and cascades every Published activity/coding
+    exercise attached to this lesson to "Ready to Publish" too.
+    """
+    if not resource_id:
+        return False, "Resource ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_lr_stats(connection)
+        cursor = connection.cursor()
+        cursor.execute(
+            f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
+            (resource_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Resource not found."
+
+        ready_id = get_ready_to_publish_status_id(connection)
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                SET lr_stats_id = %s, updated_at = NOW()
+                WHERE resource_id = %s""",
+            (ready_id, resource_id)
+        )
+
+        leaf_count = 0
+        cursor.execute("SELECT la_stats_id FROM learning_activities_stats_tbl WHERE la_stats_name = 'Ready to Publish'")
+        row = cursor.fetchone()
+        la_ready_id = row[0] if row else None
+        if la_ready_id:
+            cursor.execute(
+                """SELECT COUNT(*) FROM learning_activities_tbl la
+                   LEFT JOIN learning_activities_stats_tbl last ON la.la_stats_id = last.la_stats_id
+                   WHERE la.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (resource_id,)
+            )
+            leaf_count += cursor.fetchone()[0]
+            cursor.execute(
+                """UPDATE learning_activities_tbl la
+                   LEFT JOIN learning_activities_stats_tbl last ON la.la_stats_id = last.la_stats_id
+                   SET la.la_stats_id = %s, la.updated_at = NOW()
+                   WHERE la.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (la_ready_id, resource_id)
+            )
+
+            cursor.execute(
+                """SELECT COUNT(*) FROM coding_exercises_tbl ce
+                   LEFT JOIN learning_activities_stats_tbl last ON ce.exercise_stats_id = last.la_stats_id
+                   WHERE ce.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (resource_id,)
+            )
+            leaf_count += cursor.fetchone()[0]
+            cursor.execute(
+                """UPDATE coding_exercises_tbl ce
+                   LEFT JOIN learning_activities_stats_tbl last ON ce.exercise_stats_id = last.la_stats_id
+                   SET ce.exercise_stats_id = %s, ce.updated_at = NOW()
+                   WHERE ce.resource_id = %s AND last.la_stats_name = 'Published'""",
+                (la_ready_id, resource_id)
+            )
+
+        connection.commit()
+        cursor.close()
+        if leaf_count:
+            return True, f"Resource moved back to Ready to Publish. Also moved {leaf_count} activity/exercise item(s) to Ready to Publish."
+        return True, "Resource moved back to Ready to Publish."
+    except Error as e:
+        connection.rollback()
+        print(f"resource_publishing: failed to unpublish resource {resource_id} to ready: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def archive_resource(resource_id):
     """
     Task #81: backs the Manage Learning Resources table's ACTIONS ->

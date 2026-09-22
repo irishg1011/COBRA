@@ -223,6 +223,56 @@ def get_archived_status_id(connection):
     return _get_status_id(connection, "Archived")
 
 
+def unpublish_activity_to_ready(activity_id):
+    """
+    Task #7: the Publishing page's own Unpublish action for a learning
+    activity - a leaf node, so no cascade needed. Targets "Ready to
+    Publish" instead of "Draft", distinct from unpublish_activity()
+    (the manage-side action, still targeting "Draft").
+    """
+    if not activity_id:
+        return False, "Activity ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_la_stats(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
+            (activity_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Learning activity not found."
+
+        ready_id = get_ready_to_publish_status_id(connection)
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"""UPDATE {LEARNING_ACTIVITIES_TABLE}
+                SET la_stats_id = %s, updated_at = NOW()
+                WHERE la_id = %s""",
+            (ready_id, activity_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Learning activity moved back to Ready to Publish."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"learning_activity_publishing: failed to unpublish activity {activity_id} to ready: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def get_ready_to_publish_status_id(connection):
     """
     Returns the la_stats_id for "Ready to Publish" (Task

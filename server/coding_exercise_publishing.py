@@ -244,6 +244,57 @@ def mark_ready_to_publish_exercise(exercise_id):
         if connection.is_connected():
             connection.close()
 
+def unpublish_exercise_to_ready(exercise_id):
+    """
+    Task #7: the Publishing page's own Unpublish action for a coding
+    exercise - a leaf node, so no cascade needed. Targets "Ready to
+    Publish" instead of "Draft", distinct from unpublish_exercise()
+    (the manage-side action, still targeting "Draft").
+    """
+    if not exercise_id:
+        return False, "Exercise ID is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_exercise_stats(connection)
+        ensure_exercise_is_archived_column(connection)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"SELECT exercise_id FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
+            (exercise_id,)
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            return False, "Coding exercise not found."
+
+        ready_id = get_ready_to_publish_status_id(connection)
+        if not ready_id:
+            cursor.close()
+            return False, "Could not resolve the Ready to Publish status."
+
+        cursor.execute(
+            f"""UPDATE {CODING_EXERCISES_TABLE}
+                SET exercise_stats_id = %s, is_archived = 0, updated_at = NOW()
+                WHERE exercise_id = %s""",
+            (ready_id, exercise_id)
+        )
+        connection.commit()
+        cursor.close()
+        return True, "Coding exercise moved back to Ready to Publish."
+    except Error as e:
+        if connection.is_connected():
+            connection.rollback()
+        print(f"coding_exercise_publishing: failed to unpublish exercise {exercise_id} to ready: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def archive_exercise(exercise_id):
     """
     Task #112: Soft-archives a coding exercise.
