@@ -58,9 +58,46 @@ CATEGORY_TABLE = "category_tbl"
 # manage_course.py's DEFAULT_STATUSES) - no schema change, just a new
 # row in the existing learning_resources_stats_tbl, seeded lazily the
 # exact same way Draft/Published already are.
-DEFAULT_LR_STATUSES = ["Draft", "Published", "Archived"]
+DEFAULT_LR_STATUSES = ["Draft", "Published", "Archived", "Ready to Publish"]
 
 _lr_stats_ensured = False
+_resource_display_order_column_ensured = False
+
+
+def ensure_resource_display_order_column(connection):
+    """
+    Task #publishing-schema: adds learning_resources_tbl.display_order
+    (INT NULL) for the Publishing page's lesson reordering, then backfills
+    existing rows per module (not globally), using created_at order, so
+    nothing jumps around the first time this ships.
+    """
+    global _resource_display_order_column_ensured
+    if _resource_display_order_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {LEARNING_RESOURCES_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"display_order INT(10) NULL"
+        )
+        cursor.execute(f"SELECT DISTINCT module_id FROM {LEARNING_RESOURCES_TABLE}")
+        for (module_id,) in cursor.fetchall():
+            cursor.execute(
+                f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} "
+                f"WHERE module_id = %s AND display_order IS NULL "
+                f"ORDER BY created_at ASC, resource_id ASC",
+                (module_id,)
+            )
+            for position, (resource_id,) in enumerate(cursor.fetchall(), start=1):
+                cursor.execute(
+                    f"UPDATE {LEARNING_RESOURCES_TABLE} SET display_order = %s WHERE resource_id = %s",
+                    (position, resource_id)
+                )
+        connection.commit()
+        cursor.close()
+        _resource_display_order_column_ensured = True
+    except Error as e:
+        print(f"resource_publishing: failed to ensure {LEARNING_RESOURCES_TABLE}.display_order column exists: {e}")
 
 
 def ensure_lr_stats(connection):
@@ -71,6 +108,7 @@ def ensure_lr_stats(connection):
     so it only round-trips once per process lifetime.
     """
     global _lr_stats_ensured
+    ensure_resource_display_order_column(connection)
     if _lr_stats_ensured:
         return
     try:

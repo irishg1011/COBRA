@@ -81,7 +81,7 @@ ACTIVITY_TYPES_TABLE = "activity_types_tbl"
 # get_learning_activities_overview()'s own status resolution. Mirrors
 # manage_course.py's DEFAULT_STATUSES / resource_publishing.py's
 # DEFAULT_LR_STATUSES seeding pattern exactly.
-DEFAULT_LA_STATUSES = ["Draft", "Published", "Archived"]
+DEFAULT_LA_STATUSES = ["Draft", "Published", "Archived", "Ready to Publish"]
 
 # These activity types must exist in activity_types_tbl. Matches the exact
 # three options the Create Learning Activity form

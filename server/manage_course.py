@@ -29,7 +29,7 @@ CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 # Task requirement: these three statuses must exist in module_stats_tbl.
 # Never hardcoded anywhere else in the app - every other file reads them
 # from the database via get_module_stats_options().
-DEFAULT_STATUSES = ["Published", "Draft", "Archived"]
+DEFAULT_STATUSES = ["Published", "Draft", "Archived", "Ready to Publish"]
 
 _module_stats_ensured = False
 
@@ -71,6 +71,8 @@ def ensure_category_is_archived_column(connection):
     if it doesn't already exist yet.
     """
     global _is_category_archived_column_ensured
+    ensure_category_stats_id_column(connection)
+    ensure_display_order_columns(connection)
     if _is_category_archived_column_ensured:
         return
     try:
@@ -84,6 +86,140 @@ def ensure_category_is_archived_column(connection):
         _is_category_archived_column_ensured = True
     except Error as e:
         print(f"manage_course: failed to ensure {CATEGORY_TABLE}.is_archived column exists: {e}")
+
+
+CATEGORY_STATS_TABLE = "category_stats_tbl"
+
+# Task #publishing-schema: category_tbl has never had a status of its own -
+# see resource_publishing.py's "NOTE ON category or module" docstring, which
+# already flagged this as a column to add later. Ordered by actual lifecycle
+# (Draft -> Ready to Publish -> Published -> Archived) since this is a brand
+# new table with no legacy id order to preserve, unlike DEFAULT_STATUSES.
+DEFAULT_CATEGORY_STATUSES = ["Draft", "Ready to Publish", "Published", "Archived"]
+
+_category_stats_ensured = False
+_category_stats_id_column_ensured = False
+_display_order_columns_ensured = False
+
+
+def ensure_category_stats(connection):
+    """
+    Creates category_stats_tbl if it doesn't exist yet and seeds it with
+    DEFAULT_CATEGORY_STATUSES. Mirrors ensure_module_stats() below exactly.
+    """
+    global _category_stats_ensured
+    if _category_stats_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"CREATE TABLE IF NOT EXISTS {CATEGORY_STATS_TABLE} ("
+            f"cat_stats_id INT(10) NOT NULL AUTO_INCREMENT, "
+            f"cat_stats_name VARCHAR(50) NOT NULL, "
+            f"PRIMARY KEY (cat_stats_id), "
+            f"UNIQUE KEY cat_stats_name (cat_stats_name)"
+            f") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        )
+        cursor.execute(f"SELECT cat_stats_name FROM {CATEGORY_STATS_TABLE}")
+        existing = {row[0] for row in cursor.fetchall()}
+        missing = [s for s in DEFAULT_CATEGORY_STATUSES if s not in existing]
+        for name in missing:
+            cursor.execute(
+                f"INSERT INTO {CATEGORY_STATS_TABLE} (cat_stats_name) VALUES (%s)",
+                (name,)
+            )
+        connection.commit()
+        cursor.close()
+        _category_stats_ensured = True
+    except Error as e:
+        print(f"manage_course: failed to seed {CATEGORY_STATS_TABLE}: {e}")
+
+
+def ensure_category_stats_id_column(connection):
+    """
+    Adds category_tbl.cat_stats_id (nullable FK -> category_stats_tbl) if it
+    doesn't exist yet, then backfills every existing category to "Published" -
+    they're already live today with no status field saying otherwise, so this
+    is the one column here that needs an explicit backfill instead of a safe
+    zero/NULL default.
+    """
+    global _category_stats_id_column_ensured
+    if _category_stats_id_column_ensured:
+        return
+    ensure_category_stats(connection)
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {CATEGORY_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"cat_stats_id INT(10) NULL"
+        )
+        cursor.execute(
+            f"SELECT cat_stats_id FROM {CATEGORY_STATS_TABLE} WHERE cat_stats_name = 'Published'"
+        )
+        published_row = cursor.fetchone()
+        if published_row:
+            cursor.execute(
+                f"UPDATE {CATEGORY_TABLE} SET cat_stats_id = %s WHERE cat_stats_id IS NULL",
+                (published_row[0],)
+            )
+        connection.commit()
+        cursor.close()
+        _category_stats_id_column_ensured = True
+    except Error as e:
+        print(f"manage_course: failed to ensure {CATEGORY_TABLE}.cat_stats_id column exists: {e}")
+
+
+def ensure_display_order_columns(connection):
+    """
+    Task #publishing-schema: adds display_order (INT NULL) to category_tbl
+    and modules_tbl for the Publishing page's drag/up-down reordering, then
+    backfills existing rows so nothing jumps around the first time this
+    ships. Categories have no created_at, so cat_id stands in for creation
+    order. Modules are backfilled per category (not globally) since that's
+    the scope reordering actually happens in.
+    """
+    global _display_order_columns_ensured
+    if _display_order_columns_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {CATEGORY_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"display_order INT(10) NULL"
+        )
+        cursor.execute(
+            f"ALTER TABLE {MODULES_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"display_order INT(10) NULL"
+        )
+
+        cursor.execute(
+            f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE display_order IS NULL ORDER BY cat_id ASC"
+        )
+        for position, (cat_id,) in enumerate(cursor.fetchall(), start=1):
+            cursor.execute(
+                f"UPDATE {CATEGORY_TABLE} SET display_order = %s WHERE cat_id = %s",
+                (position, cat_id)
+            )
+
+        cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE}")
+        for (cat_id,) in cursor.fetchall():
+            cursor.execute(
+                f"SELECT module_id FROM {MODULES_TABLE} "
+                f"WHERE cat_id = %s AND display_order IS NULL "
+                f"ORDER BY created_at ASC, module_id ASC",
+                (cat_id,)
+            )
+            for position, (module_id,) in enumerate(cursor.fetchall(), start=1):
+                cursor.execute(
+                    f"UPDATE {MODULES_TABLE} SET display_order = %s WHERE module_id = %s",
+                    (position, module_id)
+                )
+
+        connection.commit()
+        cursor.close()
+        _display_order_columns_ensured = True
+    except Error as e:
+        print(f"manage_course: failed to ensure display_order columns exist: {e}")
 
 
 

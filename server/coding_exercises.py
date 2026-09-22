@@ -19,7 +19,7 @@ CATEGORY_TABLE = "category_tbl"
 MODULES_TABLE = "modules_tbl"
 MODULE_STATS_TABLE = "module_stats_tbl"
 
-DEFAULT_EXERCISE_STATUSES = ["Draft", "Published", "Archived"]
+DEFAULT_EXERCISE_STATUSES = ["Draft", "Published", "Archived", "Ready to Publish"]
 _stats_ensured = False
 _is_archived_column_ensured = False
 
