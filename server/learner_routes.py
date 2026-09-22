@@ -453,7 +453,7 @@ def lessons_data():
             resources = cursor.fetchall()
 
             lessons_out = []
-            previous_complete = True
+            previous_reached = True
 
             for resource in resources:
                 resource_id = resource["resource_id"]
@@ -463,6 +463,12 @@ def lessons_data():
                     (acc_id, resource_id)
                 )
                 progress_row = cursor.fetchone()
+                # Task #14: has_ever_touched is True for ANY existing
+                # row (in_progress or completed) - a lesson the learner
+                # has started but not finished still counts as
+                # "reached," so it can never be re-locked by a later
+                # reorder either.
+                has_ever_touched = progress_row is not None
                 resource_watched = bool(progress_row and progress_row["status"] == "completed")
 
                 cursor.execute(
@@ -504,9 +510,15 @@ def lessons_data():
                 activities_ok = (activities_total == 0) or (activities_completed == activities_total)
                 is_complete = resource_watched and activities_ok and exercise_completed
 
+                # Task #14: a lesson the learner has ever touched is
+                # never locked, regardless of current position - only a
+                # never-touched lesson falls back to the positional
+                # check against whatever now comes before it.
                 if is_complete:
                     status = "completed"
-                elif previous_complete:
+                elif has_ever_touched:
+                    status = "ready"
+                elif previous_reached:
                     status = "ready"
                 else:
                     status = "locked"
@@ -525,7 +537,11 @@ def lessons_data():
                 if is_complete:
                     overall_completed += 1
 
-                previous_complete = is_complete
+                # Task #14: "reached" now includes touched-but-not-yet-
+                # complete, not just fully complete - this is the line
+                # that keeps everything after an in-progress lesson from
+                # locking behind it.
+                previous_reached = is_complete or has_ever_touched
 
             lessons_completed_in_module = sum(1 for l in lessons_out if l["status"] == "completed")
 
