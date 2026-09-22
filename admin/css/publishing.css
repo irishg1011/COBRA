@@ -162,6 +162,32 @@
     opacity: 0.4;
 }
 
+/* ==========================================================================
+   TASK #publishing-tree-visual-hierarchy: per-depth left border + tint,
+   layered on top of (never replacing) the status badge/button colors.
+   ========================================================================== */
+
+.publishing-row-depth-0 {
+    border-left: 4px solid #178A47;
+    background: #ffffff;
+    font-weight: 600;
+}
+
+.publishing-row-depth-1 {
+    border-left: 4px solid #5B4FDB;
+    background: #fbfaf7;
+}
+
+.publishing-row-depth-2 {
+    border-left: 4px solid #C0356A;
+    background: #f7f6f2;
+}
+
+.publishing-row-depth-3 {
+    border-left: 4px solid #9A6700;
+    background: #f3f2ec;
+}
+
 /* ------------------------------------------------------------------ */
 
 .publishing-card {

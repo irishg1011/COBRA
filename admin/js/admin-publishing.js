@@ -341,7 +341,7 @@
                 : "";
 
             return `
-                <div class="publishing-row" style="padding-left:${12 + depth * 26}px;" ${dragAttrs}>
+                <div class="publishing-row publishing-row-depth-${depth}" style="padding-left:${12 + depth * 26}px;" ${dragAttrs}>
                     ${chevron}
                     <span class="publishing-tag ${tagClass}">${tagLabel}</span>
                     <div class="publishing-name-wrap">
@@ -357,7 +357,7 @@
             const popOpen = openPopover === leaf.id;
             const type = typeOf(leaf.id);
             return `
-                <div class="publishing-row publishing-row-leaf" style="padding-left:${12 + depth * 26}px;">
+                <div class="publishing-row publishing-row-leaf publishing-row-depth-${depth}" style="padding-left:${12 + depth * 26}px;">
                     <span class="publishing-toggle-spacer"></span>
                     <span class="publishing-tag publishing-tag-leaf">${tagLabel}</span>
                     <div class="publishing-name-wrap">
