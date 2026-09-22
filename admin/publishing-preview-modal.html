@@ -1,57 +1,130 @@
 <!--
-    publishing-preview-modal.html - Task #19
+    publishing-preview-modal.html
     ------------------------------------------------------------------
-    Preview modal shell for the Publishing page. All content below is
-    populated by admin-publishing-preview.js (Task #21) - this file only
-    defines the structure/containers, no inline <style> or <script>.
-
-    Views (only one visible at a time, toggled by admin-publishing-
-    preview-js via a class on #publishingPreviewModal):
-        1. Learning Map  (#previewLearningMapView) - chapter list
-        2. Lessons       (#previewLessonsView)     - modules + lessons for one chapter
-        3. Lesson Content (#previewLessonContentView) - a lesson's body + its activities/exercises
+    3 screens, each reusing the REAL learner-side markup structure and
+    CSS classes (learning-map.css / lessons.css / lesson-content.css /
+    lesson-activities.css, linked in publishing.html) so Preview looks
+    exactly like what a learner sees. admin-publishing-preview.js
+    populates everything below - no inline <style> or <script> anywhere
+    in this file.
 -->
 <div id="publishingPreviewModal" class="preview-modal-overlay preview-hidden">
     <div class="preview-modal-card">
 
-        <div class="preview-modal-header">
-            <div class="preview-modal-header-left">
-                <button type="button" id="previewBackBtn" class="preview-back-btn preview-hidden" aria-label="Back">
-                    <i class="fa-solid fa-arrow-left"></i>
-                </button>
-                <strong id="previewModalTitle">Preview</strong>
-            </div>
+        <div class="preview-modal-topbar">
+            <button type="button" id="previewBackBtn" class="preview-back-btn preview-hidden" aria-label="Back">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <strong>Preview</strong>
             <button type="button" id="previewCloseBtn" class="preview-close-btn" aria-label="Close preview">&times;</button>
         </div>
 
-        <div class="preview-modal-body">
+        <div class="preview-modal-scroll">
 
-            <!-- VIEW 1: Learning Map -->
-            <div id="previewLearningMapView" class="preview-view">
-                <div id="previewChaptersList" class="preview-chapters-list">
-                    <p class="preview-loading">Loading&hellip;</p>
+            <!-- SCREEN 1: Learning Map -->
+            <div id="previewMapScreen" class="preview-screen">
+                <div class="preview-status-filter" id="previewStatusFilter">
+                    <button type="button" class="preview-filter-btn active" data-filter="all">All</button>
+                    <button type="button" class="preview-filter-btn" data-filter="Ready to Publish">Ready to Publish</button>
+                    <button type="button" class="preview-filter-btn" data-filter="Published">Published</button>
+                </div>
+                <div class="map-canvas" id="previewMapCanvas">
+                    <p class="map-loading" id="previewMapLoading">Loading your learning map&hellip;</p>
+                    <p class="map-error" id="previewMapError" style="display:none;">Could not load the roadmap.</p>
+                    <div class="map-chain" id="previewMapChain"></div>
                 </div>
             </div>
 
-            <!-- VIEW 2: Lessons (modules + lessons of one chapter) -->
-            <div id="previewLessonsView" class="preview-view preview-hidden">
-                <h2 id="previewCategoryName" class="preview-category-name"></h2>
-                <div id="previewModulesList" class="preview-modules-list"></div>
+            <!-- SCREEN 2: Lessons -->
+            <div id="previewLessonsScreen" class="preview-screen preview-hidden">
+                <div class="lessons-card">
+                    <div class="lessons-header-row">
+                        <div>
+                            <h1 id="previewCategoryTitle">Lessons</h1>
+                            <p>Preview - Ready to Publish + Published</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="lessons-card">
+                    <div id="previewModulesContainer"></div>
+                </div>
             </div>
 
-            <!-- VIEW 3: Lesson Content -->
-            <div id="previewLessonContentView" class="preview-view preview-hidden">
-                <h2 id="previewLessonTitle" class="preview-lesson-title"></h2>
-                <div id="previewLessonBody" class="preview-lesson-body"></div>
+            <!-- SCREEN 3: Lesson Content (mirrors the real stepper) -->
+            <div id="previewContentScreen" class="preview-screen preview-hidden">
+                <div class="lesson-stepper" id="previewStepper"></div>
 
-                <div id="previewActivitiesSection" class="preview-activities-section preview-hidden">
-                    <h3>Activities</h3>
-                    <div id="previewActivitiesList"></div>
-                </div>
+                <div class="lesson-card">
+                    <h1 id="previewLessonTitle" style="display:none;"></h1>
 
-                <div id="previewExercisesSection" class="preview-exercises-section preview-hidden">
-                    <h3>Coding Exercises</h3>
-                    <div id="previewExercisesList"></div>
+                    <!-- STEP: VIDEO -->
+                    <div id="previewVideoStep" class="lesson-step" style="display:none;">
+                        <p class="lesson-step-eyebrow">Video Tutorial</p>
+                        <div class="lesson-video-frame" id="previewVideoFrame"></div>
+                        <p class="lesson-video-title" id="previewVideoTitle"></p>
+                        <div class="lesson-step-footer">
+                            <span></span>
+                            <button type="button" class="lesson-step-btn" id="previewVideoContinueBtn">Continue to Lesson Content</button>
+                        </div>
+                    </div>
+
+                    <!-- STEP: CONTENT -->
+                    <div id="previewContentStep" class="lesson-step" style="display:none;">
+                        <p class="lesson-step-eyebrow">Lesson Content</p>
+                        <div class="lesson-content-scroll">
+                            <div id="previewLessonContentBody" class="lesson-content-body"></div>
+                        </div>
+                        <div class="lesson-step-footer">
+                            <span></span>
+                            <button type="button" class="lesson-step-btn" id="previewContentContinueBtn">Continue to Activities</button>
+                        </div>
+                    </div>
+
+                    <!-- STEP: ACTIVITIES -->
+                    <div id="previewActivitiesStep" class="lesson-step" style="display:none;">
+                        <div id="previewActivitiesContainer" class="activities-container" style="display:none;"></div>
+                        <div class="lesson-complete-row">
+                            <button type="button" class="lesson-step-btn" id="previewActivitiesContinueBtn" style="display:none;">Continue</button>
+                        </div>
+                    </div>
+
+                    <!-- STEP: EXERCISE -->
+                    <div id="previewExerciseStep" class="lesson-step" style="display:none;">
+                        <p class="lesson-step-eyebrow">Coding Exercise</p>
+                        <h2 class="exercise-title" id="previewExerciseTitle"></h2>
+                        <div class="exercise-prompt">
+                            <p><strong>Situation:</strong> <span id="previewExerciseSituation"></span></p>
+                            <p><strong>Problem:</strong> <span id="previewExerciseProblem"></span></p>
+                            <p class="exercise-clue"><i class="fa-solid fa-lightbulb"></i> <span id="previewExerciseClue"></span></p>
+                        </div>
+                        <div class="exercise-editor-grid">
+                            <div class="exercise-pane">
+                                <div class="exercise-pane-head">Your Code <button type="button" class="exercise-run-btn" id="previewExerciseRunBtn">Run</button></div>
+                                <pre class="exercise-code-box" id="previewExerciseCodeBox" contenteditable="true" spellcheck="false"># Write your code here
+</pre>
+                            </div>
+                            <div class="exercise-pane">
+                                <div class="exercise-pane-head">Output</div>
+                                <pre class="exercise-output-box" id="previewExerciseOutputBox">Run your code to see the output.</pre>
+                            </div>
+                        </div>
+                        <div class="exercise-result" id="previewExerciseResultBox" style="display:none;"></div>
+                        <div class="lesson-step-footer">
+                            <button class="lesson-step-btn" id="previewExerciseSubmitBtn">Submit</button>
+                        </div>
+                        <div class="lesson-complete-row" id="previewExerciseCompleteRow" style="display:none;">
+                            <button type="button" class="lesson-step-btn" id="previewExerciseContinueBtn">Continue</button>
+                        </div>
+                    </div>
+
+                    <!-- STEP: SUMMARY -->
+                    <div id="previewSummaryStep" class="lesson-step" style="display:none;">
+                        <p class="lesson-step-eyebrow">Lesson Summary</p>
+                        <div class="summary-list" id="previewSummaryList"></div>
+                        <div class="stage-footer">
+                            <button class="lesson-step-btn" id="previewSummaryContinueBtn">Loading&hellip;</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

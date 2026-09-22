@@ -84,6 +84,7 @@ from publishing import get_publishing_tree, reorder_items
 from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - read-only, no progress tables touched
     get_preview_learning_map, get_preview_lessons,
     get_preview_lesson_content, get_preview_activities,
+    get_preview_video, get_preview_exercise, grade_preview_exercise, get_preview_next_lesson,
 )
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
 
@@ -1817,6 +1818,54 @@ def publishing_preview_activities():
     return jsonify({"success": True, **result}), 200
 
 
+@admin_bp.route('/publishing/preview/video')
+def publishing_preview_video():
+    """Preview's Video step - the real title/description/video id, if this lesson has one in scope."""
+    resource_id = request.args.get('resource_id', type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+    video = get_preview_video(resource_id)
+    return jsonify({"success": True, "video": video}), 200
+ 
+ 
+@admin_bp.route('/publishing/preview/exercise')
+def publishing_preview_exercise():
+    """Preview's Exercise step - real prompt + test_input only, no expected_output."""
+    resource_id = request.args.get('resource_id', type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+    exercise = get_preview_exercise(resource_id)
+    return jsonify({"success": True, "exercise": exercise}), 200
+ 
+ 
+@admin_bp.route('/publishing/preview/exercise/grade', methods=['POST'])
+def publishing_preview_exercise_grade():
+    """
+    Preview's exercise grading - reuses the real comparison logic
+    (grade_preview_exercise -> learner_exercise's same rule), but never
+    writes to exercise_submissions_tbl or learner_exercise_progress_tbl.
+    """
+    data = request.get_json(silent=True) or {}
+    exercise_id = data.get("exercise_id")
+    actual_outputs = data.get("actual_outputs") or []
+    result = grade_preview_exercise(exercise_id, actual_outputs)
+    if result is None:
+        return jsonify({"success": False, "message": "Could not grade this submission."}), 400
+    return jsonify({"success": True, **result}), 200
+ 
+ 
+@admin_bp.route('/publishing/preview/next-lesson')
+def publishing_preview_next_lesson():
+    """Preview's Summary step 'Continue' recommendation - status-filtered version of get_next_lesson_info()."""
+    resource_id = request.args.get('resource_id', type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+    next_info = get_preview_next_lesson(resource_id)
+    if next_info is None:
+        return jsonify({"success": False, "message": "Could not determine what's next."}), 400
+    return jsonify({"success": True, "next": next_info}), 200
+ 
+ 
 @admin_bp.route('/publishing/preview/check-answer', methods=['POST'])
 def publishing_preview_check_answer():
     """

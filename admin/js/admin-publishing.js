@@ -512,6 +512,7 @@
             openPopover = null;
             if (tabReady) tabReady.disabled = true;
             if (tabPublished) tabPublished.disabled = true;
+            if (previewBtn) previewBtn.disabled = true;
             if (editBannerEl) editBannerEl.classList.add("show");
             if (hintEl) hintEl.classList.add("hide");
             setOrderActionsHtml();
@@ -524,6 +525,7 @@
             snapshot = null;
             if (tabReady) tabReady.disabled = false;
             if (tabPublished) tabPublished.disabled = false;
+            if (previewBtn) previewBtn.disabled = false;
             if (editBannerEl) editBannerEl.classList.remove("show");
             if (hintEl) hintEl.classList.remove("hide");
             setOrderActionsHtml();
@@ -565,6 +567,7 @@
             snapshot = null;
             if (tabReady) tabReady.disabled = false;
             if (tabPublished) tabPublished.disabled = false;
+            if (previewBtn) previewBtn.disabled = false;
             if (editBannerEl) editBannerEl.classList.remove("show");
             if (hintEl) hintEl.classList.remove("hide");
             setOrderActionsHtml();

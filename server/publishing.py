@@ -69,6 +69,18 @@ def reorder_items(item_type, parent_id, ordered_ids):
     if not ordered_ids or not isinstance(ordered_ids, list):
         return False, "A list of ordered IDs is required."
 
+    # Task fix: ordered_ids arrives from the frontend's numId() helper
+    # as strings (String.split() never returns numbers) - the database
+    # cursor returns real integers for these id columns, so comparing
+    # the two sets directly (found_ids != set(ordered_ids)) was ALWAYS
+    # true, even for a perfectly valid reorder. Normalizing to int here
+    # once means every comparison below (the found_ids check, the
+    # UPDATE's WHERE clause) works correctly against real integer ids.
+    try:
+        ordered_ids = [int(x) for x in ordered_ids]
+    except (TypeError, ValueError):
+        return False, "Invalid item ID in the new order."
+
     connection = get_db_connection()
     if connection is None:
         return False, "Could not connect to the database."

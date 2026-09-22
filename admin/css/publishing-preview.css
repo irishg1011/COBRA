@@ -354,3 +354,98 @@
     justify-content: center;
     font-size: 14px;
 }
+
+.preview-modal-scroll {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 24px;
+}
+
+/* ADD to publishing-preview.css */
+
+.preview-modal-topbar {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+}
+
+/* REPLACES the old .preview-back-btn/.preview-close-btn/.preview-modal-topbar strong/
+   #previewContentScreen .lesson-card block (previously lines 374-396) */
+
+.preview-modal-topbar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 22px;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    flex: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.preview-modal-topbar .preview-back-btn {
+    order: 1;
+    flex: 0 0 auto;
+}
+
+.preview-modal-topbar strong {
+    order: 2;
+    flex: 1 1 auto;
+    font-size: 15px;
+    color: #0f172a;
+    font-weight: 700;
+    float: none;
+    display: block;
+}
+
+.preview-modal-topbar .preview-close-btn {
+    order: 3;
+    flex: 0 0 auto;
+}
+
+#previewContentScreen .lesson-card {
+    display: block;
+}
+
+#previewContentScreen .lesson-card > h1 {
+    display: block;
+    width: 100%;
+    float: none;
+    clear: both;
+    margin: 0 0 20px 0;
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.preview-status-filter {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.preview-filter-btn {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.preview-filter-btn:hover {
+    background: #e2e8f0;
+}
+
+.preview-filter-btn.active {
+    background: #1f2421;
+    color: #ffffff;
+    border-color: #1f2421;
+}

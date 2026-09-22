@@ -142,6 +142,8 @@
                                 <td class="js-status-cell">
                                     {% if module.status == 'Published' %}
                                     <span class="badge badge-success-log">Published</span>
+                                    {% elif module.status == 'Ready to Publish' %}
+                                    <span class="badge badge-ready">Ready to Publish</span>
                                     {% elif module.status == 'Draft' %}
                                     <span class="badge badge-draft">Draft</span>
                                     {% else %}

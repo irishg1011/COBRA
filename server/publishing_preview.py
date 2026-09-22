@@ -41,6 +41,8 @@ LR_STATS_TABLE = "learning_resources_stats_tbl"
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
+VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
+TEST_CASES_TABLE = "test_cases_tbl"
 MCQ_QUESTIONS_TABLE = "mcq_questions_tbl"
 MCQ_OPTIONS_TABLE = "mcq_options_tbl"
 FILL_BLANKS_TABLE = "fill_blanks_tbl"
@@ -390,6 +392,271 @@ def get_preview_activities(resource_id):
     except Error as e:
         print(f"publishing_preview: failed to load preview activities for resource_id={resource_id}: {e}")
         return {"activities": [], "exercises": []}
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+# =============================================================================
+# ADD THESE to the EXISTING publishing_preview.py (append at the end).
+# Also add these two table names near the top with the other TABLE constants:
+#     VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
+#     TEST_CASES_TABLE = "test_cases_tbl"
+# =============================================================================
+
+
+def get_preview_video(resource_id):
+    """
+    Returns the Ready to Publish/Published video tutorial attached to a
+    lesson, shaped for the learner-style video step - video_title,
+    description, and the normalized video id (stored in the
+    video_tutorials_tbl.file_path column - repurposed from its old
+    file-upload role to hold the YouTube video id since Cobra's video
+    tutorials switched to pasted links).
+
+    Returns None if there's no video in preview scope for this lesson.
+    """
+    if not resource_id:
+        return None
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        placeholders = _status_placeholders()
+        cursor.execute(
+            f"""SELECT vt.video_tutorial_id, vt.video_title, vt.description, vt.file_path AS video_id
+                FROM {VIDEO_TUTORIALS_TABLE} vt
+                LEFT JOIN {LA_STATS_TABLE} vts ON vt.video_stats_id = vts.la_stats_id
+                WHERE vt.resource_id = %s
+                  AND COALESCE(vts.la_stats_name, '') IN ({placeholders})
+                ORDER BY vt.video_tutorial_id DESC LIMIT 1""",
+            (resource_id,) + PREVIEW_STATUSES
+        )
+        video = cursor.fetchone()
+        cursor.close()
+        return video
+    except Error as e:
+        print(f"publishing_preview: failed to load preview video for resource_id={resource_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_preview_exercise(resource_id):
+    """
+    Returns the Ready to Publish/Published coding exercise attached to a
+    lesson, WITH its test cases' test_input only - never expected_output,
+    mirroring learner_exercise.get_published_exercise_for_resource()'s
+    own rule exactly, just widened to PREVIEW_STATUSES.
+
+    Returns None if there's no exercise in preview scope for this lesson.
+    """
+    if not resource_id:
+        return None
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        placeholders = _status_placeholders()
+        cursor.execute(
+            f"""SELECT ce.exercise_id, ce.exercise_title, ce.points, ce.instruction,
+                       ce.situation, ce.problem_question, ce.clue
+                FROM {CODING_EXERCISES_TABLE} ce
+                LEFT JOIN {LA_STATS_TABLE} las ON ce.exercise_stats_id = las.la_stats_id
+                WHERE ce.resource_id = %s
+                  AND COALESCE(ce.is_archived, 0) = 0
+                  AND COALESCE(las.la_stats_name, '') IN ({placeholders})
+                ORDER BY ce.exercise_id DESC LIMIT 1""",
+            (resource_id,) + PREVIEW_STATUSES
+        )
+        exercise = cursor.fetchone()
+        if not exercise:
+            cursor.close()
+            return None
+
+        cursor.execute(
+            f"""SELECT test_case_id, test_order, test_input
+                FROM {TEST_CASES_TABLE}
+                WHERE exercise_id = %s
+                ORDER BY test_order ASC, test_case_id ASC""",
+            (exercise["exercise_id"],)
+        )
+        exercise["test_cases"] = cursor.fetchall()
+        cursor.close()
+        return exercise
+    except Error as e:
+        print(f"publishing_preview: failed to load preview exercise for resource_id={resource_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def grade_preview_exercise(exercise_id, actual_outputs):
+    """
+    Reuses learner_exercise.grade_exercise_submission()'s exact
+    comparison logic - trimmed actual vs. real expected_output per test
+    case - but NEVER writes to exercise_submissions_tbl. Pure grading,
+    nothing recorded, so an admin can resubmit the same exercise in
+    preview endlessly with zero trace left behind.
+
+    Returns {"passed": int, "total": int, "status": "correct"|"incorrect",
+    "feedback": str} or None on failure.
+    """
+    if not exercise_id:
+        return None
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"SELECT test_case_id, expected_output FROM {TEST_CASES_TABLE} WHERE exercise_id = %s",
+            (exercise_id,)
+        )
+        rows = cursor.fetchall()
+        expected_by_id = {r["test_case_id"]: (r["expected_output"] or "").strip() for r in rows}
+        total = len(expected_by_id)
+        if total == 0:
+            cursor.close()
+            return None
+
+        actual_by_id = {int(a["test_case_id"]): (a.get("actual_output") or "").strip() for a in (actual_outputs or [])}
+        passed = sum(1 for tc_id, expected in expected_by_id.items() if actual_by_id.get(tc_id, "") == expected)
+        status = "correct" if passed == total else "incorrect"
+
+        cursor.execute(
+            f"SELECT correct_feedback FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
+            (exercise_id,)
+        )
+        ex_row = cursor.fetchone()
+        correct_feedback = (ex_row.get("correct_feedback") if ex_row else "") or ""
+        feedback = correct_feedback if status == "correct" else f"{passed} of {total} test cases passed."
+
+        cursor.close()
+        return {"passed": passed, "total": total, "status": status, "feedback": feedback}
+    except Error as e:
+        print(f"publishing_preview: failed to grade preview exercise {exercise_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_preview_next_lesson(resource_id):
+    """
+    Same walk as lesson_summary.get_next_lesson_info() (next lesson in
+    module -> first lesson of next module -> first lesson of next
+    chapter -> end), but every step is filtered to PREVIEW_STATUSES so
+    Preview's "Continue" never recommends something still in Draft.
+
+    Returns the same shape as get_next_lesson_info(), or None on error.
+    """
+    if not resource_id:
+        return None
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        placeholders = _status_placeholders()
+
+        cursor.execute(
+            "SELECT resource_id, module_id FROM learning_resources_tbl WHERE resource_id = %s",
+            (resource_id,)
+        )
+        current = cursor.fetchone()
+        if not current:
+            cursor.close()
+            return None
+        module_id = current["module_id"]
+
+        cursor.execute("SELECT cat_id FROM modules_tbl WHERE module_id = %s", (module_id,))
+        module_row = cursor.fetchone()
+        cat_id = module_row["cat_id"] if module_row else None
+
+        cursor.execute(
+            f"""SELECT lr.resource_id, lr.resource_title FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.module_id = %s AND lr.resource_id > %s
+                  AND COALESCE(lrs.lr_stats_name, '') IN ({placeholders})
+                ORDER BY lr.resource_id ASC LIMIT 1""",
+            (module_id, resource_id) + PREVIEW_STATUSES
+        )
+        next_in_module = cursor.fetchone()
+        if next_in_module:
+            cursor.close()
+            return {"type": "lesson", "resource_id": next_in_module["resource_id"], "resource_title": next_in_module["resource_title"]}
+
+        cursor.execute(
+            f"""SELECT module_id FROM {MODULES_TABLE} m
+                LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                WHERE m.cat_id = %s AND m.module_id > %s AND COALESCE(m.is_archived, 0) = 0
+                  AND COALESCE(ms.module_stats_name, '') IN ({placeholders})
+                ORDER BY m.module_id ASC LIMIT 1""",
+            (cat_id, module_id) + PREVIEW_STATUSES
+        )
+        next_module = cursor.fetchone()
+        if next_module:
+            cursor.execute(
+                f"""SELECT lr.resource_id, lr.resource_title FROM {LEARNING_RESOURCES_TABLE} lr
+                    LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                    WHERE lr.module_id = %s
+                      AND COALESCE(lrs.lr_stats_name, '') IN ({placeholders})
+                    ORDER BY lr.resource_id ASC LIMIT 1""",
+                (next_module["module_id"],) + PREVIEW_STATUSES
+            )
+            first_resource = cursor.fetchone()
+            if first_resource:
+                cursor.close()
+                return {"type": "lesson", "resource_id": first_resource["resource_id"], "resource_title": first_resource["resource_title"]}
+
+        cursor.execute(
+            f"""SELECT c.cat_id, c.category_name FROM {CATEGORY_TABLE} c
+                LEFT JOIN {CATEGORY_STATS_TABLE} cs ON c.cat_stats_id = cs.cat_stats_id
+                WHERE c.cat_id > %s AND COALESCE(c.is_archived, 0) = 0
+                  AND COALESCE(cs.cat_stats_name, '') IN ({placeholders})
+                ORDER BY c.cat_id ASC LIMIT 1""",
+            (cat_id,) + PREVIEW_STATUSES
+        )
+        next_cat = cursor.fetchone()
+        if next_cat:
+            cursor.execute(
+                f"""SELECT module_id FROM {MODULES_TABLE} m
+                    LEFT JOIN {MODULE_STATS_TABLE} ms ON m.module_stats_id = ms.module_stats_id
+                    WHERE m.cat_id = %s AND COALESCE(m.is_archived, 0) = 0
+                      AND COALESCE(ms.module_stats_name, '') IN ({placeholders})
+                    ORDER BY m.module_id ASC LIMIT 1""",
+                (next_cat["cat_id"],) + PREVIEW_STATUSES
+            )
+            first_module = cursor.fetchone()
+            if first_module:
+                cursor.execute(
+                    f"""SELECT lr.resource_id, lr.resource_title FROM {LEARNING_RESOURCES_TABLE} lr
+                        LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                        WHERE lr.module_id = %s
+                          AND COALESCE(lrs.lr_stats_name, '') IN ({placeholders})
+                        ORDER BY lr.resource_id ASC LIMIT 1""",
+                    (first_module["module_id"],) + PREVIEW_STATUSES
+                )
+                first_resource = cursor.fetchone()
+                if first_resource:
+                    cursor.close()
+                    return {
+                        "type": "chapter",
+                        "resource_id": first_resource["resource_id"],
+                        "resource_title": first_resource["resource_title"],
+                        "cat_id": next_cat["cat_id"],
+                        "category_name": next_cat["category_name"],
+                    }
+
+        cursor.close()
+        return {"type": "end"}
+    except Error as e:
+        print(f"publishing_preview: failed to compute preview next lesson for resource_id={resource_id}: {e}")
+        return None
     finally:
         if connection.is_connected():
             connection.close()

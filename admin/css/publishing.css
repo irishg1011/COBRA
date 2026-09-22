@@ -59,15 +59,21 @@
 .btn-editorder-custom {
     background: #ffffff !important;
     color: #1f2421 !important;
-    border: 1.5px solid #1f2421 !important;
+    border: 1px solid #d1d5db !important;
     font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+    box-sizing: border-box !important;
 }
 
 .btn-editorder-custom:hover,
 .btn-editorder-custom:focus,
 .btn-editorder-custom:active {
-    background: #1f2421 !important;
-    color: #ffffff !important;
+    background: #f1f5f9 !important;
+    color: #1f2421 !important;
+    border-color: #94a3b8 !important;
 }
 
 .btn-ghost-custom {
@@ -168,24 +174,46 @@
    ========================================================================== */
 
 .publishing-row-depth-0 {
-    border-left: 4px solid #178A47;
-    background: #ffffff;
+    border-left: 5px solid #178A47;
+    background: #eafaf1;
     font-weight: 600;
 }
 
 .publishing-row-depth-1 {
-    border-left: 4px solid #5B4FDB;
-    background: #fbfaf7;
+    border-left: 5px solid #5B4FDB;
+    background: #f0eefd;
 }
 
 .publishing-row-depth-2 {
-    border-left: 4px solid #C0356A;
-    background: #f7f6f2;
+    border-left: 5px solid #C0356A;
+    background: #fbeaf1;
 }
 
 .publishing-row-depth-3 {
-    border-left: 4px solid #9A6700;
-    background: #f3f2ec;
+    border-left: 5px solid #9A6700;
+    background: #fbf3de;
+}
+
+/* ADD to publishing.css, right after the 4 depth-color rules */
+
+.publishing-row-depth-0:hover {
+    background: #d3f3e0;
+}
+
+.publishing-row-depth-1:hover {
+    background: #ddd9fb;
+}
+
+.publishing-row-depth-2:hover {
+    background: #f6d4e2;
+}
+
+.publishing-row-depth-3:hover {
+    background: #f7e7b8;
+}
+
+.publishing-row {
+    transition: background 0.12s ease;
 }
 
 /* ------------------------------------------------------------------ */
@@ -281,4 +309,25 @@
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+/* ADD to publishing.css */
+
+.publishing-toolbar-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.publishing-toolbar-buttons .publishing-order-actions {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+}
+
+.btn-editorder-custom:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
 }

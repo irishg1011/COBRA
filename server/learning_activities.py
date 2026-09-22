@@ -567,7 +567,25 @@ def get_learning_activities_grouped_overview(search_query=None, type_filter=None
         lessons = []
         for resource_id in order:
             g = grouped[resource_id]
-            all_published = bool(g["statuses"]) and all(s == "Published" for s in g["statuses"])
+            statuses = g["statuses"]
+            # Task fix: this used to be a binary "all Published, else
+            # Draft" check, which silently discarded a "Ready to
+            # Publish" state the moment the aggregate was recomputed on
+            # reload - a lesson with even one Ready to Publish activity
+            # always displayed as Draft, making the Ready to Publish
+            # action look like it never saved. Now a real 3-state rule:
+            # any Draft anywhere -> Draft (not ready yet); no Draft but
+            # not fully Published -> Ready to Publish; everything
+            # Published -> Published.
+            if statuses and all(s == "Published" for s in statuses):
+                aggregate_status = "Published"
+            elif statuses and any(s == "Draft" for s in statuses):
+                aggregate_status = "Draft"
+            elif statuses:
+                aggregate_status = "Ready to Publish"
+            else:
+                aggregate_status = "Draft"
+
             lessons.append({
                 "resource_id": g["resource_id"],
                 "lesson_name": g["lesson_name"],
@@ -575,7 +593,7 @@ def get_learning_activities_grouped_overview(search_query=None, type_filter=None
                 "module": g["module"],
                 "module_status": g["module_status"],
                 "uploaded_by": g["uploaded_by_raw"] or "—",
-                "status": "Published" if all_published else "Draft",
+                "status": aggregate_status,
                 "created_at": _fmt_date(min(g["created_ats"])) if g["created_ats"] else "—",
                 "updated_at": _fmt_datetime(max(g["updated_ats"])) if g["updated_ats"] else "—",
                 "activity_type_names": g["activity_type_names"],

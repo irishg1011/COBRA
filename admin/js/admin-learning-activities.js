@@ -781,30 +781,72 @@
 
                     const activities = await fetchActivitiesForResource(resourceId);
 
+                    // Task fix: this used to fire every request and
+                    // update the UI unconditionally afterward, regardless
+                    // of whether any of them actually succeeded - a 400
+                    // response (e.g. Task #10's "parent lesson is still
+                    // Draft" gate rejecting every single one) resolves
+                    // normally in fetch() and was never inspected, so a
+                    // fully-rejected batch still looked like a success
+                    // until the next real page load told the truth.
+                    let successCount = 0;
+                    let firstErrorMessage = null;
                     try {
-                        await Promise.all(activities.map((a) =>
+                        const results = await Promise.all(activities.map((a) =>
                             fetch(`/admin/learning-activities/${a.activity_id}/${endpointSuffix}`, {
                                 method: "POST", credentials: "include",
-                            })
+                            }).then((r) => r.json().catch(() => ({ success: false })))
                         ));
+                        results.forEach((r) => {
+                            if (r && r.success) {
+                                successCount += 1;
+                            } else if (!firstErrorMessage && r && r.message) {
+                                firstErrorMessage = r.message;
+                            }
+                        });
                     } catch (err) {
-                        // fall through - reflect whatever actually
-                        // succeeded via the row update below regardless.
+                        firstErrorMessage = firstErrorMessage || "Could not reach the server.";
                     }
 
-                    const newStatus = currentStatus === "Draft" ? "Ready to Publish" : "Draft";
-                    publishBtn.dataset.status = newStatus;
-                    let newLabel, newClass;
-                    if (newStatus === "Ready to Publish") { newLabel = "Move to Draft"; newClass = "btn-movedraft-custom"; }
-                    else { newLabel = "Ready to Publish"; newClass = "btn-ready-custom"; }
-                    publishBtn.textContent = newLabel;
-                    publishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-ready-custom", "btn-movedraft-custom");
-                    publishBtn.classList.add(newClass);
                     publishBtn.disabled = false;
 
-                    const row = publishBtn.closest("tr");
-                    const statusCell = row ? row.querySelector(".js-status-cell") : null;
-                    if (statusCell) statusCell.innerHTML = statusBadgeHtml(newStatus);
+                    if (activities.length === 0 || successCount === 0) {
+                        publishBtn.textContent = originalText;
+                        showAlertModal(
+                            firstErrorMessage || "None of this lesson's activities could be updated.",
+                            "Not Updated"
+                        );
+                        return;
+                    }
+
+                    if (successCount < activities.length) {
+                        showAlertModal(
+                            `${successCount} of ${activities.length} activities were updated. ${firstErrorMessage || "The rest could not be changed."}`,
+                            "Partially Updated"
+                        );
+                    }
+
+                    // Only reached the requested status if EVERY activity
+                    // actually made it - otherwise the row's real,
+                    // authoritative status is whatever the server now
+                    // has, so re-fetch rather than guess.
+                    if (successCount === activities.length) {
+                        const newStatus = currentStatus === "Draft" ? "Ready to Publish" : "Draft";
+                        publishBtn.dataset.status = newStatus;
+                        let newLabel, newClass;
+                        if (newStatus === "Ready to Publish") { newLabel = "Move to Draft"; newClass = "btn-movedraft-custom"; }
+                        else { newLabel = "Ready to Publish"; newClass = "btn-ready-custom"; }
+                        publishBtn.textContent = newLabel;
+                        publishBtn.classList.remove("btn-success-custom", "btn-unpublish-custom", "btn-ready-custom", "btn-movedraft-custom");
+                        publishBtn.classList.add(newClass);
+
+                        const row = publishBtn.closest("tr");
+                        const statusCell = row ? row.querySelector(".js-status-cell") : null;
+                        if (statusCell) statusCell.innerHTML = statusBadgeHtml(newStatus);
+                    } else {
+                        publishBtn.textContent = originalText;
+                        loadActivities();
+                    }
                 }, confirmTitle);
             }
         });
