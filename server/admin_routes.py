@@ -78,7 +78,7 @@ from archived_items import (  # NEW: fixes the pre-existing Archived Learning Re
     get_archived_activities, restore_learning_activity,
     get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,  # NEW: same fix for Archived Coding Exercises modal
 )
-from publishing import get_publishing_tree  # NEW - Task #publishing-page-backend
+from publishing import get_publishing_tree, reorder_items 
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1700,6 +1700,26 @@ def publishing_data():
     Returns JSON: { "success": bool, "tree": [...] }
     """
     return jsonify({"success": True, "tree": get_publishing_tree()}), 200
+
+
+@admin_bp.route('/publishing/reorder', methods=['POST'])
+def publishing_reorder():
+    """
+    Task #publishing-reorder-backend: persists a new order for a set of
+    categories, modules, or lessons that share the same parent.
+
+    Expects JSON body: { "type": "category" | "module" | "lesson",
+    "parent_id": <id or null for category>, "ordered_ids": [id, id, ...] }
+
+    Returns JSON: { "success": bool, "message": str }
+    """
+    data = request.get_json(silent=True) or {}
+    success, message = reorder_items(
+        data.get("type"),
+        data.get("parent_id"),
+        data.get("ordered_ids"),
+    )
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
 # ------------------------------------------------------------------

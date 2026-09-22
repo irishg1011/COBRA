@@ -39,6 +39,92 @@ LA_STATS_TABLE = "learning_activities_stats_tbl"
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 
 
+REORDER_CONFIG = {
+    "category": {"table": CATEGORY_TABLE, "id_col": "cat_id", "parent_col": None},
+    "module": {"table": MODULES_TABLE, "id_col": "module_id", "parent_col": "cat_id"},
+    "lesson": {"table": LEARNING_RESOURCES_TABLE, "id_col": "resource_id", "parent_col": "module_id"},
+}
+
+
+def reorder_items(item_type, parent_id, ordered_ids):
+    """
+    Task #publishing-reorder-backend: persists a new display_order for
+    a set of categories, modules, or lessons that all share the same
+    parent (categories have none - they're always top-level). Rejects
+    the WHOLE request up front if any id doesn't exist or belongs to a
+    different parent than claimed - reordering never silently drops an
+    item or reassigns it to a different parent as a side effect.
+
+    item_type (str): "category" | "module" | "lesson"
+    parent_id: the shared cat_id (for modules) or module_id (for
+        lessons); ignored for categories.
+    ordered_ids (list): ids in the new desired order - display_order
+        becomes their 1-based position in this list.
+
+    Returns (bool, str).
+    """
+    config = REORDER_CONFIG.get(item_type)
+    if not config:
+        return False, "Unknown item type."
+    if not ordered_ids or not isinstance(ordered_ids, list):
+        return False, "A list of ordered IDs is required."
+
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to the database."
+
+    try:
+        ensure_category_stats_id_column(connection)
+        ensure_display_order_columns(connection)
+        ensure_resource_display_order_column(connection)
+
+        cursor = connection.cursor()
+        table = config["table"]
+        id_col = config["id_col"]
+        parent_col = config["parent_col"]
+
+        placeholders = ", ".join(["%s"] * len(ordered_ids))
+        if parent_col:
+            cursor.execute(
+                f"SELECT {id_col}, {parent_col} FROM {table} WHERE {id_col} IN ({placeholders})",
+                tuple(ordered_ids)
+            )
+        else:
+            cursor.execute(
+                f"SELECT {id_col} FROM {table} WHERE {id_col} IN ({placeholders})",
+                tuple(ordered_ids)
+            )
+        rows = cursor.fetchall()
+
+        found_ids = {row[0] for row in rows}
+        if found_ids != set(ordered_ids):
+            cursor.close()
+            return False, "One or more items could not be found."
+
+        if parent_col:
+            mismatched = [row[0] for row in rows if str(row[1]) != str(parent_id)]
+            if mismatched:
+                cursor.close()
+                return False, "You can only reorder items within the same parent."
+
+        for position, item_id in enumerate(ordered_ids, start=1):
+            cursor.execute(
+                f"UPDATE {table} SET display_order = %s WHERE {id_col} = %s",
+                (position, item_id)
+            )
+
+        connection.commit()
+        cursor.close()
+        return True, "New order saved."
+    except Error as e:
+        connection.rollback()
+        print(f"publishing: failed to reorder {item_type}: {e}")
+        return False, f"Database error: {e}"
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def get_publishing_tree():
     """
     Returns the full roadmap tree:
