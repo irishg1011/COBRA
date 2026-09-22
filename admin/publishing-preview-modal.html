@@ -1,0 +1,60 @@
+<!--
+    publishing-preview-modal.html - Task #19
+    ------------------------------------------------------------------
+    Preview modal shell for the Publishing page. All content below is
+    populated by admin-publishing-preview.js (Task #21) - this file only
+    defines the structure/containers, no inline <style> or <script>.
+
+    Views (only one visible at a time, toggled by admin-publishing-
+    preview-js via a class on #publishingPreviewModal):
+        1. Learning Map  (#previewLearningMapView) - chapter list
+        2. Lessons       (#previewLessonsView)     - modules + lessons for one chapter
+        3. Lesson Content (#previewLessonContentView) - a lesson's body + its activities/exercises
+-->
+<div id="publishingPreviewModal" class="preview-modal-overlay preview-hidden">
+    <div class="preview-modal-card">
+
+        <div class="preview-modal-header">
+            <div class="preview-modal-header-left">
+                <button type="button" id="previewBackBtn" class="preview-back-btn preview-hidden" aria-label="Back">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <strong id="previewModalTitle">Preview</strong>
+            </div>
+            <button type="button" id="previewCloseBtn" class="preview-close-btn" aria-label="Close preview">&times;</button>
+        </div>
+
+        <div class="preview-modal-body">
+
+            <!-- VIEW 1: Learning Map -->
+            <div id="previewLearningMapView" class="preview-view">
+                <div id="previewChaptersList" class="preview-chapters-list">
+                    <p class="preview-loading">Loading&hellip;</p>
+                </div>
+            </div>
+
+            <!-- VIEW 2: Lessons (modules + lessons of one chapter) -->
+            <div id="previewLessonsView" class="preview-view preview-hidden">
+                <h2 id="previewCategoryName" class="preview-category-name"></h2>
+                <div id="previewModulesList" class="preview-modules-list"></div>
+            </div>
+
+            <!-- VIEW 3: Lesson Content -->
+            <div id="previewLessonContentView" class="preview-view preview-hidden">
+                <h2 id="previewLessonTitle" class="preview-lesson-title"></h2>
+                <div id="previewLessonBody" class="preview-lesson-body"></div>
+
+                <div id="previewActivitiesSection" class="preview-activities-section preview-hidden">
+                    <h3>Activities</h3>
+                    <div id="previewActivitiesList"></div>
+                </div>
+
+                <div id="previewExercisesSection" class="preview-exercises-section preview-hidden">
+                    <h3>Coding Exercises</h3>
+                    <div id="previewExercisesList"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
