@@ -28,6 +28,7 @@
         const tabReady = document.getElementById("pubTabReady");
         const tabPublished = document.getElementById("pubTabPublished");
         const readyCountEl = document.getElementById("pubReadyCount");
+        const publishedCountEl = document.getElementById("pubPublishedCount");
         const orderActionsEl = document.getElementById("pubOrderActions");
         const editBannerEl = document.getElementById("pubEditBanner");
         const hintEl = document.getElementById("pubHint");
