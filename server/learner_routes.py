@@ -22,6 +22,7 @@ from lesson_activities import (
 )
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
+from learner_progress_unlocks import has_unlock, write_unlock  # NEW - Task #13: permanent category unlock check, replaces pure live recalculation
 
 learner_bp = Blueprint('learner_bp', __name__)
 
@@ -362,10 +363,27 @@ def learning_map_data():
             })
 
         for index, chapter in enumerate(chapters):
+            cat_id = chapter["cat_id"]
+
+            # Task #13: a permanent unlock, once earned, is never
+            # revisited - skip the live recalculation entirely for a
+            # learner who's already reached this category, so nothing
+            # changed in an earlier category (a reorder, new content)
+            # can ever lock them back out.
+            if has_unlock(connection, acc_id, "category", cat_id):
+                chapter["locked"] = False
+                continue
+
             if index == 0:
                 chapter["locked"] = False
             else:
                 chapter["locked"] = chapters[index - 1]["status"] != "completed"
+
+            # The moment this category is first found reachable, write
+            # it down permanently - it's never recomputed again for
+            # this learner after this point.
+            if not chapter["locked"]:
+                write_unlock(connection, acc_id, "category", cat_id)
 
         cursor.close()
         return jsonify({"success": True, "chapters": chapters}), 200
