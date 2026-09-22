@@ -80,7 +80,12 @@ from archived_items import (  # NEW: fixes the pre-existing Archived Learning Re
     get_archived_activities, restore_learning_activity,
     get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,  # NEW: same fix for Archived Coding Exercises modal
 )
-from publishing import get_publishing_tree, reorder_items 
+from publishing import get_publishing_tree, reorder_items
+from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - read-only, no progress tables touched
+    get_preview_learning_map, get_preview_lessons,
+    get_preview_lesson_content, get_preview_activities,
+)
+from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -1757,6 +1762,97 @@ def publishing_reorder():
         data.get("ordered_ids"),
     )
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# ROUTES: PUBLISHING PAGE - ADMIN PREVIEW (Task #17/#18)
+# ------------------------------------------------------------
+# All 5 routes below are admin-session-gated the same way every other
+# admin_bp route already is (via _require_admin_session's before_
+# request hook) - no separate auth needed. Every one of them only ever
+# calls into publishing_preview.py (SELECT-only) or the two reused,
+# stateless check_*_answer() functions - nothing here can write to any
+# learner progress table, by construction.
+# ============================================================
+@admin_bp.route('/publishing/preview/learning-map')
+def publishing_preview_learning_map():
+    """Preview's Chapter list - Ready to Publish + Published only, everything implicitly unlocked."""
+    return jsonify({"success": True, "chapters": get_preview_learning_map()}), 200
+
+
+@admin_bp.route('/publishing/preview/lessons')
+def publishing_preview_lessons():
+    """Preview's Modules/Lessons list for one category."""
+    cat_id = request.args.get('cat_id', type=int)
+    if not cat_id:
+        return jsonify({"success": False, "message": "cat_id is required."}), 400
+
+    result = get_preview_lessons(cat_id)
+    if result is None:
+        return jsonify({"success": False, "message": "Chapter not found or not yet publishable."}), 404
+    return jsonify({"success": True, **result}), 200
+
+
+@admin_bp.route('/publishing/preview/lesson-content')
+def publishing_preview_lesson_content():
+    """Preview's Lesson Content view - real content_body HTML, no progress row written."""
+    resource_id = request.args.get('resource_id', type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    result = get_preview_lesson_content(resource_id)
+    if result is None:
+        return jsonify({"success": False, "message": "Lesson not found or not yet publishable."}), 404
+    return jsonify({"success": True, **result}), 200
+
+
+@admin_bp.route('/publishing/preview/activities')
+def publishing_preview_activities():
+    """Preview's Activities/Exercises for one lesson."""
+    resource_id = request.args.get('resource_id', type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    result = get_preview_activities(resource_id)
+    return jsonify({"success": True, **result}), 200
+
+
+@admin_bp.route('/publishing/preview/check-answer', methods=['POST'])
+def publishing_preview_check_answer():
+    """
+    Preview's answer-check - reuses the SAME grading functions the real
+    learner side uses (check_mcq_answer() / check_fill_blank_answer()),
+    so feedback is identical to what a learner would actually see.
+    Deliberately does NOT call record_activity_progress() or anything
+    equivalent - there is no acc_id in this request at all, so there
+    would be nothing to record against even if this route wanted to.
+    """
+    data = request.get_json(silent=True) or {}
+    answer_type = data.get("type")
+
+    if answer_type == "mcq":
+        is_correct, feedback, correct_option_id = check_mcq_answer(
+            data.get("q_id"), data.get("option_id")
+        )
+        return jsonify({
+            "success": True,
+            "is_correct": is_correct,
+            "feedback": feedback,
+            "correct_option_id": correct_option_id
+        }), 200
+
+    if answer_type == "fill_blank":
+        is_correct, feedback, correct_answer = check_fill_blank_answer(
+            data.get("fib_id"), data.get("answer")
+        )
+        return jsonify({
+            "success": True,
+            "is_correct": is_correct,
+            "feedback": feedback,
+            "correct_answer": correct_answer
+        }), 200
+
+    return jsonify({"success": False, "message": "Unknown answer type."}), 400
 
 
 # ------------------------------------------------------------------
