@@ -74,7 +74,7 @@ def get_lesson_performance_summary(acc_id, resource_id):
             la_id = row["la_id"]
             activity_type = row.get("activity_type_name") or ""
 
-            if activity_type == "Multiple Choice":
+            if activity_type in ("Multiple Choice", "Quiz"):
                 cursor.execute("SELECT COUNT(*) AS cnt FROM mcq_questions_tbl WHERE la_id = %s", (la_id,))
             elif activity_type == "Fill in the Blanks":
                 cursor.execute("SELECT COUNT(*) AS cnt FROM fill_blanks_tbl WHERE la_id = %s", (la_id,))

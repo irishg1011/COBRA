@@ -212,6 +212,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Quiz: "Review lesson" on the lives cooldown sends the learner back
+    // to the lesson content. Their quiz spot, lives and timer are saved
+    // server-side, so "Continue to Activities" resumes right where they were.
+    document.addEventListener("cobrabyte:review-lesson", () => {
+        const target = stepOrder.some((s) => s.key === "content") ? "content"
+            : (stepOrder[0] ? stepOrder[0].key : null);
+        if (target) {
+            goToStep(target);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    });
+
     // ---------------- Pyodide (unchanged from before) ----------------
     function showTerminalInputPrompt(promptText) {
         return new Promise((resolve) => {

@@ -36,6 +36,7 @@ import re
 MULTIPLE_CHOICE = "Multiple Choice"
 FILL_IN_THE_BLANKS = "Fill in the Blanks"
 FLASHCARDS = "Flashcards"
+QUIZ = "Quiz"  # uses the Multiple Choice builder, counted the same way
 
 # Matches the bracketed-index prefix of each section's field names, e.g.
 # "questions[0][text]" -> index 0, "fill_blanks[3][content]" -> index 3.
@@ -103,7 +104,7 @@ def calculate_activity_points(activity_type, form_keys):
         guessing which section to count.
     """
     normalized = (activity_type or "").strip()
-    if normalized == MULTIPLE_CHOICE:
+    if normalized in (MULTIPLE_CHOICE, QUIZ):
         return count_questions_from_form(form_keys)
     if normalized == FILL_IN_THE_BLANKS:
         return count_fill_blanks_from_form(form_keys)
@@ -131,7 +132,7 @@ def calculate_activity_points_from_lists(activity_type, questions=None, fill_bla
         int: 0 for a missing/unrecognized activity_type or a None list.
     """
     normalized = (activity_type or "").strip()
-    if normalized == MULTIPLE_CHOICE:
+    if normalized in (MULTIPLE_CHOICE, QUIZ):
         return len(questions or [])
     if normalized == FILL_IN_THE_BLANKS:
         return len(fill_blanks or [])

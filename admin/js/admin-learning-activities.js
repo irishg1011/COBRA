@@ -117,6 +117,7 @@
             "Multiple Choice": "fa-solid fa-list-check",
             "Fill in the Blanks": "fa-solid fa-i-cursor",
             "Flashcards": "fa-solid fa-clone",
+            "Quiz": "fa-solid fa-gamepad",
         };
 
         function activityIconsHtml(resourceId, typeNames) {
@@ -642,7 +643,7 @@
 
             return matching.map((a) => {
                 let itemsHtml = "";
-                if (type === "Multiple Choice") {
+                if (type === "Multiple Choice" || type === "Quiz") {
                     itemsHtml = a.items.map((q, idx) => `
                         <p style="font-weight: 600; margin: 14px 0 6px;">${idx + 1}. ${escapeHtml(q.question_text)}</p>
                         <ul style="margin: 0 0 10px; padding-left: 20px;">

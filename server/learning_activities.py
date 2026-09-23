@@ -66,6 +66,7 @@ Requirements satisfied:
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from lesson_activities import ensure_quiz_schema  # Quiz: sort_order + lives columns
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
@@ -90,7 +91,7 @@ DEFAULT_LA_STATUSES = ["Draft", "Published", "Archived", "Ready to Publish"]
 # never hardcoded anywhere else; every caller (the Type filter dropdown,
 # the create-activity form, future features) reads them fresh via
 # get_activity_types() below.
-DEFAULT_ACTIVITY_TYPES = ["Multiple Choice", "Fill in the Blanks", "Flashcards"]
+DEFAULT_ACTIVITY_TYPES = ["Multiple Choice", "Fill in the Blanks", "Flashcards", "Quiz"]
 
 _la_stats_ensured = False
 _activity_types_ensured = False
@@ -147,6 +148,10 @@ def ensure_activity_types(connection):
     ensure_la_stats() above and manage_course.ensure_module_stats().
     """
     global _activity_types_ensured
+    # Quiz: mcq_questions_tbl.sort_order + the quiz lives columns. Runs
+    # here because the draft save calls this BEFORE it writes anything -
+    # ALTER TABLE would otherwise commit that transaction early.
+    ensure_quiz_schema(connection)
     if _activity_types_ensured:
         return
     try:
@@ -693,7 +698,7 @@ def get_activities_for_resource(resource_id):
                 "items": [],
             }
 
-            if activity_type == "Multiple Choice":
+            if activity_type in ("Multiple Choice", "Quiz"):
                 cursor.execute(
                     "SELECT q_id, question_text FROM mcq_questions_tbl WHERE la_id = %s ORDER BY q_id ASC",
                     (la_id,)

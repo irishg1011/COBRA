@@ -501,7 +501,7 @@
         }
 
         function renderActivity(activity, container, onDone) {
-            if (activity.activity_type === "Multiple Choice") renderMCQ(activity, container, onDone);
+            if (activity.activity_type === "Multiple Choice" || activity.activity_type === "Quiz") renderMCQ(activity, container, onDone);
             else if (activity.activity_type === "Fill in the Blanks") renderFillBlanks(activity, container, onDone);
             else if (activity.activity_type === "Flashcards") renderFlashcards(activity, container, onDone);
             else onDone();

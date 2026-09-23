@@ -316,7 +316,7 @@
 
             // 6. Section 2 Content Validation (MCQ duplicate options & answer/feedback match)
             const selectedType = activityTypeSelect ? activityTypeSelect.value : "Multiple Choice";
-            if (selectedType === "Multiple Choice") {
+            if (selectedType === "Multiple Choice" || selectedType === "Quiz") {
                 const cards = document.querySelectorAll("#questionsContainer .question-card");
                 if (isPublish && (!cards || cards.length === 0)) {
                     isValid = false;
@@ -697,7 +697,7 @@
                         module_id: moduleSelect.value,
                         lesson_id: lessonSelect.value,
                         activity_type: selectedType,
-                        questions: selectedType === "Multiple Choice" ? collectMultipleChoiceQuestions() : [],
+                        questions: (selectedType === "Multiple Choice" || selectedType === "Quiz") ? collectMultipleChoiceQuestions() : [],
                         fill_blanks: selectedType === "Fill in the Blanks" ? collectFillBlanks() : [],
                         flashcards: selectedType === "Flashcards" ? collectFlashcards() : [],
                     }),

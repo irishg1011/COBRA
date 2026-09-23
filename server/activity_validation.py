@@ -278,7 +278,7 @@ def validate_activity_type_for_lesson(resource_id, activity_type, exclude_la_id=
     if taken:
         return False, (
             f"A {type_name} activity already exists for this lesson. "
-            f"Each lesson can only have one activity of each type (Multiple Choice, Fill in the Blanks, Flashcards)."
+            f"Each lesson can only have one activity of each type (Multiple Choice, Fill in the Blanks, Flashcards, Quiz)."
         )
 
     return True, None

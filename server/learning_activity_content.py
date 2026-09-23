@@ -44,6 +44,9 @@ class MCQActivityController:
 
     @staticmethod
     def insert(cursor, la_id, questions):
+        # sort_order = the question's position in the builder (0, 1, 2...),
+        # which is the order Quiz learners get them in.
+        sort_order = 0
         for q in (questions or []):
             text = (q.get("text") or "").strip()
             if not text:
@@ -51,9 +54,10 @@ class MCQActivityController:
 
             normalized_text = format_display_name(text)
             cursor.execute(
-                f"INSERT INTO {MCQ_QUESTIONS_TABLE} (la_id, question_text) VALUES (%s, %s)",
-                (la_id, normalized_text)
+                f"INSERT INTO {MCQ_QUESTIONS_TABLE} (la_id, question_text, sort_order) VALUES (%s, %s, %s)",
+                (la_id, normalized_text, sort_order)
             )
+            sort_order += 1
             q_id = cursor.lastrowid
 
             try:
@@ -225,6 +229,7 @@ class ActivityContentRouter:
         "Multiple Choice": MCQActivityController,
         "Fill in the Blanks": FillBlanksActivityController,
         "Flashcards": FlashcardsActivityController,
+        "Quiz": MCQActivityController,  # same questions/options tables as MCQ
     }
 
     @classmethod

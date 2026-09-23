@@ -320,7 +320,7 @@ def get_preview_activities(resource_id):
                 "items": [],
             }
 
-            if activity_type == "Multiple Choice":
+            if activity_type in ("Multiple Choice", "Quiz"):
                 cursor.execute(
                     f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY q_id ASC",
                     (la_id,)

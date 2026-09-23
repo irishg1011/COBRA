@@ -294,7 +294,7 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
         return False, type_err_msg, None, 0
 
     # Task #103: Validate Multiple Choice questions for duplicate options and matching feedback
-    if activity_type_name == "Multiple Choice" and questions:
+    if activity_type_name in ("Multiple Choice", "Quiz") and questions:
         for q_idx, q in enumerate(questions):
             opts = q.get("options") or []
             seen_opts = set()

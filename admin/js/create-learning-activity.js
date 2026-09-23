@@ -520,8 +520,16 @@ function flashcardCardHasData(card) {
  * 'Flashcards'), checks that type's builder. If no type is passed, checks
  * across all activity builder containers.
  */
+/**
+ * Quiz reuses the Multiple Choice builder (#multipleChoiceSection) -
+ * same question cards, same option/feedback fields, same tables.
+ */
+function isMcqBuilderType(type) {
+    return type === 'Multiple Choice' || type === 'Quiz';
+}
+
 function hasPopulatedActivityContent(type) {
-    if (!type || type === 'Multiple Choice') {
+    if (!type || isMcqBuilderType(type)) {
         const mcContainer = document.getElementById('questionsContainer');
         if (mcContainer && mcContainer.querySelectorAll('.question-card').length > 0) {
             return true;
@@ -627,13 +635,16 @@ function updateActivityTypeView(selectedType) {
     }
 
     // Show selected section and set instructions
-    if (selectedType === 'Multiple Choice') {
+    if (isMcqBuilderType(selectedType)) {
         if (multipleChoiceSection) {
             multipleChoiceSection.classList.remove('d-none');
             multipleChoiceSection.style.display = 'block';
         }
-        if (instructionLabel) instructionLabel.textContent = 'MULTIPLE CHOICE';
-        if (instructionDesc) instructionDesc.textContent = 'Create questions with multiple answer options. Add feedback for each option.';
+        const isQuiz = selectedType === 'Quiz';
+        if (instructionLabel) instructionLabel.textContent = isQuiz ? 'QUIZ' : 'MULTIPLE CHOICE';
+        if (instructionDesc) instructionDesc.textContent = isQuiz
+            ? 'Create questions with answer options, in the order learners will get them. Learners answer by steering the cobra into the correct letter.'
+            : 'Create questions with multiple answer options. Add feedback for each option.';
     } else if (selectedType === 'Fill in the Blanks') {
         if (fillBlanksSection) {
             fillBlanksSection.classList.remove('d-none');
@@ -726,6 +737,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const targetType = this.value;
             if (targetType === previousActivityType) return;
 
+            // Quiz and Multiple Choice share the same builder - switching
+            // between them keeps the questions instead of wiping them.
+            if (isMcqBuilderType(previousActivityType) && isMcqBuilderType(targetType)) {
+                previousActivityType = targetType;
+                updateActivityTypeView(targetType);
+                return;
+            }
+
             // Task #59: Check if active input values or populated items exist in the builder
             const hasData = hasPopulatedActivityContent(previousActivityType) || hasPopulatedActivityContent();
 
@@ -791,7 +810,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const preloaded = JSON.parse(preloadedScript.textContent || '{}');
             if (preloaded && preloaded.activity_type) {
-                if (preloaded.activity_type === 'Multiple Choice' && Array.isArray(preloaded.questions) && preloaded.questions.length > 0) {
+                if (isMcqBuilderType(preloaded.activity_type) && Array.isArray(preloaded.questions) && preloaded.questions.length > 0) {
                     preloaded.questions.forEach(q => addNewQuestionCard(q));
                 } else if (preloaded.activity_type === 'Fill in the Blanks' && Array.isArray(preloaded.fill_blanks) && preloaded.fill_blanks.length > 0) {
                     preloaded.fill_blanks.forEach(fb => addNewFillBlankCard(fb));
@@ -825,7 +844,7 @@ function updatePointsTotal() {
     const activityType = activityTypeSelect ? activityTypeSelect.value : 'Multiple Choice';
     let totalItems = 0;
 
-    if (activityType === 'Multiple Choice') {
+    if (isMcqBuilderType(activityType)) {
         const container = document.getElementById('questionsContainer');
         totalItems = container ? container.querySelectorAll('.question-card').length : 0;
     } else if (activityType === 'Fill in the Blanks') {

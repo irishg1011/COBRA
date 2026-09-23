@@ -20,6 +20,9 @@ from lesson_activities import (
     check_flashcard_answer,
     record_activity_progress,
     get_activities_completion_summary,
+    get_quiz_state,
+    submit_quiz_answer,
+    lose_quiz_life,
 )
 from learner_exercise import (
     get_published_exercise_for_resource,
@@ -970,7 +973,52 @@ def lesson_activities_check_answer():
             "correct_answer": correct_answer
         }), 200
 
+    if answer_type == "quiz":
+        result, error_message = submit_quiz_answer(
+            acc_id, data.get("la_id"), data.get("q_id"), data.get("option_id")
+        )
+        if result is None:
+            return jsonify({"success": False, "message": error_message or "Could not check this answer."}), 400
+        return jsonify({"success": True, **result}), 200
+
     return jsonify({"success": False, "message": "Unknown answer type."}), 400
+
+
+# ============================================================
+# ROUTE: QUIZ STATE - lives, current question, regen countdown.
+# Everything the quiz needs to resume after a refresh or cooldown.
+# ============================================================
+@learner_bp.route("/api/lesson-activities/quiz-state", methods=["GET"])
+def lesson_activities_quiz_state():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    la_id = request.args.get("la_id", type=int)
+    if not la_id:
+        return jsonify({"success": False, "message": "la_id is required."}), 400
+
+    state = get_quiz_state(acc_id, la_id)
+    if state is None:
+        return jsonify({"success": False, "message": "This quiz is not available."}), 404
+    return jsonify({"success": True, "state": state}), 200
+
+
+# ============================================================
+# ROUTE: QUIZ LOSE LIFE - wall hit / self-bite in the arena.
+# Not an answer, so nothing is logged to mcq_learner_answers_tbl.
+# ============================================================
+@learner_bp.route("/api/lesson-activities/quiz-lose-life", methods=["POST"])
+def lesson_activities_quiz_lose_life():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    state = lose_quiz_life(acc_id, data.get("la_id"))
+    if state is None:
+        return jsonify({"success": False, "message": "This quiz is not available."}), 404
+    return jsonify({"success": True, "state": state}), 200
 
 
 # ============================================================
