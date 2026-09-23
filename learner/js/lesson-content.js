@@ -597,8 +597,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    viewSummaryFromActivitiesBtn.addEventListener('click', () => goToStep("summary"));
-    viewSummaryFromExerciseBtn.addEventListener('click', () => goToStep("summary"));
+    if (viewSummaryFromActivitiesBtn) {
+        viewSummaryFromActivitiesBtn.addEventListener('click', () => goToStep("summary"));
+    }
+    if (viewSummaryFromExerciseBtn) {
+        viewSummaryFromExerciseBtn.addEventListener('click', () => goToStep("summary"));
+    }
 
     // ---------------- Summary step ----------------
     let summaryLoaded = false;
@@ -734,11 +738,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 await setupVideoStep(data.video);
             }
 
+            const progress = data.progress || { video_watched: false, content_read: false };
+
             // Resume at the first incomplete step; a fully-completed
             // lesson (re-opened for review) goes straight to Activities.
-            if (data.video && !data.progress.video_watched) {
+            if (data.video && !progress.video_watched) {
                 goToStep("video");
-            } else if (!data.progress.content_read) {
+            } else if (!progress.content_read) {
                 goToStep("content");
             } else {
                 goToStep("activities");
@@ -746,8 +752,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Already-crossed steps show as unlocked immediately if the
             // learner navigates back to them (no gate re-imposed).
-            if (data.progress.video_watched) { videoUnlocked = true; videoContinueBtn.disabled = false; videoLockedNote.style.display = "none"; }
-            if (data.progress.content_read) { contentUnlocked = true; contentContinueBtn.disabled = false; contentLockedNote.style.display = "none"; }
+            if (progress.video_watched) { videoUnlocked = true; videoContinueBtn.disabled = false; videoLockedNote.style.display = "none"; }
+            if (progress.content_read) { contentUnlocked = true; contentContinueBtn.disabled = false; contentLockedNote.style.display = "none"; }
 
         } catch (err) {
             console.error('Error loading lesson:', err);

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 18, 2026 at 09:28 AM
+-- Generation Time: Sep 23, 2026 at 07:36 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -47,11 +47,11 @@ CREATE TABLE `account_tbl` (
 --
 
 INSERT INTO `account_tbl` (`acc_id`, `email`, `username`, `password`, `u_type`, `status`, `failed_attempts`, `is_deleted`, `deleted_at`, `lockout_until`, `created_at`, `last_login`) VALUES
-('ACC00001', 'gregorioirish1111@gmail.com', 'aydatkam', 'scrypt:32768:8:1$q3mR6E8pnyRGMU5K$67e6b333b12078dd07fb530dcf3415bf783d73fa67c08e8e902d766c32287b5e51cf2b41b9f4ac118d5c559729e98c9bc1a30676341a63d84133c15a97d8ba2c', 1, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-17 02:03:10'),
+('ACC00001', 'gregorioirish1111@gmail.com', 'aydatkam', 'scrypt:32768:8:1$q3mR6E8pnyRGMU5K$67e6b333b12078dd07fb530dcf3415bf783d73fa67c08e8e902d766c32287b5e51cf2b41b9f4ac118d5c559729e98c9bc1a30676341a63d84133c15a97d8ba2c', 1, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-22 20:47:38'),
 ('ACC00002', 'mijoynicole.cdsga@gmail.com', 'nikol', 'scrypt:32768:8:1$mwyd9c3Y67xLIEGm$8469035001056f301321122ed4873b5dcee4daba7e3d313e8503479fcc0983b0f421a27b52e3b92105d8d37988b3506efdfd9d0e96e164a93a508e18a3cfaf17', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-08-02 20:43:06'),
-('ACC00003', 'espchristiangold@gmail.com', 'golfd123', 'scrypt:32768:8:1$F8uxYEYjJ298xDAe$67ba5a80ecaf090633f9c8b87db5b488947330f2cfdb5676282e026241c1faccaa34be02a993d040ee422deaef7b7ff4ab8fd7b9faa8a99eab1225db878b5dbf', 2, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-18 13:28:55'),
+('ACC00003', 'espchristiangold@gmail.com', 'golfd123', 'scrypt:32768:8:1$F8uxYEYjJ298xDAe$67ba5a80ecaf090633f9c8b87db5b488947330f2cfdb5676282e026241c1faccaa34be02a993d040ee422deaef7b7ff4ab8fd7b9faa8a99eab1225db878b5dbf', 2, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-18 15:38:57'),
 ('ACC00004', 'danzenaquino@gmail.com', 'danzen123', 'scrypt:32768:8:1$rt1ybreR60SN0xiy$71bf5e05d4bfe44995bf97febaea36c1c55c018bcc01896c5182c51d07d94a56483ba1a7f0445c8e7c055022b6fe3432f2c43d61ade861830cd639f031a156e0', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-08-02 20:43:06'),
-('ACC00005', 'gregorioirish1971@gmail.com', 'aydatkam8', 'scrypt:32768:8:1$d5Q3wGF1VQ7iOzTk$22d973c79f05c86174443c84b3f54b91d90bd28dd9c4a53fb5667c54e316541b05eacd8c34047cf761968a1caa4f3deadb1917a988d9cafc540c9d7d5a42adcf', 2, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-18 13:30:40'),
+('ACC00005', 'gregorioirish1971@gmail.com', 'aydatkam8', 'scrypt:32768:8:1$d5Q3wGF1VQ7iOzTk$22d973c79f05c86174443c84b3f54b91d90bd28dd9c4a53fb5667c54e316541b05eacd8c34047cf761968a1caa4f3deadb1917a988d9cafc540c9d7d5a42adcf', 2, 'Active', 0, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-09-22 20:45:22'),
 ('ACC00006', 'mijoynicole@gmail.com', 'taleng', 'scrypt:32768:8:1$mJfMSpNbOm3nmNuQ$6a4ffbcac742f69fa860986a60b65ceecdd70a100870f49a69bdcf3c8dc6c7cd200bf2eca3a1147efb565b0ece407fc66bbb969b43da368f40de06df0fa50e98', 2, 'Inactive', 1, 0, NULL, NULL, '2026-07-30 06:10:13', '2026-07-30 17:09:11'),
 ('LR2607300001', 'emmanuelspicer123@gmail.com', 'spicer', 'scrypt:32768:8:1$jZJZqv2Vp709B1ih$10fc3def14498aa07ad23e71ada0bf1b598bf78600a0b8d1efffb4321152fe0a254cfac3079de3464840680d2987696cf0f45f0bc9d14c97007069d422769dca', 1, 'Active', 0, 0, NULL, NULL, '2026-07-30 08:48:22', '2026-09-09 14:06:15'),
 ('LR2607300002', 'gmark7688@gmail.com', 'markgil', 'scrypt:32768:8:1$aVlZNwBE6RAC9DrM$93eacd71c16d3528717ec247150a2721952b77114aa27b526c2e5230a9708ab7a3f898b213b7f8ffc2e8407e1304365a114925708f4e0eb92246aecb307f6f5b', 2, 'Inactive', 0, 0, NULL, NULL, '2026-07-30 08:58:41', '2026-08-06 14:05:53'),
@@ -76,7 +76,8 @@ CREATE TABLE `active_sessions_tbl` (
 --
 
 INSERT INTO `active_sessions_tbl` (`session_id`, `acc_id`, `session_token`, `created_at`, `last_seen_at`) VALUES
-(4814, 'ACC00005', '2f7e56261d308382b2af015b6a870db56450b86bf1a874ab3fba96a14d8b6dc1', '2026-09-18 05:30:40', '2026-09-18 05:30:40');
+(4832, 'ACC00003', '310d6d9805747dc3248a05fe61de64fd506325fc8d40eed88a8447411747a9f7', '2026-09-18 07:38:57', '2026-09-18 07:38:57'),
+(5907, 'ACC00001', '7ade0aa601236b147893acb889bf23a1d4023eb31fe9cdf9df72f676c08dacc2', '2026-09-22 21:48:27', '2026-09-22 21:48:27');
 
 -- --------------------------------------------------------
 
@@ -101,24 +102,47 @@ INSERT INTO `activity_types_tbl` (`activity_type_id`, `activity_type_name`) VALU
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `category_stats_tbl`
+--
+
+CREATE TABLE `category_stats_tbl` (
+  `cat_stats_id` int(10) NOT NULL,
+  `cat_stats_name` varchar(50) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `category_stats_tbl`
+--
+
+INSERT INTO `category_stats_tbl` (`cat_stats_id`, `cat_stats_name`) VALUES
+(4, 'Archived'),
+(1, 'Draft'),
+(3, 'Published'),
+(2, 'Ready to Publish');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `category_tbl`
 --
 
 CREATE TABLE `category_tbl` (
   `cat_id` int(10) NOT NULL,
   `category_name` varchar(100) NOT NULL,
-  `is_archived` tinyint(1) NOT NULL DEFAULT 0
+  `is_archived` tinyint(1) NOT NULL DEFAULT 0,
+  `cat_stats_id` int(10) DEFAULT NULL,
+  `display_order` int(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `category_tbl`
 --
 
-INSERT INTO `category_tbl` (`cat_id`, `category_name`, `is_archived`) VALUES
-(2, 'Chapter 1', 0),
-(3, 'Chapter 2', 1),
-(4, 'Getting started', 0),
-(5, 'Variables and simple data types', 0);
+INSERT INTO `category_tbl` (`cat_id`, `category_name`, `is_archived`, `cat_stats_id`, `display_order`) VALUES
+(2, 'Chapter 1', 0, 3, 1),
+(3, 'Chapter 2', 0, 2, 2),
+(4, 'Getting started', 0, 3, 3),
+(5, 'Variables and simple data types', 0, 2, 4);
 
 -- --------------------------------------------------------
 
@@ -149,8 +173,8 @@ CREATE TABLE `coding_exercises_tbl` (
 --
 
 INSERT INTO `coding_exercises_tbl` (`exercise_id`, `exercise_title`, `resource_id`, `points`, `exercise_stats_id`, `instruction`, `situation`, `problem_question`, `clue`, `expected_answer`, `correct_feedback`, `uploaded_by`, `created_at`, `updated_at`, `is_archived`) VALUES
-(1, 'Hi', 3, 10, 2, 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssss', 'Sssssssssssssssssssssssssssssss', 'sdsdsdsds', 'Sdsdsdsdsdsdsd', 'ACC00001', '2026-08-28 14:55:46', '2026-08-28 14:58:27', 0),
-(2, 'Greet the user', 5, 10, 2, 'Read the situation and problem below carefully. write your code in the editor, then click run to test it before submitting.', 'You\'ve learned that print() displays text on the screen. now it\'s time to make your program interactive by asking the user for information.', 'Write a program that asks the user for their name using input(), then prints a greeting in the exact format: hello, <name>!', 'Use input() to store what the user types into a variable, then use an f-string or string concatenation with print() to build the greeting.', 'name = input()\r\nprint(f\"Hello, {name}!\")', 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', 'ACC00001', '2026-09-16 21:26:16', '2026-09-16 21:26:19', 0);
+(1, 'Hi', 3, 10, 4, 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssssssssss', 'Ssssssssssssssssssssssssssss', 'Sssssssssssssssssssssssssssssss', 'sdsdsdsds', 'Sdsdsdsdsdsdsd', 'ACC00001', '2026-08-28 14:55:46', '2026-09-22 14:32:23', 0),
+(2, 'Greet the user', 5, 10, 2, 'Read the situation and problem below carefully. write your code in the editor, then click run to test it before submitting.', 'You\'ve learned that print() displays text on the screen. now it\'s time to make your program interactive by asking the user for information.', 'Write a program that asks the user for their name using input(), then prints a greeting in the exact format: hello, <name>!', 'Use input() to store what the user types into a variable, then use an f-string or string concatenation with print() to build the greeting.', 'name = input()\r\nprint(f\"Hello, {name}!\")', 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', 'ACC00001', '2026-09-16 21:26:16', '2026-09-23 05:22:34', 0);
 
 -- --------------------------------------------------------
 
@@ -188,7 +212,14 @@ INSERT INTO `exercise_submissions_tbl` (`submission_id`, `acc_id`, `exercise_id`
 (8, 'ACC00005', 2, 'name = input()\nprint(f\"Hello, {name}!\")\n', 2, 2, 8, 'correct', 'self', NULL, 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', '2026-09-16 21:41:53'),
 (9, 'ACC00005', 2, 'name = input()\nprint(f\"Hello, {name}!\")\n', 2, 2, 9, 'correct', 'self', NULL, 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', '2026-09-16 21:41:56'),
 (10, 'ACC00005', 2, '# Write your code here\n', 0, 2, 10, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:47:02'),
-(11, 'ACC00005', 2, '# Write your code here\n', 0, 2, 11, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:56:25');
+(11, 'ACC00005', 2, '# Write your code here\n', 0, 2, 11, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-16 21:56:25'),
+(12, 'ACC00003', 2, '# Write your code here\n', 0, 2, 1, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-18 15:35:14'),
+(13, 'ACC00003', 2, '# Write your code here\n', 0, 2, 2, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-18 15:35:16'),
+(14, 'ACC00003', 2, '# Write your code here\n', 0, 2, 3, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-18 15:35:17'),
+(15, 'ACC00003', 2, '# Write your code here\n', 0, 2, 4, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-18 15:35:17'),
+(16, 'ACC00003', 2, '# Write your code here\n', 0, 2, 5, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-18 15:35:26'),
+(17, 'ACC00003', 2, '# Write your code here\n', 0, 2, 6, 'incorrect', 'self', NULL, '0 of 2 test cases passed. Review your code and try again.', '2026-09-18 15:35:28'),
+(18, 'ACC00003', 2, 'name = input()\nprint(f\"Hello, {name}!\")\n', 2, 2, 7, 'correct', 'self', NULL, 'Nice work! you used input() to grab the user\'s name and print() to greet them back.', '2026-09-18 15:39:16');
 
 -- --------------------------------------------------------
 
@@ -314,7 +345,9 @@ CREATE TABLE `learner_activity_progress_tbl` (
 
 INSERT INTO `learner_activity_progress_tbl` (`progress_id`, `acc_id`, `la_id`, `status`, `score`, `completed_at`) VALUES
 (7, 'ACC00005', 2, 'completed', 2, '2026-09-16 21:38:11'),
-(8, 'ACC00005', 3, 'completed', 0, '2026-09-16 21:38:18');
+(8, 'ACC00005', 3, 'completed', 0, '2026-09-16 21:38:18'),
+(9, 'ACC00003', 2, 'completed', 2, '2026-09-18 15:35:04'),
+(10, 'ACC00003', 3, 'completed', 0, '2026-09-18 15:35:09');
 
 -- --------------------------------------------------------
 
@@ -335,7 +368,29 @@ CREATE TABLE `learner_exercise_progress_tbl` (
 --
 
 INSERT INTO `learner_exercise_progress_tbl` (`progress_id`, `acc_id`, `exercise_id`, `status`, `completed_at`) VALUES
-(1, 'ACC00005', 2, 'completed', '2026-09-16 21:41:10');
+(1, 'ACC00005', 2, 'completed', '2026-09-16 21:41:10'),
+(2, 'ACC00003', 2, 'completed', '2026-09-18 15:39:16');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `learner_progress_unlocks_tbl`
+--
+
+CREATE TABLE `learner_progress_unlocks_tbl` (
+  `unlock_id` int(10) NOT NULL,
+  `acc_id` varchar(15) NOT NULL,
+  `entity_type` varchar(20) NOT NULL,
+  `entity_id` int(10) NOT NULL,
+  `unlocked_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `learner_progress_unlocks_tbl`
+--
+
+INSERT INTO `learner_progress_unlocks_tbl` (`unlock_id`, `acc_id`, `entity_type`, `entity_id`, `unlocked_at`) VALUES
+(1, 'ACC00005', 'category', 2, '2026-09-22 20:45:33');
 
 -- --------------------------------------------------------
 
@@ -369,7 +424,9 @@ INSERT INTO `learner_resource_progress_tbl` (`progress_id`, `acc_id`, `resource_
 (10, 'ACC00001', 8, 'completed', '2026-09-08 21:59:31.00000', NULL, NULL, '2026-09-08 21:59:32'),
 (11, 'ACC00001', 9, 'completed', '2026-09-08 21:59:39.00000', NULL, NULL, '2026-09-08 21:59:43'),
 (13, 'ACC00005', 5, 'completed', '2026-09-16 21:37:28.00000', '2026-09-16 21:37:55', '2026-09-16 21:38:00', '2026-09-16 21:41:56'),
-(14, 'ACC00003', 5, 'in_progress', '2026-09-18 13:29:12.00000', NULL, NULL, '0000-00-00 00:00:00');
+(14, 'ACC00003', 5, 'completed', '2026-09-18 13:29:12.00000', '2026-09-18 15:34:33', '2026-09-18 15:34:43', '2026-09-18 15:39:16'),
+(15, 'ACC00003', 6, 'in_progress', '2026-09-18 15:39:31.00000', NULL, NULL, '0000-00-00 00:00:00'),
+(16, 'ACC00005', 1, 'in_progress', '2026-09-22 20:46:06.00000', NULL, NULL, '0000-00-00 00:00:00');
 
 -- --------------------------------------------------------
 
@@ -389,7 +446,8 @@ CREATE TABLE `learning_activities_stats_tbl` (
 INSERT INTO `learning_activities_stats_tbl` (`la_stats_id`, `la_stats_name`) VALUES
 (3, 'Archived'),
 (1, 'Draft'),
-(2, 'Published');
+(2, 'Published'),
+(4, 'Ready to Publish');
 
 -- --------------------------------------------------------
 
@@ -416,14 +474,14 @@ CREATE TABLE `learning_activities_tbl` (
 --
 
 INSERT INTO `learning_activities_tbl` (`la_id`, `activity_title`, `cat_id`, `module_id`, `resource_id`, `activity_type_id`, `points`, `la_stats_id`, `uploaded_by`, `created_at`, `updated_at`) VALUES
-(1, 'Hello world', 5, 5, 3, 1, 2, 2, 'ACC00001', '2026-08-28 14:47:53', '2026-09-09 00:28:01'),
-(2, 'Act 1 l1m1c1', 2, 5, 5, 1, 2, 2, 'ACC00001', '2026-09-09 00:29:23', '2026-09-09 00:29:30'),
-(3, 'Act 2 l1m1c1', 2, 5, 5, 2, 1, 2, 'ACC00001', '2026-09-09 00:30:33', '2026-09-09 00:30:40'),
-(4, 'Act 1 l1m1c2', 4, 4, 7, 2, 1, 2, 'ACC00001', '2026-09-09 00:31:50', '2026-09-09 00:33:48'),
-(5, 'Act 1 l2m1c2', 4, 4, 8, 3, 1, 2, 'ACC00001', '2026-09-09 00:32:52', '2026-09-09 00:33:46'),
-(6, 'Act 1 l3m1c2', 4, 4, 9, 1, 1, 2, 'ACC00001', '2026-09-09 00:33:37', '2026-09-09 00:33:42'),
-(7, 'Act 1 l1m1c3', 5, 6, 3, 3, 1, 2, 'ACC00001', '2026-09-09 00:34:48', '2026-09-09 00:34:54'),
-(8, 'Act 1 l1m2c3', 5, 6, 4, 1, 1, 2, 'ACC00001', '2026-09-09 00:35:47', '2026-09-09 00:35:52');
+(1, 'Hello world', 5, 5, 3, 1, 2, 1, 'ACC00001', '2026-08-28 14:47:53', '2026-09-22 14:20:53'),
+(2, 'Act 1 l1m1c1', 2, 5, 5, 1, 2, 2, 'ACC00001', '2026-09-09 00:29:23', '2026-09-23 05:22:28'),
+(3, 'Act 2 l1m1c1', 2, 5, 5, 2, 1, 2, 'ACC00001', '2026-09-09 00:30:33', '2026-09-23 05:22:31'),
+(4, 'Act 1 l1m1c2', 4, 4, 7, 2, 1, 2, 'ACC00001', '2026-09-09 00:31:50', '2026-09-23 05:23:34'),
+(5, 'Act 1 l2m1c2', 4, 4, 8, 3, 1, 2, 'ACC00001', '2026-09-09 00:32:52', '2026-09-23 05:23:40'),
+(6, 'Act 1 l3m1c2', 4, 4, 9, 1, 1, 2, 'ACC00001', '2026-09-09 00:33:37', '2026-09-23 05:48:27'),
+(7, 'Act 1 l1m1c3', 5, 6, 3, 3, 1, 1, 'ACC00001', '2026-09-09 00:34:48', '2026-09-22 14:20:56'),
+(8, 'Act 1 l1m2c3', 5, 6, 4, 1, 1, 1, 'ACC00001', '2026-09-09 00:35:47', '2026-09-22 14:20:48');
 
 -- --------------------------------------------------------
 
@@ -443,7 +501,8 @@ CREATE TABLE `learning_resources_stats_tbl` (
 INSERT INTO `learning_resources_stats_tbl` (`lr_stats_id`, `lr_stats_name`) VALUES
 (3, 'Archived'),
 (1, 'Draft'),
-(2, 'Published');
+(2, 'Published'),
+(4, 'Ready to Publish');
 
 -- --------------------------------------------------------
 
@@ -460,26 +519,27 @@ CREATE TABLE `learning_resources_tbl` (
   `uploaded_by` varchar(15) DEFAULT NULL,
   `lr_stats_id` int(10) NOT NULL,
   `created_at` datetime DEFAULT NULL,
-  `updated_at` datetime DEFAULT NULL
+  `updated_at` datetime DEFAULT NULL,
+  `display_order` int(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `learning_resources_tbl`
 --
 
-INSERT INTO `learning_resources_tbl` (`resource_id`, `resource_title`, `resource_type_id`, `cat_id`, `module_id`, `uploaded_by`, `lr_stats_id`, `created_at`, `updated_at`) VALUES
-(1, '12345', 1, 2, 1, 'ACC00001', 1, '2026-08-21 13:37:07', '2026-09-11 17:16:58'),
-(2, 'Mod 2.2.1', 1, 3, 2, 'ACC00001', 1, '2026-08-21 13:49:20', '2026-08-28 13:35:44'),
-(3, 'Run hello world.py.', 1, 5, 6, 'ACC00001', 1, '2026-08-28 13:52:46', '2026-09-08 21:32:11'),
-(4, 'Lesson 2 sample', 1, 5, 6, 'ACC00001', 2, '2026-09-08 21:39:28', '2026-09-08 21:57:53'),
-(5, 'Lesson 1 sample for ch1', 1, 2, 5, 'ACC00001', 2, '2026-09-08 21:44:18', '2026-09-08 21:57:49'),
-(6, 'Lesson 2 saple for ch1', 1, 2, 5, 'ACC00001', 2, '2026-09-08 21:45:05', '2026-09-08 21:57:46'),
-(7, 'Ch2 lesson ex1m1', 1, 4, 4, 'ACC00001', 2, '2026-09-08 21:46:09', '2026-09-08 21:57:42'),
-(8, 'Cch2 l2 m1', 1, 4, 4, 'ACC00001', 1, '2026-09-08 21:46:37', '2026-09-11 17:16:37'),
-(9, 'Ch2 l3', 1, 4, 4, 'ACC00001', 1, '2026-09-08 21:47:13', '2026-09-11 17:16:43'),
-(10, 'Ch2 m2l1', 1, 4, 3, 'ACC00001', 1, '2026-09-08 21:47:37', '2026-09-11 17:16:47'),
-(11, 'Ch2l2m2', 1, 4, 3, 'ACC00001', 1, '2026-09-08 21:48:10', '2026-09-11 17:16:53'),
-(12, 'Adalovelace', 1, 4, 4, 'LR2607300001', 1, '2026-09-09 07:28:36', '2026-09-09 07:28:36');
+INSERT INTO `learning_resources_tbl` (`resource_id`, `resource_title`, `resource_type_id`, `cat_id`, `module_id`, `uploaded_by`, `lr_stats_id`, `created_at`, `updated_at`, `display_order`) VALUES
+(1, '12345', 1, 2, 1, 'ACC00001', 1, '2026-08-21 13:37:07', '2026-09-11 17:16:58', 1),
+(2, 'Mod 2.2.1', 1, 3, 2, 'ACC00001', 1, '2026-08-21 13:49:20', '2026-08-28 13:35:44', 1),
+(3, 'Run hello world.py.', 1, 5, 6, 'ACC00001', 1, '2026-08-28 13:52:46', '2026-09-08 21:32:11', 1),
+(4, 'Lesson 2 sample', 1, 5, 6, 'ACC00001', 1, '2026-09-08 21:39:28', '2026-09-22 14:20:48', 2),
+(5, 'Lesson 1 sample for ch1', 1, 2, 5, 'ACC00001', 2, '2026-09-08 21:44:18', '2026-09-23 05:22:25', 1),
+(6, 'Lesson 2 saple for ch1', 1, 2, 5, 'ACC00001', 2, '2026-09-08 21:45:05', '2026-09-23 05:22:39', 2),
+(7, 'Ch2 lesson ex1m1', 1, 4, 4, 'ACC00001', 2, '2026-09-08 21:46:09', '2026-09-23 05:23:31', 1),
+(8, 'Cch2 l2 m1', 1, 4, 4, 'ACC00001', 2, '2026-09-08 21:46:37', '2026-09-23 05:23:37', 2),
+(9, 'Ch2 l3', 1, 4, 4, 'ACC00001', 2, '2026-09-08 21:47:13', '2026-09-23 05:23:44', 3),
+(10, 'Ch2 m2l1', 1, 4, 3, 'ACC00001', 2, '2026-09-08 21:47:37', '2026-09-23 05:23:19', 1),
+(11, 'Ch2l2m2', 1, 4, 3, 'ACC00001', 2, '2026-09-08 21:48:10', '2026-09-23 05:23:23', 2),
+(12, 'Adalovelace', 1, 4, 4, 'LR2607300001', 2, '2026-09-09 07:28:36', '2026-09-23 05:23:51', 4);
 
 -- --------------------------------------------------------
 
@@ -768,7 +828,17 @@ INSERT INTO `login_logs_tbl` (`log_id`, `acc_id`, `ip_address`, `attempt_status`
 (208, 'ACC00001', '127.0.0.1', 'Success', '2026-09-16 18:03:10'),
 (209, 'ACC00006', '127.0.0.1', 'Failed', '2026-09-18 05:26:22'),
 (210, 'ACC00003', '127.0.0.1', 'Success', '2026-09-18 05:28:55'),
-(211, 'ACC00005', '127.0.0.1', 'Success', '2026-09-18 05:30:40');
+(211, 'ACC00005', '127.0.0.1', 'Success', '2026-09-18 05:30:40'),
+(212, 'ACC00003', '127.0.0.1', 'Success', '2026-09-18 07:34:09'),
+(213, 'ACC00001', '127.0.0.1', 'Success', '2026-09-18 07:37:23'),
+(214, 'ACC00005', '127.0.0.1', 'Failed', '2026-09-18 07:38:14'),
+(215, 'ACC00005', '127.0.0.1', 'Success', '2026-09-18 07:38:19'),
+(216, 'ACC00003', '127.0.0.1', 'Success', '2026-09-18 07:38:57'),
+(217, 'ACC00001', '127.0.0.1', 'Success', '2026-09-22 00:43:54'),
+(218, 'ACC00005', '127.0.0.1', 'Failed', '2026-09-22 12:44:58'),
+(219, 'ACC00005', '127.0.0.1', 'Success', '2026-09-22 12:45:04'),
+(220, 'ACC00005', '127.0.0.1', 'Success', '2026-09-22 12:45:22'),
+(221, 'ACC00001', '127.0.0.1', 'Success', '2026-09-22 12:47:38');
 
 -- --------------------------------------------------------
 
@@ -864,20 +934,21 @@ CREATE TABLE `modules_tbl` (
   `module_stats_id` int(10) NOT NULL,
   `created_at` datetime DEFAULT NULL,
   `updated_at` datetime DEFAULT NULL,
-  `is_archived` tinyint(1) NOT NULL DEFAULT 0
+  `is_archived` tinyint(1) NOT NULL DEFAULT 0,
+  `display_order` int(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `modules_tbl`
 --
 
-INSERT INTO `modules_tbl` (`module_id`, `module_name`, `description`, `cat_id`, `module_stats_id`, `created_at`, `updated_at`, `is_archived`) VALUES
-(1, 'Module 1', 'Mod1 desc', 2, 2, '2026-08-18 19:19:55', '2026-09-08 21:42:46', 1),
-(2, 'Module 2.1', 'Desc', 3, 2, '2026-08-21 13:46:00', '2026-09-08 21:42:31', 0),
-(3, 'Setting up your programming environment', 'This gets your workspace totally ready for action.', 4, 1, '2026-08-28 13:16:29', '2026-08-31 22:34:53', 0),
-(4, 'Python on different operating systems', 'No matter what kind of computer you\'re using, this part walks you through the specific installation steps.', 4, 1, '2026-08-28 13:34:46', '2026-08-31 22:34:41', 0),
-(5, 'What really happens when you run hello_world.Py', 'This pulls back the curtain to show you the behind-the-scenes magic.', 2, 1, '2026-08-28 13:38:00', '2026-08-31 22:27:33', 0),
-(6, 'Variables', 'Think of these as labeled boxes for your data.', 5, 1, '2026-08-28 13:38:33', '2026-08-31 22:34:45', 0);
+INSERT INTO `modules_tbl` (`module_id`, `module_name`, `description`, `cat_id`, `module_stats_id`, `created_at`, `updated_at`, `is_archived`, `display_order`) VALUES
+(1, 'Module 1', 'Mod1 desc', 2, 4, '2026-08-18 19:19:55', '2026-09-22 14:28:44', 0, 1),
+(2, 'Module 2.1', 'Desc', 3, 4, '2026-08-21 13:46:00', '2026-09-22 14:28:41', 0, 1),
+(3, 'Setting up your programming environment', 'This gets your workspace totally ready for action.', 4, 1, '2026-08-28 13:16:29', '2026-09-23 05:23:15', 0, 1),
+(4, 'Python on different operating systems', 'No matter what kind of computer you\'re using, this part walks you through the specific installation steps.', 4, 1, '2026-08-28 13:34:46', '2026-09-23 05:23:27', 0, 2),
+(5, 'What really happens when you run hello_world.Py', 'This pulls back the curtain to show you the behind-the-scenes magic.', 2, 1, '2026-08-28 13:38:00', '2026-09-23 05:22:19', 0, 2),
+(6, 'Variables', 'Think of these as labeled boxes for your data.', 5, 4, '2026-08-28 13:38:33', '2026-09-23 05:44:02', 0, 1);
 
 -- --------------------------------------------------------
 
@@ -897,7 +968,8 @@ CREATE TABLE `module_stats_tbl` (
 INSERT INTO `module_stats_tbl` (`module_stats_id`, `module_stats_name`) VALUES
 (3, 'Archived'),
 (2, 'Draft'),
-(1, 'Published');
+(1, 'Published'),
+(4, 'Ready to Publish');
 
 -- --------------------------------------------------------
 
@@ -1119,6 +1191,13 @@ ALTER TABLE `activity_types_tbl`
   ADD UNIQUE KEY `activity_type_name` (`activity_type_name`);
 
 --
+-- Indexes for table `category_stats_tbl`
+--
+ALTER TABLE `category_stats_tbl`
+  ADD PRIMARY KEY (`cat_stats_id`),
+  ADD UNIQUE KEY `cat_stats_name` (`cat_stats_name`);
+
+--
 -- Indexes for table `category_tbl`
 --
 ALTER TABLE `category_tbl`
@@ -1195,6 +1274,13 @@ ALTER TABLE `learner_exercise_progress_tbl`
   ADD PRIMARY KEY (`progress_id`),
   ADD KEY `fk_exercise_progress_account_id` (`acc_id`),
   ADD KEY `fk_exercise_progress_exercise_id` (`exercise_id`);
+
+--
+-- Indexes for table `learner_progress_unlocks_tbl`
+--
+ALTER TABLE `learner_progress_unlocks_tbl`
+  ADD PRIMARY KEY (`unlock_id`),
+  ADD KEY `fk_unlock_acc_id` (`acc_id`);
 
 --
 -- Indexes for table `learner_resource_progress_tbl`
@@ -1371,13 +1457,19 @@ ALTER TABLE `video_tutorials_tbl`
 -- AUTO_INCREMENT for table `active_sessions_tbl`
 --
 ALTER TABLE `active_sessions_tbl`
-  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4815;
+  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5909;
 
 --
 -- AUTO_INCREMENT for table `activity_types_tbl`
 --
 ALTER TABLE `activity_types_tbl`
   MODIFY `activity_type_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `category_stats_tbl`
+--
+ALTER TABLE `category_stats_tbl`
+  MODIFY `cat_stats_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `category_tbl`
@@ -1395,7 +1487,7 @@ ALTER TABLE `coding_exercises_tbl`
 -- AUTO_INCREMENT for table `exercise_submissions_tbl`
 --
 ALTER TABLE `exercise_submissions_tbl`
-  MODIFY `submission_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `submission_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `fib_learner_answers_tbl`
@@ -1431,25 +1523,31 @@ ALTER TABLE `gender_tbl`
 -- AUTO_INCREMENT for table `learner_activity_progress_tbl`
 --
 ALTER TABLE `learner_activity_progress_tbl`
-  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `learner_exercise_progress_tbl`
 --
 ALTER TABLE `learner_exercise_progress_tbl`
-  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `learner_progress_unlocks_tbl`
+--
+ALTER TABLE `learner_progress_unlocks_tbl`
+  MODIFY `unlock_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `learner_resource_progress_tbl`
 --
 ALTER TABLE `learner_resource_progress_tbl`
-  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `progress_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `learning_activities_stats_tbl`
 --
 ALTER TABLE `learning_activities_stats_tbl`
-  MODIFY `la_stats_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `la_stats_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `learning_activities_tbl`
@@ -1461,7 +1559,7 @@ ALTER TABLE `learning_activities_tbl`
 -- AUTO_INCREMENT for table `learning_resources_stats_tbl`
 --
 ALTER TABLE `learning_resources_stats_tbl`
-  MODIFY `lr_stats_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `lr_stats_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `learning_resources_tbl`
@@ -1491,7 +1589,7 @@ ALTER TABLE `lockout_logs_tbl`
 -- AUTO_INCREMENT for table `login_logs_tbl`
 --
 ALTER TABLE `login_logs_tbl`
-  MODIFY `log_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=212;
+  MODIFY `log_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=222;
 
 --
 -- AUTO_INCREMENT for table `mcq_learner_answers_tbl`
@@ -1521,7 +1619,7 @@ ALTER TABLE `modules_tbl`
 -- AUTO_INCREMENT for table `module_stats_tbl`
 --
 ALTER TABLE `module_stats_tbl`
-  MODIFY `module_stats_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `module_stats_id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `password_reset_logs_tbl`
@@ -1638,6 +1736,12 @@ ALTER TABLE `learner_activity_progress_tbl`
 ALTER TABLE `learner_exercise_progress_tbl`
   ADD CONSTRAINT `fk_exercise_progress_account_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`),
   ADD CONSTRAINT `fk_exercise_progress_exercise_id` FOREIGN KEY (`exercise_id`) REFERENCES `coding_exercises_tbl` (`exercise_id`);
+
+--
+-- Constraints for table `learner_progress_unlocks_tbl`
+--
+ALTER TABLE `learner_progress_unlocks_tbl`
+  ADD CONSTRAINT `fk_unlock_acc_id` FOREIGN KEY (`acc_id`) REFERENCES `account_tbl` (`acc_id`);
 
 --
 -- Constraints for table `learner_resource_progress_tbl`

@@ -17,9 +17,18 @@ from lesson_activities import (
     get_published_activities_for_resource,
     check_mcq_answer,
     check_fill_blank_answer,
+    check_flashcard_answer,
     record_activity_progress,
     get_activities_completion_summary,
 )
+from learner_exercise import (
+    get_published_exercise_for_resource,
+    is_exercise_completed,
+    grade_exercise_submission,
+    record_exercise_progress,
+    get_latest_submission,
+)
+from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 from learner_progress_unlocks import has_unlock, write_unlock, get_unlocked_at  # NEW - Task #13: permanent category unlock check; get_unlocked_at added for Task #16's catch-up badge
@@ -73,6 +82,26 @@ def get_current_learner_acc_id():
     finally:
         if connection.is_connected():
             connection.close()
+
+
+def get_published_video_for_resource(cursor, resource_id):
+    """
+    Returns the most recently uploaded PUBLISHED video_tutorials_tbl row
+    for a resource, or None if the lesson has no published video yet.
+    A lesson can have multiple video rows across re-uploads (drafts +
+    replacements) - the newest Published one (highest video_tutorial_id)
+    is the one learners actually see.
+    """
+    cursor.execute(
+        """SELECT vt.video_tutorial_id, vt.file_path, vt.video_title, vt.description
+           FROM video_tutorials_tbl vt
+           JOIN learning_resources_stats_tbl lrs ON vt.video_stats_id = lrs.lr_stats_id
+           WHERE vt.resource_id = %s AND lrs.lr_stats_name = 'Published'
+           ORDER BY vt.video_tutorial_id DESC
+           LIMIT 1""",
+        (resource_id,)
+    )
+    return cursor.fetchone()
 
 
 # ============================================================
@@ -617,10 +646,10 @@ def lesson_content_page():
 @learner_bp.route("/api/lesson-content", methods=["GET"])
 def lesson_content_data():
     """
-    Returns one resource's title and its full authored HTML body
-    (lesson_content_tbl.content_body) for the learner-facing viewer to
-    render directly - the same rich content the admin editor produced,
-    including embedded interactive code/terminal blocks.
+    Returns one resource's title, its authored HTML body, its published
+    video (if any), and this learner's per-step progress
+    (video_watched / content_read) so the frontend knows which step to
+    resume on and which steps are already unlocked.
     """
     acc_id = get_current_learner_acc_id()
     if not acc_id:
@@ -656,20 +685,38 @@ def lesson_content_data():
         content_row = cursor.fetchone()
         content_html = content_row["content_body"] if content_row else ""
 
-        # Mark this lesson as at least started, without downgrading an
-        # already-completed one.
+        video_row = get_published_video_for_resource(cursor, resource_id)
+        video = None
+        if video_row:
+            video = {
+                "video_id": video_row["file_path"],
+                "title": video_row["video_title"],
+                "description": video_row.get("description") or "",
+            }
+
+        exercise = get_published_exercise_for_resource(resource_id)
+        exercise_completed = False
+        exercise_last_submission = None
+        if exercise:
+            exercise_completed = is_exercise_completed(acc_id, exercise["exercise_id"])
+            exercise_last_submission = get_latest_submission(acc_id, exercise["exercise_id"])
+
+        # Ensure a progress row exists (first time opening this lesson),
+        # without downgrading an already-completed one.
         cursor.execute(
-            "SELECT status FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s",
+            """SELECT status, video_watched_at, content_read_at
+               FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s""",
             (acc_id, resource_id)
         )
-        existing_progress = cursor.fetchone()
-        if not existing_progress:
+        progress_row = cursor.fetchone()
+        if not progress_row:
             cursor.execute(
                 """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at)
                    VALUES (%s, %s, 'in_progress', NOW())""",
                 (acc_id, resource_id)
             )
             connection.commit()
+            progress_row = {"status": "in_progress", "video_watched_at": None, "content_read_at": None}
 
         cursor.close()
         return jsonify({
@@ -677,7 +724,16 @@ def lesson_content_data():
             "resource_id": resource["resource_id"],
             "resource_title": resource["resource_title"],
             "cat_id": resource["cat_id"],
-            "content_html": content_html
+            "content_html": content_html,
+            "video": video,
+            "exercise": exercise,
+            "exercise_completed": exercise_completed,
+            "exercise_last_submission": exercise_last_submission,
+            "is_completed": progress_row["status"] == "completed",
+            "progress": {
+                "video_watched": progress_row["video_watched_at"] is not None,
+                "content_read": progress_row["content_read_at"] is not None,
+            }
         }), 200
 
     except Error as e:
@@ -685,6 +741,140 @@ def lesson_content_data():
     finally:
         if connection.is_connected():
             connection.close()
+
+
+# ============================================================
+# ROUTE: MARK VIDEO STEP WATCHED
+# ============================================================
+@learner_bp.route("/api/lesson-content/mark-video-watched", methods=["POST"])
+def mark_video_watched():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    resource_id = data.get("resource_id")
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT progress_id, video_watched_at FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s",
+            (acc_id, resource_id)
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            if not existing["video_watched_at"]:
+                cursor.execute(
+                    "UPDATE learner_resource_progress_tbl SET video_watched_at = NOW() WHERE progress_id = %s",
+                    (existing["progress_id"],)
+                )
+        else:
+            cursor.execute(
+                """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at, video_watched_at)
+                   VALUES (%s, %s, 'in_progress', NOW(), NOW())""",
+                (acc_id, resource_id)
+            )
+
+        connection.commit()
+        cursor.close()
+        return jsonify({"success": True}), 200
+    except Error as e:
+        connection.rollback()
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
+# ROUTE: MARK CONTENT STEP READ
+# ============================================================
+@learner_bp.route("/api/lesson-content/mark-content-read", methods=["POST"])
+def mark_content_read():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    resource_id = data.get("resource_id")
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT progress_id, content_read_at FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s",
+            (acc_id, resource_id)
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            if not existing["content_read_at"]:
+                cursor.execute(
+                    "UPDATE learner_resource_progress_tbl SET content_read_at = NOW() WHERE progress_id = %s",
+                    (existing["progress_id"],)
+                )
+        else:
+            cursor.execute(
+                """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at, content_read_at)
+                   VALUES (%s, %s, 'in_progress', NOW(), NOW())""",
+                (acc_id, resource_id)
+            )
+
+        connection.commit()
+        cursor.close()
+        return jsonify({"success": True}), 200
+    except Error as e:
+        connection.rollback()
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
+# ROUTE: SUBMIT A CODING EXERCISE
+# ============================================================
+@learner_bp.route("/api/lesson-exercise/submit", methods=["POST"])
+def lesson_exercise_submit():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    exercise_id = data.get("exercise_id")
+    submitted_code = data.get("submitted_code", "")
+    actual_outputs = data.get("actual_outputs") or []
+
+    if not exercise_id:
+        return jsonify({"success": False, "message": "exercise_id is required."}), 400
+
+    result = grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_outputs)
+    if result is None:
+        return jsonify({"success": False, "message": "Could not grade this submission."}), 500
+
+    passed, total, status, feedback = result
+    if status == "correct":
+        record_exercise_progress(acc_id, exercise_id)
+
+    return jsonify({
+        "success": True,
+        "passed": passed,
+        "total": total,
+        "status": status,
+        "feedback": feedback
+    }), 200
 
 
 # ============================================================
@@ -733,7 +923,7 @@ def lesson_activities_data():
 
 
 # ============================================================
-# ROUTE: CHECK A SINGLE ACTIVITY ANSWER (MCQ or Fill in the Blanks)
+# ROUTE: CHECK A SINGLE ACTIVITY ANSWER (MCQ / Fill in the Blanks / Flashcards)
 # ============================================================
 @learner_bp.route("/api/lesson-activities/check-answer", methods=["POST"])
 def lesson_activities_check_answer():
@@ -766,12 +956,26 @@ def lesson_activities_check_answer():
             "correct_answer": correct_answer
         }), 200
 
+    if answer_type == "flashcard":
+        result = check_flashcard_answer(acc_id, data.get("flashcard_id"), data.get("answer"))
+        if result is None:
+            return jsonify({"success": False, "message": "This flashcard could not be checked."}), 500
+        status, feedback, correct_answer = result
+        points = 1 if status == "correct" else 0.5 if status == "close" else 0
+        return jsonify({
+            "success": True,
+            "status": status,
+            "points": points,
+            "feedback": feedback,
+            "correct_answer": correct_answer
+        }), 200
+
     return jsonify({"success": False, "message": "Unknown answer type."}), 400
 
 
 # ============================================================
-# ROUTE: MARK ONE ACTIVITY AS COMPLETE (MCQ/Fill-in-the-Blanks after
-# the last item, or Flashcards after reviewing every card)
+# ROUTE: MARK ONE ACTIVITY AS COMPLETE (MCQ/Fill-in-the-Blanks/Flashcards
+# after the last item)
 # ============================================================
 @learner_bp.route("/api/lesson-activities/mark-complete", methods=["POST"])
 def lesson_activities_mark_complete():
@@ -818,6 +1022,14 @@ def mark_lesson_complete():
             "message": "Please complete all activities before finishing this lesson."
         }), 400
 
+    # Same hard gate for the exercise, if this lesson has one.
+    exercise = get_published_exercise_for_resource(resource_id)
+    if exercise and not is_exercise_completed(acc_id, exercise["exercise_id"]):
+        return jsonify({
+            "success": False,
+            "message": "Please pass the coding exercise before finishing this lesson."
+        }), 400
+
     connection = get_db_connection()
     if connection is None:
         return jsonify({"success": False, "message": "Could not connect to database."}), 500
@@ -856,6 +1068,32 @@ def mark_lesson_complete():
     finally:
         if connection.is_connected():
             connection.close()
+
+
+# ============================================================
+# ROUTE: LESSON SUMMARY (JSON API) - performance recap + what's next
+# ============================================================
+@learner_bp.route("/api/lesson-summary", methods=["GET"])
+def lesson_summary_data():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    resource_id = request.args.get("resource_id", type=int)
+    if not resource_id:
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+
+    summary = get_lesson_performance_summary(acc_id, resource_id)
+    if summary is None:
+        return jsonify({"success": False, "message": "Could not load lesson summary."}), 500
+
+    next_info = get_next_lesson_info(resource_id)
+
+    return jsonify({
+        "success": True,
+        **summary,
+        "next": next_info,
+    }), 200
 
 
 # ============================================================
