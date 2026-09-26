@@ -23,90 +23,89 @@
             <!-- Header (Modularized) -->
             {% include 'admin-header.html' %}
 
-            <!-- Login Logs Content Area -->
             <div class="dashboard-content-area">
-                
-                <!-- Top Bar -->
+
+                <!-- Page title, greeting & live date/time -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Account & Security</h1>
-                        <p>Manage your account details, security settings, and login activity.</p>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Manage all administrator and learner accounts, roles, and security settings.</p>
                     </div>
-                    <div class="header-actions-group">
-                        <div class="dashboard-datetime-badge">
-                            <strong id="current-time"></strong>
-                            <small id="current-date"></small>
-                        </div>
-                        <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.account_security') }}" class="btn btn-primary-custom" style="text-decoration: none;">
-                                <i class="fa-solid fa-arrow-left"></i> Previous
-                            </a>
-                            <button id="openCreateAdminBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-user-plus"></i> Create Administrator
-                            </button>
-                        </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
                     </div>
                 </div>
 
-                <!-- Metrics Grid (Updated to match login logs UI) -->
+                <!-- View switcher (plain links to the two existing routes) + Create Administrator -->
+                <div class="page-actions-row">
+                    <nav class="page-switcher" aria-label="Account & Security views">
+                        <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link active" aria-current="page">Login Logs</a>
+                        <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link">Account Management</a>
+                    </nav>
+                    <button type="button" id="openCreateAdminBtn" class="btn-create-admin">
+                        <span class="mask-icon icon-plus"></span> Create Administrator
+                    </button>
+                </div>
+
+                <!-- Metrics Grid -->
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Total Logins Today</span>
                             <h2 class="metric-value" id="metric-total-logins-today">{{ metrics.total_logins_today }}</h2>
-                            <span class="metric-trend positive">Activity count</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-users"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-users"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Successful Logins</span>
                             <h2 class="metric-value" id="metric-successful-logins">{{ metrics.successful_logins }}</h2>
-                            <span class="metric-trend positive">Passed auth</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-user-check"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-check"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Failed Login Attempts</span>
                             <h2 class="metric-value" id="metric-failed-logins">{{ metrics.failed_logins }}</h2>
-                            <span class="metric-trend negative">Invalid tries</span>
                         </div>
-                        <div class="metric-icon-box green-bg metric-inactive"><i class="fa-solid fa-user-slash"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-x"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Active Sessions</span>
                             <h2 class="metric-value" id="metric-active-sessions">{{ metrics.active_sessions }}</h2>
-                            <span class="metric-trend positive">Online now</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-online"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Locked Out Due to Fails</span>
                             <h2 class="metric-value" id="metric-locked-out-fails">{{ metrics.locked_out_fails }}</h2>
-                            <span class="metric-trend negative">Security block</span>
                         </div>
-                        <div class="metric-icon-box green-bg metric-locked"><i class="fa-solid fa-lock"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-lock"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Password Resets Today</span>
                             <h2 class="metric-value" id="metric-password-resets-today">{{ metrics.password_resets_today }}</h2>
-                            <span class="metric-trend positive">Recent updates</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-rotate-right"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-lock-reset"></span></div>
                     </div>
                 </div>
 
-                <!-- Data Table Card Box -->
-                <div class="card-box padded-card">
-                    
+                <!-- Login Logs Table Card -->
+                <div class="table-card">
+
                     <!-- Table Toolbar -->
                     <div class="table-toolbar">
                         <div class="header-search search-override">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <span class="mask-icon icon-search search-icon"></span>
                             <input type="text" id="logSearchInput" placeholder="Search by name, username, or email...">
                         </div>
                         <div class="toolbar-filters">
@@ -128,57 +127,59 @@
                     </div>
 
                     <!-- Login Logs Table -->
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Profile</th>
-                                <th>Account ID</th>
-                                <th>IP Address</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th class="text-right">Attempted At</th>
-                            </tr>
-                        </thead>
-                        <tbody id="loginLogsTableBody">
-                            {% for log in logs %}
-                            <tr>
-                                <td class="profile-cell">
-                                    <div class="avatar-sm">👤</div>
-                                    <strong>{{ log.full_name }}</strong>
-                                </td>
-                                <td class="text-muted">{{ log.acc_id }}</td>
-                                <td class="text-muted">{{ log.ip_address }}</td>
-                                <td>
-                                    {% if log.role == 'Admin' %}
-                                    <span class="badge badge-admin">{{ log.role }}</span>
-                                    {% elif log.role == 'Learner' %}
-                                    <span class="badge badge-learner">{{ log.role }}</span>
-                                    {% else %}
-                                    <span class="badge badge-inactive">{{ log.role }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if log.status == 'Success' %}
-                                    <span class="badge badge-success-log">Success</span>
-                                    {% else %}
-                                    <span class="badge badge-failed-log">Failed</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-right text-muted">{{ log.attempted_at }}</td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
-                                    No login logs found.
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Profile</th>
+                                    <th>Account ID</th>
+                                    <th>IP Address</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Attempted At</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loginLogsTableBody">
+                                {% for log in logs %}
+                                <tr>
+                                    <td class="profile-cell">
+                                        <div class="avatar-sm">👤</div>
+                                        <strong>{{ log.full_name }}</strong>
+                                    </td>
+                                    <td class="text-muted">{{ log.acc_id }}</td>
+                                    <td class="text-muted">{{ log.ip_address }}</td>
+                                    <td>
+                                        {% if log.role == 'Admin' %}
+                                        <span class="badge badge-admin">{{ log.role }}</span>
+                                        {% elif log.role == 'Learner' %}
+                                        <span class="badge badge-learner">{{ log.role }}</span>
+                                        {% else %}
+                                        <span class="badge badge-inactive">{{ log.role }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.status == 'Success' %}
+                                        <span class="badge badge-success-log">Success</span>
+                                        {% else %}
+                                        <span class="badge badge-failed-log">Failed</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right text-muted">{{ log.attempted_at }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-muted table-empty-message">
+                                        No login logs found.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
 
-                    <!-- Pagination Footer -->
+                    <!-- Table Footer -->
                     <div class="table-pagination">
-                        <span>Showing logs</span>
+                        <span id="logsShowingCount">Showing {{ logs|length }} log{{ 's' if logs|length != 1 else '' }}</span>
                         <span>&lt; 1 of 1 &gt;</span>
                     </div>
 

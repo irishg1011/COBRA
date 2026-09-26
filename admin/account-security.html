@@ -23,29 +23,34 @@
             <!-- Header (Modularized) -->
             {% include 'admin-header.html' %}
 
-            <!-- Account & Security Content Area -->
             <div class="dashboard-content-area">
-                
-                <!-- Top Bar matched with Dashboard Datetime Structure -->
+
+                <!-- Page title, greeting & live date/time -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Account & Security</h1>
-                        <p>{{ greeting }}, {{ current_admin.full_name if current_admin else 'Administrator' }}! Here's what's happening today.</p>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Manage all administrator and learner accounts, roles, and security settings.</p>
                     </div>
-                    <div class="header-actions-group">
-                        <div class="dashboard-datetime-badge">
-                            <strong id="current-time"></strong>
-                            <small id="current-date"></small>
-                        </div>
-                       <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.login_logs') }}" class="btn btn-primary-custom">
-                                <i class="fa-solid fa-clock-rotate-left"></i> Login Logs
-                            </a>
-                            <button id="openCreateAdminBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-user-plus"></i> Create Administrator
-                            </button>
-                        </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
                     </div>
+                </div>
+
+                <!-- View switcher (plain links to the two existing routes) + Create Administrator -->
+                <div class="page-actions-row">
+                    <nav class="page-switcher" aria-label="Account & Security views">
+                        <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link">Login Logs</a>
+                        <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link active" aria-current="page">Account Management</a>
+                    </nav>
+                    <button type="button" id="openCreateAdminBtn" class="btn-create-admin">
+                        <span class="mask-icon icon-plus"></span> Create Administrator
+                    </button>
                 </div>
 
                 <!-- Metrics Grid -->
@@ -54,60 +59,53 @@
                         <div class="metric-info">
                             <span class="metric-title">Total Accounts</span>
                             <h2 class="metric-value">{{ metrics.total_accounts }}</h2>
-                            <span class="metric-trend positive">Overall registry</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-users"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-users"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Active Accounts</span>
                             <h2 class="metric-value">{{ metrics.active_accounts }}</h2>
-                            <span class="metric-trend positive">Active Accounts
-                            </span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-user-check"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-check"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Inactive Accounts</span>
                             <h2 class="metric-value">{{ metrics.inactive_accounts }}</h2>
-                            <span class="metric-trend">Needs review</span>
                         </div>
-                        <div class="metric-icon-box green-bg metric-inactive"><i class="fa-solid fa-user-slash"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-x"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Administrators</span>
                             <h2 class="metric-value">{{ metrics.administrators }}</h2>
-                            <span class="metric-trend positive">Privileged access</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-shield-user"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Learners</span>
                             <h2 class="metric-value">{{ metrics.learners }}</h2>
-                            <span class="metric-trend positive">Enrolled students</span>
                         </div>
-                        <div class="metric-icon-box green-bg"><i class="fa-solid fa-graduation-cap"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Locked Accounts</span>
                             <h2 class="metric-value">{{ metrics.locked_accounts }}</h2>
-                            <span class="metric-trend negative">Requires security check</span>
                         </div>
-                        <div class="metric-icon-box green-bg metric-locked"><i class="fa-solid fa-lock"></i></div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-lock"></span></div>
                     </div>
                 </div>
 
-                <!-- Data Table Card Box -->
-                <div class="card-box padded-card">
-                    
+                <!-- Accounts Table Card -->
+                <div class="table-card">
+
                     <!-- Table Toolbar -->
                     <div class="table-toolbar">
                         <div class="header-search search-override">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <span class="mask-icon icon-search search-icon"></span>
                             <input type="text" id="accountSearchInput" placeholder="Search by name, username, or email...">
                         </div>
                         <div class="toolbar-filters">
@@ -142,55 +140,57 @@
                     </div>
 
                     <!-- Accounts Table -->
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Profile</th>
-                                <th>Username</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Date Created</th>
-                                <th>Last Login</th>
-                                <th class="text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="accountsTableBody">
-                            {% for acc in accounts %}
-                            <tr data-acc-id="{{ acc.acc_id }}">
-                                <td class="profile-cell">
-                                    <div class="avatar-sm">👤</div>
-                                    <strong>{{ acc.full_name }}</strong>
-                                </td>
-                                <td class="text-muted">{{ acc.username }}</td>
-                                <td class="text-muted">{{ acc.email }}</td>
-                                <td>
-                                    <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else 'badge-learner' }}">{{ acc.role }}</span>
-                                </td>
-                                <td>
-                                    {% if acc.is_locked %}
-                                    <span class="badge badge-locked">Locked</span>
-                                    {% elif acc.status == 'Active' %}
-                                    <span class="badge badge-active">Active</span>
-                                    {% else %}
-                                    <span class="badge badge-inactive">{{ acc.status }}</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-muted">{{ acc.date_created }}</td>
-                                <td class="text-muted">{{ acc.last_login }}</td>
-                                <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="8" class="text-muted table-empty-message">
-                                    No accounts found (or the database is unreachable).
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Profile</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Date Created</th>
+                                    <th>Last Login</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accountsTableBody">
+                                {% for acc in accounts %}
+                                <tr data-acc-id="{{ acc.acc_id }}">
+                                    <td class="profile-cell">
+                                        <div class="avatar-sm">👤</div>
+                                        <strong>{{ acc.full_name }}</strong>
+                                    </td>
+                                    <td class="text-muted">{{ acc.username }}</td>
+                                    <td class="text-muted">{{ acc.email }}</td>
+                                    <td>
+                                        <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else 'badge-learner' }}">{{ acc.role }}</span>
+                                    </td>
+                                    <td>
+                                        {% if acc.is_locked %}
+                                        <span class="badge badge-locked">Locked</span>
+                                        {% elif acc.status == 'Active' %}
+                                        <span class="badge badge-active">Active</span>
+                                        {% else %}
+                                        <span class="badge badge-inactive">{{ acc.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted">{{ acc.date_created }}</td>
+                                    <td class="text-muted">{{ acc.last_login }}</td>
+                                    <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-muted table-empty-message">
+                                        No accounts found (or the database is unreachable).
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
 
-                    <!-- Pagination Footer -->
+                    <!-- Table Footer -->
                     <div class="table-pagination">
                         <span id="accountsShowingCount">Showing {{ accounts|length }} account{{ 's' if accounts|length != 1 else '' }}</span>
                         <span>&lt; 1 of 1 &gt;</span>

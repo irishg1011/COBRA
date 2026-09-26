@@ -32,6 +32,7 @@
         const statusSelect = document.getElementById("logStatusSelect");
         const sortSelect = document.getElementById("logSortSelect");
         const tableBody = document.getElementById("loginLogsTableBody");
+        const showingCount = document.getElementById("logsShowingCount");
 
         if (!tableBody) return;
 
@@ -123,10 +124,11 @@
                 // centered, no placeholder rows.
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                        <td colspan="6" class="text-muted table-empty-message">
                             No login logs found.
                         </td>
                     </tr>`;
+                if (showingCount) showingCount.textContent = "Showing 0 logs";
                 return;
             }
 
@@ -143,6 +145,13 @@
                     <td class="text-right text-muted">${escapeHtml(log.attempted_at)}</td>
                 </tr>
             `).join("");
+
+            // Admin redesign: keep the footer count in sync with the
+            // live-filtered rows (same pattern as admin-account-search.js).
+            if (showingCount) {
+                const n = logs.length;
+                showingCount.textContent = `Showing ${n} log${n !== 1 ? "s" : ""}`;
+            }
         }
 
         /**
@@ -190,7 +199,7 @@
                     console.error("admin-login-logs: backend reported failure:", result.message);
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                            <td colspan="6" class="text-muted table-empty-message">
                                 Could not load login logs. Please try again.
                             </td>
                         </tr>`;
@@ -200,7 +209,7 @@
                 console.error("admin-login-logs: request failed:", err);
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-muted" style="text-align:center; padding: 30px 0;">
+                        <td colspan="6" class="text-muted table-empty-message">
                             Could not reach the server.
                         </td>
                     </tr>`;
