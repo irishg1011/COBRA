@@ -208,7 +208,7 @@
                 <div class="content-preview-card">
                     <div class="content-preview-header">
                         <strong>${escapeHtml(title)}</strong>
-                        <button type="button" id="pubPreviewCloseBtn" class="modal-close-btn" style="position:static; font-size:22px;">&times;</button>
+                        <button type="button" id="pubPreviewCloseBtn" class="modal-close-btn modal-close-inline" aria-label="Close">&times;</button>
                     </div>
                     <div class="content-preview-body">${contentHtml}</div>
                 </div>`;
@@ -320,7 +320,7 @@
         }
 
         function popoverHtml(type, id, parentResourceId) {
-            return `<div class="resource-edit-menu" style="position:absolute; top:26px; left:0; z-index:20;">
+            return `<div class="resource-edit-menu publishing-popover">
                 <button type="button" class="resource-edit-menu-item js-pub-edit" data-type="${type}" data-id="${id}"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
                 <button type="button" class="resource-edit-menu-item js-pub-preview" data-type="${type}" data-id="${id}" data-parent="${parentResourceId || ''}"><i class="fa-regular fa-eye"></i> Preview</button>
             </div>`;
@@ -333,13 +333,13 @@
             return `
                 <div class="publishing-order-ctrls">
                     <button type="button" class="publishing-arrow-btn js-pub-move" data-id="${id}" data-dir="-1" ${atTop ? "disabled" : ""} aria-label="Move up">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                        <i class="fa-solid fa-arrow-up"></i>
                     </button>
                     <button type="button" class="publishing-arrow-btn js-pub-move" data-id="${id}" data-dir="1" ${atBottom ? "disabled" : ""} aria-label="Move down">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                        <i class="fa-solid fa-arrow-down"></i>
                     </button>
                     <span class="publishing-grip" draggable="true" data-id="${id}" aria-label="Drag to reorder">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+                        <i class="fa-solid fa-grip-vertical"></i>
                     </span>
                 </div>`;
         }
@@ -362,7 +362,7 @@
                 : "";
 
             return `
-                <div class="publishing-row publishing-row-depth-${depth}" style="padding-left:${12 + depth * 26}px;" ${dragAttrs}>
+                <div class="publishing-row publishing-row-depth-${depth}" ${dragAttrs}>
                     ${chevron}
                     <span class="publishing-tag ${tagClass}">${tagLabel}</span>
                     <div class="publishing-name-wrap">
@@ -378,7 +378,7 @@
             const popOpen = openPopover === leaf.id;
             const type = typeOf(leaf.id);
             return `
-                <div class="publishing-row publishing-row-leaf publishing-row-depth-${depth}" style="padding-left:${12 + depth * 26}px;">
+                <div class="publishing-row publishing-row-leaf publishing-row-depth-${depth}">
                     <span class="publishing-toggle-spacer"></span>
                     <span class="publishing-tag publishing-tag-leaf">${tagLabel}</span>
                     <div class="publishing-name-wrap">

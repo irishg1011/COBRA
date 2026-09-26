@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CobraByte Admin - Publishing</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/publishing.css') }}">
     <!-- Preview reuses the REAL learner-side stylesheets directly, so
          it looks exactly like what a learner sees - never a
@@ -32,10 +33,20 @@
 
             <div class="dashboard-content-area">
 
+                <!-- Page title, greeting & live date/time -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Publishing</h1>
-                        <p>Review content in the order learners see it, then publish it live.</p>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Review content in the order learners see it, then publish it live.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
                     </div>
                 </div>
 
@@ -66,6 +77,15 @@
                     </div>
                 </div>
 
+                <!-- Level legend: the same colored tags used on each row -->
+                <div class="publishing-legend" aria-label="Level legend">
+                    <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-ch">CH</span> Chapter</span>
+                    <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-mod">M</span> Module</span>
+                    <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-les">L</span> Lesson</span>
+                    <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-leaf">A</span> Activity</span>
+                    <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-leaf">E</span> Exercise</span>
+                </div>
+
                 <p class="text-muted publishing-hint" id="pubHint">Click a name to see Edit / Preview. Click the arrow to expand or collapse.</p>
 
             </div>
@@ -76,6 +96,7 @@
     {% include 'publishing-preview-modal.html' %}
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-publishing.js') }}"></script>
     <!-- Needed for the Exercise step's Run/Submit, same runtime the

@@ -5,8 +5,10 @@
     CSS classes (learning-map.css / lessons.css / lesson-content.css /
     lesson-activities.css, linked in publishing.html) so Preview looks
     exactly like what a learner sees. admin-publishing-preview.js
-    populates everything below - no inline <style> or <script> anywhere
-    in this file.
+    populates everything below - no inline <style>, <script> or
+    style="" anywhere in this file. Elements that start hidden use
+    .preview-start-hidden (publishing-preview.css); the JS then shows
+    and hides them with style.display, exactly as before.
 -->
 <div id="publishingPreviewModal" class="preview-modal-overlay preview-hidden">
     <div class="preview-modal-card">
@@ -30,7 +32,7 @@
                 </div>
                 <div class="map-canvas" id="previewMapCanvas">
                     <p class="map-loading" id="previewMapLoading">Loading your learning map&hellip;</p>
-                    <p class="map-error" id="previewMapError" style="display:none;">Could not load the roadmap.</p>
+                    <p class="map-error preview-start-hidden" id="previewMapError">Could not load the roadmap.</p>
                     <div class="map-chain" id="previewMapChain"></div>
                 </div>
             </div>
@@ -55,10 +57,10 @@
                 <div class="lesson-stepper" id="previewStepper"></div>
 
                 <div class="lesson-card">
-                    <h1 id="previewLessonTitle" style="display:none;"></h1>
+                    <h1 id="previewLessonTitle" class="preview-start-hidden"></h1>
 
                     <!-- STEP: VIDEO -->
-                    <div id="previewVideoStep" class="lesson-step" style="display:none;">
+                    <div id="previewVideoStep" class="lesson-step preview-start-hidden">
                         <p class="lesson-step-eyebrow">Video Tutorial</p>
                         <div class="lesson-video-frame" id="previewVideoFrame"></div>
                         <p class="lesson-video-title" id="previewVideoTitle"></p>
@@ -69,7 +71,7 @@
                     </div>
 
                     <!-- STEP: CONTENT -->
-                    <div id="previewContentStep" class="lesson-step" style="display:none;">
+                    <div id="previewContentStep" class="lesson-step preview-start-hidden">
                         <p class="lesson-step-eyebrow">Lesson Content</p>
                         <div class="lesson-content-scroll">
                             <div id="previewLessonContentBody" class="lesson-content-body"></div>
@@ -81,15 +83,15 @@
                     </div>
 
                     <!-- STEP: ACTIVITIES -->
-                    <div id="previewActivitiesStep" class="lesson-step" style="display:none;">
-                        <div id="previewActivitiesContainer" class="activities-container" style="display:none;"></div>
+                    <div id="previewActivitiesStep" class="lesson-step preview-start-hidden">
+                        <div id="previewActivitiesContainer" class="activities-container preview-start-hidden"></div>
                         <div class="lesson-complete-row">
-                            <button type="button" class="lesson-step-btn" id="previewActivitiesContinueBtn" style="display:none;">Continue</button>
+                            <button type="button" class="lesson-step-btn preview-start-hidden" id="previewActivitiesContinueBtn">Continue</button>
                         </div>
                     </div>
 
                     <!-- STEP: EXERCISE -->
-                    <div id="previewExerciseStep" class="lesson-step" style="display:none;">
+                    <div id="previewExerciseStep" class="lesson-step preview-start-hidden">
                         <p class="lesson-step-eyebrow">Coding Exercise</p>
                         <h2 class="exercise-title" id="previewExerciseTitle"></h2>
                         <div class="exercise-prompt">
@@ -108,17 +110,17 @@
                                 <pre class="exercise-output-box" id="previewExerciseOutputBox">Run your code to see the output.</pre>
                             </div>
                         </div>
-                        <div class="exercise-result" id="previewExerciseResultBox" style="display:none;"></div>
+                        <div class="exercise-result preview-start-hidden" id="previewExerciseResultBox"></div>
                         <div class="lesson-step-footer">
                             <button class="lesson-step-btn" id="previewExerciseSubmitBtn">Submit</button>
                         </div>
-                        <div class="lesson-complete-row" id="previewExerciseCompleteRow" style="display:none;">
+                        <div class="lesson-complete-row preview-start-hidden" id="previewExerciseCompleteRow">
                             <button type="button" class="lesson-step-btn" id="previewExerciseContinueBtn">Continue</button>
                         </div>
                     </div>
 
                     <!-- STEP: SUMMARY -->
-                    <div id="previewSummaryStep" class="lesson-step" style="display:none;">
+                    <div id="previewSummaryStep" class="lesson-step preview-start-hidden">
                         <p class="lesson-step-eyebrow">Lesson Summary</p>
                         <div class="summary-list" id="previewSummaryList"></div>
                         <div class="stage-footer">

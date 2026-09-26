@@ -189,13 +189,10 @@
             const svgNS = "http://www.w3.org/2000/svg";
             const svg = document.createElementNS(svgNS, "svg");
             svg.setAttribute("class", "map-connector-svg");
-            svg.style.position = "absolute";
-            svg.style.top = "0";
-            svg.style.left = "0";
-            svg.style.width = "100%";
+            // Admin redesign: the static position/size rules live in
+            // publishing-preview.css (.map-connector-svg); only the
+            // height is set here, since it depends on the rendered map.
             svg.style.height = `${mapChain.scrollHeight}px`;
-            svg.style.pointerEvents = "none";
-            svg.style.zIndex = "1";
 
             nodeEls.forEach((nodeEl, index) => {
                 if (index >= nodeEls.length - 1) return;
@@ -215,7 +212,6 @@
                 path.setAttribute("stroke", chapters[index].status === "Published" ? "#0ED400" : "#64748b");
                 path.setAttribute("stroke-width", "5");
                 path.setAttribute("stroke-linecap", "round");
-                path.style.filter = "drop-shadow(0 0 3px rgba(255,255,255,0.9))";
                 svg.appendChild(path);
             });
 
@@ -250,7 +246,7 @@
                         </div>
                         <div class="lessons-list">
                             ${(m.lessons || []).map((l) => `
-                                <div class="lesson-card unlocked" data-resource-id="${l.resource_id}" style="cursor:pointer;">
+                                <div class="lesson-card unlocked" data-resource-id="${l.resource_id}">
                                     <div class="lesson-card-main">
                                         <div class="lesson-badges">${badgeHtml(l.status)}</div>
                                         <h3>${escapeHtml(l.resource_title)}</h3>
@@ -482,7 +478,6 @@
                 const card = activity.items[idx];
                 container.appendChild(el("p", "activity-progress-label", `Card ${idx + 1} of ${total}`));
                 const box = el("div", "activity-flashcard-box", escapeHtml(card.front));
-                box.style.cssText = "min-height:160px;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;font-size:18px;font-weight:700;color:#0f172a;cursor:pointer;margin-bottom:12px;";
                 box.addEventListener("click", () => { flipped = !flipped; box.textContent = flipped ? card.back : card.front; });
                 container.appendChild(box);
                 container.appendChild(el("p", "activity-flashcard-hint", "Click the card to flip it."));

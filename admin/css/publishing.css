@@ -1,11 +1,13 @@
 /* ==========================================================================
-   TASK #publishing-page-frontend: Publishing page - tabs, tree rows,
-   tag icons, and the name-click popover. Button colors
-   (.btn-ready-custom / .btn-movedraft-custom / .btn-unpublish-custom)
-   stay in admin-style.css since those are shared with the 4 manage
-   pages, not unique to this one.
+   publishing.css - Publishing page (admin redesign)
+   --------------------------------------------------------------------------
+   Tabs, toolbar buttons, the Category > Module > Lesson > Activity /
+   Exercise tree, Edit Order mode and the name-click popover. Status
+   button colors (.btn-unpublish-custom etc.) stay in admin-style.css,
+   since those are shared with the manage pages.
    ========================================================================== */
 
+/* --- Toolbar: tabs (left) + Preview / Edit Order (right) --- */
 .publishing-toolbar {
     display: flex;
     align-items: center;
@@ -14,30 +16,36 @@
     gap: 12px;
 }
 
+/* Tabs look like the Account & Security pill switcher */
 .publishing-tabs-row {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid #e5e7eb;
-    margin-bottom: 20px;
-    flex: 1;
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    background: #ffffff;
+    border-radius: 999px;
 }
 
 .publishing-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
     background: none;
     border: none;
-    padding: 12px 4px;
-    margin-right: 28px;
-    font-size: 15px;
-    color: #6b7280;
-    font-weight: 500;
-    border-bottom: 2px solid transparent;
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--admin-text);
     cursor: pointer;
+    transition: background 0.2s;
+}
+
+.publishing-tab:hover {
+    background: #f3f4f6;
 }
 
 .publishing-tab.active {
-    color: #1f2421;
-    font-weight: 700;
-    border-bottom-color: #09B300;
+    background: #C8F2D2;
+    font-weight: 500;
 }
 
 .publishing-tab:disabled {
@@ -45,214 +53,198 @@
     cursor: not-allowed;
 }
 
-.publishing-tab .badge {
-    margin-left: 6px;
+.publishing-tab:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
 }
 
+/* Count bubbles inside the tabs */
+.publishing-tab .badge {
+    display: inline-block;
+    min-width: 22px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.6;
+    text-align: center;
+}
+
+.publishing-tab .badge-draft {
+    background: #FEF3C7;
+    color: #A16207;
+}
+
+.publishing-tab .badge-active {
+    background: #ffffff;
+    color: #0F7A3D;
+}
+
+.publishing-toolbar-buttons,
 .publishing-order-actions {
     display: flex;
+    align-items: center;
     gap: 10px;
-    flex: none;
-    margin-bottom: 20px;
 }
 
-.btn-editorder-custom {
-    background: #ffffff !important;
-    color: #1f2421 !important;
-    border: 1px solid #d1d5db !important;
-    font-weight: 600 !important;
-    padding: 10px 20px !important;
-    border-radius: 8px !important;
-    font-size: 14px !important;
-    line-height: 1.2 !important;
-    box-sizing: border-box !important;
+/* Preview / Edit Order / Cancel - white pills (same look as .btn-pill-light).
+   These classes are also written by admin-publishing.js. */
+.btn-editorder-custom,
+.btn-ghost-custom {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    background: #ffffff;
+    border: 1px solid #9ca3af;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--admin-text);
+    transition: background 0.2s, border-color 0.2s;
 }
 
 .btn-editorder-custom:hover,
-.btn-editorder-custom:focus,
-.btn-editorder-custom:active {
-    background: #f1f5f9 !important;
-    color: #1f2421 !important;
-    border-color: #94a3b8 !important;
+.btn-ghost-custom:hover {
+    background: #f3f4f6;
+    border-color: var(--admin-muted);
 }
 
-.btn-ghost-custom {
-    background: #ffffff !important;
-    color: #6b7280 !important;
-    border: 1.5px solid #d1d5db !important;
-    font-weight: 600 !important;
-    padding: 10px 20px !important;
-    border-radius: 8px !important;
-    font-size: 14px !important;
+.btn-editorder-custom:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
-.btn-ghost-custom:hover,
-.btn-ghost-custom:focus,
-.btn-ghost-custom:active {
-    background: #f3f4f6 !important;
-    color: #1f2421 !important;
+/* Save Changes (Edit Order mode) - green pill */
+.publishing-order-actions .btn-success-custom {
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 400;
 }
 
-/* ==========================================================================
-   TASK #publishing-reorder-frontend: Edit Order mode
-   ========================================================================== */
+.btn-editorder-custom:focus-visible,
+.btn-ghost-custom:focus-visible,
+.publishing-order-actions .btn-success-custom:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
 
+/* --- Edit Order banner + hint --- */
 .publishing-edit-banner {
     display: none;
     align-items: center;
     gap: 8px;
-    background: #fef9c3;
-    color: #a16207;
-    border-radius: 10px;
     padding: 10px 14px;
+    background: #FEF3C7;
+    border: 1px solid #FCD34D;
+    border-radius: 8px;
+    color: #92400E;
     font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 16px;
+    font-weight: 500;
 }
 
 .publishing-edit-banner.show {
     display: flex;
 }
 
+.publishing-hint {
+    margin-top: -10px;
+    font-size: 12px;
+}
+
 .publishing-hint.hide {
     display: none;
 }
 
-.publishing-order-ctrls {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    flex: none;
-}
-
-.publishing-grip {
-    cursor: grab;
-    color: #6b7280;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-}
-
-.publishing-grip:active {
-    cursor: grabbing;
-}
-
-.publishing-arrow-btn {
-    background: #f3f4f1;
-    border: none;
-    border-radius: 6px;
-    width: 26px;
-    height: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #1f2421;
-}
-
-.publishing-arrow-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-}
-
-.publishing-name-static {
-    padding: 2px 4px;
-    font-weight: 600;
-}
-
-.publishing-row.drag-over {
-    border-top-color: #09B300;
-    border-top-width: 2px;
-}
-
-.publishing-row.dragging {
-    opacity: 0.4;
-}
-
-/* ==========================================================================
-   TASK #publishing-tree-visual-hierarchy: per-depth left border + tint,
-   layered on top of (never replacing) the status badge/button colors.
-   ========================================================================== */
-
-.publishing-row-depth-0 {
-    border-left: 5px solid #178A47;
-    background: #eafaf1;
-    font-weight: 600;
-}
-
-.publishing-row-depth-1 {
-    border-left: 5px solid #5B4FDB;
-    background: #f0eefd;
-}
-
-.publishing-row-depth-2 {
-    border-left: 5px solid #C0356A;
-    background: #fbeaf1;
-}
-
-.publishing-row-depth-3 {
-    border-left: 5px solid #9A6700;
-    background: #fbf3de;
-}
-
-/* ADD to publishing.css, right after the 4 depth-color rules */
-
-.publishing-row-depth-0:hover {
-    background: #d3f3e0;
-}
-
-.publishing-row-depth-1:hover {
-    background: #ddd9fb;
-}
-
-.publishing-row-depth-2:hover {
-    background: #f6d4e2;
-}
-
-.publishing-row-depth-3:hover {
-    background: #f7e7b8;
-}
-
-.publishing-row {
-    transition: background 0.12s ease;
-}
-
-/* ------------------------------------------------------------------ */
-
+/* --- Tree card --- */
 .publishing-card {
     background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
+    border-radius: 8px;
     padding: 8px;
 }
 
+.publishing-empty {
+    padding: 32px;
+    text-align: center;
+}
+
 .publishing-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    border-top: 2px solid #f0ede4;
-    position: relative;
+    border-top: 1px solid #ffffff;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--admin-text);
+    transition: background 0.12s ease;
 }
 
-.publishing-row:first-child {
-    border-top: none;
+.publishing-row + .publishing-row {
+    margin-top: 2px;
 }
 
 .publishing-row-leaf {
-    padding: 8px 12px;
+    padding-top: 8px;
+    padding-bottom: 8px;
 }
+
+/* --- Level hierarchy: each level has its own left-border color, a light
+   tint, its own indent and its own tag (CH / M / L / A / E), so a
+   parent and its children are always easy to tell apart. The indent
+   used to be an inline style="padding-left: ..." set by the JS. --- */
+.publishing-row.publishing-row-depth-0 {
+    padding-left: 12px;
+    border-left: 4px solid #178A47;
+    background: #F1FAF4;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.publishing-row.publishing-row-depth-1 {
+    padding-left: 38px;
+    border-left: 4px solid #5B4FDB;
+    background: #F6F5FE;
+    font-weight: 500;
+}
+
+.publishing-row.publishing-row-depth-2 {
+    padding-left: 64px;
+    border-left: 4px solid #C0356A;
+    background: #FDF4F8;
+}
+
+.publishing-row.publishing-row-depth-3 {
+    padding-left: 90px;
+    border-left: 4px solid #B7791F;
+    background: #FDF9EE;
+}
+
+.publishing-row-depth-0:hover { background: #DDF4E6; }
+.publishing-row-depth-1:hover { background: #E8E5FC; }
+.publishing-row-depth-2:hover { background: #F9E1EB; }
+.publishing-row-depth-3:hover { background: #FAEFD2; }
 
 .publishing-spacer {
     flex: 1;
 }
 
 .publishing-toggle-btn {
-    background: none;
-    border: none;
-    padding: 4px;
-    color: #6b7280;
     display: inline-flex;
     align-items: center;
+    padding: 4px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: var(--admin-muted);
+    cursor: pointer;
+}
+
+.publishing-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .publishing-toggle-spacer {
@@ -265,69 +257,151 @@
 }
 
 .publishing-name-btn {
+    padding: 2px 4px;
     background: none;
     border: none;
-    padding: 2px 4px;
-    font-weight: 600;
     border-radius: 5px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
 }
 
 .publishing-name-btn:hover {
-    background: #f5f4ee;
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .publishing-name-btn.leaf {
+    font-weight: 400;
+}
+
+.publishing-name-static {
+    padding: 2px 4px;
+}
+
+/* Status badges on each row (same pill style as the manage tables) */
+.publishing-row .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 9px;
     font-weight: 500;
-    font-size: 13.5px;
+    line-height: 1.6;
 }
 
+.publishing-row .badge-active {
+    background: #C8F2D2;
+    color: #0F7A3D;
+}
+
+.publishing-row .badge-ready {
+    background: #FFE4CC;
+    color: #C2410C;
+}
+
+.publishing-row .badge-draft {
+    background: #FEF3C7;
+    color: #A16207;
+}
+
+/* Publish / Unpublish - small pills that size to their label */
 .publishing-action-btn {
-    padding: 6px 14px;
-    font-size: 12.5px;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
 }
 
+/* Level tags (also used in the legend under the card) */
 .publishing-tag {
-    border-radius: 7px;
-    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
     flex: none;
+    border-radius: 6px;
+    font-weight: 700;
 }
 
-.publishing-tag-ch { width: 24px; height: 24px; background: #DCFCE7; color: #178A47; font-size: 11px; }
-.publishing-tag-mod { width: 20px; height: 20px; background: #EDEBFD; color: #5B4FDB; font-size: 10px; }
-.publishing-tag-les { width: 20px; height: 20px; background: #FDE7EE; color: #C0356A; font-size: 10px; }
+.publishing-tag-ch   { width: 24px; height: 24px; background: #DCFCE7; color: #178A47; font-size: 11px; }
+.publishing-tag-mod  { width: 20px; height: 20px; background: #EDEBFD; color: #5B4FDB; font-size: 10px; }
+.publishing-tag-les  { width: 20px; height: 20px; background: #FDE7EE; color: #C0356A; font-size: 10px; }
 .publishing-tag-leaf { width: 18px; height: 18px; background: #FFF3D6; color: #9A6700; font-size: 9px; }
 
-.publishing-empty {
-    padding: 32px;
-    text-align: center;
+/* Legend */
+.publishing-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--admin-muted);
 }
 
-.publishing-toolbar-buttons {
+.publishing-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Name-click Edit / Preview menu - sits right under the name
+   (was an inline style on the menu). */
+.resource-edit-menu.publishing-popover {
+    position: absolute;
+    top: 26px;
+    left: 0;
+    z-index: 20;
+}
+
+/* --- Edit Order mode: arrows + drag handle --- */
+.publishing-order-ctrls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 2px;
+    flex: none;
 }
 
-/* ADD to publishing.css */
-
-.publishing-toolbar-buttons {
+.publishing-arrow-btn {
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: #ffffff;
+    border: 1px solid var(--admin-line);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--admin-text);
+    cursor: pointer;
 }
 
-.publishing-toolbar-buttons .publishing-order-actions {
+.publishing-arrow-btn:hover:not(:disabled) {
+    border-color: #09B300;
+    color: #09B300;
+}
+
+.publishing-arrow-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.publishing-grip {
     display: flex;
     align-items: center;
-    margin: 0;
-    padding: 0;
+    padding: 4px 6px;
+    color: var(--admin-muted);
+    cursor: grab;
 }
 
-.btn-editorder-custom:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed !important;
-    pointer-events: none !important;
+.publishing-grip:active {
+    cursor: grabbing;
+}
+
+.publishing-row.drag-over {
+    border-top: 2px solid #09B300;
+}
+
+.publishing-row.dragging {
+    opacity: 0.4;
 }

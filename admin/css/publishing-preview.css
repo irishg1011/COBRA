@@ -449,3 +449,52 @@
     color: #ffffff;
     border-color: #1f2421;
 }
+/* ==========================================================================
+   Classes that replace the inline styles previously in
+   publishing-preview-modal.html and admin-publishing-preview.js
+   ========================================================================== */
+
+/* Starts hidden; admin-publishing-preview.js then shows/hides these
+   with style.display, exactly as before (unlike .preview-hidden,
+   which uses !important and is toggled with classList). */
+.preview-start-hidden {
+    display: none;
+}
+
+/* Lesson cards on the Lessons screen open the lesson on click */
+#publishingPreviewModal .lesson-card[data-resource-id] {
+    cursor: pointer;
+}
+
+/* Flashcard face (was a style.cssText string in the JS) */
+#publishingPreviewModal .activity-flashcard-box {
+    min-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    cursor: pointer;
+    margin-bottom: 12px;
+}
+
+/* Learning Map connector lines - the JS only sets the height now,
+   since that depends on the rendered map. */
+#publishingPreviewModal .map-connector-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+#publishingPreviewModal .map-connector-svg path {
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.9));
+}
