@@ -4,8 +4,10 @@
  * Renders the "Proceed to Activities" gate and the Multiple Choice /
  * Fill in the Blanks / Flashcards activities attached to a lesson, in
  * that order (Multiple Choice first). Multiple Choice is the cobra arena
- * (/api/lesson-activities/mcq/*); Fill in the Blanks and Flashcards use
- * /api/lesson-activities/check-answer until their game versions land.
+ * (/api/lesson-activities/mcq/*). Fill in the Blanks is handed to the
+ * Cobra vs SyntaxBug game via window.cobraByteRenderFillBlanks
+ * (lesson-fill-blanks.js). Flashcards still use
+ * /api/lesson-activities/check-answer until its game version lands.
  * Answer checking always happens server-side - this file never has
  * access to a correct answer before the learner has submitted a guess.
  *
@@ -62,26 +64,64 @@
     }
 
     // ---------------- Fill in the Blanks ----------------
-    /* ============================================================
-   PASTE INTO: learner/js/lesson-activities.js
-   REPLACES:   the whole old renderFillBlanks(...) function - the one
-               that builds the "activity-fillblank-input" text box and
-               the "Submit / Next Item / Finish" button.
-   Keep it inside the file's (function () { ... })() wrapper, exactly
-   where the old function was. Nothing else in the file changes.
-   ============================================================ */
-
-    // ---------------- Fill in the Blanks ----------------
-    // The Cobra vs SyntaxBug battle lives in its own file
-    // (lesson-fill-blanks.js, loaded before this one) so it never touches
-    // the Multiple Choice cobra arena code in this file.
     function renderFillBlanks(activity, container, onActivityDone) {
-        if (typeof window.cobraByteRenderFillBlanks === "function") {
-            window.cobraByteRenderFillBlanks(activity, container, onActivityDone);
-            return;
+        let currentIndex = 0;
+        let correctCount = 0;
+        const total = activity.items.length;
+
+        function renderItem() {
+            container.innerHTML = "";
+            const item = activity.items[currentIndex];
+
+            container.appendChild(el("p", "activity-progress-label", `Item ${currentIndex + 1} of ${total}`));
+            container.appendChild(el("p", "activity-question-text", item.content));
+
+            const input = el("input", "activity-fillblank-input");
+            input.type = "text";
+            input.placeholder = "Type your answer...";
+            container.appendChild(input);
+
+            const submitBtn = el("button", "activity-next-btn", "Submit");
+            submitBtn.type = "button";
+            container.appendChild(submitBtn);
+
+            const feedbackBox = el("div", "activity-feedback-box");
+            feedbackBox.style.display = "none";
+            container.appendChild(feedbackBox);
+
+            submitBtn.addEventListener("click", async () => {
+                if (submitBtn.textContent === "Submit") {
+                    const result = await checkAnswer({ type: "fill_blank", fib_id: item.fib_id, answer: input.value });
+                    input.disabled = true;
+                    if (result.is_correct) correctCount += 1;
+
+                    feedbackBox.style.display = "block";
+                    feedbackBox.className = "activity-feedback-box " + (result.is_correct ? "is-correct" : "is-incorrect");
+                    feedbackBox.textContent = result.is_correct
+                        ? (result.feedback || "Correct!")
+                        : (result.feedback || `Not quite. Correct answer: ${result.correct_answer}`);
+
+                    submitBtn.textContent = currentIndex === total - 1 ? "Finish" : "Next Item";
+                } else {
+                    currentIndex += 1;
+                    if (currentIndex >= total) {
+                        finishActivity();
+                    } else {
+                        renderItem();
+                    }
+                }
+            });
         }
-        console.error("lesson-fill-blanks.js is not loaded - skipping Fill in the Blanks.");
-        onActivityDone();
+
+        function finishActivity() {
+            container.innerHTML = "";
+            const summary = el("div", "activity-summary");
+            summary.innerHTML = `<p>You scored <strong>${correctCount} / ${total}</strong> on "${activity.activity_title}".</p>`;
+            container.appendChild(summary);
+            markActivityComplete(activity.la_id, correctCount).finally(() => onActivityDone());
+        }
+
+        renderItem();
     }
 
     // ---------------- Flashcards ----------------
@@ -206,8 +246,13 @@
     //   GET  /mcq/state      POST /mcq/play
     //   POST /mcq/answer     POST /mcq/lose-life
     // Wrong answer -> -1 life + Try Again on the SAME question.
-    // 0 lives -> the play pauses where it stopped; lives come back +1
-    // every 5 minutes (shared by every Multiple Choice activity).
+    // Before every question a preview modal shows the question and its
+    // choices; the cobra only moves after the learner presses Start.
+    // Lives (shared by every Multiple Choice activity): 5 regular, all
+    // refilled 10 minutes after the first one is lost, plus 5 bonus
+    // lives every day at 8:00 AM (spent first, not refilled by the
+    // timer). The HUD shows total/5, e.g. "7/5".
+    // 0 lives -> the play pauses where it stopped.
     const ARENA_COLORS = { A: "#0d9488", B: "#2563eb", C: "#d97706", D: "#7c3aed", E: "#db2777", F: "#475569" };
     const ARENA_DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
     const ARENA_KEYMAP = {
@@ -229,12 +274,24 @@
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }
 
-    function heartsHtml(lives, max) {
+    // Regular hearts (red, filled/empty out of max_lives) followed by
+    // the bonus hearts still left today (gold).
+    function heartsHtml(state) {
+        const lives = state ? state.lives : 0;
+        const max = state ? state.max_lives : 5;
+        const bonus = state ? state.bonus_lives : 0;
         let html = "";
         for (let i = 0; i < max; i++) {
             html += `<i class="${i < lives ? "fa-solid" : "fa-regular"} fa-heart"></i>`;
         }
+        for (let i = 0; i < bonus; i++) {
+            html += '<i class="fa-solid fa-heart is-bonus"></i>';
+        }
         return html;
+    }
+
+    function livesCount(state) {
+        return state ? `${state.total_lives}/${state.max_lives}` : "";
     }
 
     async function mcqRequest(path, laId, extra) {
@@ -276,7 +333,7 @@
                     <div class="mcq-arena-stat is-score" data-ui="scoreStat"><b data-ui="score">0</b><i>Score</i></div>
                     <div class="mcq-arena-stat"><b data-ui="progress">1/${total}</b><i>Question</i></div>
                     <div class="mcq-arena-stat"><b data-ui="streak">0</b><i>Streak</i></div>
-                    <div class="mcq-arena-stat is-lives" data-ui="livesStat"><b data-ui="lives"></b><i data-ui="livesLabel">Lives</i></div>
+                    <div class="mcq-arena-stat is-lives" data-ui="livesStat"><b><span class="mcq-arena-hearts" data-ui="lives"></span><span class="mcq-arena-lives-count" data-ui="livesCount"></span></b><i data-ui="livesLabel">Lives</i></div>
                 </div>
             </header>
             <section class="mcq-arena-qcard">
@@ -293,7 +350,7 @@
                 <div class="mcq-arena-overlay" data-ui="overlay" hidden></div>
             </div>
             <div class="mcq-arena-toolbar">
-                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter, hitting a wall, or biting yourself costs a life. Lives refill one every 5 minutes.</p>
+                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter, hitting a wall, or biting yourself costs a life. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.</p>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
             </div>
             <div class="mcq-arena-dpad" data-ui="dpad">
@@ -346,11 +403,10 @@
             ui.score.textContent = server ? server.score : 0;
             ui.progress.textContent = `${Math.min(qIndex + 1, total)}/${total}`;
             ui.streak.textContent = streak;
-            const lives = server ? server.lives : 3;
-            const max = server ? server.max_lives : 3;
-            ui.lives.innerHTML = heartsHtml(lives, max);
-            ui.livesLabel.textContent = (server && lives < max && server.seconds_to_next_life > 0)
-                ? `Lives · ${formatClock(server.seconds_to_next_life)}`
+            ui.lives.innerHTML = heartsHtml(server);
+            ui.livesCount.textContent = livesCount(server);
+            ui.livesLabel.textContent = (server && server.seconds_to_refill > 0)
+                ? `Lives · refill ${formatClock(server.seconds_to_refill)}`
                 : "Lives";
         }
 
@@ -390,28 +446,60 @@
             return ui.overlay.querySelector(`[data-ui="${name}"]`);
         }
 
-        function showReady(kind) {
+        // Question preview: the learner reads the question and every choice
+        // BEFORE the cobra moves. Shown before each question (first start,
+        // continue, resume after a pause, and after every correct answer).
+        //   kind: start | continue | resume | next
+        function showQuestionPreview(kind) {
             setMode("ready");
+            const q = questions[qIndex];
             const copy = {
-                start: { icon: "fa-gamepad", title: "Feed the cobra the right answer", btn: "Start activity" },
-                continue: { icon: "fa-gamepad", title: "Pick up where you left off", btn: "Continue" },
-                resume: { icon: "fa-heart", title: "You have a life again", btn: "Resume activity" }
-            }[kind];
-            const body = kind === "resume"
-                ? `Your activity was paused at question ${qIndex + 1}. It continues from exactly there.`
-                : "Steer the cobra into the letter that answers the question. A wrong letter, a wall, or biting yourself costs a life.";
+                start: { eyebrow: "Read the question first", btn: "Start" },
+                continue: { eyebrow: "Pick up where you left off", btn: "Continue" },
+                resume: { eyebrow: "You have lives again - resuming where you stopped", btn: "Resume" },
+                next: { eyebrow: "Next question", btn: "Start" }
+            }[kind] || { eyebrow: "", btn: "Start" };
             showOverlay(`
-                <div class="mcq-arena-overlay-card">
-                    <i class="fa-solid ${copy.icon} mcq-arena-overlay-icon"></i>
-                    <h4>${copy.title}</h4>
-                    <p>${body}</p>
-                    ${fallback ? "" : '<div class="mcq-arena-keys"><kbd>W A S D</kbd><kbd>Arrow keys</kbd><kbd>Space = pause</kbd></div>'}
+                <div class="mcq-arena-overlay-card mcq-arena-preview">
+                    <span class="mcq-arena-preview-eyebrow" data-ui="previewEyebrow"></span>
+                    <div class="mcq-arena-qmeta" data-ui="previewMeta"></div>
+                    <h4 class="mcq-arena-preview-question" data-ui="previewQuestion"></h4>
+                    <div class="mcq-arena-preview-choices" data-ui="previewChoices"></div>
+                    <p class="mcq-arena-subnote">Steer the cobra into the pellet with the right letter.</p>
+                    ${fallback ? "" : '<div class="mcq-arena-keys"><kbd>W A S D</kbd><kbd>Arrow keys</kbd><kbd>Space = pause</kbd><kbd>Enter = start</kbd></div>'}
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="playBtn">${copy.btn}</button>
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="previewBtn"><i class="fa-solid fa-play"></i> <span data-ui="previewBtnText"></span></button>
                     </div>
                 </div>
             `);
-            overlayNode("playBtn").addEventListener("click", beginPlay);
+            overlayNode("previewEyebrow").textContent = copy.eyebrow;
+            overlayNode("previewMeta").textContent = `Question ${qIndex + 1} of ${total}`;
+            overlayNode("previewQuestion").textContent = q.question_text;
+            overlayNode("previewBtnText").textContent = copy.btn;
+            const list = overlayNode("previewChoices");
+            (q.options || []).forEach((opt) => {
+                const row = el("div", "mcq-arena-preview-choice");
+                if (triedIds.has(opt.option_id)) row.classList.add("is-wrong");
+                const badge = el("span", "mcq-arena-key " + letterClass(opt.option_letter));
+                badge.textContent = opt.option_letter;
+                const text = el("span", "mcq-arena-choice-text");
+                text.textContent = opt.text;
+                row.appendChild(badge);
+                row.appendChild(text);
+                list.appendChild(row);
+            });
+            overlayNode("previewBtn").addEventListener("click", () => {
+                if (kind !== "next") {
+                    beginPlay();
+                    return;
+                }
+                if (fallback) {
+                    hideOverlay();
+                    setMode("playing");
+                    return;
+                }
+                resumePlay();
+            });
         }
 
         function pause() {
@@ -440,7 +528,7 @@
 
         function showTryAgain(option, feedback) {
             setMode("tryagain");
-            const lives = server ? server.lives : 0;
+            const lives = server ? server.total_lives : 0;
             showOverlay(`
                 <div class="mcq-arena-overlay-card">
                     <i class="fa-solid fa-circle-xmark mcq-arena-overlay-icon is-danger"></i>
@@ -467,16 +555,16 @@
 
         function showOutOfLives() {
             setMode("outoflives");
-            const max = server ? server.max_lives : 3;
             showOverlay(`
                 <div class="mcq-arena-overlay-card is-wide">
-                    <div class="mcq-arena-overlay-hearts" data-ui="outHearts">${heartsHtml(0, max)}</div>
+                    <div class="mcq-arena-overlay-hearts" data-ui="outHearts">${heartsHtml(server)}</div>
                     <h4 data-ui="outTitle">You're out of lives.</h4>
                     <p>While waiting for at least 1 life to become available, you can review the current lesson or previous lessons. Your activity progress is paused and will continue from where you stopped once you have at least 1 life.</p>
                     <p class="mcq-arena-subnote" data-ui="outWhere"></p>
                     <div class="mcq-arena-countdown-row" data-ui="outCountdownRow">
-                        <span>Next life in</span>
-                        <b class="mcq-arena-countdown" data-ui="countdown">${formatClock(server ? server.seconds_to_next_life : 0)}</b>
+                        <span>All 5 lives refill in</span>
+                        <b class="mcq-arena-countdown" data-ui="countdown">${formatClock(server ? server.seconds_to_refill : 0)}</b>
+                        <span class="mcq-arena-countdown-note">Bonus lives come back every day at 8:00 AM.</span>
                     </div>
                     <div class="mcq-arena-overlay-actions">
                         <button type="button" class="mcq-arena-ghost-btn" data-ui="reviewBtn"><i class="fa-solid fa-book-open"></i> Review this lesson</button>
@@ -504,13 +592,13 @@
         // Unlocks Resume in place once the server reports at least 1 life.
         function syncOutOfLives() {
             if (mode !== "outoflives" || !server) return;
-            const hasLife = server.lives > 0;
+            const hasLife = server.total_lives > 0;
             const hearts = overlayNode("outHearts");
             const title = overlayNode("outTitle");
             const row = overlayNode("outCountdownRow");
             const btn = overlayNode("outResumeBtn");
-            if (hearts) hearts.innerHTML = heartsHtml(server.lives, server.max_lives);
-            if (title) title.textContent = hasLife ? "A life is back!" : "You're out of lives.";
+            if (hearts) hearts.innerHTML = heartsHtml(server);
+            if (title) title.textContent = hasLife ? `Your lives are back! (${livesCount(server)})` : "You're out of lives.";
             if (row) row.hidden = hasLife;
             if (btn) btn.disabled = !hasLife;
         }
@@ -649,10 +737,10 @@
                 return;
             }
             goToServerQuestion();
-            if (server.lives <= 0) showOutOfLives();
-            else if (server.session_status === "paused") showReady("resume");
-            else if (server.session_status === "in_progress") showReady("continue");
-            else showReady("start");
+            if (server.total_lives <= 0) showOutOfLives();
+            else if (server.session_status === "paused") showQuestionPreview("resume");
+            else if (server.session_status === "in_progress") showQuestionPreview("continue");
+            else showQuestionPreview("start");
         }
 
         // Start the ONE play, or continue/resume that same play.
@@ -720,7 +808,7 @@
             if (chip) chip.classList.add("is-wrong");
             bump(ui.livesStat);
             updateHUD();
-            if (server.lives <= 0) {
+            if (server.total_lives <= 0) {
                 flash(result.feedback || `${option.option_letter} isn't the right answer.`, false);
                 setTimeout(() => { if (!disposed) showOutOfLives(); }, 900);
                 return;
@@ -734,11 +822,7 @@
                 return;
             }
             goToServerQuestion();
-            if (fallback) {
-                setMode("playing");
-                return;
-            }
-            resumePlay();
+            showQuestionPreview("next");   // read the next question before playing
         }
 
         async function handleCollision(reason) {
@@ -757,15 +841,15 @@
             if (disposed) return;
 
             applyState(data.state);
-            flash(server.lives > 0
-                ? `${reason}. ${server.lives} ${server.lives === 1 ? "life" : "lives"} left.`
+            flash(server.total_lives > 0
+                ? `${reason}. ${server.total_lives} ${server.total_lives === 1 ? "life" : "lives"} left.`
                 : `${reason}. You're out of lives.`, false);
             spawnSnake();
             keepPelletsClear();
             updateHUD();
             setTimeout(() => {
                 if (disposed) return;
-                if (server.lives <= 0) showOutOfLives();
+                if (server.total_lives <= 0) showOutOfLives();
                 else resumePlay();
             }, 900);
         }
@@ -858,15 +942,22 @@
                 dispose();
                 return;
             }
-            if (!server || server.completed || server.lives >= server.max_lives) return;
-            server.seconds_to_next_life -= 1;
-            if (server.seconds_to_next_life <= 0) {
+            if (!server || server.completed) return;
+            // Daily 8:00 AM bonus reset - pick it up even if the page stayed open.
+            server.seconds_to_daily_reset -= 1;
+            if (server.seconds_to_daily_reset <= 0) {
+                refreshState();
+                return;
+            }
+            if (server.seconds_to_refill <= 0) return;
+            server.seconds_to_refill -= 1;
+            if (server.seconds_to_refill <= 0) {
                 refreshState();
                 return;
             }
             updateHUD();
             const countdown = overlayNode("countdown");
-            if (countdown) countdown.textContent = formatClock(server.seconds_to_next_life);
+            if (countdown) countdown.textContent = formatClock(server.seconds_to_refill);
         }
 
         async function refreshState() {
@@ -878,7 +969,10 @@
                 applyState(data.state);
                 syncOutOfLives();
             } catch (err) {
-                if (server) server.seconds_to_next_life = 5; // retry shortly
+                if (server) {                    // retry shortly
+                    server.seconds_to_refill = Math.max(server.seconds_to_refill, 5);
+                    server.seconds_to_daily_reset = Math.max(server.seconds_to_daily_reset, 5);
+                }
             } finally {
                 refreshing = false;
             }
@@ -895,6 +989,14 @@
                 if (steer(name)) e.preventDefault();
                 return;
             }
+            if (e.code === "Enter" && mode === "ready") {
+                const startBtn = overlayNode("previewBtn");
+                if (startBtn) {
+                    e.preventDefault();
+                    startBtn.click();
+                }
+                return;
+            }
             if (e.code === "Space" && (mode === "playing" || mode === "paused")) {
                 e.preventDefault();
                 if (mode === "playing") pause();
@@ -905,7 +1007,7 @@
         function onVisibility() {
             if (document.hidden) {
                 pause();
-            } else if (server && server.lives < server.max_lives) {
+            } else if (server) {
                 refreshState(); // timers are throttled in background tabs
             }
         }
@@ -992,14 +1094,15 @@
             try {
                 const mod = await import(LEARNER_JS_BASE + "arena3d.js");
                 if (disposed) return;
-                arena = mod.createArena(ui.canvas);
+                // "land" = forest meadow, "water" = inside a wooden ship
+                arena = mod.createArena(ui.canvas, { terrain: activity.terrain || "land" });
                 arena.setGrid(COLS, ROWS);
             } catch (err) {
                 console.warn("Arena unavailable, switching to tap-to-answer:", err);
                 fallback = true;
                 arena = null;
                 root.classList.add("is-fallback");
-                ui.hint.textContent = "Tap the answer you think is right. A wrong answer costs a life. Lives refill one every 5 minutes.";
+                ui.hint.textContent = "Tap the answer you think is right. A wrong answer costs a life. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.";
                 hideOverlay();
             }
             if (disposed) return;
@@ -1036,7 +1139,14 @@
         if (activity.activity_type === "Multiple Choice") {
             renderMCQ(activity, container, onActivityDone);
         } else if (activity.activity_type === "Fill in the Blanks") {
-            renderFillBlanks(activity, container, onActivityDone);
+            // Cobra vs SyntaxBug game (lesson-fill-blanks.js + battle3d.js).
+            // The plain text-box version below is only a fallback if that
+            // script didn't load.
+            if (typeof window.cobraByteRenderFillBlanks === "function") {
+                window.cobraByteRenderFillBlanks(activity, container, onActivityDone);
+            } else {
+                renderFillBlanks(activity, container, onActivityDone);
+            }
         } else if (activity.activity_type === "Flashcards") {
             renderFlashcards(activity, container, onActivityDone);
         } else {

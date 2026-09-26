@@ -653,3 +653,80 @@
     background: #cbd5e1;
     cursor: not-allowed;
 }
+
+/* ---------- Multiple Choice arena: lives (5 regular + daily bonus) ---------- */
+.mcq-arena-stat.is-lives b { align-items: center; flex-wrap: wrap; }
+.mcq-arena-hearts { display: inline-flex; gap: 3px; }
+.mcq-arena-stat .fa-heart.is-bonus,
+.mcq-arena-overlay-hearts .fa-heart.is-bonus { color: #f59e0b; }
+.mcq-arena-overlay-hearts .fa-solid.fa-heart { color: var(--arena-danger); }
+.mcq-arena-lives-count {
+    margin-left: 4px;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--arena-text);
+    font-variant-numeric: tabular-nums;
+}
+.mcq-arena-countdown-note {
+    margin-top: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--arena-muted);
+}
+
+/* ---------- Multiple Choice arena: question preview modal ---------- */
+.mcq-arena-overlay { overflow-y: auto; }
+
+.mcq-arena-overlay-card.mcq-arena-preview {
+    max-width: 560px;
+    width: 100%;
+    margin: auto;
+    padding: 20px 22px;
+    background: #ffffff;
+    border: 1.5px solid var(--arena-border);
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+    text-align: left;
+}
+
+.mcq-arena-preview-eyebrow {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--arena-green);
+}
+
+.mcq-arena-overlay-card h4.mcq-arena-preview-question {
+    margin: 4px 0 14px;
+    font-size: 18px;
+    line-height: 1.45;
+}
+
+.mcq-arena-preview-choices { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+
+.mcq-arena-preview-choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--arena-border);
+    border-radius: 10px;
+    background: #f8fafc;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.mcq-arena-preview-choice.is-wrong { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+
+.mcq-arena-preview .mcq-arena-keys,
+.mcq-arena-preview .mcq-arena-overlay-actions { justify-content: flex-start; }
+
+@media (max-width: 720px) {
+    .mcq-arena-overlay-card.mcq-arena-preview { padding: 16px; }
+    .mcq-arena-overlay-card h4.mcq-arena-preview-question { font-size: 16px; }
+}

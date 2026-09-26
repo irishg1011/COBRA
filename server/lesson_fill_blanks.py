@@ -6,9 +6,13 @@ one self-contained module so it never depends on (or changes) the
 Multiple Choice cobra-arena code.
 
 Learner rules (same shape as the MCQ arena):
-  - Lives are a per-activity-type POOL shared across all lessons: this
-    learner has one Fill in the Blanks pool (fib_learner_lives_tbl),
-    max 3, +1 every 5 minutes (keeps counting while they are away).
+  - Lives are a per-activity-type POOL shared across all lessons, kept
+    in the same learner_lives_tbl as every game (row for the Fill in the
+    Blanks activity_type_id) and run by lesson_activities.py's shared
+    helpers: 5 regular lives, all refilled 10 minutes after the first
+    one is lost, plus 5 bonus lives every day at 8:00 AM PH time (spent
+    first, never refilled by the timer). fib_learner_lives_tbl from the
+    first build is no longer used.
   - Wrong answer: -1 life, logged, and the learner stays on the SAME
     item (Try Again). Correct answer: move to the next item.
   - At 0 lives the play pauses on its current item; the learner can go
@@ -29,21 +33,25 @@ these into HTTP responses.
 import json
 import random
 import re
-from datetime import timedelta
 from mysql.connector import Error
 from cobradb import get_db_connection
+from lesson_activities import (
+    ensure_activity_game_schema,
+    load_lives_pool,
+    take_life,
+    save_lives_pool,
+    total_lives,
+    lives_payload,
+)
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
 ACTIVITY_TYPES_TABLE = "activity_types_tbl"
 FILL_BLANKS_TABLE = "fill_blanks_tbl"
 FIB_ANSWERS_TABLE = "fib_learner_answers_tbl"
-FIB_LIVES_TABLE = "fib_learner_lives_tbl"
 PROGRESS_TABLE = "learner_activity_progress_tbl"
 
 FIB_TYPE_NAME = "Fill in the Blanks"
-FIB_MAX_LIVES = 3
-FIB_REGEN_SECONDS = 1          # +1 life every 5 minutes, up to FIB_MAX_LIVES
 FIB_MAX_WRONG_CHOICES = 7
 
 CLOSE_FEEDBACK = "So close! Only the capitalization or spacing is off - Python is picky about those."
@@ -63,7 +71,8 @@ def ensure_fib_schema(connection):
       - fill_blanks_tbl.instruction     optional task line above the code
       - fill_blanks_tbl.answer_choices  optional wrong choices (JSON array)
       - fill_blanks_tbl.sort_order      item order within the activity
-      - fib_learner_lives_tbl           this learner's FIB lives pool
+    (the lives pool lives in learner_lives_tbl - see
+    lesson_activities.ensure_activity_game_schema())
 
     ALTER/CREATE TABLE commit implicitly, so callers must run this
     BEFORE they write anything on `connection`.
@@ -81,18 +90,6 @@ def ensure_fib_schema(connection):
         )
         cursor.execute(
             f"ALTER TABLE {FILL_BLANKS_TABLE} ADD COLUMN IF NOT EXISTS sort_order INT(5) NOT NULL DEFAULT 0"
-        )
-        cursor.execute(
-            f"""CREATE TABLE IF NOT EXISTS {FIB_LIVES_TABLE} (
-                    lives_id INT(10) NOT NULL AUTO_INCREMENT,
-                    acc_id VARCHAR(15) NOT NULL,
-                    lives TINYINT(1) NOT NULL DEFAULT {FIB_MAX_LIVES},
-                    lives_regen_at DATETIME DEFAULT NULL,
-                    updated_at DATETIME DEFAULT NULL,
-                    PRIMARY KEY (lives_id),
-                    UNIQUE KEY uq_fiblives_acc_id (acc_id),
-                    CONSTRAINT fk_fiblives_account_id FOREIGN KEY (acc_id) REFERENCES account_tbl (acc_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"""
         )
         cursor.close()
         _fib_schema_ensured = True
@@ -172,16 +169,18 @@ def _to_int(value):
 # ============================================================
 # ITEMS + PROGRESS (derived from the answer log)
 # ============================================================
-def _is_published_fib(cursor, la_id):
+def _published_fib_type_id(cursor, la_id):
+    """activity_type_id of la_id if it's a Published FIB activity, else None."""
     cursor.execute(
-        f"""SELECT 1 FROM {LEARNING_ACTIVITIES_TABLE} la
+        f"""SELECT la.activity_type_id FROM {LEARNING_ACTIVITIES_TABLE} la
             JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
             JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
             WHERE la.la_id = %s AND las.la_stats_name = 'Published'
               AND atp.activity_type_name = %s""",
         (la_id, FIB_TYPE_NAME)
     )
-    return cursor.fetchone() is not None
+    row = cursor.fetchone()
+    return row["activity_type_id"] if row else None
 
 
 def _load_items(cursor, la_id):
@@ -267,87 +266,31 @@ def _save_completion(cursor, acc_id, la_id, score):
 
 
 # ============================================================
-# LIVES POOL (one per learner for Fill in the Blanks, all lessons)
-# ============================================================
-def _load_lives(cursor, acc_id):
-    """Locks (FOR UPDATE) - creating if needed - this learner's FIB lives row."""
-    select_sql = f"""SELECT lives_id, lives, lives_regen_at, NOW() AS db_now
-                     FROM {FIB_LIVES_TABLE} WHERE acc_id = %s FOR UPDATE"""
-    cursor.execute(select_sql, (acc_id,))
-    row = cursor.fetchone()
-    if row is None:
-        cursor.execute(
-            f"INSERT INTO {FIB_LIVES_TABLE} (acc_id, lives, lives_regen_at, updated_at) VALUES (%s, %s, NULL, NOW())",
-            (acc_id, FIB_MAX_LIVES)
-        )
-        cursor.execute(select_sql, (acc_id,))
-        row = cursor.fetchone()
-    return row
-
-
-def _apply_regen(row):
-    """
-    +1 life per FIB_REGEN_SECONDS since lives_regen_at, capped at
-    FIB_MAX_LIVES. Uses the database clock (row["db_now"]) so server/DB
-    timezone drift can't shorten or stretch the wait.
-
-    Returns (lives, regen_at, seconds_until_next_life).
-    """
-    lives = row["lives"] if row["lives"] is not None else FIB_MAX_LIVES
-    regen_at = row["lives_regen_at"]
-    now = row["db_now"]
-
-    if lives >= FIB_MAX_LIVES:
-        return FIB_MAX_LIVES, None, 0
-    if regen_at is None:
-        regen_at = now
-
-    elapsed = max(0, int((now - regen_at).total_seconds()))
-    gained = elapsed // FIB_REGEN_SECONDS
-    if gained:
-        lives = min(FIB_MAX_LIVES, lives + gained)
-        regen_at = regen_at + timedelta(seconds=gained * FIB_REGEN_SECONDS)
-
-    if lives >= FIB_MAX_LIVES:
-        return FIB_MAX_LIVES, None, 0
-
-    seconds_left = FIB_REGEN_SECONDS - max(0, int((now - regen_at).total_seconds()))
-    return lives, regen_at, max(1, seconds_left)
-
-
-def _save_lives(cursor, lives_id, lives, regen_at):
-    cursor.execute(
-        f"UPDATE {FIB_LIVES_TABLE} SET lives = %s, lives_regen_at = %s, updated_at = NOW() WHERE lives_id = %s",
-        (lives, regen_at, lives_id)
-    )
-
-
-# ============================================================
 # STATE
 # ============================================================
-def _state(lives, seconds_left, index, total, first_try, solved_count, completed):
-    """The only battle state the browser ever receives."""
-    return {
-        "lives": lives,
-        "max_lives": FIB_MAX_LIVES,
-        "regen_seconds": FIB_REGEN_SECONDS,
-        "seconds_to_next_life": seconds_left if lives < FIB_MAX_LIVES else 0,
+def _state(pool, index, total, first_try, solved_count, completed):
+    """The only battle state the browser ever receives (lives via lives_payload())."""
+    state = lives_payload(pool)
+    state.update({
         "current_index": index,
         "total": total,
         "solved_count": solved_count,
         "first_try_correct": first_try,
         "completed": completed,
-    }
+    })
+    return state
 
 
 def _open(cursor, acc_id, la_id):
     """
     Shared opening for every call: confirms la_id is a Published FIB
     activity, loads its items, works out the current item from the answer
-    log, and locks + regenerates the learner's FIB lives pool.
+    log, and locks the learner's FIB lives pool (applying the 8 AM reset
+    and the 10-minute refill).
     Returns None if la_id isn't a Published FIB activity.
     """
-    if not _is_published_fib(cursor, la_id):
+    activity_type_id = _published_fib_type_id(cursor, la_id)
+    if activity_type_id is None:
         return None
     items = _load_items(cursor, la_id)
     fib_ids = [r["fib_id"] for r in items]
@@ -355,8 +298,7 @@ def _open(cursor, acc_id, la_id):
     index = next((i for i, fid in enumerate(fib_ids) if fid not in solved), len(fib_ids))
     already_completed = _progress_completed(cursor, acc_id, la_id)
 
-    lives_row = _load_lives(cursor, acc_id)
-    lives, regen_at, seconds_left = _apply_regen(lives_row)
+    pool = load_lives_pool(cursor, acc_id, activity_type_id)
     return {
         "items": items,
         "fib_ids": fib_ids,
@@ -364,17 +306,14 @@ def _open(cursor, acc_id, la_id):
         "first_try": first_try,
         "index": index,
         "already_completed": already_completed,
-        "lives_row": lives_row,
-        "lives": lives,
-        "regen_at": regen_at,
-        "seconds_left": seconds_left,
+        "pool": pool,
     }
 
 
 def get_fib_play(acc_id, la_id):
     """
     Items (learner-safe) + current battle state for this learner, with
-    life regeneration applied and saved. If every item is already solved
+    the lives reset/refill applied and saved. If every item is already solved
     but the completion was never saved, it is saved here.
 
     Returns (payload, error_message, http_status). payload is None on
@@ -388,7 +327,7 @@ def get_fib_play(acc_id, la_id):
     if connection is None:
         return None, "Could not connect to the database.", 500
     try:
-        if not ensure_fib_schema(connection):
+        if not (ensure_activity_game_schema(connection) and ensure_fib_schema(connection)):
             return None, ("Could not prepare the Fill in the Blanks tables - "
                           "run fib_migration.sql and check the Flask console."), 500
         cursor = connection.cursor(dictionary=True)
@@ -402,13 +341,13 @@ def get_fib_play(acc_id, la_id):
         completed = play["already_completed"] or (total > 0 and play["index"] >= total)
         if completed and not play["already_completed"]:
             _save_completion(cursor, acc_id, la_id, play["first_try"])
-        _save_lives(cursor, play["lives_row"]["lives_id"], play["lives"], play["regen_at"])
+        save_lives_pool(cursor, play["pool"])
 
         connection.commit()
         cursor.close()
         return {
             "items": [_learner_item(r) for r in play["items"]],
-            "state": _state(play["lives"], play["seconds_left"], min(play["index"], total), total,
+            "state": _state(play["pool"], min(play["index"], total), total,
                             play["first_try"], len(play["solved"]), completed),
         }, None, 200
     except Error as e:
@@ -423,8 +362,9 @@ def get_fib_play(acc_id, la_id):
 def submit_fib_answer(acc_id, la_id, fib_id, answer):
     """
     Grades one blank. Appends the attempt to fib_learner_answers_tbl.
-    Wrong -> -1 life from the FIB pool (starting the regen clock if it
-    wasn't running) and the learner stays on the same item.
+    Wrong -> -1 life from the FIB pool (bonus lives first; losing the
+    first regular life starts the 10-minute refill) and the learner
+    stays on the same item.
     Correct -> moves to the next item; solving the last one saves the
     completion with score = first-attempt correct count.
 
@@ -446,7 +386,7 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
         return None, "Could not connect to the database."
 
     try:
-        if not ensure_fib_schema(connection):
+        if not (ensure_activity_game_schema(connection) and ensure_fib_schema(connection)):
             return None, "Could not prepare the Fill in the Blanks tables - check the Flask console."
         cursor = connection.cursor(dictionary=True)
         play = _open(cursor, acc_id, la_id)
@@ -458,17 +398,16 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
         fib_ids = play["fib_ids"]
         total = len(fib_ids)
         index = play["index"]
-        lives, regen_at, seconds_left = play["lives"], play["regen_at"], play["seconds_left"]
-        lives_id = play["lives_row"]["lives_id"]
+        pool = play["pool"]
         first_try = play["first_try"]
         solved_count = len(play["solved"])
         completed = play["already_completed"] or index >= total
 
-        if completed or lives <= 0 or fib_ids[index] != fib_id:
-            _save_lives(cursor, lives_id, lives, regen_at)
+        if completed or total_lives(pool) <= 0 or fib_ids[index] != fib_id:
+            save_lives_pool(cursor, pool)
             connection.commit()
             cursor.close()
-            state = _state(lives, seconds_left, min(index, total), total, first_try, solved_count, completed)
+            state = _state(pool, min(index, total), total, first_try, solved_count, completed)
             return {"graded": False, "state": state}, None
 
         item = play["items"][index]
@@ -508,12 +447,9 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
             if completed:
                 _save_completion(cursor, acc_id, la_id, first_try)
         else:
-            lives -= 1
-            if regen_at is None:
-                regen_at = play["lives_row"]["db_now"]
-                seconds_left = FIB_REGEN_SECONDS
+            take_life(pool)
 
-        _save_lives(cursor, lives_id, lives, regen_at)
+        save_lives_pool(cursor, pool)
         connection.commit()
         cursor.close()
 
@@ -523,7 +459,7 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
             "is_close": is_close,
             "first_try": is_correct and attempt_number == 1,
             "feedback": feedback,
-            "state": _state(lives, seconds_left, min(index, total), total, first_try, solved_count, completed),
+            "state": _state(pool, min(index, total), total, first_try, solved_count, completed),
         }, None
     except Error as e:
         connection.rollback()

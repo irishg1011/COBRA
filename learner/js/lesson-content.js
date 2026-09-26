@@ -570,8 +570,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             if (result.success) {
+                lessonData.is_completed = true;
                 lessonInProgressStatus.style.display = 'none';
                 lessonCompleteStatus.style.display = 'inline-flex';
+                // Lessons without an exercise finish on the Activities
+                // panel, so the way forward to the Summary has to appear
+                // here as soon as the lesson is completed - not only when
+                // the page is reloaded on an already-completed lesson.
+                if (!lessonData.exercise) {
+                    lessonCompleteRow.style.display = 'flex';
+                    viewSummaryFromActivitiesBtn.style.display = 'inline-flex';
+                }
             } else {
                 console.error('Could not mark this lesson complete:', result.message);
             }

@@ -43,15 +43,52 @@ RECOMMENDATIONS_TABLE = "lesson_recommendations_tbl"
 # applies to every Multiple Choice activity in every lesson. Fill in the
 # Blanks and Flashcards get their own pools here once their game
 # versions are built (same table, their own activity_type_id).
+#
+#   lives          regular lives, 0..MAX_LIVES (5). All of them come back
+#                  at once LIFE_REFILL_SECONDS (10 min) after the first
+#                  one was lost.
+#   bonus_lives    0..MAX_BONUS_LIVES (5), handed out every day at 8:00 AM
+#                  Philippine time (with a full regular refill), so a day
+#                  starts at 10. Spent BEFORE regular lives and never
+#                  refilled by the 10-minute timer.
+#
+# Every lives timestamp is Philippine time (UTC+8), taken from the
+# database's UTC clock, so neither the server's nor MySQL's timezone
+# setting can move the 8 AM reset or the refill timer.
 LIVES_TABLE = "learner_lives_tbl"
-MAX_LIVES = 3
-LIFE_REGEN_SECONDS = 30  # +1 life every 5 minutes, up to MAX_LIVES
+MAX_LIVES = 5
+MAX_BONUS_LIVES = 5
+LIFE_REFILL_SECONDS = 600   # all regular lives back 10 minutes after the first one is lost
+DAILY_RESET_HOUR = 8        # 8:00 AM Philippine time
+PH_NOW_SQL = "(UTC_TIMESTAMP() + INTERVAL 8 HOUR)"
 
 # One row per Multiple Choice play (start -> pause/resume -> completed).
 MCQ_SESSIONS_TABLE = "mcq_activity_sessions_tbl"
 MCQ_TYPE_NAME = "Multiple Choice"
 
 _game_schema_ensured = False
+
+
+def get_chapter_terrain(cursor, resource_id):
+    """
+    "land" or "water" for the chapter this lesson belongs to, matching
+    where the chapter sits on the Learning Map: chapters alternate
+    left (land) / right (water) in the same order /api/learning-map
+    lists them (non-archived categories by display_order, then cat_id).
+    Falls back to "land" if anything can't be found.
+    """
+    cursor.execute("SELECT cat_id FROM learning_resources_tbl WHERE resource_id = %s", (resource_id,))
+    row = cursor.fetchone()
+    if not row:
+        return "land"
+    cursor.execute(
+        "SELECT cat_id FROM category_tbl WHERE is_archived = 0 "
+        "ORDER BY COALESCE(display_order, 999999) ASC, cat_id ASC"
+    )
+    order = [r["cat_id"] for r in cursor.fetchall()]
+    if row["cat_id"] not in order:
+        return "land"
+    return "land" if order.index(row["cat_id"]) % 2 == 0 else "water"
 
 
 def get_published_activities_for_resource(resource_id):
@@ -92,6 +129,7 @@ def get_published_activities_for_resource(resource_id):
             (resource_id,)
         )
         activity_rows = cursor.fetchall()
+        terrain = get_chapter_terrain(cursor, resource_id) if activity_rows else "land"
 
         results = []
         for row in activity_rows:
@@ -102,6 +140,7 @@ def get_published_activities_for_resource(resource_id):
                 "activity_title": row["activity_title"],
                 "activity_type": activity_type,
                 "activity_type_id": row.get("activity_type_id"),
+                "terrain": terrain,     # "land" forest / "water" ship scenery for the games
                 "points": row.get("points") or 0,
                 "items": [],
             }
@@ -467,7 +506,8 @@ def get_activity_type_name(la_id):
 #   - correct answer: move to the next question
 #   - wall hit / self-bite: -1 life, nothing logged as an answer
 #   - 0 lives: the play is paused on its current question - never reset
-#   - +1 life every 5 minutes up to 3, counted even while away
+#   - lives: 5 regular (full refill 10 min after the first loss) + 5
+#     daily bonus lives at 8:00 AM PH time, bonus spent first
 #   - resuming continues the SAME play (no new session row)
 # ============================================================
 def ensure_activity_game_schema(connection):
@@ -476,6 +516,7 @@ def ensure_activity_game_schema(connection):
     once per process):
       - mcq_questions_tbl.sort_order   question order within an activity
       - learner_lives_tbl              lives pool per (acc_id, activity_type_id)
+                                       (+ bonus_lives / daily_reset_at columns)
       - mcq_activity_sessions_tbl      one row per Multiple Choice play
 
     CREATE/ALTER TABLE commit implicitly, so callers must run this
@@ -494,7 +535,7 @@ def ensure_activity_game_schema(connection):
                     lives_id INT(10) NOT NULL AUTO_INCREMENT,
                     acc_id VARCHAR(15) NOT NULL,
                     activity_type_id INT(10) NOT NULL,
-                    lives TINYINT(1) NOT NULL DEFAULT {MAX_LIVES},
+                    lives TINYINT(2) NOT NULL DEFAULT {MAX_LIVES},
                     lives_regen_at DATETIME DEFAULT NULL,
                     updated_at DATETIME DEFAULT NULL,
                     PRIMARY KEY (lives_id),
@@ -505,6 +546,19 @@ def ensure_activity_game_schema(connection):
                     CONSTRAINT fk_lives_activity_type_id FOREIGN KEY (activity_type_id)
                         REFERENCES {ACTIVITY_TYPES_TABLE} (activity_type_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"""
+        )
+        # 5 regular + 5 daily bonus lives (tables created by the first build
+        # only had `lives` with a default of 3).
+        cursor.execute(
+            f"ALTER TABLE {LIVES_TABLE} MODIFY lives TINYINT(2) NOT NULL DEFAULT {MAX_LIVES}"
+        )
+        cursor.execute(
+            f"""ALTER TABLE {LIVES_TABLE}
+                ADD COLUMN IF NOT EXISTS bonus_lives TINYINT(2) NOT NULL DEFAULT 0 AFTER lives"""
+        )
+        cursor.execute(
+            f"""ALTER TABLE {LIVES_TABLE}
+                ADD COLUMN IF NOT EXISTS daily_reset_at DATETIME DEFAULT NULL AFTER lives_regen_at"""
         )
         cursor.execute(
             f"""CREATE TABLE IF NOT EXISTS {MCQ_SESSIONS_TABLE} (
@@ -543,73 +597,125 @@ def _to_int(value):
 
 
 # ---------------- lives pool (shared helpers - reusable by FIB/Flashcards) ----------------
+def _daily_boundary(now):
+    """The most recent 8:00 AM (Philippine time) at or before `now`."""
+    boundary = now.replace(hour=DAILY_RESET_HOUR, minute=0, second=0, microsecond=0)
+    if now < boundary:
+        boundary -= timedelta(days=1)
+    return boundary
+
+
 def _load_lives(cursor, acc_id, activity_type_id):
     """
-    Locks (FOR UPDATE) - creating at MAX_LIVES if needed - this learner's
-    lives row for one activity type, then applies regeneration: +1 life
-    per LIFE_REGEN_SECONDS since lives_regen_at, capped at MAX_LIVES.
-    Uses the database clock so server/DB timezone drift can't shorten or
-    stretch the wait.
+    Locks (FOR UPDATE) - creating it if needed - this learner's lives row
+    for one activity type, then applies, in order:
+      1. the daily 8:00 AM reset: regular = 5, bonus = 5 (a row that has
+         never been reset, including every row from before this change,
+         gets it straight away)
+      2. the 10-minute refill: regular lives back to 5 once
+         LIFE_REFILL_SECONDS have passed since the first one was lost.
+         Bonus lives are never refilled here.
 
-    Returns {"lives_id", "lives", "regen_at", "seconds_left", "db_now"}.
+    Returns {"lives_id", "lives", "bonus", "regen_at", "daily_reset_at", "db_now"}.
     """
     cursor.execute(
-        f"""INSERT IGNORE INTO {LIVES_TABLE} (acc_id, activity_type_id, lives, updated_at)
-            VALUES (%s, %s, %s, NOW())""",
+        f"""INSERT IGNORE INTO {LIVES_TABLE} (acc_id, activity_type_id, lives, bonus_lives, updated_at)
+            VALUES (%s, %s, %s, 0, {PH_NOW_SQL})""",
         (acc_id, activity_type_id, MAX_LIVES)
     )
     cursor.execute(
-        f"""SELECT lives_id, lives, lives_regen_at, NOW() AS db_now
+        f"""SELECT lives_id, lives, bonus_lives, lives_regen_at, daily_reset_at,
+                   {PH_NOW_SQL} AS db_now
             FROM {LIVES_TABLE}
             WHERE acc_id = %s AND activity_type_id = %s FOR UPDATE""",
         (acc_id, activity_type_id)
     )
     row = cursor.fetchone()
-    lives = row["lives"] if row["lives"] is not None else MAX_LIVES
-    regen_at = row["lives_regen_at"]
     now = row["db_now"]
+    lives = min(MAX_LIVES, max(0, row["lives"] if row["lives"] is not None else MAX_LIVES))
+    bonus = min(MAX_BONUS_LIVES, max(0, row["bonus_lives"] or 0))
+    regen_at = row["lives_regen_at"]
+    daily_reset_at = row["daily_reset_at"]
+
+    boundary = _daily_boundary(now)
+    if daily_reset_at is None or daily_reset_at < boundary:
+        lives, bonus, regen_at, daily_reset_at = MAX_LIVES, MAX_BONUS_LIVES, None, boundary
 
     if lives >= MAX_LIVES:
-        lives, regen_at, seconds_left = MAX_LIVES, None, 0
-    else:
-        if regen_at is None:
-            regen_at = now
-        elapsed = max(0, int((now - regen_at).total_seconds()))
-        gained = elapsed // LIFE_REGEN_SECONDS
-        if gained:
-            lives = min(MAX_LIVES, lives + gained)
-            regen_at = regen_at + timedelta(seconds=gained * LIFE_REGEN_SECONDS)
-        if lives >= MAX_LIVES:
-            regen_at, seconds_left = None, 0
-        else:
-            seconds_left = max(1, LIFE_REGEN_SECONDS - max(0, int((now - regen_at).total_seconds())))
+        regen_at = None
+    elif regen_at is None:
+        regen_at = now          # shouldn't happen, but never leave a pool without a timer
+    elif (now - regen_at).total_seconds() >= LIFE_REFILL_SECONDS:
+        lives, regen_at = MAX_LIVES, None
 
     return {
         "lives_id": row["lives_id"],
         "lives": lives,
+        "bonus": bonus,
         "regen_at": regen_at,
-        "seconds_left": seconds_left,
+        "daily_reset_at": daily_reset_at,
         "db_now": now,
     }
 
 
+def _total_lives(pool):
+    return pool["lives"] + pool["bonus"]
+
+
 def _take_life(pool):
-    """-1 life (never below 0); starts the regen clock if it wasn't running."""
+    """
+    -1 life: bonus lives go first, then regular lives. Losing the first
+    regular life starts the 10-minute full-refill timer (later losses
+    don't restart it).
+    """
+    if pool["bonus"] > 0:
+        pool["bonus"] -= 1
+        return
     if pool["lives"] <= 0:
         return
     pool["lives"] -= 1
     if pool["regen_at"] is None:
         pool["regen_at"] = pool["db_now"]
-        pool["seconds_left"] = LIFE_REGEN_SECONDS
 
 
 def _save_lives(cursor, pool):
     cursor.execute(
         f"""UPDATE {LIVES_TABLE}
-            SET lives = %s, lives_regen_at = %s, updated_at = NOW()
+            SET lives = %s, bonus_lives = %s, lives_regen_at = %s,
+                daily_reset_at = %s, updated_at = {PH_NOW_SQL}
             WHERE lives_id = %s""",
-        (pool["lives"], pool["regen_at"], pool["lives_id"])
+        (pool["lives"], pool["bonus"], pool["regen_at"], pool["daily_reset_at"], pool["lives_id"])
     )
+
+
+def lives_payload(pool):
+    """
+    What any game's browser code gets about lives. The HUD shows
+    total_lives / max_lives (e.g. "7/5": 5 regular + 2 bonus).
+    """
+    now = pool["db_now"]
+    refill_in = 0
+    if pool["lives"] < MAX_LIVES and pool["regen_at"] is not None:
+        refill_in = max(1, LIFE_REFILL_SECONDS - int((now - pool["regen_at"]).total_seconds()))
+    next_reset = _daily_boundary(now) + timedelta(days=1)
+    return {
+        "lives": pool["lives"],
+        "bonus_lives": pool["bonus"],
+        "total_lives": _total_lives(pool),
+        "max_lives": MAX_LIVES,
+        "max_bonus_lives": MAX_BONUS_LIVES,
+        "refill_seconds": LIFE_REFILL_SECONDS,
+        "seconds_to_refill": refill_in,
+        "seconds_to_daily_reset": max(1, int((next_reset - now).total_seconds())),
+    }
+
+
+# Public names for the other games (lesson_fill_blanks.py, later
+# Flashcards) so every game shares one lives pool implementation.
+load_lives_pool = _load_lives
+take_life = _take_life
+save_lives_pool = _save_lives
+total_lives = _total_lives
 
 
 # ---------------- Multiple Choice play ----------------
@@ -716,19 +822,16 @@ def _mcq_state(cursor, ctx):
     session_row = ctx["session"]
     q_ids = ctx["q_ids"]
     index = ctx["index"]
-    lives = pool["lives"]
-    return {
-        "lives": lives,
-        "max_lives": MAX_LIVES,
-        "regen_seconds": LIFE_REGEN_SECONDS,
-        "seconds_to_next_life": pool["seconds_left"] if lives < MAX_LIVES else 0,
+    state = lives_payload(pool)
+    state.update({
         "session_status": session_row["status"] if session_row else None,
         "current_index": index,
         "current_q_id": q_ids[index] if index < len(q_ids) else None,
         "total": len(q_ids),
         "score": _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]),
         "completed": ctx["completed"],
-    }
+    })
+    return state
 
 
 def _complete_mcq(cursor, ctx):
@@ -779,7 +882,7 @@ def _pause_if_out_of_lives(cursor, ctx):
     """
     session_row = ctx["session"]
     if (session_row and session_row["status"] == "in_progress"
-            and ctx["pool"]["lives"] <= 0 and not ctx["completed"]):
+            and _total_lives(ctx["pool"]) <= 0 and not ctx["completed"]):
         cursor.execute(
             f"UPDATE {MCQ_SESSIONS_TABLE} SET status = 'paused', paused_at = NOW() WHERE session_id = %s",
             (session_row["session_id"],)
@@ -875,7 +978,7 @@ def play_mcq_activity(acc_id, la_id):
     """
     def action(cursor, ctx):
         session_row = ctx["session"]
-        lives = ctx["pool"]["lives"]
+        lives = _total_lives(ctx["pool"])
         if ctx["completed"] or not ctx["q_ids"]:
             return _mcq_state(cursor, ctx), None
 
@@ -946,7 +1049,7 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
         pool = ctx["pool"]
 
         if (ctx["completed"] or not session_row or session_row["status"] != "in_progress"
-                or pool["lives"] <= 0 or index >= len(q_ids) or q_ids[index] != q_id):
+                or _total_lives(pool) <= 0 or index >= len(q_ids) or q_ids[index] != q_id):
             return {"graded": False, "state": _mcq_state(cursor, ctx)}, None
 
         cursor.execute(
@@ -1019,8 +1122,8 @@ def lose_mcq_life(acc_id, la_id):
     def action(cursor, ctx):
         session_row = ctx["session"]
         if (not ctx["completed"] and session_row
-                and session_row["status"] == "in_progress" and ctx["pool"]["lives"] > 0):
+                and session_row["status"] == "in_progress" and _total_lives(ctx["pool"]) > 0):
             _take_life(ctx["pool"])
             _pause_if_out_of_lives(cursor, ctx)
         return _mcq_state(cursor, ctx), None
-    return _run_mcq(acc_id, la_id, action, "take MCQ life"),
+    return _run_mcq(acc_id, la_id, action, "take MCQ life")

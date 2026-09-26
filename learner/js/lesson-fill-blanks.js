@@ -7,8 +7,11 @@
  * window.cobraByteRenderFillBlanks(activity, container, onActivityDone).
  *
  * Rules (all enforced server-side - see lesson_fill_blanks.py):
- *   - One FIB lives pool per learner, shared across all lessons (max 3,
- *     +1 every 5 minutes).
+ *   - One FIB lives pool per learner, shared across all lessons (same
+ *     learner_lives_tbl rules as every game): 5 regular lives, all
+ *     refilled 10 minutes after the first one is lost, plus 5 bonus
+ *     lives every day at 8:00 AM PH time (spent first, not refilled by
+ *     the timer). The HUD shows total/5, e.g. "7/5".
  *   - Wrong answer: -1 life and Try Again on the same item.
  *   - Correct answer: Cobra strikes SyntaxBug, next item.
  *   - 0 lives: the play pauses on its item; review the lesson and come
@@ -18,6 +21,9 @@
  * Items come from GET /api/lesson-activities/fib-play (never includes
  * the correct answer); answers go to POST /api/lesson-activities/fib-answer.
  * The 3D stage (battle3d.js) is loaded only when this activity opens.
+ * Its scenery follows activity.terrain ("land" forest / "water" ship,
+ * from the chapter's side on the Learning Map), and the cobra slithers
+ * in whenever the learner presses Start / Resume.
  */
 (function () {
     "use strict";
@@ -52,12 +58,24 @@
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }
 
-    function fibHearts(lives, max) {
+    // Regular hearts (red, filled/empty out of max_lives) followed by the
+    // bonus hearts still left today (gold).
+    function fibHearts(state) {
+        const lives = state ? state.lives : 0;
+        const max = state ? state.max_lives : 5;
+        const bonus = state ? state.bonus_lives : 0;
         let html = "";
         for (let i = 0; i < max; i++) {
             html += `<i class="${i < lives ? "fa-solid" : "fa-regular"} fa-heart"></i>`;
         }
+        for (let i = 0; i < bonus; i++) {
+            html += '<i class="fa-solid fa-heart is-bonus"></i>';
+        }
         return html;
+    }
+
+    function fibLivesCount(state) {
+        return state ? `${state.total_lives}/${state.max_lives}` : "";
     }
 
     // The activities list has used both "la_id" and "activity_id" for the
@@ -150,7 +168,7 @@
                     <div class="fib-stat is-score" data-f="scoreStat"><b data-f="score">0</b><i>Score</i></div>
                     <div class="fib-stat"><b data-f="progress">-</b><i>Puzzle</i></div>
                     <div class="fib-stat"><b data-f="streak">0</b><i>Streak</i></div>
-                    <div class="fib-stat is-lives" data-f="livesStat"><b data-f="lives"></b><i data-f="livesLabel">Lives</i></div>
+                    <div class="fib-stat is-lives" data-f="livesStat"><b><span class="fib-hearts" data-f="lives"></span><span class="fib-lives-count" data-f="livesCount"></span></b><i data-f="livesLabel">Lives</i></div>
                 </div>
             </header>
             <div class="fib-play">
@@ -242,11 +260,10 @@
             ui.score.textContent = score;
             ui.progress.textContent = total ? `${Math.min(qIndex + 1, total)}/${total}` : "-";
             ui.streak.textContent = streak;
-            const lives = server ? server.lives : 3;
-            const max = server ? server.max_lives : 3;
-            ui.lives.innerHTML = fibHearts(lives, max);
-            ui.livesLabel.textContent = (server && lives < max && server.seconds_to_next_life > 0)
-                ? `Lives · ${fibClock(server.seconds_to_next_life)}`
+            ui.lives.innerHTML = fibHearts(server);
+            ui.livesCount.textContent = fibLivesCount(server);
+            ui.livesLabel.textContent = (server && server.seconds_to_refill > 0)
+                ? `Lives · refill ${fibClock(server.seconds_to_refill)}`
                 : "Lives";
         }
 
@@ -276,7 +293,7 @@
 
         function showReady(restored) {
             setMode("ready");
-            const title = restored ? "A life is back"
+            const title = restored ? `Your lives are back (${fibLivesCount(server)})`
                 : (server && server.solved_count > 0) ? "Pick up where you left off"
                 : "Forge the missing code";
             showOverlay(`
@@ -292,6 +309,7 @@
             `);
             ui.overlay.querySelector('[data-f="startBtn"]').addEventListener("click", () => {
                 hideOverlay();
+                if (stage3d) stage3d.playIntro();   // cobra slithers in (on open and on resume)
                 setMode("playing");
                 if (slotInput) slotInput.focus({ preventScroll: true });
             });
@@ -300,12 +318,13 @@
         function enterCooldown() {
             setMode("cooldown");
             bt.heroDown = true;
-            const max = server ? server.max_lives : 3;
+            if (stage3d) stage3d.skipIntro();
             showOverlay(`
                 <div class="fib-overlay-card">
-                    <div class="fib-overlay-hearts">${fibHearts(0, max)}</div>
-                    <div class="fib-countdown" data-f="countdown">${fibClock(server ? server.seconds_to_next_life : 0)}</div>
-                    <p>until your next life. You'll resume at puzzle ${qIndex + 1}. Review the lesson while you wait. Your progress is saved.</p>
+                    <div class="fib-overlay-hearts">${fibHearts(server)}</div>
+                    <h4>You're out of lives.</h4>
+                    <div class="fib-countdown" data-f="countdown">${fibClock(server ? server.seconds_to_refill : 0)}</div>
+                    <p>until all 5 lives refill (bonus lives come back every day at 8:00 AM). You'll resume at puzzle ${qIndex + 1}. Review the lesson while you wait. Your progress is saved.</p>
                     <div class="fib-overlay-actions">
                         <button type="button" class="fib-primary-btn" data-f="reviewBtn"><i class="fa-solid fa-book-open"></i> Review lesson</button>
                     </div>
@@ -318,6 +337,7 @@
 
         function finish() {
             setMode("done");
+            if (stage3d) stage3d.skipIntro();
             const firstTry = server ? server.first_try_correct : 0;
             showOverlay(`
                 <div class="fib-overlay-card">
@@ -625,7 +645,7 @@
                 paintSlot();
             }
             updateHUD();
-            if (server.lives <= 0) {
+            if (server.total_lives <= 0) {
                 setTimeout(() => { if (!disposed) enterCooldown(); }, FIB_ANIM.foebite);
                 setMode("busy");
             } else {
@@ -648,16 +668,17 @@
             qIndex = Math.min(server.current_index, total - 1);
             setMode("playing");
             loadItem();
-            if (server.lives <= 0) enterCooldown();
+            if (server.total_lives <= 0) enterCooldown();
         }
 
         function resyncFromState() {
             hideOverlay();
             bt.foeMax = Math.max(1, total);
             bt.foeHP = Math.max(0, total - server.solved_count);
-            bt.heroMax = server.max_lives;
-            bt.heroHP = server.lives;
-            bt.heroDown = server.lives <= 0;
+            // Cobra's HP bar: the regular 5 plus any bonus lives left today.
+            bt.heroMax = Math.max(server.max_lives, server.total_lives);
+            bt.heroHP = server.total_lives;
+            bt.heroDown = server.total_lives <= 0;
             bt.defeated = bt.foeHP === 0;
             drawBars();
             if (server.completed) {
@@ -667,7 +688,7 @@
             qIndex = Math.min(server.current_index, total - 1);
             setMode("ready");
             loadItem();
-            if (server.lives <= 0) enterCooldown();
+            if (server.total_lives <= 0) enterCooldown();
             else showReady(false);
         }
 
@@ -678,24 +699,35 @@
                 const play = await fetchPlay(laId);
                 if (disposed) return;
                 applyState(play.state);
-                bt.heroHP = play.state.lives;
-                bt.heroDown = play.state.lives <= 0;
+                bt.heroMax = Math.max(bt.heroMax, play.state.total_lives);
+                bt.heroHP = play.state.total_lives;
+                bt.heroDown = play.state.total_lives <= 0;
                 drawBars();
-                if (mode === "cooldown" && play.state.lives > 0) showReady(true);
+                if (mode === "cooldown" && play.state.total_lives > 0) showReady(true);
             } catch (err) {
-                if (server) server.seconds_to_next_life = 5; // retry shortly
+                if (server) {                    // retry shortly
+                    server.seconds_to_refill = Math.max(server.seconds_to_refill, 5);
+                    server.seconds_to_daily_reset = Math.max(server.seconds_to_daily_reset, 5);
+                }
             } finally {
                 refreshing = false;
             }
         }
 
         function tick() {
-            if (!server || server.lives >= server.max_lives || server.completed) return;
-            server.seconds_to_next_life = Math.max(0, server.seconds_to_next_life - 1);
+            if (!server || server.completed) return;
+            // Daily 8:00 AM bonus reset - pick it up even if the page stayed open.
+            server.seconds_to_daily_reset -= 1;
+            if (server.seconds_to_daily_reset <= 0) {
+                refreshState();
+                return;
+            }
+            if (server.seconds_to_refill <= 0) return;
+            server.seconds_to_refill = Math.max(0, server.seconds_to_refill - 1);
             updateHUD();
             const countdown = ui.overlay.querySelector('[data-f="countdown"]');
-            if (countdown) countdown.textContent = fibClock(server.seconds_to_next_life);
-            if (server.seconds_to_next_life <= 0) refreshState();
+            if (countdown) countdown.textContent = fibClock(server.seconds_to_refill);
+            if (server.seconds_to_refill <= 0) refreshState();
         }
 
         // ---- battle stage ----
@@ -724,7 +756,7 @@
 
         function foeStrike() {
             playAnim("foebite", () => {
-                bt.heroHP = server ? server.lives : Math.max(0, bt.heroHP - 1);
+                bt.heroHP = server ? server.total_lives : Math.max(0, bt.heroHP - 1);
                 bt.flashHero = 1;
                 bt.shake = 14;
                 if (stage3d) {
@@ -817,7 +849,7 @@
         }
 
         function onVisibility() {
-            if (!document.hidden && server && server.lives < server.max_lives) {
+            if (!document.hidden && server) {
                 refreshState(); // timers are throttled in background tabs
             }
         }
@@ -876,7 +908,10 @@
             try {
                 const mod = await import(FIB_JS_BASE + "battle3d.js");
                 if (disposed) return;
-                stage3d = mod.createBattle(ui.canvas);
+                // Scenery follows the chapter's side on the Learning Map:
+                // "land" = forest clearing, "water" = inside a wooden ship.
+                stage3d = mod.createBattle(ui.canvas, { terrain: activity.terrain || "land" });
+                stage3d.holdIntro();   // cobra waits in the bush / behind the doorway until Start
             } catch (err) {
                 console.warn("Battle stage unavailable, showing the board only:", err);
                 stage3d = null;
