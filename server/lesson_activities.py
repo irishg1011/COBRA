@@ -6,8 +6,13 @@ gate on lesson-content.html. Mirrors learning_activity_content.py's table
 routing (mcq_questions_tbl/mcq_options_tbl, fill_blanks_tbl,
 flashcards_tbl) but is READ-ONLY from the learner's point of view for
 question content, and NEVER returns the correct answer to the client -
-answer checking happens entirely server-side in check_mcq_answer() /
-check_fill_blank_answer() / check_flashcard_answer() below.
+answer checking happens entirely server-side.
+
+Multiple Choice (activity_type_id = 1) is played as the cobra arena.
+Its grading, lives, current question and pause/resume state all live
+server-side (see the MULTIPLE CHOICE ARENA section at the bottom), so a
+refresh can never restore lives or skip a question. check_mcq_answer()
+stays as the stateless checker used by the admin Publishing Preview.
 
 This file never touches Flask/session state directly - learner_routes.py
 is the only place these get turned into HTTP responses, matching the
@@ -29,12 +34,24 @@ FLASHCARD_ANSWERS_TABLE = "flashcard_learner_answers_tbl"
 PROGRESS_TABLE = "learner_activity_progress_tbl"
 MCQ_ANSWERS_TABLE = "mcq_learner_answers_tbl"
 
-# Quiz reuses mcq_questions_tbl / mcq_options_tbl for its content and
-# learner_activity_progress_tbl for its progress - no quiz-only tables.
-QUIZ_TYPE_NAME = "Quiz"
-QUIZ_MAX_LIVES = 3
-QUIZ_REGEN_SECONDS = 300  # +1 life every 5 minutes, up to QUIZ_MAX_LIVES
-_quiz_schema_ensured = False
+ACTIVITY_TYPES_TABLE = "activity_types_tbl"
+ACCOUNT_TABLE = "account_tbl"
+RECOMMENDATIONS_TABLE = "lesson_recommendations_tbl"
+
+# Lives pool: one row per (learner, activity type), shared by every
+# lesson's activity of that type - e.g. 1 life left for Multiple Choice
+# applies to every Multiple Choice activity in every lesson. Fill in the
+# Blanks and Flashcards get their own pools here once their game
+# versions are built (same table, their own activity_type_id).
+LIVES_TABLE = "learner_lives_tbl"
+MAX_LIVES = 3
+LIFE_REGEN_SECONDS = 30  # +1 life every 5 minutes, up to MAX_LIVES
+
+# One row per Multiple Choice play (start -> pause/resume -> completed).
+MCQ_SESSIONS_TABLE = "mcq_activity_sessions_tbl"
+MCQ_TYPE_NAME = "Multiple Choice"
+
+_game_schema_ensured = False
 
 
 def get_published_activities_for_resource(resource_id):
@@ -61,15 +78,17 @@ def get_published_activities_for_resource(resource_id):
         return []
 
     try:
-        ensure_quiz_schema(connection)
+        ensure_activity_game_schema(connection)
         cursor = connection.cursor(dictionary=True)
+        # Ordered by type so every lesson runs Multiple Choice first,
+        # then Fill in the Blanks, then Flashcards.
         cursor.execute(
-            f"""SELECT la.la_id, la.activity_title, la.points, atp.activity_type_name
+            f"""SELECT la.la_id, la.activity_title, la.points, la.activity_type_id, atp.activity_type_name
                 FROM {LEARNING_ACTIVITIES_TABLE} la
                 JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
                 LEFT JOIN activity_types_tbl atp ON la.activity_type_id = atp.activity_type_id
                 WHERE la.resource_id = %s AND las.la_stats_name = 'Published'
-                ORDER BY la.la_id ASC""",
+                ORDER BY la.activity_type_id ASC, la.la_id ASC""",
             (resource_id,)
         )
         activity_rows = cursor.fetchall()
@@ -82,13 +101,14 @@ def get_published_activities_for_resource(resource_id):
                 "la_id": la_id,
                 "activity_title": row["activity_title"],
                 "activity_type": activity_type,
+                "activity_type_id": row.get("activity_type_id"),
                 "points": row.get("points") or 0,
                 "items": [],
             }
 
-            # Quiz shares the MCQ tables and item shape - the learner page
-            # just renders it as the cobra arena instead of a list.
-            if activity_type in ("Multiple Choice", QUIZ_TYPE_NAME):
+            # Multiple Choice is rendered as the cobra arena on the learner
+            # page - options go out WITHOUT is_correct/feedback.
+            if activity_type == MCQ_TYPE_NAME:
                 cursor.execute(
                     f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
                     (la_id,)
@@ -147,7 +167,9 @@ def check_mcq_answer(q_id, selected_option_id):
     Looks up the real correct option for `q_id` and compares it against
     `selected_option_id` (an mcq_options_tbl.option_id the learner
     picked) - entirely server-side, so the correct answer is never sent
-    to the browser before this point.
+    to the browser before this point. Stateless (records nothing) - used
+    by the admin Publishing Preview. Learners go through
+    submit_mcq_answer() instead.
 
     Returns (is_correct: bool, feedback: str, correct_option_id: int | None)
     """
@@ -398,30 +420,69 @@ def get_activities_completion_summary(acc_id, resource_id):
             connection.close()
 
 
-# ============================================================
-# QUIZ (cobra arena) - lives, position and grading, all server-side
-# ------------------------------------------------------------
-# The browser only ever knows the question text and option ids. The
-# current question, remaining lives and the 5-minute regeneration
-# clock live on the learner's learner_activity_progress_tbl row, so a
-# page refresh can never restore lives or skip a question. Every
-# answer is appended to mcq_learner_answers_tbl (never overwritten).
-# ============================================================
-def ensure_quiz_schema(connection):
-    """
-    Lazily adds the columns the Quiz needs (idempotent, once per
-    process):
-      - mcq_questions_tbl.sort_order      question order within a quiz
-      - learner_activity_progress_tbl.lives / current_q_index /
-        lives_regen_at                    the learner's run state
-      - learner_activity_progress_tbl.completed_at -> NULLable, so an
-        in-progress quiz row can exist before it is completed.
+def get_activity_type_name(la_id):
+    """activity_types_tbl name for la_id ("Multiple Choice", ...), or None."""
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""SELECT atp.activity_type_name
+                FROM {LEARNING_ACTIVITIES_TABLE} la
+                JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
+                WHERE la.la_id = %s""",
+            (la_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row["activity_type_name"] if row else None
+    except Error as e:
+        print(f"lesson_activities: failed to read activity type for la_id={la_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
 
-    ALTER TABLE commits implicitly, so callers must run this BEFORE they
-    write anything on `connection`.
+
+# ============================================================
+# MULTIPLE CHOICE ARENA - lives, position, pause/resume, grading
+# ------------------------------------------------------------
+# Multiple Choice (activity_type_id = 1) is played as the cobra arena.
+# The browser only ever knows question text, option letters/text and
+# option ids - never which option is correct.
+#
+#   mcq_questions_tbl / mcq_options_tbl   question + option source
+#   mcq_learner_answers_tbl               every eaten pellet, append-only
+#                                         (attempt_number 1 = first attempt,
+#                                         used by recommendations)
+#   learner_lives_tbl                     lives pool per learner per type
+#   mcq_activity_sessions_tbl             one row per play: current
+#                                         question, paused/resumed/completed
+#   learner_activity_progress_tbl         written ONLY on completion
+#                                         (status + first-attempt score)
+#
+# Rules:
+#   - wrong answer: -1 life, stay on the same question (Try Again)
+#   - correct answer: move to the next question
+#   - wall hit / self-bite: -1 life, nothing logged as an answer
+#   - 0 lives: the play is paused on its current question - never reset
+#   - +1 life every 5 minutes up to 3, counted even while away
+#   - resuming continues the SAME play (no new session row)
+# ============================================================
+def ensure_activity_game_schema(connection):
     """
-    global _quiz_schema_ensured
-    if _quiz_schema_ensured:
+    Lazily creates what the Multiple Choice arena needs (idempotent,
+    once per process):
+      - mcq_questions_tbl.sort_order   question order within an activity
+      - learner_lives_tbl              lives pool per (acc_id, activity_type_id)
+      - mcq_activity_sessions_tbl      one row per Multiple Choice play
+
+    CREATE/ALTER TABLE commit implicitly, so callers must run this
+    BEFORE they write anything on `connection`.
+    """
+    global _game_schema_ensured
+    if _game_schema_ensured:
         return True
     try:
         cursor = connection.cursor()
@@ -429,25 +490,48 @@ def ensure_quiz_schema(connection):
             f"ALTER TABLE {MCQ_QUESTIONS_TABLE} ADD COLUMN IF NOT EXISTS sort_order INT(5) NOT NULL DEFAULT 0"
         )
         cursor.execute(
-            f"ALTER TABLE {PROGRESS_TABLE} ADD COLUMN IF NOT EXISTS lives TINYINT(1) DEFAULT NULL"
+            f"""CREATE TABLE IF NOT EXISTS {LIVES_TABLE} (
+                    lives_id INT(10) NOT NULL AUTO_INCREMENT,
+                    acc_id VARCHAR(15) NOT NULL,
+                    activity_type_id INT(10) NOT NULL,
+                    lives TINYINT(1) NOT NULL DEFAULT {MAX_LIVES},
+                    lives_regen_at DATETIME DEFAULT NULL,
+                    updated_at DATETIME DEFAULT NULL,
+                    PRIMARY KEY (lives_id),
+                    UNIQUE KEY uq_lives_acc_type (acc_id, activity_type_id),
+                    KEY fk_lives_activity_type_id (activity_type_id),
+                    CONSTRAINT fk_lives_account_id FOREIGN KEY (acc_id)
+                        REFERENCES {ACCOUNT_TABLE} (acc_id),
+                    CONSTRAINT fk_lives_activity_type_id FOREIGN KEY (activity_type_id)
+                        REFERENCES {ACTIVITY_TYPES_TABLE} (activity_type_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"""
         )
         cursor.execute(
-            f"ALTER TABLE {PROGRESS_TABLE} ADD COLUMN IF NOT EXISTS current_q_index INT(5) DEFAULT NULL"
+            f"""CREATE TABLE IF NOT EXISTS {MCQ_SESSIONS_TABLE} (
+                    session_id INT(10) NOT NULL AUTO_INCREMENT,
+                    acc_id VARCHAR(15) NOT NULL,
+                    la_id INT(10) NOT NULL,
+                    current_q_id INT(10) DEFAULT NULL,
+                    score INT(5) NOT NULL DEFAULT 0,
+                    status VARCHAR(20) NOT NULL,
+                    started_at DATETIME NOT NULL,
+                    paused_at DATETIME DEFAULT NULL,
+                    resumed_at DATETIME DEFAULT NULL,
+                    completed_at DATETIME DEFAULT NULL,
+                    PRIMARY KEY (session_id),
+                    KEY idx_mcqsess_acc_la (acc_id, la_id),
+                    KEY fk_mcqsess_la_id (la_id),
+                    CONSTRAINT fk_mcqsess_account_id FOREIGN KEY (acc_id)
+                        REFERENCES {ACCOUNT_TABLE} (acc_id),
+                    CONSTRAINT fk_mcqsess_la_id FOREIGN KEY (la_id)
+                        REFERENCES {LEARNING_ACTIVITIES_TABLE} (la_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"""
         )
-        cursor.execute(
-            f"ALTER TABLE {PROGRESS_TABLE} ADD COLUMN IF NOT EXISTS lives_regen_at DATETIME DEFAULT NULL"
-        )
-        cursor.execute(f"SHOW COLUMNS FROM {PROGRESS_TABLE} LIKE 'completed_at'")
-        col = cursor.fetchone()
-        if col and col[2] == "NO":
-            cursor.execute(
-                f"ALTER TABLE {PROGRESS_TABLE} MODIFY completed_at DATETIME NULL DEFAULT NULL"
-            )
         cursor.close()
-        _quiz_schema_ensured = True
+        _game_schema_ensured = True
         return True
     except Error as e:
-        print(f"lesson_activities: failed to ensure quiz schema: {e}")
+        print(f"lesson_activities: failed to ensure activity game schema: {e}")
         return False
 
 
@@ -458,113 +542,129 @@ def _to_int(value):
         return None
 
 
-def _quiz_state(lives, index, total, correct, seconds_left, completed):
-    """The only quiz state the browser ever receives."""
-    return {
-        "lives": lives,
-        "max_lives": QUIZ_MAX_LIVES,
-        "regen_seconds": QUIZ_REGEN_SECONDS,
-        "seconds_to_next_life": seconds_left if lives < QUIZ_MAX_LIVES else 0,
-        "current_index": index,
-        "total": total,
-        "correct_count": correct,
-        "completed": completed,
-    }
-
-
-def _apply_quiz_regen(row):
+# ---------------- lives pool (shared helpers - reusable by FIB/Flashcards) ----------------
+def _load_lives(cursor, acc_id, activity_type_id):
     """
-    +1 life per QUIZ_REGEN_SECONDS since lives_regen_at, capped at
-    QUIZ_MAX_LIVES - keeps counting while the learner is away. Uses the
-    database clock (row["db_now"]) so server/DB timezone drift can't
-    shorten or stretch the wait.
+    Locks (FOR UPDATE) - creating at MAX_LIVES if needed - this learner's
+    lives row for one activity type, then applies regeneration: +1 life
+    per LIFE_REGEN_SECONDS since lives_regen_at, capped at MAX_LIVES.
+    Uses the database clock so server/DB timezone drift can't shorten or
+    stretch the wait.
 
-    Returns (lives, regen_at, seconds_until_next_life).
+    Returns {"lives_id", "lives", "regen_at", "seconds_left", "db_now"}.
     """
-    lives = row["lives"] if row["lives"] is not None else QUIZ_MAX_LIVES
+    cursor.execute(
+        f"""INSERT IGNORE INTO {LIVES_TABLE} (acc_id, activity_type_id, lives, updated_at)
+            VALUES (%s, %s, %s, NOW())""",
+        (acc_id, activity_type_id, MAX_LIVES)
+    )
+    cursor.execute(
+        f"""SELECT lives_id, lives, lives_regen_at, NOW() AS db_now
+            FROM {LIVES_TABLE}
+            WHERE acc_id = %s AND activity_type_id = %s FOR UPDATE""",
+        (acc_id, activity_type_id)
+    )
+    row = cursor.fetchone()
+    lives = row["lives"] if row["lives"] is not None else MAX_LIVES
     regen_at = row["lives_regen_at"]
     now = row["db_now"]
 
-    if lives >= QUIZ_MAX_LIVES:
-        return QUIZ_MAX_LIVES, None, 0
-    if regen_at is None:
-        regen_at = now
+    if lives >= MAX_LIVES:
+        lives, regen_at, seconds_left = MAX_LIVES, None, 0
+    else:
+        if regen_at is None:
+            regen_at = now
+        elapsed = max(0, int((now - regen_at).total_seconds()))
+        gained = elapsed // LIFE_REGEN_SECONDS
+        if gained:
+            lives = min(MAX_LIVES, lives + gained)
+            regen_at = regen_at + timedelta(seconds=gained * LIFE_REGEN_SECONDS)
+        if lives >= MAX_LIVES:
+            regen_at, seconds_left = None, 0
+        else:
+            seconds_left = max(1, LIFE_REGEN_SECONDS - max(0, int((now - regen_at).total_seconds())))
 
-    elapsed = max(0, int((now - regen_at).total_seconds()))
-    gained = elapsed // QUIZ_REGEN_SECONDS
-    if gained:
-        lives = min(QUIZ_MAX_LIVES, lives + gained)
-        regen_at = regen_at + timedelta(seconds=gained * QUIZ_REGEN_SECONDS)
-
-    if lives >= QUIZ_MAX_LIVES:
-        return QUIZ_MAX_LIVES, None, 0
-
-    seconds_left = QUIZ_REGEN_SECONDS - max(0, int((now - regen_at).total_seconds()))
-    return lives, regen_at, max(1, seconds_left)
+    return {
+        "lives_id": row["lives_id"],
+        "lives": lives,
+        "regen_at": regen_at,
+        "seconds_left": seconds_left,
+        "db_now": now,
+    }
 
 
-def _quiz_correct_count(cursor, acc_id, la_id):
-    """Questions whose LATEST attempt is correct (latest attempt = progression truth)."""
+def _take_life(pool):
+    """-1 life (never below 0); starts the regen clock if it wasn't running."""
+    if pool["lives"] <= 0:
+        return
+    pool["lives"] -= 1
+    if pool["regen_at"] is None:
+        pool["regen_at"] = pool["db_now"]
+        pool["seconds_left"] = LIFE_REGEN_SECONDS
+
+
+def _save_lives(cursor, pool):
+    cursor.execute(
+        f"""UPDATE {LIVES_TABLE}
+            SET lives = %s, lives_regen_at = %s, updated_at = NOW()
+            WHERE lives_id = %s""",
+        (pool["lives"], pool["regen_at"], pool["lives_id"])
+    )
+
+
+# ---------------- Multiple Choice play ----------------
+def _first_attempt_score(cursor, acc_id, la_id):
+    """Questions in la_id answered correctly on attempt_number = 1."""
     cursor.execute(
         f"""SELECT COUNT(*) AS cnt
             FROM {MCQ_ANSWERS_TABLE} a
             JOIN {MCQ_QUESTIONS_TABLE} q ON a.q_id = q.q_id
-            WHERE a.acc_id = %s AND q.la_id = %s AND a.status = 'correct'
-              AND a.attempt_number = (
-                  SELECT MAX(a2.attempt_number) FROM {MCQ_ANSWERS_TABLE} a2
-                  WHERE a2.acc_id = a.acc_id AND a2.q_id = a.q_id
-              )""",
+            WHERE a.acc_id = %s AND q.la_id = %s
+              AND a.attempt_number = 1 AND a.status = 'correct'""",
         (acc_id, la_id)
     )
     return cursor.fetchone()["cnt"]
 
 
-def _load_quiz_row(cursor, acc_id, la_id):
-    """Locks (FOR UPDATE) - creating if needed - this learner's progress row for the quiz."""
-    select_sql = f"""SELECT progress_id, status, score, lives, current_q_index,
-                            lives_regen_at, NOW() AS db_now
-                     FROM {PROGRESS_TABLE}
-                     WHERE acc_id = %s AND la_id = %s
-                     ORDER BY progress_id ASC LIMIT 1 FOR UPDATE"""
-    cursor.execute(select_sql, (acc_id, la_id))
-    row = cursor.fetchone()
-    if row is None:
-        cursor.execute(
-            f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, lives, current_q_index)
-                VALUES (%s, %s, 'in_progress', 0, %s, 0)""",
-            (acc_id, la_id, QUIZ_MAX_LIVES)
-        )
-        cursor.execute(select_sql, (acc_id, la_id))
-        row = cursor.fetchone()
-    return row
-
-
-def _save_quiz_row(cursor, progress_id, status, score, lives, index, regen_at):
-    completed_sql = ", completed_at = NOW()" if status == "completed" else ""
+def _first_unsolved_index(cursor, acc_id, q_ids):
+    """
+    Fallback position when the stored current_q_id no longer exists
+    (question removed after the learner started): the first question
+    in order that this learner hasn't answered correctly yet.
+    """
+    if not q_ids:
+        return 0
+    placeholders = ",".join(["%s"] * len(q_ids))
     cursor.execute(
-        f"""UPDATE {PROGRESS_TABLE}
-            SET status = %s, score = %s, lives = %s, current_q_index = %s,
-                lives_regen_at = %s{completed_sql}
-            WHERE progress_id = %s""",
-        (status, score, lives, index, regen_at, progress_id)
+        f"""SELECT DISTINCT q_id FROM {MCQ_ANSWERS_TABLE}
+            WHERE acc_id = %s AND status = 'correct' AND q_id IN ({placeholders})""",
+        tuple([acc_id] + q_ids)
     )
+    solved = {r["q_id"] for r in cursor.fetchall()}
+    for i, q_id in enumerate(q_ids):
+        if q_id not in solved:
+            return i
+    return len(q_ids)
 
 
-def _open_quiz(cursor, acc_id, la_id):
+def _open_mcq(cursor, acc_id, la_id):
     """
-    Shared opening for every quiz call: confirms la_id is a Published
-    Quiz, loads its ordered question ids, locks the learner's row and
-    applies life regeneration. Returns None if it isn't a Published Quiz.
+    Shared opening for every Multiple Choice arena call: confirms la_id
+    is a Published Multiple Choice activity, loads its ordered question
+    ids, locks the learner's lives pool (applying regen) and their latest
+    play for this activity. Returns None if it isn't one.
     """
     cursor.execute(
-        f"""SELECT 1 FROM {LEARNING_ACTIVITIES_TABLE} la
+        f"""SELECT la.activity_type_id
+            FROM {LEARNING_ACTIVITIES_TABLE} la
             JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
-            JOIN activity_types_tbl atp ON la.activity_type_id = atp.activity_type_id
+            JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
             WHERE la.la_id = %s AND las.la_stats_name = 'Published'
               AND atp.activity_type_name = %s""",
-        (la_id, QUIZ_TYPE_NAME)
+        (la_id, MCQ_TYPE_NAME)
     )
-    if cursor.fetchone() is None:
+    activity = cursor.fetchone()
+    if activity is None:
         return None
 
     cursor.execute(
@@ -573,112 +673,281 @@ def _open_quiz(cursor, acc_id, la_id):
     )
     q_ids = [r["q_id"] for r in cursor.fetchall()]
 
-    row = _load_quiz_row(cursor, acc_id, la_id)
-    lives, regen_at, seconds_left = _apply_quiz_regen(row)
+    # Lock order everywhere: lives pool first, then the session row.
+    pool = _load_lives(cursor, acc_id, activity["activity_type_id"])
+
+    cursor.execute(
+        f"""SELECT session_id, current_q_id, score, status
+            FROM {MCQ_SESSIONS_TABLE}
+            WHERE acc_id = %s AND la_id = %s
+            ORDER BY session_id DESC LIMIT 1 FOR UPDATE""",
+        (acc_id, la_id)
+    )
+    session_row = cursor.fetchone()
+
+    cursor.execute(
+        f"""SELECT 1 FROM {PROGRESS_TABLE}
+            WHERE acc_id = %s AND la_id = %s AND status = 'completed' LIMIT 1""",
+        (acc_id, la_id)
+    )
+    completed = cursor.fetchone() is not None or bool(session_row and session_row["status"] == "completed")
+
+    if session_row and session_row["current_q_id"] in q_ids:
+        index = q_ids.index(session_row["current_q_id"])
+    elif session_row:
+        index = _first_unsolved_index(cursor, acc_id, q_ids)
+    else:
+        index = 0
+
     return {
+        "acc_id": acc_id,
+        "la_id": la_id,
         "q_ids": q_ids,
-        "row": row,
-        "lives": lives,
-        "regen_at": regen_at,
-        "seconds_left": seconds_left,
-        "index": row["current_q_index"] if row["current_q_index"] is not None else 0,
-        "completed": row["status"] == "completed",
+        "pool": pool,
+        "session": session_row,
+        "index": index,
+        "completed": completed,
     }
 
 
-def get_quiz_state(acc_id, la_id):
+def _mcq_state(cursor, ctx):
+    """The only Multiple Choice arena state the browser ever receives."""
+    pool = ctx["pool"]
+    session_row = ctx["session"]
+    q_ids = ctx["q_ids"]
+    index = ctx["index"]
+    lives = pool["lives"]
+    return {
+        "lives": lives,
+        "max_lives": MAX_LIVES,
+        "regen_seconds": LIFE_REGEN_SECONDS,
+        "seconds_to_next_life": pool["seconds_left"] if lives < MAX_LIVES else 0,
+        "session_status": session_row["status"] if session_row else None,
+        "current_index": index,
+        "current_q_id": q_ids[index] if index < len(q_ids) else None,
+        "total": len(q_ids),
+        "score": _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]),
+        "completed": ctx["completed"],
+    }
+
+
+def _complete_mcq(cursor, ctx):
     """
-    Current quiz state for this learner (see _quiz_state()), with life
-    regeneration applied and saved. Returns None if la_id isn't a
-    Published Quiz or on any database error.
+    Finishes the play: session -> completed, and the existing
+    learner_activity_progress_tbl row -> completed with the
+    first-attempt score. No answer rows are touched.
+    """
+    acc_id, la_id = ctx["acc_id"], ctx["la_id"]
+    score = _first_attempt_score(cursor, acc_id, la_id)
+    session_row = ctx["session"]
+    if session_row:
+        cursor.execute(
+            f"""UPDATE {MCQ_SESSIONS_TABLE}
+                SET status = 'completed', score = %s, current_q_id = NULL, completed_at = NOW()
+                WHERE session_id = %s""",
+            (score, session_row["session_id"])
+        )
+        session_row["status"] = "completed"
+
+    cursor.execute(
+        f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
+        (acc_id, la_id)
+    )
+    existing = cursor.fetchone()
+    if existing:
+        cursor.execute(
+            f"""UPDATE {PROGRESS_TABLE}
+                SET status = 'completed', score = %s, completed_at = NOW()
+                WHERE progress_id = %s""",
+            (score, existing["progress_id"])
+        )
+    else:
+        cursor.execute(
+            f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
+                VALUES (%s, %s, 'completed', %s, NOW())""",
+            (acc_id, la_id, score)
+        )
+    ctx["completed"] = True
+    ctx["index"] = len(ctx["q_ids"])
+
+
+def _pause_if_out_of_lives(cursor, ctx):
+    """
+    0 lives -> the in-progress play is paused on its current question.
+    Also catches lives spent on ANOTHER Multiple Choice activity (the
+    pool is shared) since this play was last touched.
+    """
+    session_row = ctx["session"]
+    if (session_row and session_row["status"] == "in_progress"
+            and ctx["pool"]["lives"] <= 0 and not ctx["completed"]):
+        cursor.execute(
+            f"UPDATE {MCQ_SESSIONS_TABLE} SET status = 'paused', paused_at = NOW() WHERE session_id = %s",
+            (session_row["session_id"],)
+        )
+        session_row["status"] = "paused"
+
+
+def _settle_position(cursor, ctx):
+    """
+    Keeps the stored position valid: finishes the play if every
+    question is already behind the learner (e.g. questions were removed
+    after they started), otherwise re-points current_q_id if it drifted.
+    """
+    session_row = ctx["session"]
+    if not session_row or ctx["completed"]:
+        return
+    if ctx["q_ids"] and ctx["index"] >= len(ctx["q_ids"]):
+        _complete_mcq(cursor, ctx)
+        return
+    if ctx["q_ids"]:
+        wanted = ctx["q_ids"][ctx["index"]]
+        if session_row["current_q_id"] != wanted:
+            cursor.execute(
+                f"UPDATE {MCQ_SESSIONS_TABLE} SET current_q_id = %s WHERE session_id = %s",
+                (wanted, session_row["session_id"])
+            )
+            session_row["current_q_id"] = wanted
+
+
+def _run_mcq(acc_id, la_id, action, error_label):
+    """
+    Opens a connection + transaction, runs action(cursor, ctx) and
+    commits. action returns (payload, error_message). Shared by every
+    public Multiple Choice arena function below.
     """
     la_id = _to_int(la_id)
     if not la_id:
-        return None
+        return None, "la_id is required."
     connection = get_db_connection()
     if connection is None:
-        return None
+        return None, "Could not connect to the database."
     try:
-        ensure_quiz_schema(connection)
+        ensure_activity_game_schema(connection)
         cursor = connection.cursor(dictionary=True)
-        quiz = _open_quiz(cursor, acc_id, la_id)
-        if quiz is None:
+        ctx = _open_mcq(cursor, acc_id, la_id)
+        if ctx is None:
             connection.rollback()
             cursor.close()
-            return None
+            return None, "This activity is not available."
 
-        total = len(quiz["q_ids"])
-        index = quiz["index"]
-        completed = quiz["completed"]
-        correct = _quiz_correct_count(cursor, acc_id, la_id)
+        _settle_position(cursor, ctx)
+        _pause_if_out_of_lives(cursor, ctx)
+        payload, error_message = action(cursor, ctx)
+        if payload is None:
+            connection.rollback()
+            cursor.close()
+            return None, error_message
 
-        if not completed:
-            # If questions were removed after this learner started and
-            # they're already past the end, the quiz is finished.
-            if total and index >= total:
-                completed = True
-            _save_quiz_row(
-                cursor, quiz["row"]["progress_id"],
-                "completed" if completed else "in_progress",
-                correct, quiz["lives"], index, quiz["regen_at"]
-            )
-
+        _save_lives(cursor, ctx["pool"])
         connection.commit()
         cursor.close()
-        return _quiz_state(quiz["lives"], index, total, correct, quiz["seconds_left"], completed)
+        return payload, None
     except Error as e:
         connection.rollback()
-        print(f"lesson_activities: failed to load quiz state for la_id={la_id}: {e}")
-        return None
+        print(f"lesson_activities: {error_label} failed for la_id={la_id}: {e}")
+        return None, "Something went wrong. Your progress is saved."
     finally:
         if connection.is_connected():
             connection.close()
 
 
-def submit_quiz_answer(acc_id, la_id, q_id, option_id):
+def get_mcq_activity_state(acc_id, la_id):
     """
-    Grades the pellet the cobra ate. Appends the attempt to
-    mcq_learner_answers_tbl, costs a life when wrong (starting the regen
-    clock if it wasn't running), and ALWAYS moves to the next question -
-    a wrong answer stands. Completing the last question marks the
-    activity completed with score = correct count.
-
-    Returns (payload, error_message). payload["graded"] is False when
-    nothing was graded - out of lives, already completed, or the browser
-    is on a different question than the server - and payload["state"]
-    tells the browser where it really is.
+    Current arena state for this learner (see _mcq_state()), with life
+    regeneration applied and saved. Never creates a play.
+    Returns (state, error_message).
     """
-    la_id, q_id, option_id = _to_int(la_id), _to_int(q_id), _to_int(option_id)
-    if not la_id or not q_id or not option_id:
-        return None, "A quiz answer needs la_id, q_id and option_id."
+    def action(cursor, ctx):
+        return _mcq_state(cursor, ctx), None
+    return _run_mcq(acc_id, la_id, action, "load MCQ state")
 
-    connection = get_db_connection()
-    if connection is None:
-        return None, "Could not connect to the database."
 
-    try:
-        ensure_quiz_schema(connection)
-        cursor = connection.cursor(dictionary=True)
-        quiz = _open_quiz(cursor, acc_id, la_id)
-        if quiz is None:
-            connection.rollback()
-            cursor.close()
-            return None, "This quiz is not available."
+def play_mcq_activity(acc_id, la_id):
+    """
+    Start-or-resume, the ONLY place a play is created:
+      - completed                -> nothing changes
+      - play in progress         -> same play continues (no new row)
+      - play paused, lives >= 1  -> same play resumes (resumed_at)
+      - play paused, 0 lives     -> stays paused
+      - no play yet, lives >= 1  -> ONE new play at the first question
+      - no play yet, 0 lives     -> nothing is created
+    Returns (state, error_message).
+    """
+    def action(cursor, ctx):
+        session_row = ctx["session"]
+        lives = ctx["pool"]["lives"]
+        if ctx["completed"] or not ctx["q_ids"]:
+            return _mcq_state(cursor, ctx), None
 
-        q_ids = quiz["q_ids"]
-        total = len(q_ids)
-        row = quiz["row"]
-        lives, regen_at, seconds_left = quiz["lives"], quiz["regen_at"], quiz["seconds_left"]
-        index = quiz["index"]
+        if session_row and session_row["status"] == "paused":
+            if lives > 0:
+                cursor.execute(
+                    f"""UPDATE {MCQ_SESSIONS_TABLE}
+                        SET status = 'in_progress', resumed_at = NOW()
+                        WHERE session_id = %s""",
+                    (session_row["session_id"],)
+                )
+                session_row["status"] = "in_progress"
+        elif not session_row and lives > 0:
+            index = _first_unsolved_index(cursor, ctx["acc_id"], ctx["q_ids"])
+            if index >= len(ctx["q_ids"]):
+                index = 0
+            cursor.execute(
+                f"""INSERT INTO {MCQ_SESSIONS_TABLE}
+                    (acc_id, la_id, current_q_id, score, status, started_at)
+                    VALUES (%s, %s, %s, 0, 'in_progress', NOW())""",
+                (ctx["acc_id"], ctx["la_id"], ctx["q_ids"][index])
+            )
+            ctx["session"] = {
+                "session_id": cursor.lastrowid,
+                "current_q_id": ctx["q_ids"][index],
+                "score": 0,
+                "status": "in_progress",
+            }
+            ctx["index"] = index
+        return _mcq_state(cursor, ctx), None
+    return _run_mcq(acc_id, la_id, action, "start/resume MCQ play")
 
-        if quiz["completed"] or lives <= 0 or index >= total or q_ids[index] != q_id:
-            correct = _quiz_correct_count(cursor, acc_id, la_id)
-            if not quiz["completed"]:
-                _save_quiz_row(cursor, row["progress_id"], "in_progress", correct, lives, index, regen_at)
-            connection.commit()
-            cursor.close()
-            state = _quiz_state(lives, index, total, correct, seconds_left, quiz["completed"])
-            return {"graded": False, "state": state}, None
+
+def _valid_recommendation_id(cursor, acc_id, recommendation_id):
+    """Only links a recommendation that exists and belongs to this learner."""
+    recommendation_id = _to_int(recommendation_id)
+    if not recommendation_id:
+        return None
+    cursor.execute(
+        f"SELECT 1 FROM {RECOMMENDATIONS_TABLE} WHERE recommendation_id = %s AND acc_id = %s",
+        (recommendation_id, acc_id)
+    )
+    return recommendation_id if cursor.fetchone() else None
+
+
+def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
+    """
+    Grades the pellet the cobra ate and appends it to
+    mcq_learner_answers_tbl (never overwrites - attempt_number counts up
+    per learner/question, so attempt 1 stays the first attempt).
+
+      correct -> next question (or completes the activity)
+      wrong   -> -1 life, SAME question; at 0 lives the play pauses
+
+    The correct option is never revealed after a wrong answer.
+    payload["graded"] is False when nothing was graded (no running play,
+    out of lives, completed, or the browser is on a different question)
+    and payload["state"] tells the browser where it really is.
+    """
+    q_id, option_id = _to_int(q_id), _to_int(option_id)
+    if not q_id or not option_id:
+        return None, "An answer needs q_id and option_id."
+
+    def action(cursor, ctx):
+        session_row = ctx["session"]
+        index = ctx["index"]
+        q_ids = ctx["q_ids"]
+        pool = ctx["pool"]
+
+        if (ctx["completed"] or not session_row or session_row["status"] != "in_progress"
+                or pool["lives"] <= 0 or index >= len(q_ids) or q_ids[index] != q_id):
+            return {"graded": False, "state": _mcq_state(cursor, ctx)}, None
 
         cursor.execute(
             f"SELECT option_id, is_correct, feedback FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s",
@@ -687,103 +956,71 @@ def submit_quiz_answer(acc_id, la_id, q_id, option_id):
         options = cursor.fetchall()
         selected = next((o for o in options if o["option_id"] == option_id), None)
         if selected is None:
-            connection.rollback()
-            cursor.close()
             return None, "That answer does not belong to this question."
 
-        correct_option = next((o for o in options if o["is_correct"]), None)
-        is_correct = bool(correct_option and correct_option["option_id"] == option_id)
+        is_correct = bool(selected["is_correct"])
         feedback = selected.get("feedback") or ""
+        rec_id = _valid_recommendation_id(cursor, ctx["acc_id"], recommendation_id)
 
         cursor.execute(
             f"SELECT COUNT(*) AS cnt FROM {MCQ_ANSWERS_TABLE} WHERE acc_id = %s AND q_id = %s",
-            (acc_id, q_id)
+            (ctx["acc_id"], q_id)
         )
         attempt_number = cursor.fetchone()["cnt"] + 1
         cursor.execute(
             f"""INSERT INTO {MCQ_ANSWERS_TABLE}
                 (acc_id, q_id, option_id, attempt_number, status, source,
                  recommendation_id, feedback_given, answered_at)
-                VALUES (%s, %s, %s, %s, %s, 'self', NULL, %s, NOW())""",
-            (acc_id, q_id, option_id, attempt_number,
-             "correct" if is_correct else "incorrect", feedback)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+            (ctx["acc_id"], q_id, option_id, attempt_number,
+             "correct" if is_correct else "incorrect",
+             "recommendation" if rec_id else "self",
+             rec_id, feedback)
         )
 
-        if not is_correct:
-            lives -= 1
-            if regen_at is None:
-                regen_at = row["db_now"]
-                seconds_left = QUIZ_REGEN_SECONDS
-
-        index += 1
-        correct = _quiz_correct_count(cursor, acc_id, la_id)
-        completed = index >= total
-        _save_quiz_row(
-            cursor, row["progress_id"],
-            "completed" if completed else "in_progress",
-            correct, lives, index, regen_at
-        )
-        connection.commit()
-        cursor.close()
+        if is_correct:
+            ctx["index"] = index + 1
+            if ctx["index"] >= len(q_ids):
+                _complete_mcq(cursor, ctx)
+            else:
+                next_q = q_ids[ctx["index"]]
+                cursor.execute(
+                    f"""UPDATE {MCQ_SESSIONS_TABLE}
+                        SET current_q_id = %s, score = %s
+                        WHERE session_id = %s""",
+                    (next_q, _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]),
+                     session_row["session_id"])
+                )
+                session_row["current_q_id"] = next_q
+        else:
+            _take_life(pool)
+            cursor.execute(
+                f"UPDATE {MCQ_SESSIONS_TABLE} SET score = %s WHERE session_id = %s",
+                (_first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]), session_row["session_id"])
+            )
+            _pause_if_out_of_lives(cursor, ctx)
 
         return {
             "graded": True,
             "is_correct": is_correct,
+            "attempt_number": attempt_number,
             "feedback": feedback,
-            "correct_option_id": correct_option["option_id"] if correct_option else None,
-            "state": _quiz_state(lives, index, total, correct, seconds_left, completed),
+            "state": _mcq_state(cursor, ctx),
         }, None
-    except Error as e:
-        connection.rollback()
-        print(f"lesson_activities: failed to grade quiz answer la_id={la_id} q_id={q_id}: {e}")
-        return None, "Could not check this answer."
-    finally:
-        if connection.is_connected():
-            connection.close()
+    return _run_mcq(acc_id, la_id, action, "grade MCQ answer")
 
 
-def lose_quiz_life(acc_id, la_id):
+def lose_mcq_life(acc_id, la_id):
     """
-    Wall hit / self-bite in the arena: costs one life (never below 0)
-    without logging an answer or changing the current question.
-    Returns the updated state, or None if unavailable.
+    Wall hit / self-bite in the arena: -1 life without logging an answer
+    or changing the current question. At 0 lives the play pauses.
+    Returns (state, error_message).
     """
-    la_id = _to_int(la_id)
-    if not la_id:
-        return None
-    connection = get_db_connection()
-    if connection is None:
-        return None
-    try:
-        ensure_quiz_schema(connection)
-        cursor = connection.cursor(dictionary=True)
-        quiz = _open_quiz(cursor, acc_id, la_id)
-        if quiz is None:
-            connection.rollback()
-            cursor.close()
-            return None
-
-        total = len(quiz["q_ids"])
-        lives, regen_at, seconds_left = quiz["lives"], quiz["regen_at"], quiz["seconds_left"]
-        index = quiz["index"]
-        completed = quiz["completed"]
-        correct = _quiz_correct_count(cursor, acc_id, la_id)
-
-        if not completed:
-            if lives > 0:
-                lives -= 1
-                if regen_at is None:
-                    regen_at = quiz["row"]["db_now"]
-                    seconds_left = QUIZ_REGEN_SECONDS
-            _save_quiz_row(cursor, quiz["row"]["progress_id"], "in_progress", correct, lives, index, regen_at)
-
-        connection.commit()
-        cursor.close()
-        return _quiz_state(lives, index, total, correct, seconds_left, completed)
-    except Error as e:
-        connection.rollback()
-        print(f"lesson_activities: failed to take a quiz life for la_id={la_id}: {e}")
-        return None
-    finally:
-        if connection.is_connected():
-            connection.close()
+    def action(cursor, ctx):
+        session_row = ctx["session"]
+        if (not ctx["completed"] and session_row
+                and session_row["status"] == "in_progress" and ctx["pool"]["lives"] > 0):
+            _take_life(ctx["pool"])
+            _pause_if_out_of_lives(cursor, ctx)
+        return _mcq_state(cursor, ctx), None
+    return _run_mcq(acc_id, la_id, action, "take MCQ life")

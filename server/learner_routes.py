@@ -15,14 +15,16 @@ import mysql.connector
 from mysql.connector import Error
 from lesson_activities import (
     get_published_activities_for_resource,
-    check_mcq_answer,
     check_fill_blank_answer,
     check_flashcard_answer,
     record_activity_progress,
     get_activities_completion_summary,
-    get_quiz_state,
-    submit_quiz_answer,
-    lose_quiz_life,
+    get_activity_type_name,
+    MCQ_TYPE_NAME,
+    get_mcq_activity_state,
+    play_mcq_activity,
+    submit_mcq_answer,
+    lose_mcq_life,
 )
 from learner_exercise import (
     get_published_exercise_for_resource,
@@ -926,7 +928,9 @@ def lesson_activities_data():
 
 
 # ============================================================
-# ROUTE: CHECK A SINGLE ACTIVITY ANSWER (MCQ / Fill in the Blanks / Flashcards)
+# ROUTE: CHECK A SINGLE ACTIVITY ANSWER (Fill in the Blanks / Flashcards)
+# Multiple Choice answers go through /api/lesson-activities/mcq/answer
+# (the cobra arena), which records every attempt and handles lives.
 # ============================================================
 @learner_bp.route("/api/lesson-activities/check-answer", methods=["POST"])
 def lesson_activities_check_answer():
@@ -936,17 +940,6 @@ def lesson_activities_check_answer():
 
     data = request.get_json(silent=True) or {}
     answer_type = data.get("type")
-
-    if answer_type == "mcq":
-        is_correct, feedback, correct_option_id = check_mcq_answer(
-            data.get("q_id"), data.get("option_id")
-        )
-        return jsonify({
-            "success": True,
-            "is_correct": is_correct,
-            "feedback": feedback,
-            "correct_option_id": correct_option_id
-        }), 200
 
     if answer_type == "fill_blank":
         is_correct, feedback, correct_answer = check_fill_blank_answer(
@@ -973,56 +966,84 @@ def lesson_activities_check_answer():
             "correct_answer": correct_answer
         }), 200
 
-    if answer_type == "quiz":
-        result, error_message = submit_quiz_answer(
-            acc_id, data.get("la_id"), data.get("q_id"), data.get("option_id")
-        )
-        if result is None:
-            return jsonify({"success": False, "message": error_message or "Could not check this answer."}), 400
-        return jsonify({"success": True, **result}), 200
-
     return jsonify({"success": False, "message": "Unknown answer type."}), 400
 
 
 # ============================================================
-# ROUTE: QUIZ STATE - lives, current question, regen countdown.
-# Everything the quiz needs to resume after a refresh or cooldown.
+# MULTIPLE CHOICE ARENA (activity_type_id = 1)
+# ------------------------------------------------------------
+#   GET  /mcq/state      lives, current question, pause state, countdown
+#   POST /mcq/play       start the ONE play, or resume the same paused play
+#   POST /mcq/answer     grade an eaten pellet (every attempt is recorded)
+#   POST /mcq/lose-life  wall hit / self-bite (not an answer)
 # ============================================================
-@learner_bp.route("/api/lesson-activities/quiz-state", methods=["GET"])
-def lesson_activities_quiz_state():
+def _mcq_response(payload, error_message):
+    if payload is None:
+        status = 404 if error_message == "This activity is not available." else 400
+        return jsonify({"success": False, "message": error_message or "Request failed."}), status
+    return None
+
+
+@learner_bp.route("/api/lesson-activities/mcq/state", methods=["GET"])
+def lesson_activities_mcq_state():
     acc_id = get_current_learner_acc_id()
     if not acc_id:
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
-    la_id = request.args.get("la_id", type=int)
-    if not la_id:
-        return jsonify({"success": False, "message": "la_id is required."}), 400
-
-    state = get_quiz_state(acc_id, la_id)
-    if state is None:
-        return jsonify({"success": False, "message": "This quiz is not available."}), 404
+    state, error_message = get_mcq_activity_state(acc_id, request.args.get("la_id", type=int))
+    failed = _mcq_response(state, error_message)
+    if failed:
+        return failed
     return jsonify({"success": True, "state": state}), 200
 
 
-# ============================================================
-# ROUTE: QUIZ LOSE LIFE - wall hit / self-bite in the arena.
-# Not an answer, so nothing is logged to mcq_learner_answers_tbl.
-# ============================================================
-@learner_bp.route("/api/lesson-activities/quiz-lose-life", methods=["POST"])
-def lesson_activities_quiz_lose_life():
+@learner_bp.route("/api/lesson-activities/mcq/play", methods=["POST"])
+def lesson_activities_mcq_play():
     acc_id = get_current_learner_acc_id()
     if not acc_id:
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
     data = request.get_json(silent=True) or {}
-    state = lose_quiz_life(acc_id, data.get("la_id"))
-    if state is None:
-        return jsonify({"success": False, "message": "This quiz is not available."}), 404
+    state, error_message = play_mcq_activity(acc_id, data.get("la_id"))
+    failed = _mcq_response(state, error_message)
+    if failed:
+        return failed
+    return jsonify({"success": True, "state": state}), 200
+
+
+@learner_bp.route("/api/lesson-activities/mcq/answer", methods=["POST"])
+def lesson_activities_mcq_answer():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    result, error_message = submit_mcq_answer(
+        acc_id, data.get("la_id"), data.get("q_id"), data.get("option_id"),
+        data.get("recommendation_id")
+    )
+    failed = _mcq_response(result, error_message)
+    if failed:
+        return failed
+    return jsonify({"success": True, **result}), 200
+
+
+@learner_bp.route("/api/lesson-activities/mcq/lose-life", methods=["POST"])
+def lesson_activities_mcq_lose_life():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    state, error_message = lose_mcq_life(acc_id, data.get("la_id"))
+    failed = _mcq_response(state, error_message)
+    if failed:
+        return failed
     return jsonify({"success": True, "state": state}), 200
 
 
 # ============================================================
-# ROUTE: MARK ONE ACTIVITY AS COMPLETE (MCQ/Fill-in-the-Blanks/Flashcards
+# ROUTE: MARK ONE ACTIVITY AS COMPLETE (Fill-in-the-Blanks/Flashcards
 # after the last item)
 # ============================================================
 @learner_bp.route("/api/lesson-activities/mark-complete", methods=["POST"])
@@ -1037,6 +1058,12 @@ def lesson_activities_mark_complete():
 
     if not la_id:
         return jsonify({"success": False, "message": "la_id is required."}), 400
+
+    # Multiple Choice completes itself server-side when the last question
+    # is answered correctly (see submit_mcq_answer) - the browser can't
+    # mark it complete or choose its score.
+    if get_activity_type_name(la_id) == MCQ_TYPE_NAME:
+        return jsonify({"success": False, "message": "Multiple Choice completes automatically."}), 400
 
     ok = record_activity_progress(acc_id, la_id, "completed", score)
     if not ok:

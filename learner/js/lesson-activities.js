@@ -2,11 +2,12 @@
  * lesson-activities.js - Learner-side Activities Gate
  * ---------------------------------------------------------------
  * Renders the "Proceed to Activities" gate and the Multiple Choice /
- * Fill in the Blanks / Flashcards activities attached to a lesson.
- * Answer checking always happens server-side (see
- * /api/lesson-activities/check-answer) - this file never has access
- * to a correct answer before the learner has actually submitted a
- * guess.
+ * Fill in the Blanks / Flashcards activities attached to a lesson, in
+ * that order (Multiple Choice first). Multiple Choice is the cobra arena
+ * (/api/lesson-activities/mcq/*); Fill in the Blanks and Flashcards use
+ * /api/lesson-activities/check-answer until their game versions land.
+ * Answer checking always happens server-side - this file never has
+ * access to a correct answer before the learner has submitted a guess.
  *
  * Exposes window.cobraByteInitLessonActivities(resourceId, container, onAllDone)
  * for lesson-content.js to call once the lesson's reading content has
@@ -17,8 +18,8 @@
 
     const API_BASE_URL = "http://127.0.0.1:5000";
 
-    // Folder this script was served from - the Quiz loads arena3d.js
-    // (and three.module.js) from the same folder, only when a Quiz opens.
+    // Folder this script was served from - Multiple Choice loads arena3d.js
+    // (and three.module.js) from the same folder, only when it opens.
     const LEARNER_JS_BASE = (document.currentScript && document.currentScript.src)
         ? new URL(".", document.currentScript.src).href
         : "";
@@ -58,79 +59,6 @@
             body: JSON.stringify({ la_id: laId, score: score })
         });
         return response.json();
-    }
-
-    // ---------------- Multiple Choice ----------------
-    function renderMCQ(activity, container, onActivityDone) {
-        let currentIndex = 0;
-        let correctCount = 0;
-        const total = activity.items.length;
-
-        function renderQuestion() {
-            container.innerHTML = "";
-            const q = activity.items[currentIndex];
-
-            container.appendChild(el("p", "activity-progress-label", `Question ${currentIndex + 1} of ${total}`));
-            container.appendChild(el("h4", "activity-question-text", q.question_text));
-
-            const optionsWrap = el("div", "activity-options-list");
-            q.options.forEach((opt) => {
-                const optBtn = el("button", "activity-option-btn", opt.text);
-                optBtn.type = "button";
-                optBtn.dataset.optionId = opt.option_id;
-                optBtn.addEventListener("click", () => handleSelect(opt.option_id, optBtn, optionsWrap));
-                optionsWrap.appendChild(optBtn);
-            });
-            container.appendChild(optionsWrap);
-
-            const feedbackBox = el("div", "activity-feedback-box");
-            feedbackBox.style.display = "none";
-            container.appendChild(feedbackBox);
-
-            const nextBtn = el("button", "activity-next-btn", currentIndex === total - 1 ? "Finish" : "Next Question");
-            nextBtn.type = "button";
-            nextBtn.style.display = "none";
-            nextBtn.addEventListener("click", () => {
-                currentIndex += 1;
-                if (currentIndex >= total) {
-                    finishActivity();
-                } else {
-                    renderQuestion();
-                }
-            });
-            container.appendChild(nextBtn);
-
-            async function handleSelect(optionId, btnEl, wrapEl) {
-                wrapEl.querySelectorAll(".activity-option-btn").forEach((b) => (b.disabled = true));
-                btnEl.classList.add("selected");
-
-                const result = await checkAnswer({ type: "mcq", q_id: q.q_id, option_id: optionId });
-
-                wrapEl.querySelectorAll(".activity-option-btn").forEach((b) => {
-                    if (Number(b.dataset.optionId) === result.correct_option_id) {
-                        b.classList.add("correct");
-                    }
-                });
-                if (!result.is_correct) btnEl.classList.add("incorrect");
-                if (result.is_correct) correctCount += 1;
-
-                feedbackBox.style.display = "block";
-                feedbackBox.className = "activity-feedback-box " + (result.is_correct ? "is-correct" : "is-incorrect");
-                feedbackBox.textContent = result.feedback || (result.is_correct ? "Correct!" : "Not quite - review and continue.");
-
-                nextBtn.style.display = "inline-flex";
-            }
-        }
-
-        function finishActivity() {
-            container.innerHTML = "";
-            const summary = el("div", "activity-summary");
-            summary.innerHTML = `<p>You scored <strong>${correctCount} / ${total}</strong> on "${activity.activity_title}".</p>`;
-            container.appendChild(summary);
-            markActivityComplete(activity.la_id, correctCount).finally(() => onActivityDone());
-        }
-
-        renderQuestion();
     }
 
     // ---------------- Fill in the Blanks ----------------
@@ -307,23 +235,31 @@
         renderCard();
     }
 
-    // ---------------- Quiz (cobra arena) ----------------
-    // Learners answer by steering the cobra into the pellet with the
-    // right letter. Grading, lives, the 5-minute life regeneration and
-    // the current question all live on the server
-    // (/quiz-state, /check-answer type "quiz", /quiz-lose-life) - this
-    // code only holds question text and option ids, never the correct
-    // answer, and a refresh can't restore lives or skip a question.
-    const QUIZ_COLORS = { A: "#0d9488", B: "#2563eb", C: "#d97706", D: "#7c3aed", E: "#db2777", F: "#475569" };
-    const QUIZ_DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
-    const QUIZ_KEYMAP = {
+    // ---------------- Multiple Choice (cobra arena) ----------------
+    // Multiple Choice (activity_type_id = 1) is played by steering the
+    // cobra into the pellet with the right letter. Questions/options come
+    // from mcq_questions_tbl / mcq_options_tbl via /api/lesson-activities
+    // (never with the correct answer). Grading, lives, the current
+    // question and pause/resume all live on the server:
+    //   GET  /mcq/state      POST /mcq/play
+    //   POST /mcq/answer     POST /mcq/lose-life
+    // Wrong answer -> -1 life + Try Again on the SAME question.
+    // 0 lives -> the play pauses where it stopped; lives come back +1
+    // every 5 minutes (shared by every Multiple Choice activity).
+    const ARENA_COLORS = { A: "#0d9488", B: "#2563eb", C: "#d97706", D: "#7c3aed", E: "#db2777", F: "#475569" };
+    const ARENA_DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+    const ARENA_KEYMAP = {
         ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down",
         ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
     };
-    const QUIZ_STEP_MS = 130;
+    const ARENA_STEP_MS = 130;
 
-    function quizColor(letter) {
-        return QUIZ_COLORS[letter] || "#475569";
+    function arenaColor(letter) {
+        return ARENA_COLORS[letter] || "#475569";
+    }
+
+    function letterClass(letter) {
+        return ARENA_COLORS[letter] ? "is-letter-" + String(letter).toLowerCase() : "is-letter-other";
     }
 
     function formatClock(totalSeconds) {
@@ -339,28 +275,23 @@
         return html;
     }
 
-    async function fetchQuizState(laId) {
-        const response = await fetch(`${API_BASE_URL}/api/lesson-activities/quiz-state?la_id=${encodeURIComponent(laId)}`, {
-            credentials: "include"
-        });
-        const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.message || "Request failed");
-        return data.state;
-    }
-
-    async function postQuizLoseLife(laId) {
-        const response = await fetch(`${API_BASE_URL}/api/lesson-activities/quiz-lose-life`, {
+    async function mcqRequest(path, laId, extra) {
+        const isGet = path === "state";
+        const url = isGet
+            ? `${API_BASE_URL}/api/lesson-activities/mcq/state?la_id=${encodeURIComponent(laId)}`
+            : `${API_BASE_URL}/api/lesson-activities/mcq/${path}`;
+        const response = await fetch(url, isGet ? { credentials: "include" } : {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({ la_id: laId })
+            body: JSON.stringify(Object.assign({ la_id: laId }, extra || {}))
         });
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error(data.message || "Request failed");
-        return data.state;
+        return data;
     }
 
-    function renderQuiz(activity, container, onActivityDone) {
+    function renderMCQ(activity, container, onActivityDone) {
         const questions = activity.items || [];
         const total = questions.length;
         if (total === 0) {
@@ -369,62 +300,63 @@
         }
 
         container.innerHTML = "";
-        const root = el("div", "quiz-root");
+        const root = el("div", "mcq-arena-root");
         root.innerHTML = `
-            <header class="quiz-topbar">
-                <div class="quiz-brand">
-                    <span class="quiz-brand-icon"><i class="fa-solid fa-gamepad"></i></span>
+            <header class="mcq-arena-topbar">
+                <div class="mcq-arena-brand">
+                    <span class="mcq-arena-brand-icon"><i class="fa-solid fa-list-check"></i></span>
                     <div>
-                        <span class="quiz-brand-eyebrow">Activity · Quiz</span>
-                        <h3 class="quiz-brand-title" data-q="title"></h3>
+                        <span class="mcq-arena-brand-eyebrow">Activity · Multiple Choice</span>
+                        <h3 class="mcq-arena-brand-title" data-ui="title"></h3>
                     </div>
                 </div>
-                <div class="quiz-stats">
-                    <div class="quiz-stat is-score" data-q="scoreStat"><b data-q="score">0</b><i>Score</i></div>
-                    <div class="quiz-stat"><b data-q="progress">1/${total}</b><i>Question</i></div>
-                    <div class="quiz-stat"><b data-q="streak">0</b><i>Streak</i></div>
-                    <div class="quiz-stat is-lives" data-q="livesStat"><b data-q="lives"></b><i data-q="livesLabel">Lives</i></div>
+                <div class="mcq-arena-stats">
+                    <div class="mcq-arena-stat is-score" data-ui="scoreStat"><b data-ui="score">0</b><i>Score</i></div>
+                    <div class="mcq-arena-stat"><b data-ui="progress">1/${total}</b><i>Question</i></div>
+                    <div class="mcq-arena-stat"><b data-ui="streak">0</b><i>Streak</i></div>
+                    <div class="mcq-arena-stat is-lives" data-ui="livesStat"><b data-ui="lives"></b><i data-ui="livesLabel">Lives</i></div>
                 </div>
             </header>
-            <section class="quiz-qcard">
-                <div class="quiz-qleft">
-                    <div class="quiz-qmeta" data-q="qmeta"></div>
-                    <p class="quiz-qtext" data-q="qtext"></p>
+            <section class="mcq-arena-qcard">
+                <div class="mcq-arena-qleft">
+                    <div class="mcq-arena-qmeta" data-ui="qmeta"></div>
+                    <p class="mcq-arena-qtext" data-ui="qtext"></p>
                 </div>
-                <div class="quiz-choices" data-q="choices"></div>
+                <div class="mcq-arena-choices" data-ui="choices"></div>
             </section>
-            <div class="activity-feedback-box" data-q="fallbackFeedback" style="display: none;"></div>
-            <div class="quiz-arena" data-q="arena">
-                <canvas class="quiz-canvas" data-q="canvas"></canvas>
-                <div class="quiz-flash" data-q="flash"></div>
-                <div class="quiz-overlay" data-q="overlay" hidden></div>
+            <div class="activity-feedback-box" data-ui="fallbackFeedback" hidden></div>
+            <div class="mcq-arena-stage" data-ui="arena">
+                <canvas class="mcq-arena-canvas" data-ui="canvas"></canvas>
+                <div class="mcq-arena-flash" data-ui="flash"></div>
+                <div class="mcq-arena-overlay" data-ui="overlay" hidden></div>
             </div>
-            <div class="quiz-toolbar">
-                <p class="quiz-hint" data-q="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter, hitting a wall, or biting yourself costs a life. Lives refill one every 5 minutes.</p>
-                <button type="button" class="quiz-ghost-btn" data-q="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
+            <div class="mcq-arena-toolbar">
+                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter, hitting a wall, or biting yourself costs a life. Lives refill one every 5 minutes.</p>
+                <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
             </div>
-            <div class="quiz-dpad" data-q="dpad">
-                <button type="button" class="quiz-dpad-up" data-dir="up" aria-label="Up"><i class="fa-solid fa-arrow-up"></i></button>
-                <button type="button" class="quiz-dpad-left" data-dir="left" aria-label="Left"><i class="fa-solid fa-arrow-left"></i></button>
-                <button type="button" class="quiz-dpad-down" data-dir="down" aria-label="Down"><i class="fa-solid fa-arrow-down"></i></button>
-                <button type="button" class="quiz-dpad-right" data-dir="right" aria-label="Right"><i class="fa-solid fa-arrow-right"></i></button>
+            <div class="mcq-arena-dpad" data-ui="dpad">
+                <button type="button" class="mcq-arena-dpad-up" data-dir="up" aria-label="Up"><i class="fa-solid fa-arrow-up"></i></button>
+                <button type="button" class="mcq-arena-dpad-left" data-dir="left" aria-label="Left"><i class="fa-solid fa-arrow-left"></i></button>
+                <button type="button" class="mcq-arena-dpad-down" data-dir="down" aria-label="Down"><i class="fa-solid fa-arrow-down"></i></button>
+                <button type="button" class="mcq-arena-dpad-right" data-dir="right" aria-label="Right"><i class="fa-solid fa-arrow-right"></i></button>
             </div>
         `;
         container.appendChild(root);
 
         const ui = {};
-        root.querySelectorAll("[data-q]").forEach((node) => { ui[node.dataset.q] = node; });
+        root.querySelectorAll("[data-ui]").forEach((node) => { ui[node.dataset.ui] = node; });
         ui.title.textContent = activity.activity_title;
 
         // ---- state ----
         let server = null;          // last state the server sent
-        let mode = "loading";       // loading | ready | playing | paused | busy | cooldown | done | error
+        let mode = "loading";       // loading | ready | playing | paused | busy | tryagain | outoflives | done | error
         let booted = false;
         let disposed = false;
         let fallback = false;       // no WebGL -> tap the answer chips instead
         let arena = null;
         let qIndex = 0;
-        let score = 0, streak = 0, bestStreak = 0;
+        let triedIds = new Set();   // wrong options already tried on this question
+        let streak = 0, bestStreak = 0;
         let COLS = 40, ROWS = 15;
         let snake = [], prevSnake = [], pellets = [];
         let dir = { x: 1, y: 0 }, nextDir = { x: 1, y: 0 };
@@ -449,7 +381,7 @@
         }
 
         function updateHUD() {
-            ui.score.textContent = score;
+            ui.score.textContent = server ? server.score : 0;
             ui.progress.textContent = `${Math.min(qIndex + 1, total)}/${total}`;
             ui.streak.textContent = streak;
             const lives = server ? server.lives : 3;
@@ -469,68 +401,71 @@
         function flash(message, ok) {
             clearTimeout(flashTimer);
             if (fallback) {
-                ui.fallbackFeedback.style.display = "block";
+                ui.fallbackFeedback.hidden = false;
                 ui.fallbackFeedback.className = "activity-feedback-box " + (ok ? "is-correct" : "is-incorrect");
                 ui.fallbackFeedback.textContent = message;
                 return;
             }
             ui.flash.textContent = message;
-            ui.flash.className = "quiz-flash show " + (ok ? "is-ok" : "is-no");
-            flashTimer = setTimeout(() => { ui.flash.className = "quiz-flash"; }, 1600);
+            ui.flash.className = "mcq-arena-flash show " + (ok ? "is-ok" : "is-no");
+            flashTimer = setTimeout(() => { ui.flash.className = "mcq-arena-flash"; }, 1600);
         }
 
-        // ---- overlay (only static markup goes through innerHTML) ----
+        // ---- overlays (only static markup goes through innerHTML; learner/DB text uses textContent) ----
         function showOverlay(html) {
             ui.overlay.innerHTML = html;
             ui.overlay.hidden = false;
-            if (fallback) ui.arena.style.display = "";
+            if (fallback) ui.arena.hidden = false;
         }
 
         function hideOverlay() {
             ui.overlay.hidden = true;
             ui.overlay.innerHTML = "";
-            if (fallback) ui.arena.style.display = "none";
+            if (fallback) ui.arena.hidden = true;
         }
 
-        function showReady(restored) {
-            if (fallback) {
-                hideOverlay();
-                setMode("playing");
-                if (restored) flash("A life is back. Keep going!", true);
-                return;
-            }
+        function overlayNode(name) {
+            return ui.overlay.querySelector(`[data-ui="${name}"]`);
+        }
+
+        function showReady(kind) {
             setMode("ready");
-            const title = restored ? "A life is back"
-                : qIndex > 0 ? "Pick up where you left off"
-                : "Feed the cobra the right answer";
+            const copy = {
+                start: { icon: "fa-gamepad", title: "Feed the cobra the right answer", btn: "Start activity" },
+                continue: { icon: "fa-gamepad", title: "Pick up where you left off", btn: "Continue" },
+                resume: { icon: "fa-heart", title: "You have a life again", btn: "Resume activity" }
+            }[kind];
+            const body = kind === "resume"
+                ? `Your activity was paused at question ${qIndex + 1}. It continues from exactly there.`
+                : "Steer the cobra into the letter that answers the question. A wrong letter, a wall, or biting yourself costs a life.";
             showOverlay(`
-                <div class="quiz-overlay-card">
-                    <i class="fa-solid ${restored ? "fa-heart" : "fa-gamepad"} quiz-overlay-icon"></i>
-                    <h4>${title}</h4>
-                    <p>Steer the cobra into the letter that answers the question. A wrong letter, a wall, or biting yourself costs a life.</p>
-                    <div class="quiz-keys"><kbd>W A S D</kbd><kbd>Arrow keys</kbd><kbd>Space = pause</kbd></div>
-                    <div class="quiz-overlay-actions">
-                        <button type="button" class="quiz-primary-btn" data-q="startBtn">${qIndex > 0 ? "Resume quiz" : "Start quiz"}</button>
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid ${copy.icon} mcq-arena-overlay-icon"></i>
+                    <h4>${copy.title}</h4>
+                    <p>${body}</p>
+                    ${fallback ? "" : '<div class="mcq-arena-keys"><kbd>W A S D</kbd><kbd>Arrow keys</kbd><kbd>Space = pause</kbd></div>'}
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="playBtn">${copy.btn}</button>
                     </div>
                 </div>
             `);
-            ui.overlay.querySelector('[data-q="startBtn"]').addEventListener("click", resumePlay);
+            overlayNode("playBtn").addEventListener("click", beginPlay);
         }
 
         function pause() {
             if (mode !== "playing" || fallback) return;
             setMode("paused");
             showOverlay(`
-                <div class="quiz-overlay-card">
-                    <i class="fa-solid fa-pause quiz-overlay-icon"></i>
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid fa-pause mcq-arena-overlay-icon"></i>
                     <h4>Paused</h4>
                     <p>Take a breath. Your progress is saved.</p>
-                    <div class="quiz-overlay-actions">
-                        <button type="button" class="quiz-primary-btn" data-q="resumeBtn">Resume</button>
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="resumeBtn">Resume</button>
                     </div>
                 </div>
             `);
-            ui.overlay.querySelector('[data-q="resumeBtn"]').addEventListener("click", resumePlay);
+            overlayNode("resumeBtn").addEventListener("click", resumePlay);
         }
 
         function resumePlay() {
@@ -541,43 +476,102 @@
             setMode("playing");
         }
 
-        function enterCooldown() {
-            setMode("cooldown");
-            const max = server ? server.max_lives : 3;
+        function showTryAgain(option, feedback) {
+            setMode("tryagain");
+            const lives = server ? server.lives : 0;
             showOverlay(`
-                <div class="quiz-overlay-card">
-                    <div class="quiz-overlay-hearts">${heartsHtml(0, max)}</div>
-                    <div class="quiz-countdown" data-q="countdown">${formatClock(server ? server.seconds_to_next_life : 0)}</div>
-                    <p>until your next life. You'll resume at question ${qIndex + 1}. Review the lesson while you wait. Your progress is saved.</p>
-                    <div class="quiz-overlay-actions">
-                        <button type="button" class="quiz-primary-btn" data-q="reviewBtn"><i class="fa-solid fa-book-open"></i> Review lesson</button>
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid fa-circle-xmark mcq-arena-overlay-icon is-danger"></i>
+                    <h4>Try Again</h4>
+                    <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
+                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. You're still on question ${qIndex + 1}.</p>
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="tryBtn"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
                     </div>
                 </div>
             `);
-            ui.overlay.querySelector('[data-q="reviewBtn"]').addEventListener("click", () => {
+            overlayNode("tryFeedback").textContent = feedback || `${option.option_letter} isn't the right answer.`;
+            overlayNode("tryBtn").addEventListener("click", () => {
+                if (disposed) return;
+                startQuestion();
+                if (fallback) {
+                    hideOverlay();
+                    setMode("playing");
+                    return;
+                }
+                resumePlay();
+            });
+        }
+
+        function showOutOfLives() {
+            setMode("outoflives");
+            const max = server ? server.max_lives : 3;
+            showOverlay(`
+                <div class="mcq-arena-overlay-card is-wide">
+                    <div class="mcq-arena-overlay-hearts" data-ui="outHearts">${heartsHtml(0, max)}</div>
+                    <h4 data-ui="outTitle">You're out of lives.</h4>
+                    <p>While waiting for at least 1 life to become available, you can review the current lesson or previous lessons. Your activity progress is paused and will continue from where you stopped once you have at least 1 life.</p>
+                    <p class="mcq-arena-subnote" data-ui="outWhere"></p>
+                    <div class="mcq-arena-countdown-row" data-ui="outCountdownRow">
+                        <span>Next life in</span>
+                        <b class="mcq-arena-countdown" data-ui="countdown">${formatClock(server ? server.seconds_to_next_life : 0)}</b>
+                    </div>
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-ghost-btn" data-ui="reviewBtn"><i class="fa-solid fa-book-open"></i> Review this lesson</button>
+                        <button type="button" class="mcq-arena-ghost-btn" data-ui="lessonsBtn"><i class="fa-solid fa-layer-group"></i> Back to lessons</button>
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="outResumeBtn" disabled><i class="fa-solid fa-play"></i> Resume activity</button>
+                    </div>
+                </div>
+            `);
+            overlayNode("outWhere").textContent = `Paused at question ${qIndex + 1} of ${total}.`;
+            overlayNode("reviewBtn").addEventListener("click", () => {
                 document.dispatchEvent(new CustomEvent("cobrabyte:review-lesson"));
             });
+            overlayNode("lessonsBtn").addEventListener("click", () => {
+                const link = document.getElementById("backToLessonsLink");
+                if (link && link.getAttribute("href") && link.getAttribute("href") !== "#") {
+                    window.location.href = link.href;
+                } else {
+                    window.location.href = "/lessons";
+                }
+            });
+            overlayNode("outResumeBtn").addEventListener("click", beginPlay);
+            syncOutOfLives();
+        }
+
+        // Unlocks Resume in place once the server reports at least 1 life.
+        function syncOutOfLives() {
+            if (mode !== "outoflives" || !server) return;
+            const hasLife = server.lives > 0;
+            const hearts = overlayNode("outHearts");
+            const title = overlayNode("outTitle");
+            const row = overlayNode("outCountdownRow");
+            const btn = overlayNode("outResumeBtn");
+            if (hearts) hearts.innerHTML = heartsHtml(server.lives, server.max_lives);
+            if (title) title.textContent = hasLife ? "A life is back!" : "You're out of lives.";
+            if (row) row.hidden = hasLife;
+            if (btn) btn.disabled = !hasLife;
         }
 
         function finish() {
             setMode("done");
-            const correct = server ? server.correct_count : 0;
+            const score = server ? server.score : 0;
             showOverlay(`
-                <div class="quiz-overlay-card">
-                    <i class="fa-solid fa-trophy quiz-overlay-icon"></i>
-                    <h4>Quiz complete</h4>
-                    <div class="quiz-results">
-                        <div><b>${correct}/${total}</b><span>Correct</span></div>
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid fa-trophy mcq-arena-overlay-icon"></i>
+                    <h4>Activity complete</h4>
+                    <div class="mcq-arena-results">
+                        <div><b>${score}/${total}</b><span>Score</span></div>
                         <div><b>${bestStreak}</b><span>Best streak</span></div>
-                        <div><b>${score}</b><span>Score</span></div>
+                        <div><b>${total}</b><span>Questions</span></div>
                     </div>
-                    <p class="quiz-saved-note">Saved to your progress: ${correct} correct</p>
-                    <div class="quiz-overlay-actions">
-                        <button type="button" class="quiz-primary-btn" data-q="continueBtn">Continue</button>
+                    <p class="mcq-arena-subnote">Saved to your progress: ${score}/${total} answered right on the first try.</p>
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="continueBtn">Continue</button>
                     </div>
                 </div>
             `);
-            ui.overlay.querySelector('[data-q="continueBtn"]').addEventListener("click", () => {
+            overlayNode("continueBtn").addEventListener("click", () => {
                 dispose();
                 onActivityDone();
             });
@@ -586,21 +580,20 @@
         function showError(message) {
             setMode("error");
             showOverlay(`
-                <div class="quiz-overlay-card">
-                    <i class="fa-solid fa-triangle-exclamation quiz-overlay-icon is-warn"></i>
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid fa-triangle-exclamation mcq-arena-overlay-icon is-warn"></i>
                     <h4>Something went wrong</h4>
-                    <p data-q="errorText"></p>
-                    <div class="quiz-overlay-actions">
-                        <button type="button" class="quiz-primary-btn" data-q="retryBtn">Try again</button>
+                    <p data-ui="errorText"></p>
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="retryBtn">Reload activity</button>
                     </div>
                 </div>
             `);
-            ui.overlay.querySelector('[data-q="errorText"]').textContent =
-                message || "Could not reach the server. Your progress is saved.";
-            ui.overlay.querySelector('[data-q="retryBtn"]').addEventListener("click", async () => {
+            overlayNode("errorText").textContent = message || "Could not reach the server. Your progress is saved.";
+            overlayNode("retryBtn").addEventListener("click", async () => {
                 if (!booted) { boot(); return; }
                 try {
-                    applyState(await fetchQuizState(activity.la_id));
+                    applyState((await mcqRequest("state", activity.la_id)).state);
                 } catch (err) {
                     return;
                 }
@@ -614,18 +607,16 @@
             ui.qmeta.textContent = `Question ${qIndex + 1} of ${total}`;
             ui.qtext.textContent = q.question_text;
             ui.choices.innerHTML = "";
-            ui.fallbackFeedback.style.display = "none";
+            ui.fallbackFeedback.hidden = true;
             (q.options || []).forEach((opt) => {
-                const color = quizColor(opt.option_letter);
-                const btn = el("button", "quiz-choice");
+                const btn = el("button", "mcq-arena-choice");
                 btn.type = "button";
                 btn.tabIndex = fallback ? 0 : -1;
                 btn.dataset.optionId = opt.option_id;
-                const keyBadge = el("span", "quiz-key");
+                if (triedIds.has(opt.option_id)) btn.classList.add("is-wrong");
+                const keyBadge = el("span", "mcq-arena-key " + letterClass(opt.option_letter));
                 keyBadge.textContent = opt.option_letter;
-                keyBadge.style.color = color;
-                keyBadge.style.background = color + "1a";
-                const label = el("span", "quiz-choice-text");
+                const label = el("span", "mcq-arena-choice-text");
                 label.textContent = opt.text;
                 btn.appendChild(keyBadge);
                 btn.appendChild(label);
@@ -675,6 +666,7 @@
             });
         }
 
+        // Fresh board for the CURRENT question (also used for Try Again).
         function startQuestion() {
             spawnSnake();
             spawnPellets();
@@ -682,23 +674,49 @@
             updateHUD();
         }
 
+        function goToServerQuestion() {
+            const next = Math.min(server.current_index, total - 1);
+            if (next !== qIndex) triedIds = new Set();
+            qIndex = next;
+            startQuestion();
+        }
+
         function resyncFromState() {
             if (server.completed) {
                 finish();
                 return;
             }
-            qIndex = Math.min(server.current_index, total - 1);
-            startQuestion();
-            if (server.lives <= 0) enterCooldown();
-            else showReady(false);
+            goToServerQuestion();
+            if (server.lives <= 0) showOutOfLives();
+            else if (server.session_status === "paused") showReady("resume");
+            else if (server.session_status === "in_progress") showReady("continue");
+            else showReady("start");
         }
 
-        function markChoices(selectedId, correctId, isCorrect) {
-            ui.choices.querySelectorAll(".quiz-choice").forEach((btn) => {
-                const id = Number(btn.dataset.optionId);
-                if (id === correctId) btn.classList.add("is-right");
-                if (id === selectedId && !isCorrect) btn.classList.add("is-wrong");
-            });
+        // Start the ONE play, or continue/resume that same play.
+        async function beginPlay() {
+            if (disposed || mode === "busy") return;
+            setMode("busy");
+            let data = null;
+            try {
+                data = await mcqRequest("play", activity.la_id);
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (server.completed || server.session_status !== "in_progress") {
+                resyncFromState();
+                return;
+            }
+            goToServerQuestion();
+            if (fallback) {
+                hideOverlay();
+                setMode("playing");
+                return;
+            }
+            resumePlay();
         }
 
         // ---- answering ----
@@ -709,38 +727,43 @@
 
             let result = null;
             try {
-                result = await checkAnswer({ type: "quiz", la_id: activity.la_id, q_id: q.q_id, option_id: option.option_id });
+                result = await mcqRequest("answer", activity.la_id, { q_id: q.q_id, option_id: option.option_id });
             } catch (err) {
-                result = null;
-            }
-            if (disposed) return;
-            if (!result || !result.success) {
-                showError(result && result.message);
+                if (!disposed) showError(err.message);
                 return;
             }
+            if (disposed) return;
 
             applyState(result.state);
             if (!result.graded) {
-                // Out of lives or on a different question than the server - resync.
+                // Out of lives, paused, or on a different question than the server - resync.
                 resyncFromState();
                 return;
             }
 
-            markChoices(option.option_id, result.correct_option_id, result.is_correct);
+            const chip = ui.choices.querySelector(`.mcq-arena-choice[data-option-id="${option.option_id}"]`);
             if (result.is_correct) {
                 streak += 1;
                 bestStreak = Math.max(bestStreak, streak);
-                score += 100 + streak * 20;
+                if (chip) chip.classList.add("is-right");
                 bump(ui.scoreStat);
                 flash(result.feedback || `Correct: ${option.option_letter}. ${option.text}`, true);
-            } else {
-                streak = 0;
-                shake = 12;
-                bump(ui.livesStat);
-                flash(`${result.feedback || `Not ${option.option_letter}.`} (−1 life)`, false);
+                setTimeout(() => { if (!disposed) advance(); }, fallback ? 1600 : 1100);
+                return;
             }
+
+            streak = 0;
+            shake = 12;
+            triedIds.add(option.option_id);
+            if (chip) chip.classList.add("is-wrong");
+            bump(ui.livesStat);
             updateHUD();
-            setTimeout(() => { if (!disposed) advance(); }, fallback ? 2200 : 1300);
+            if (server.lives <= 0) {
+                flash(result.feedback || `${option.option_letter} isn't the right answer.`, false);
+                setTimeout(() => { if (!disposed) showOutOfLives(); }, 900);
+                return;
+            }
+            showTryAgain(option, result.feedback);
         }
 
         function advance() {
@@ -748,12 +771,7 @@
                 finish();
                 return;
             }
-            qIndex = server.current_index;
-            startQuestion();
-            if (server.lives <= 0) {
-                enterCooldown();
-                return;
-            }
+            goToServerQuestion();
             if (fallback) {
                 setMode("playing");
                 return;
@@ -767,35 +785,32 @@
             streak = 0;
             bump(ui.livesStat);
 
-            let state = null;
+            let data = null;
             try {
-                state = await postQuizLoseLife(activity.la_id);
+                data = await mcqRequest("lose-life", activity.la_id);
             } catch (err) {
-                state = null;
-            }
-            if (disposed) return;
-            if (!state) {
-                showError();
+                if (!disposed) showError(err.message);
                 return;
             }
+            if (disposed) return;
 
-            applyState(state);
-            flash(state.lives > 0
-                ? `${reason}. ${state.lives} ${state.lives === 1 ? "life" : "lives"} left.`
+            applyState(data.state);
+            flash(server.lives > 0
+                ? `${reason}. ${server.lives} ${server.lives === 1 ? "life" : "lives"} left.`
                 : `${reason}. You're out of lives.`, false);
             spawnSnake();
             keepPelletsClear();
             updateHUD();
             setTimeout(() => {
                 if (disposed) return;
-                if (server.lives <= 0) enterCooldown();
+                if (server.lives <= 0) showOutOfLives();
                 else resumePlay();
             }, 900);
         }
 
         // ---- game loop ----
         function setDir(name) {
-            const d = QUIZ_DIRS[name];
+            const d = ARENA_DIRS[name];
             if (!d || (d.x === -dir.x && d.y === -dir.y)) return;
             nextDir = d;
         }
@@ -803,7 +818,7 @@
         function steer(name) {
             if (fallback) return false;
             if (mode === "playing") { setDir(name); return true; }
-            if (mode === "ready" || mode === "paused") { setDir(name); resumePlay(); return true; }
+            if (mode === "paused") { setDir(name); resumePlay(); return true; }
             return false;
         }
 
@@ -828,7 +843,7 @@
                 return;
             }
             const pellet = pellets[hit];
-            if (arena) arena.burst(pellet.x, pellet.y, quizColor(pellet.letter));
+            if (arena) arena.burst(pellet.x, pellet.y, arenaColor(pellet.letter));
             pellets.splice(hit, 1);
             submitAnswer(pellet.option);
         }
@@ -844,10 +859,10 @@
             arena.render({
                 segs: pts,
                 headAngle: Math.atan2(head.y - neck.y, head.x - neck.x),
-                pellets: pellets.map((p) => ({ x: p.x, y: p.y, letter: p.letter, color: quizColor(p.letter) })),
+                pellets: pellets.map((p) => ({ x: p.x, y: p.y, letter: p.letter, color: arenaColor(p.letter) })),
                 shake: shake * 0.05,
                 dt: dtSeconds,
-                dead: mode === "cooldown"
+                dead: mode === "outoflives"
             });
         }
 
@@ -864,13 +879,13 @@
             last = ts;
             if (mode === "playing") {
                 acc += dtMs;
-                while (acc >= QUIZ_STEP_MS && mode === "playing") {
+                while (acc >= ARENA_STEP_MS && mode === "playing") {
                     step();
-                    acc -= QUIZ_STEP_MS;
+                    acc -= ARENA_STEP_MS;
                 }
             }
             if (shake > 0) shake = Math.max(0, shake - dtMs * 0.05);
-            if (visible) draw(mode === "playing" ? Math.min(1, acc / QUIZ_STEP_MS) : 1, dtMs / 1000);
+            if (visible) draw(mode === "playing" ? Math.min(1, acc / ARENA_STEP_MS) : 1, dtMs / 1000);
             rafId = requestAnimationFrame(loop);
         }
 
@@ -888,7 +903,7 @@
                 return;
             }
             updateHUD();
-            const countdown = ui.overlay.querySelector('[data-q="countdown"]');
+            const countdown = overlayNode("countdown");
             if (countdown) countdown.textContent = formatClock(server.seconds_to_next_life);
         }
 
@@ -896,10 +911,10 @@
             if (refreshing) return;
             refreshing = true;
             try {
-                const state = await fetchQuizState(activity.la_id);
+                const data = await mcqRequest("state", activity.la_id);
                 if (disposed) return;
-                applyState(state);
-                if (mode === "cooldown" && state.lives > 0) showReady(true);
+                applyState(data.state);
+                syncOutOfLives();
             } catch (err) {
                 if (server) server.seconds_to_next_life = 5; // retry shortly
             } finally {
@@ -913,7 +928,7 @@
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
 
-            const name = QUIZ_KEYMAP[e.code];
+            const name = ARENA_KEYMAP[e.code];
             if (name) {
                 if (steer(name)) e.preventDefault();
                 return;
@@ -951,7 +966,7 @@
             if (disposed || fallback) return;
             const gridChanged = computeLayout();
             if (arena) arena.resize();
-            if (gridChanged && ["ready", "playing", "paused", "cooldown"].includes(mode)) {
+            if (gridChanged && ["ready", "playing", "paused", "tryagain", "outoflives"].includes(mode)) {
                 startQuestion(); // re-place the board for the new grid, same question
             }
         }
@@ -994,23 +1009,22 @@
         async function boot() {
             setMode("loading");
             showOverlay(`
-                <div class="quiz-overlay-card">
-                    <i class="fa-solid fa-spinner fa-spin quiz-overlay-icon"></i>
-                    <p>Loading quiz...</p>
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid fa-spinner fa-spin mcq-arena-overlay-icon"></i>
+                    <p>Loading activity...</p>
                 </div>
             `);
 
-            let state;
+            let data;
             try {
-                state = await fetchQuizState(activity.la_id);
+                data = await mcqRequest("state", activity.la_id);
             } catch (err) {
-                console.error("Error loading quiz state:", err);
-                if (!disposed) showError("Could not load this quiz.");
+                console.error("Error loading Multiple Choice state:", err);
+                if (!disposed) showError("Could not load this activity.");
                 return;
             }
             if (disposed) return;
-            applyState(state);
-            score = state.correct_count * 100;
+            applyState(data.state);
 
             computeLayout();
             try {
@@ -1019,7 +1033,7 @@
                 arena = mod.createArena(ui.canvas);
                 arena.setGrid(COLS, ROWS);
             } catch (err) {
-                console.warn("Quiz arena unavailable, switching to tap-to-answer:", err);
+                console.warn("Arena unavailable, switching to tap-to-answer:", err);
                 fallback = true;
                 arena = null;
                 root.classList.add("is-fallback");
@@ -1063,8 +1077,6 @@
             renderFillBlanks(activity, container, onActivityDone);
         } else if (activity.activity_type === "Flashcards") {
             renderFlashcards(activity, container, onActivityDone);
-        } else if (activity.activity_type === "Quiz") {
-            renderQuiz(activity, container, onActivityDone);
         } else {
             onActivityDone();
         }
