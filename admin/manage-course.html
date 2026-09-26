@@ -26,42 +26,47 @@
             <!-- Manage Course Content Area -->
             <div class="dashboard-content-area">
                 
-                <!-- Top Bar -->
+                <!-- Page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Manage Course</h1>
-                        <p>Create, edit, and organize Python lessons for beginners.</p>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Create, edit, and organize Python lessons for beginners.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
+                        <div class="page-header-actions">
                             <!-- Task #87: Header Button Layout: [+ module] [+ category] [archive icon] [eye icon] -->
-                            <button id="openCreateModuleBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-plus"></i> Module
+                            <button type="button" id="openCreateModuleBtn" class="btn-pill-green">
+                                <span class="mask-icon icon-plus"></span> Module
                             </button>
-                            <button id="openCreateCategoryBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-plus"></i> Category
+                            <button type="button" id="openCreateCategoryBtn" class="btn-pill-green">
+                                <span class="mask-icon icon-plus"></span> Category
                             </button>
-                            <button id="openArchivedModulesBtn" class="btn btn-icon-custom" title="Archived Items">
-                                <i class="fa-solid fa-box-archive"></i>
+                            <button type="button" id="openArchivedModulesBtn" class="btn-round-green" title="Archived Items" aria-label="Archived Items">
+                                <span class="mask-icon icon-archive"></span>
                             </button>
-                            <button id="openViewCategoriesBtn" class="btn btn-icon-custom" title="View Categories">
-                                <i class="fa-solid fa-eye"></i>
+                            <button type="button" id="openViewCategoriesBtn" class="btn-round-green" title="View Categories" aria-label="View Categories">
+                                <span class="mask-icon icon-eye"></span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Data Table Card Box -->
-                <div class="card-box padded-card">
-                    
+                <!-- Modules Table Card -->
+                <div class="table-card">
+
                     <!-- Table Toolbar -->
                     <div class="table-toolbar">
                         <div class="header-search search-override">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <span class="mask-icon icon-search search-icon"></span>
                             <input type="text" id="moduleSearchInput" placeholder="Search modules, categories...">
                         </div>
                         <div class="toolbar-filters">
@@ -120,10 +125,11 @@
                     </div>
 
                     <!-- Task #30: inline validation message (e.g. invalid date range) -->
-                    <p id="dateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
+                    <p id="dateFilterError" class="date-filter-error"></p>
 
                     <!-- Courses / Modules Table -->
-                    <table class="data-table">
+                    <div class="table-scroll">
+                    <table class="data-table modules-table">
                         <thead>
                             <tr>
                                 <th>Module</th>
@@ -181,14 +187,15 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
                         <span id="modulesShowingCount">Showing {{ modules|length }} of {{ total_modules|default(0) }} Modules</span>
                         <span>
-                            <button id="modulesPrevBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
+                            <button type="button" id="modulesPrevBtn" class="icon-button-reset" aria-label="Previous page" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
                             <span id="modulesPageLabel">{{ page|default(1) }} of {{ total_pages|default(1) }}</span>
-                            <button id="modulesNextBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
+                            <button type="button" id="modulesNextBtn" class="icon-button-reset" aria-label="Next page" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
                         </span>
                     </div>
 

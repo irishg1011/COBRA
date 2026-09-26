@@ -271,13 +271,13 @@
         function groupHtml(label, type, items) {
             if (!items || items.length === 0) return "";
             const rows = items.map((it) => `
-                <label class="checkbox-label" style="display: flex; align-items: center; margin-bottom: 8px;">
+                <label class="checkbox-label restore-item-label">
                     <input type="checkbox" class="restore-item-checkbox" data-type="${type}" data-id="${it.id}" checked>
-                    <span style="margin-left: 8px;">${escapeHtml(it.name)}</span>
+                    <span class="restore-item-name">${escapeHtml(it.name)}</span>
                 </label>
             `).join("");
             return `
-                <div class="form-section-group" style="margin-bottom: 14px;">
+                <div class="form-section-group restore-group">
                     <span class="form-section-label">${label}</span>
                     ${rows}
                 </div>

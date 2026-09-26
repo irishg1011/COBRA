@@ -92,6 +92,7 @@ body {
 .icon-user-online { --icon: url('/assets/images/icons/icon-user-online.svg'); }
 .icon-lock-reset  { --icon: url('/assets/images/icons/icon-lock-reset.svg'); }
 .icon-search      { --icon: url('/assets/images/icons/icon-search.svg'); }
+.icon-archive     { --icon: url('/assets/images/icons/icon-archive.svg'); }
 
 /* ==========================================================================
    SIDEBAR
@@ -2948,7 +2949,7 @@ textarea.form-control-custom {
     flex-wrap: wrap;
 }
 
-.table-card .custom-select {
+.table-card select.custom-select {
     appearance: none;
     -webkit-appearance: none;
     min-width: 88px;
@@ -2961,7 +2962,7 @@ textarea.form-control-custom {
     cursor: pointer;
 }
 
-.table-card .custom-select:focus-visible {
+.table-card select.custom-select:focus-visible {
     outline: 2px solid var(--admin-blue);
     outline-offset: 1px;
 }
@@ -3061,5 +3062,229 @@ textarea.form-control-custom {
     padding: 12px;
     font-size: 10px;
     color: #4b5563;
+}
+
+/* ==========================================================================
+   MANAGE COURSE (admin redesign)
+   Reuses the .table-card look from Account & Security; everything
+   below only adds what Manage Course has on top of it.
+   ========================================================================== */
+
+/* --- Top bar: date/time with the page's action buttons under it --- */
+.top-bar-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.page-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-pill-green {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 999px;
+    background: #09B300;
+    color: #ffffff;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.btn-pill-green .mask-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.btn-round-green {
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 50%;
+    background: #09B300;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-round-green .mask-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.btn-pill-green:hover,
+.btn-round-green:hover {
+    background: #079600;
+}
+
+.btn-pill-green:focus-visible,
+.btn-round-green:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+/* --- Toolbar: Created At / Updated At date filters --- */
+.table-card .date-filter-group {
+    background: #ffffff;
+    border: 1px solid #6b7280;
+    border-radius: 6px;
+    padding: 3px 8px;
+}
+
+.table-card .date-filter-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--admin-text);
+}
+
+.table-card .date-filter-group .custom-select {
+    border: none;
+    padding: 5px 4px;
+    font-size: 12px;
+    background: transparent;
+}
+
+.table-card .date-filter-group .table-action-icon {
+    color: var(--admin-muted);
+}
+
+/* Date filter validation message (#dateFilterError). Hidden by default;
+   admin-manage-course.js shows/hides it with style.display. */
+.date-filter-error {
+    display: none;
+    color: #e02424;
+    font-size: 12px;
+    margin: -4px 12px 10px;
+}
+
+/* --- Modules table --- */
+.modules-table td:first-child {
+    white-space: normal;
+    min-width: 240px;
+    max-width: 380px;
+}
+
+.modules-table .table-item-title {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.modules-table td:first-child small {
+    display: block;
+    max-width: 100%;
+    font-size: 10px;
+    color: var(--admin-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.table-card .table-actions-group {
+    justify-content: center;
+    gap: 12px;
+}
+
+.table-card .table-actions-group .table-action-icon {
+    font-size: 13px;
+}
+
+/* Status badges this table adds on top of the shared .table-card ones */
+.table-card .badge-draft {
+    background: #FEF3C7;
+    color: #A16207;
+}
+
+.table-card .badge-ready {
+    background: #FFE4CC;
+    color: #C2410C;
+}
+
+/* --- Publish Action buttons: smaller pills that size to their label ---
+   Colors still come from .btn-unpublish-custom / .btn-movedraft-custom /
+   .btn-ready-custom. .btn-pill-sm is also used by the category publish
+   buttons in the Categories modal (admin-manage-course.js). */
+.table-card .js-toggle-publish-module-btn,
+.btn-pill-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* --- Pagination --- */
+.table-card .table-pagination button {
+    padding: 0 4px;
+    font-size: 12px;
+    color: inherit;
+}
+
+.table-card .table-pagination button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+@media (max-width: 1024px) {
+    .dashboard-top-bar {
+        flex-wrap: wrap;
+    }
+
+    .top-bar-right {
+        align-items: flex-start;
+    }
+}
+
+/* ==========================================================================
+   CATEGORIES MODAL + RESTORE MODAL - classes that replace the inline
+   style="" previously inside admin-manage-course.js /
+   admin-relational-archive.js template strings.
+   ========================================================================== */
+.categories-empty-message {
+    padding: 16px 0;
+}
+
+.category-modules-empty {
+    padding: 8px 0;
+}
+
+.category-status-badge {
+    margin-left: 10px;
+}
+
+.module-row-actions.category-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.restore-item-label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.restore-item-name {
+    margin-left: 8px;
+}
+
+.form-section-group.restore-group {
+    margin-bottom: 14px;
 }
 

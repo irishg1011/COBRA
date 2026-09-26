@@ -159,7 +159,7 @@
         if (status === "Published") { label = "Unpublish"; btnClass = "btn-unpublish-custom"; }
         else if (status === "Ready to Publish") { label = "Move to Draft"; btnClass = "btn-movedraft-custom"; }
         else { label = "Ready to Publish"; btnClass = "btn-ready-custom"; }
-        return `<button type="button" class="btn ${btnClass} js-cat-publish-action" style="padding:6px 12px; font-size:12px;" data-cat-id="${catId}" data-status="${escapeHtml(status || "Draft")}">${label}</button>`;
+        return `<button type="button" class="btn btn-pill-sm ${btnClass} js-cat-publish-action" data-cat-id="${catId}" data-status="${escapeHtml(status || "Draft")}">${label}</button>`;
     }
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -741,7 +741,7 @@
         function renderCategoriesAccordion(categories) {
             if (!categoriesListView) return;
             if (!categories.length) {
-                categoriesListView.innerHTML = `<p class="text-muted" style="padding:16px 0;">No active categories yet. Use "+ Category" to create one.</p>`;
+                categoriesListView.innerHTML = `<p class="text-muted categories-empty-message">No active categories yet. Use "+ Category" to create one.</p>`;
                 return;
             }
             categoriesListView.innerHTML = categories.map((cat, idx) => `
@@ -749,15 +749,15 @@
                     <div class="category-accordion-toggle">
                         <i class="fa-solid ${idx === 0 ? 'fa-chevron-down' : 'fa-chevron-right'} toggle-arrow"></i>
                         <span class="category-name">${escapeHtml(cat.category_name)}</span>
-                        <span class="badge ${cat.status_name === 'Published' ? 'badge-success-log' : (cat.status_name === 'Ready to Publish' ? 'badge-ready' : 'badge-draft')}" style="margin-left:10px;">${escapeHtml(cat.status_name || 'Draft')}</span>
-                        <span class="module-row-actions js-cat-actions" style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+                        <span class="badge ${cat.status_name === 'Published' ? 'badge-success-log' : (cat.status_name === 'Ready to Publish' ? 'badge-ready' : 'badge-draft')} category-status-badge">${escapeHtml(cat.status_name || 'Draft')}</span>
+                        <span class="module-row-actions category-actions js-cat-actions">
                             ${categoryPublishButtonHtml(cat.cat_id, cat.status_name)}
                             <i class="fa-solid fa-square-plus js-add-module-to-category" title="Add Module"></i>
                             <i class="fa-solid fa-pen-to-square js-edit-category" title="Rename"></i>
                             <i class="fa-solid fa-trash js-delete-category" title="Archive Category"></i>
                         </span>
                     </div>
-                    <div class="category-modules-list" ${idx === 0 ? 'style="display:block;"' : ''}>
+                    <div class="category-modules-list">
                         ${cat.modules.length ? cat.modules.map((m, i) => `
                             <div class="category-module-row">
                                 <div class="module-badge-num bg-success-log">${i + 1}</div>
@@ -767,7 +767,7 @@
                                 </div>
                                 <span class="badge ${m.status_name === 'Published' ? 'badge-success-log' : (m.status_name === 'Draft' ? 'badge-draft' : 'badge-inactive')}">${escapeHtml(m.status_name)}</span>
                             </div>
-                        `).join("") : `<p class="text-muted" style="padding:8px 0;">No modules in this category yet.</p>`}
+                        `).join("") : `<p class="text-muted category-modules-empty">No modules in this category yet.</p>`}
                     </div>
                 </div>
             `).join("");
