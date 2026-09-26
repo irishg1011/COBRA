@@ -1023,4 +1023,4 @@ def lose_mcq_life(acc_id, la_id):
             _take_life(ctx["pool"])
             _pause_if_out_of_lives(cursor, ctx)
         return _mcq_state(cursor, ctx), None
-    return _run_mcq(acc_id, la_id, action, "take MCQ life")
+    return _run_mcq(acc_id, la_id, action, "take MCQ life"),

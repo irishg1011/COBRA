@@ -62,64 +62,26 @@
     }
 
     // ---------------- Fill in the Blanks ----------------
+    /* ============================================================
+   PASTE INTO: learner/js/lesson-activities.js
+   REPLACES:   the whole old renderFillBlanks(...) function - the one
+               that builds the "activity-fillblank-input" text box and
+               the "Submit / Next Item / Finish" button.
+   Keep it inside the file's (function () { ... })() wrapper, exactly
+   where the old function was. Nothing else in the file changes.
+   ============================================================ */
+
+    // ---------------- Fill in the Blanks ----------------
+    // The Cobra vs SyntaxBug battle lives in its own file
+    // (lesson-fill-blanks.js, loaded before this one) so it never touches
+    // the Multiple Choice cobra arena code in this file.
     function renderFillBlanks(activity, container, onActivityDone) {
-        let currentIndex = 0;
-        let correctCount = 0;
-        const total = activity.items.length;
-
-        function renderItem() {
-            container.innerHTML = "";
-            const item = activity.items[currentIndex];
-
-            container.appendChild(el("p", "activity-progress-label", `Item ${currentIndex + 1} of ${total}`));
-            container.appendChild(el("p", "activity-question-text", item.content));
-
-            const input = el("input", "activity-fillblank-input");
-            input.type = "text";
-            input.placeholder = "Type your answer...";
-            container.appendChild(input);
-
-            const submitBtn = el("button", "activity-next-btn", "Submit");
-            submitBtn.type = "button";
-            container.appendChild(submitBtn);
-
-            const feedbackBox = el("div", "activity-feedback-box");
-            feedbackBox.style.display = "none";
-            container.appendChild(feedbackBox);
-
-            submitBtn.addEventListener("click", async () => {
-                if (submitBtn.textContent === "Submit") {
-                    const result = await checkAnswer({ type: "fill_blank", fib_id: item.fib_id, answer: input.value });
-                    input.disabled = true;
-                    if (result.is_correct) correctCount += 1;
-
-                    feedbackBox.style.display = "block";
-                    feedbackBox.className = "activity-feedback-box " + (result.is_correct ? "is-correct" : "is-incorrect");
-                    feedbackBox.textContent = result.is_correct
-                        ? (result.feedback || "Correct!")
-                        : (result.feedback || `Not quite. Correct answer: ${result.correct_answer}`);
-
-                    submitBtn.textContent = currentIndex === total - 1 ? "Finish" : "Next Item";
-                } else {
-                    currentIndex += 1;
-                    if (currentIndex >= total) {
-                        finishActivity();
-                    } else {
-                        renderItem();
-                    }
-                }
-            });
+        if (typeof window.cobraByteRenderFillBlanks === "function") {
+            window.cobraByteRenderFillBlanks(activity, container, onActivityDone);
+            return;
         }
-
-        function finishActivity() {
-            container.innerHTML = "";
-            const summary = el("div", "activity-summary");
-            summary.innerHTML = `<p>You scored <strong>${correctCount} / ${total}</strong> on "${activity.activity_title}".</p>`;
-            container.appendChild(summary);
-            markActivityComplete(activity.la_id, correctCount).finally(() => onActivityDone());
-        }
-
-        renderItem();
+        console.error("lesson-fill-blanks.js is not loaded - skipping Fill in the Blanks.");
+        onActivityDone();
     }
 
     // ---------------- Flashcards ----------------
