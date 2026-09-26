@@ -3219,6 +3219,7 @@ textarea.form-control-custom {
 .table-card .js-toggle-publish-module-btn,
 .table-card .js-toggle-publish-btn,
 .table-card .js-toggle-lesson-activities-publish-btn,
+.table-card .js-toggle-exercise-publish-btn,
 .btn-pill-sm {
     display: inline-flex;
     align-items: center;
@@ -3297,7 +3298,8 @@ textarea.form-control-custom {
    Course; only the resources-specific bits are below.
    ========================================================================== */
 .resources-table .table-item-title,
-.activities-table .table-item-title {
+.activities-table .table-item-title,
+.exercises-table .table-item-title {
     font-size: 12px;
     font-weight: 500;
 }
@@ -3485,7 +3487,7 @@ textarea.form-control-custom {
     max-width: 200px;
 }
 
-/* Activity column: the preview buttons shown as labelled type pills */
+/* Activity column: the preview buttons shown as icon-only type pills */
 .activity-content-trigger.activity-type-pill {
     display: inline-flex;
     align-items: center;
@@ -3499,11 +3501,6 @@ textarea.form-control-custom {
     white-space: nowrap;
     cursor: pointer;
     transition: filter 0.2s;
-    gap: 5px;
-}
-
-.activity-type-pill i {
-    font-size: 10px;
 }
 
 .activity-content-trigger.activity-type-pill:hover {
@@ -3596,5 +3593,47 @@ textarea.form-control-custom {
 
 .preview-item-back {
     margin: 0 0 10px;
+}
+
+/* ==========================================================================
+   MANAGE CODING EXERCISES (admin redesign)
+   ========================================================================== */
+
+/* The older #exercisesDataTable column rules (right-aligned with
+   !important, extra right padding) predate the centered .table-card
+   style - neutralised here, inside the new card only. */
+.table-card #exercisesDataTable th.publish-status-column,
+.table-card #exercisesDataTable td.publish-status-column {
+    text-align: center !important;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.table-card #exercisesDataTable .exercise-actions-column {
+    padding-right: 10px;
+}
+
+/* Exercise / Category / Module / Lesson can be long - let them wrap
+   instead of pushing Actions and Publish Action off-screen. */
+.exercises-table td:nth-child(1),
+.exercises-table td:nth-child(2),
+.exercises-table td:nth-child(3),
+.exercises-table td:nth-child(4) {
+    white-space: normal;
+    min-width: 110px;
+    max-width: 200px;
+}
+
+/* Prev / page label / Next group in the table footer (was inline) */
+.pagination-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.table-card .btn-pagination {
+    background: none;
+    border: none;
+    cursor: pointer;
 }
 

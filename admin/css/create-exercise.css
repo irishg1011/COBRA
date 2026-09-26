@@ -1,316 +1,232 @@
-/* ==========================================
-   Create Coding Exercise Styles (Polished UI)
-   ========================================== */
+/* ==========================================================================
+   create-exercise.css - Create Coding Exercise (admin redesign)
+   --------------------------------------------------------------------------
+   Only create-coding-exercise.html loads this file, on top of
+   create-learning-activity.css - so it can style the page directly,
+   without !important. Matches the Create Learning Activity look.
+   ========================================================================== */
 
-/* Task #110: Preview Exercise / Save Draft / Publish Exercise now sit
-   together in the top header. Scoped to this page so the three buttons wrap
-   onto a second line instead of overflowing/breaking layout on narrower viewports. */
-.dashboard-top-bar .header-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
-
+/* --- Section cards --- */
 .card-box {
-    background: #ffffff !important;
-    border-radius: 12px !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    background: #ffffff;
+    border: none;
+    border-radius: 8px;
+    box-shadow: none;
 }
 
 .padded-card {
-    padding: 24px !important;
+    padding: 24px;
 }
 
-.mb-24 { margin-bottom: 24px !important; }
-.mt-20 { margin-top: 20px !important; }
-.mt-24 { margin-top: 24px !important; }
-.mb-20 { margin-bottom: 20px !important; }
+.mb-0 { margin-bottom: 0; }
+.mb-20 { margin-bottom: 20px; }
+.mb-24 { margin-bottom: 24px; }
 
-/* Form Section Header & Step Badge */
 .form-section-header {
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-    margin-bottom: 20px !important;
-    border-bottom: 1px solid #f1f5f9 !important;
-    padding-bottom: 12px !important;
-}
-
-.step-badge {
-    width: 28px !important;
-    height: 28px !important;
-    min-width: 28px !important;
-    min-height: 28px !important;
-    max-width: 28px !important;
-    max-height: 28px !important;
-    flex: 0 0 28px !important;
-    background: linear-gradient(180deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%) !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    border-radius: 50% !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-sizing: border-box !important;
+    border-bottom: 1px solid var(--admin-line);
 }
 
 .form-section-header h3 {
-    font-size: 16px !important;
-    font-weight: 600 !important;
-    color: #1e293b !important;
-    margin: 0 !important;
+    color: var(--admin-text);
 }
 
-/* Form Grids & Inputs */
-.form-grid-3 {
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 20px !important;
-}
-
+/* --- Grids --- */
 .form-grid-2 {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 20px !important;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
 }
 
+/* --- Labels, hints & inputs --- */
 .form-label {
-    display: block !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    color: #475569 !important;
-    margin-bottom: 8px !important;
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--admin-text);
 }
 
-.form-control, .form-control-select {
-    width: 100% !important;
-    padding: 10px 14px !important;
-    font-size: 14px !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-    background-color: #fff !important;
-    color: #1e293b !important;
-    transition: all 0.2s ease !important;
+/* Helper text under each section title (was inline) */
+.form-label.section-hint {
+    font-weight: 400;
+    color: var(--admin-muted);
 }
 
-.form-control:focus, .form-control-select:focus {
-    outline: none !important;
-    border-color: #24C7B7 !important;
-    box-shadow: 0 0 0 3px rgba(36, 199, 183, 0.15) !important;
+.form-control,
+.form-control-select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
+    background-color: #ffffff;
+    font-size: 14px;
+    color: var(--admin-text);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-control:focus,
+.form-control-select:focus {
+    outline: none;
+    border-color: #09B300;
+    box-shadow: 0 0 0 3px rgba(9, 179, 0, 0.15);
+}
+
+select.form-control-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 36px;
+    background: #ffffff url('/assets/images/icons/icon-chevron-down.svg') right 12px center / 16px no-repeat;
+    cursor: pointer;
+}
+
+select.form-control-select:disabled,
+.form-control[readonly] {
+    background-color: #f3f4f6;
+    color: var(--admin-muted);
+    cursor: not-allowed;
 }
 
 .question-textarea {
-    resize: vertical !important;
-    min-height: 80px !important;
+    resize: vertical;
+    min-height: 80px;
 }
 
 .char-counter {
-    display: block !important;
-    text-align: right !important;
-    width: 100% !important;
-    font-size: 12px !important;
-    color: #94a3b8 !important;
-    margin-top: 6px !important;
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    text-align: right;
+    font-size: 12px;
+    color: #94a3b8;
 }
 
-/* Rich Text Formatting Toolbar Simulation (For Instruction Section) */
-.instruction-toolbar {
-    display: flex !important;
-    align-items: center !important;
-    gap: 4px !important;
-    padding: 8px 12px !important;
-    background: #f8fafc !important;
-    border: 1px solid #cbd5e1 !important;
-    border-top-left-radius: 8px !important;
-    border-top-right-radius: 8px !important;
-    border-bottom: none !important;
-    color: #64748b !important;
-    font-size: 14px !important;
+/* Exercise Title duplicate message - hidden by default; create-exercise.js
+   shows/hides it with style.display (was inline) */
+.field-error-message {
+    display: none;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #ef4444;
 }
 
-.instruction-toolbar button, .instruction-toolbar span.tool-icon {
-    background: transparent !important;
-    border: none !important;
-    color: #64748b !important;
-    padding: 6px 8px !important;
-    border-radius: 4px !important;
-    cursor: pointer !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+/* --- Test cases (row markup is also built by create-exercise.js) --- */
+.test-case-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
 }
 
-.instruction-toolbar button:hover {
-    background: #e2e8f0 !important;
-    color: #1e293b !important;
+.test-case-badge {
+    min-width: 20px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--admin-muted);
 }
 
-.instruction-toolbar .tool-divider {
-    width: 1px !important;
-    height: 16px !important;
-    background: #cbd5e1 !important;
-    margin: 0 4px !important;
+.test-case-field {
+    flex: 1;
 }
 
-.instruction-textarea-wrapper .question-textarea {
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
+.form-label.test-case-label {
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: #475569;
 }
 
-/* Options Checkbox Styles - Vertical Alignment & Theme Accents */
-.options-checkbox-group {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 12px !important;
-}
-
-.checkbox-label {
-    display: flex !important;
-    align-items: center !important;
-    gap: 10px !important;
-    font-size: 14px !important;
-    color: #1e293b !important;
-    cursor: pointer !important;
-    font-weight: 400 !important;
-    line-height: 1.4 !important;
-}
-
-.checkbox-label input[type="checkbox"] {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    background-color: #ffffff !important;
-    margin: 0 !important;
-    width: 18px !important;
-    height: 18px !important;
-    min-width: 18px !important;
-    min-height: 18px !important;
-    border: 1.5px solid #cbd5e1 !important;
-    border-radius: 4px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    transition: all 0.2s ease !important;
-}
-
-.checkbox-label input[type="checkbox"]:checked {
-    background-color: #09B300 !important;
-    border-color: #09B300 !important;
-}
-
-.checkbox-label input[type="checkbox"]:checked::after {
-    content: "\f00c" !important;
-    font-family: "Font Awesome 6 Free" !important;
-    font-weight: 900 !important;
-    font-size: 10px !important;
-    color: #ffffff !important;
-}
-
-/* Test Cases Table Styles */
-.test-cases-table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    margin-bottom: 14px !important;
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 8px !important;
-    overflow: hidden !important;
-}
-
-.test-cases-table th {
-    text-align: left !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    color: #64748b !important;
-    padding: 10px 14px !important;
-    background: #f8fafc !important;
-    border-bottom: 1px solid #e2e8f0 !important;
-}
-
-.test-cases-table td {
-    padding: 12px 14px !important;
-    font-size: 14px !important;
-    color: #1e293b !important;
-    border-bottom: 1px solid #f1f5f9 !important;
-    vertical-align: middle !important;
-}
-
-.test-cases-table tr:last-child td {
-    border-bottom: none !important;
-}
-
-.test-cases-table th:last-child,
-.test-cases-table td:last-child {
-    text-align: center !important;
-    width: 90px !important;
+.test-case-actions {
+    display: flex;
+    align-items: center;
+    padding-top: 20px;
 }
 
 .icon-control-btn {
-    background: transparent !important;
-    border: none !important;
-    color: #64748b !important;
-    cursor: pointer !important;
-    padding: 6px !important;
-    border-radius: 4px !important;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 6px;
+    color: var(--admin-muted);
+    cursor: pointer;
 }
 
 .icon-control-btn:hover {
-    background: #f1f5f9 !important;
-    color: #1e293b !important;
+    background: #f3f4f6;
+    color: var(--admin-text);
 }
 
-.text-danger:hover {
-    color: #ef4444 !important;
+/* Replaces the old inline style + onmouseover/onmouseout color swap */
+.icon-control-btn.test-case-delete-btn {
+    font-size: 15px;
+    color: #94a3b8;
+    transition: color 0.2s;
 }
 
-.card-box.padded-card.accent-top {
-    border-top: 4px solid #06b6d4 !important;
+.icon-control-btn.test-case-delete-btn:hover {
+    background: transparent;
+    color: #ef4444;
 }
 
-/* Task #111: Unsaved Changes Modal - single horizontal line triple action buttons */
-.modal-card-confirm {
-    max-width: 520px !important;
-    width: 100% !important;
+.icon-control-btn:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
 }
 
-.modal-confirm-actions-triple {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    gap: 10px !important;
-    justify-content: center !important;
-    align-items: stretch !important;
-    width: 100% !important;
+/* Identical input/output warning - hidden by default; create-exercise.js
+   shows/hides it with style.display (was inline) */
+.test-case-duplicate-warning {
+    display: none;
+    flex-basis: 100%;
+    padding: 8px 12px;
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    color: #92400e;
+    font-size: 13px;
+    font-weight: 500;
 }
 
-.modal-confirm-actions-triple .modal-btn-cancel,
-.modal-confirm-actions-triple .modal-btn-danger,
-.modal-confirm-actions-triple .modal-btn-save {
-    padding: 10px 10px !important;
-    font-size: 13px !important;
-    white-space: nowrap !important;
-    flex: 1 1 0 !important;
-    min-width: 0 !important;
-    display: inline-flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    box-sizing: border-box !important;
+.add-sub-question-btn {
+    background: #ffffff;
+    border-color: #9ca3af;
+    color: #0F7A3D;
 }
 
-@media (max-width: 540px) {
-    .modal-confirm-actions-triple {
-        flex-wrap: wrap !important;
-    }
-    .modal-confirm-actions-triple .modal-btn-cancel,
-    .modal-confirm-actions-triple .modal-btn-danger,
-    .modal-confirm-actions-triple .modal-btn-save {
-        flex: 1 1 auto !important;
-        width: 100% !important;
-    }
+.add-sub-question-btn:hover {
+    background: #f5fcf5;
+    border-color: #09B300;
 }
 
-/* Task #113: Red border highlighting for invalid / empty required fields */
+/* --- Section 7 "Options" checkboxes (currently commented out in the HTML) --- */
+.options-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.options-checkbox-group .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--admin-text);
+    cursor: pointer;
+}
+
+.options-checkbox-group .checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #09B300;
+    cursor: pointer;
+}
+
+/* --- Validation: red border on invalid / empty required fields --- */
 .field-error,
 .form-control.field-error,
 .form-control-select.field-error,

@@ -981,26 +981,27 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
     const row = document.createElement('div');
     row.className = 'test-case-row';
     row.dataset.index = index;
-    row.style.cssText = "display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 12px; background: #ffffff; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px;";
+    // Admin redesign: row layout comes from the .test-case-row class
+    // (create-exercise.css) instead of a style.cssText string.
 
     row.innerHTML = `
-        <div class="test-case-badge" style="font-weight: 500; color: #64748b; min-width: 20px; text-align: center; font-size: 14px;">${num}</div>
+        <div class="test-case-badge">${num}</div>
         
-        <div style="flex: 1;">
-            <label class="form-label" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display: block;">Input</label>
+        <div class="test-case-field">
+            <label class="form-label test-case-label">Input</label>
             <input type="text" name="test_cases[${index}][input]" class="form-control" value="${inputVal}" placeholder="e.g., 5" required>
         </div>
 
-        <div style="flex: 1;">
-            <label class="form-label" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display: block;">Expected Output</label>
+        <div class="test-case-field">
+            <label class="form-label test-case-label">Expected Output</label>
             <input type="text" name="test_cases[${index}][output]" class="form-control" value="${outputVal}" placeholder="e.g., Positive" required>
         </div>
 
-        <div style="display: flex; align-items: center; padding-top: 20px;">
-            <button type="button" class="icon-control-btn text-danger" title="Delete" onclick="removeTestCaseRow(this)" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 15px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'"><i class="fa-solid fa-trash-can"></i></button>
+        <div class="test-case-actions">
+            <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case" onclick="removeTestCaseRow(this)"><i class="fa-solid fa-trash-can"></i></button>
         </div>
 
-        <div class="test-case-duplicate-warning" style="display: none; flex-basis: 100%; padding: 8px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">⚠️ Warning: Identical Input and Output</div>
+        <div class="test-case-duplicate-warning">⚠️ Warning: Identical Input and Output</div>
     `;
 
     container.appendChild(row);

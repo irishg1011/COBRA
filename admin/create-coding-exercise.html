@@ -24,37 +24,41 @@
 
             <div class="dashboard-content-area">
                 
+                <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <div class="header-nav-inline">
-                            <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn-back-custom" id="backExerciseBtn">
-                                <i class="fa-solid fa-arrow-left"></i> Back
-                            </a>
-                            <h1>Create Coding Exercise</h1>
-                        </div>
-                        <p>Create coding exercises with test cases and detailed instructions.</p>
+                        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn-back-link" id="backExerciseBtn">
+                            <i class="fa-solid fa-arrow-left"></i> Back
+                        </a>
+                        <h1>Create Coding Exercise</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Create coding exercises with test cases and detailed instructions.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
-                            <button type="button" class="btn btn-secondary-custom" id="previewExerciseBtn">
+                        <div class="page-header-actions">
+                            <button type="button" class="btn-pill-light" id="previewExerciseBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Exercise
                             </button>
                             {% if existing_exercise and existing_exercise.status == 'Published' %}
-                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn" data-is-published="true">
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="true">
                                 <i class="fa-regular fa-floppy-disk"></i> Save
                             </button>
-                            <button type="button" class="btn btn-unpublish-custom" id="unpublishExerciseBtn" data-exercise-id="{{ existing_exercise.exercise_id }}">
+                            <button type="button" class="btn-pill-danger" id="unpublishExerciseBtn" data-exercise-id="{{ existing_exercise.exercise_id }}">
                                 <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish Exercise
                             </button>
                             {% else %}
-                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn" data-is-published="false">
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="false">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
-                            <button type="submit" form="createExerciseForm" class="btn btn-success-custom" id="publishExerciseBtn">
+                            <button type="submit" form="createExerciseForm" class="btn-pill-green" id="publishExerciseBtn">
                                 <i class="fa-solid fa-paper-plane"></i> Publish Exercise
                             </button>
                             {% endif %}
@@ -66,21 +70,21 @@
                     <input type="hidden" name="exercise_id" id="exerciseIdInput" value="{{ existing_exercise.exercise_id if existing_exercise else '' }}">
                     
                     <!-- Section 1: Exercise Information -->
-                    <div class="card-box padded-card mb-24 accent-top">
+                    <div class="card-box padded-card mb-24">
                             <div class="form-section-header">
                                 <div class="step-badge">1</div>
                                 <h3>Exercise Information</h3>
                             </div>
 
                             <!-- Row 1: Exercise Title -->
-                            <div class="mb-20 accent-top">
+                            <div class="mb-20">
                                 <label class="form-label" for="exerciseTitle">Exercise Title *</label>
                                 <input type="text" id="exerciseTitle" name="title" class="form-control" placeholder="Enter exercise title..." value="{{ existing_exercise.exercise_title if existing_exercise else '' }}" data-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}" required autocomplete="off">
-                                <span id="exerciseTitleError" class="field-error-message" style="display: none; color: #ef4444; font-size: 12px; margin-top: 4px; font-weight: 500;"></span>
+                                <span id="exerciseTitleError" class="field-error-message"></span>
                             </div>
 
                             <!-- Row 2: Category, Module, and Lesson in the same line -->
-                            <div class="form-grid-3 mb-20 accent-top">
+                            <div class="form-grid-3 mb-20">
                                 <div>
                                     <label class="form-label" for="exerciseCategory">Category *</label>
                                     <select id="exerciseCategory" name="category" class="form-control-select" required>
@@ -112,45 +116,45 @@
                                 </div>
                                 <div>
                                     <label class="form-label" for="exerciseStatus">Status *</label>
-                                    <input type="text" id="exerciseStatus" name="status" class="form-control" value="{{ existing_exercise.status if existing_exercise else 'Draft' }}" readonly required style="background-color: #f8fafc !important; cursor: not-allowed;">
+                                    <input type="text" id="exerciseStatus" name="status" class="form-control" value="{{ existing_exercise.status if existing_exercise else 'Draft' }}" readonly required>
                                 </div>
                             </div>
                         </div>
 
                     <!-- Section 2: Instruction -->
-                    <div class="card-box padded-card mb-24 accent-top">
+                    <div class="card-box padded-card mb-24">
                         <div class="form-section-header">
                             <div class="step-badge">2</div>
                             <h3>Instruction</h3>
                         </div>
-                        <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Provide clear instructions on what the learner needs to do.</p>
+                        <p class="form-label section-hint mb-20">Provide clear instructions on what the learner needs to do.</p>
 
-                        <div class="form-group mb-0" style="position: relative;">
+                        <div class="form-group mb-0 form-group-relative">
                             <textarea id="exerciseInstruction" name="instruction" class="form-control question-textarea" rows="3" placeholder="Write instructions here..." required>{{ existing_exercise.instruction if existing_exercise else '' }}</textarea>
                             <span class="char-counter">0 / 1000</span>
                         </div>
                     </div>
 
                     <!-- Section 3: Problem Statement -->
-                    <div class="card-box padded-card mb-24 accent-top">
+                    <div class="card-box padded-card mb-24">
                         <div class="form-section-header">
                             <div class="step-badge">3</div>
                             <h3>Problem Statement</h3>
                         </div>
-                        <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Define the problem using the three components below.</p>
+                        <p class="form-label section-hint mb-20">Define the problem using the three components below.</p>
 
                         <div class="form-grid-3">
-                            <div class="form-group" style="position: relative;">
+                            <div class="form-group form-group-relative">
                                 <label class="form-label" for="problemSituation">Situation *</label>
                                 <textarea id="problemSituation" name="situation" class="form-control question-textarea" rows="3" placeholder="Describe the situation..." required>{{ existing_exercise.situation if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
-                            <div class="form-group" style="position: relative;">
+                            <div class="form-group form-group-relative">
                                 <label class="form-label" for="problemQuestion">Question *</label>
                                 <textarea id="problemQuestion" name="problem_question" class="form-control question-textarea" rows="3" placeholder="State the question..." required>{{ existing_exercise.problem_question if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
-                            <div class="form-group" style="position: relative;">
+                            <div class="form-group form-group-relative">
                                 <label class="form-label" for="problemClue">Clue (hint) *</label>
                                 <textarea id="problemClue" name="clue" class="form-control question-textarea" rows="3" placeholder="Provide a helpful hint..." required>{{ existing_exercise.clue if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
@@ -160,27 +164,27 @@
 
                     <!-- Section 4 & 5: Answer (Expected) & Correct Feedback -->
                     <div class="form-grid-2 mb-24">
-                        <div class="card-box padded-card mb-0 accent-top">
+                        <div class="card-box padded-card mb-0">
                             <div class="form-section-header">
                                 <div class="step-badge">4</div>
                                 <h3>Answer (Expected)</h3>
                             </div>
-                            <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">The correct output / behavior expected from the learner's code.</p>
+                            <p class="form-label section-hint mb-20">The correct output / behavior expected from the learner's code.</p>
                             
-                            <div class="form-group mb-0" style="position: relative;">
+                            <div class="form-group mb-0 form-group-relative">
                                 <textarea id="expectedAnswer" name="expected_answer" class="form-control question-textarea" rows="3" placeholder="Expected output..." required>{{ existing_exercise.expected_answer if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 1000</span>
                             </div>
                         </div>
 
-                        <div class="card-box padded-card mb-0 accent-top">
+                        <div class="card-box padded-card mb-0">
                             <div class="form-section-header">
                                 <div class="step-badge">5</div>
                                 <h3>Correct Feedback</h3>
                             </div>
-                            <p class="form-label mb-20" style="font-weight: normal; color: #64748b;">Feedback shown when the solution is correct.</p>
+                            <p class="form-label section-hint mb-20">Feedback shown when the solution is correct.</p>
                             
-                            <div class="form-group mb-0" style="position: relative;">
+                            <div class="form-group mb-0 form-group-relative">
                                 <textarea id="correctFeedback" name="correct_feedback" class="form-control question-textarea" rows="3" placeholder="Feedback message..." required>{{ existing_exercise.correct_feedback if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
@@ -188,31 +192,31 @@
                     </div>
 
                     <!-- Section 6: Test Cases -->
-                    <div class="card-box padded-card mb-24 accent-top">
+                    <div class="card-box padded-card mb-24">
                         <div class="form-section-header">
                             <div class="step-badge">6</div>
                             <h3>Test Cases</h3>
                         </div>
-                        <p class="form-label mb-20" style="color: #64748b;">Add test cases to evaluate the solution.</p>
+                        <p class="form-label section-hint mb-20">Add test cases to evaluate the solution.</p>
 
                         <!-- Test Cases Container -->
                         <div id="testCasesContainer" class="test-cases-list-wrapper mb-20">
                             {% if existing_exercise and existing_exercise.test_cases %}
                                 {% for tc in existing_exercise.test_cases %}
-                                <div class="test-case-row" data-index="{{ loop.index0 }}" style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 12px; background: #ffffff; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                                    <div class="test-case-badge" style="font-weight: 500; color: #64748b; min-width: 20px; text-align: center; font-size: 14px;">{{ loop.index }}</div>
-                                    <div style="flex: 1;">
-                                        <label class="form-label" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display: block;">Input</label>
+                                <div class="test-case-row" data-index="{{ loop.index0 }}">
+                                    <div class="test-case-badge">{{ loop.index }}</div>
+                                    <div class="test-case-field">
+                                        <label class="form-label test-case-label">Input</label>
                                         <input type="text" name="test_cases[{{ loop.index0 }}][input]" class="form-control" value="{{ tc.test_input }}" placeholder="e.g., 5" required>
                                     </div>
-                                    <div style="flex: 1;">
-                                        <label class="form-label" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display: block;">Expected Output</label>
+                                    <div class="test-case-field">
+                                        <label class="form-label test-case-label">Expected Output</label>
                                         <input type="text" name="test_cases[{{ loop.index0 }}][output]" class="form-control" value="{{ tc.expected_output }}" placeholder="e.g., Positive" required>
                                     </div>
-                                    <div style="display: flex; align-items: center; padding-top: 20px;">
-                                        <button type="button" class="icon-control-btn text-danger" title="Delete" onclick="removeTestCaseRow(this)" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 15px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'"><i class="fa-solid fa-trash-can"></i></button>
+                                    <div class="test-case-actions">
+                                        <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case" onclick="removeTestCaseRow(this)"><i class="fa-solid fa-trash-can"></i></button>
                                     </div>
-                                    <div class="test-case-duplicate-warning" style="display: none; flex-basis: 100%; padding: 8px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">⚠️ Warning: Identical Input and Output</div>
+                                    <div class="test-case-duplicate-warning">⚠️ Warning: Identical Input and Output</div>
                                 </div>
                                 {% endfor %}
                             {% endif %}
@@ -225,7 +229,7 @@
                     </div>
 
                     <!-- Section 7: Options
-                   <div class="card-box padded-card accent-top">
+                   <div class="card-box padded-card">
                         <div class="form-section-header">
                             <div class="step-badge">7</div>
                             <h3>Options</h3>

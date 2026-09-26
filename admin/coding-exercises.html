@@ -27,35 +27,40 @@
             <!-- Manage Coding Exercises Content Area -->
             <div class="dashboard-content-area">
                 
-                <!-- Top Bar -->
+                <!-- Page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Manage Coding Exercises</h1>
-                        <p>Create Python programming challenges with test cases.</p>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Create Python programming challenges with test cases.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.create_coding_exercise') }}" id="openCreateActivityBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-plus"></i> Create Exercise
+                        <div class="page-header-actions">
+                            <a href="{{ url_for('admin_bp.create_coding_exercise') }}" id="openCreateActivityBtn" class="btn-pill-green">
+                                <span class="mask-icon icon-plus"></span> Create Exercise
                             </a>
-                            <button id="openArchivedExercisesBtn" class="btn btn-icon-custom" title="Archived Items">
-                                <i class="fa-solid fa-box-archive"></i>
+                            <button type="button" id="openArchivedExercisesBtn" class="btn-round-green" title="Archived Items" aria-label="Archived Items">
+                                <span class="mask-icon icon-archive"></span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Data Table Card Box -->
-                <div class="card-box padded-card">
-                    
+                <!-- Exercises Table Card -->
+                <div class="table-card">
+
                     <!-- Table Toolbar -->
                     <div class="table-toolbar">
                         <div class="header-search search-override">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <span class="mask-icon icon-search search-icon"></span>
                             <input type="text" id="exerciseSearchInput" placeholder="Search exercises..." value="{{ search|default('') }}">
                         </div>
                         <div class="toolbar-filters">
@@ -91,17 +96,18 @@
                             </div>
                         </div>
                     </div>
-                    <p id="exerciseDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
+                    <p id="exerciseDateFilterError" class="date-filter-error"></p>
 
                     <!-- Exercises Table -->
-                    <table class="data-table" id="exercisesDataTable">
+                    <div class="table-scroll">
+                    <table class="data-table exercises-table" id="exercisesDataTable">
                         <thead>
                             <tr>
                                 <th>Exercise</th>
                                 <th>Category</th>
                                 <th>Module</th>
                                 <th>Lesson</th>
-                                <th>Stats</th>
+                                <th>Status</th>
                                 <th>Uploaded By</th>
                                 <th>Created At</th>
                                 <th>Updated At</th>
@@ -161,11 +167,12 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
                         <span id="exercisesShowingCount">Showing {{ exercises|length }} of {{ total_exercises|default(0) }} Exercises</span>
-                        <div class="pagination-controls" style="display: flex; gap: 8px; align-items: center;">
+                        <div class="pagination-controls">
                             <button type="button" class="btn-pagination" id="exercisesPrevBtn" {{ 'disabled' if page <= 1 }} title="Previous Page">&lt;</button>
                             <span id="exercisesPageLabel">{{ page }} of {{ total_pages }}</span>
                             <button type="button" class="btn-pagination" id="exercisesNextBtn" {{ 'disabled' if page >= total_pages }} title="Next Page">&gt;</button>
