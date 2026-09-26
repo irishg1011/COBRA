@@ -321,7 +321,7 @@
    ========================================== */
 
 /* Primary / Success Buttons */
-.btn-success, .btn-success-custom, button[type="submit"], .add-question-btn {
+.btn-success, .btn-success-custom, button[type="submit"]:not(.btn-pill-green), .add-question-btn {
     background-color: #09B300 !important;
     background-image: none !important;
     color: #ffffff !important;
@@ -337,7 +337,7 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
 }
 
-.btn-success:hover, .btn-success-custom:hover, button[type="submit"]:hover, .add-question-btn:hover {
+.btn-success:hover, .btn-success-custom:hover, button[type="submit"]:not(.btn-pill-green):hover, .add-question-btn:hover {
     background-color: #08a100 !important;
 }
 
@@ -539,3 +539,20 @@ textarea.field-error {
     border-color: #ef4444 !important;
     box-shadow: 0 0 0 1px #ef4444 !important;
 }
+
+/* ==========================================================================
+   Builder card classes that replace the inline style="" previously
+   inside create-learning-activity.js's card templates.
+   ========================================================================== */
+/* Move / Duplicate / Delete icon row in each question, item and flashcard header */
+.card-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Form groups that hold a textarea + its character counter */
+.form-group-relative {
+    position: relative;
+}
+

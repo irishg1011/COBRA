@@ -1,0 +1,98 @@
+/* ==========================================================================
+   create-activity-page.css - Create Learning Activity (admin redesign)
+   --------------------------------------------------------------------------
+   Everything is scoped to <body class="create-activity-page">, so the
+   Create Coding Exercise page (which also loads
+   create-learning-activity.css) keeps its current look until it gets
+   redesigned too. Header buttons (.btn-pill-*, .btn-back-link) live in
+   admin-style.css.
+   ========================================================================== */
+
+/* --- Section cards --- */
+.create-activity-page .card-box {
+    border: none;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.create-activity-page .form-section-header {
+    border-bottom: 1px solid var(--admin-line);
+}
+
+.create-activity-page .form-section-header h3 {
+    color: var(--admin-text);
+}
+
+/* --- Labels & inputs --- */
+.create-activity-page .form-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--admin-text);
+}
+
+.create-activity-page .form-control,
+.create-activity-page .form-control-select {
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--admin-text);
+    background-color: #ffffff;
+}
+
+.create-activity-page .form-control:focus,
+.create-activity-page .form-control-select:focus {
+    border-color: #09B300;
+    box-shadow: 0 0 0 3px rgba(9, 179, 0, 0.15);
+}
+
+.create-activity-page select.form-control-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 36px;
+    background: #ffffff url('/assets/images/icons/icon-chevron-down.svg') right 12px center / 16px no-repeat;
+    cursor: pointer;
+}
+
+.create-activity-page select.form-control-select:disabled,
+.create-activity-page .form-control[readonly] {
+    background-color: #f3f4f6;
+    color: var(--admin-muted);
+    cursor: not-allowed;
+}
+
+/* --- Section 2: builder --- */
+.create-activity-page .sub-instruction {
+    background: #f5f5f5;
+    border-left-color: #09B300;
+}
+
+.create-activity-page .sub-instruction strong {
+    color: #0F7A3D;
+}
+
+.create-activity-page .question-card,
+.create-activity-page .fill-blank-card,
+.create-activity-page .flashcard-card {
+    border-color: var(--admin-line);
+    border-radius: 8px;
+}
+
+.create-activity-page .placeholder-box {
+    background: #f9fafb;
+    border-color: var(--admin-line);
+}
+
+.create-activity-page .add-sub-question-btn {
+    background: #ffffff;
+    border-color: #9ca3af;
+    color: #0F7A3D;
+}
+
+.create-activity-page .add-sub-question-btn:hover {
+    background: #f5fcf5;
+    border-color: #09B300;
+}
+
+.create-activity-page .custom-radio {
+    accent-color: #09B300;
+}

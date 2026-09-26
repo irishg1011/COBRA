@@ -27,35 +27,40 @@
             <!-- Manage Learning Activities Content Area -->
             <div class="dashboard-content-area">
                 
-                <!-- Top Bar -->
+                <!-- Page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Manage Learning Activities</h1>
-                        <p>Create and manage quizzes, flashcards, and interactive exercises.</p>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Create quizzes, flashcards, and fill-in-the-blank exercises.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.create_learning_activity_page') }}" class="btn btn-success-custom" style="text-decoration: none;">
-                                <i class="fa-solid fa-plus"></i> Create Activity
+                        <div class="page-header-actions">
+                            <a href="{{ url_for('admin_bp.create_learning_activity_page') }}" class="btn-pill-green">
+                                <span class="mask-icon icon-plus"></span> Create Activity
                             </a>
-                            <button id="openArchivedActivitiesBtn" class="btn btn-icon-custom" title="Archived Items">
-                                <i class="fa-solid fa-box-archive"></i>
+                            <button type="button" id="openArchivedActivitiesBtn" class="btn-round-green" title="Archived Items" aria-label="Archived Items">
+                                <span class="mask-icon icon-archive"></span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Data Table Card Box -->
-                <div class="card-box padded-card">
-                    
+                <!-- Activities Table Card -->
+                <div class="table-card">
+
                     <!-- Table Toolbar -->
                     <div class="table-toolbar">
                         <div class="header-search search-override">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <span class="mask-icon icon-search search-icon"></span>
                             <input type="text" id="activitySearchInput" placeholder="Search activities...">
                         </div>
                         <div class="toolbar-filters">
@@ -97,7 +102,7 @@
                             </div>
                         </div>
                     </div>
-                    <p id="activityDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
+                    <p id="activityDateFilterError" class="date-filter-error"></p>
                     <!--
                         Requirement #1: columns are in this exact order -
                         Activity Name, Lesson Name, Status, Uploaded By,
@@ -105,10 +110,11 @@
                         far right (functional, not part of the requested
                         display sequence).
                     -->
-                    <table class="data-table" id="activitiesDataTable">
+                    <div class="table-scroll">
+                    <table class="data-table activities-table" id="activitiesDataTable">
                         <thead>
                             <tr>
-                                <th>Resource</th>
+                                <th>Lesson</th>
                                 <th>Activity</th>
                                 <th>Module</th>
                                 <th>Category</th>
@@ -128,13 +134,13 @@
                                 </td>
                                 <td>
                                     {% if 'Multiple Choice' in lesson.activity_type_names %}
-                                    <button type="button" class="activity-content-trigger" data-resource-id="{{ lesson.resource_id }}" data-activity-type="Multiple Choice" title="Preview Multiple Choice"><i class="fa-solid fa-list-check"></i></button>
+                                    <button type="button" class="activity-content-trigger activity-type-pill type-mc" data-resource-id="{{ lesson.resource_id }}" data-activity-type="Multiple Choice" title="Preview Multiple Choice" aria-label="Preview Multiple Choice"><i class="fa-solid fa-list-check"></i></button>
                                     {% endif %}
                                     {% if 'Fill in the Blanks' in lesson.activity_type_names %}
-                                    <button type="button" class="activity-content-trigger" data-resource-id="{{ lesson.resource_id }}" data-activity-type="Fill in the Blanks" title="Preview Fill in the Blanks"><i class="fa-solid fa-i-cursor"></i></button>
+                                    <button type="button" class="activity-content-trigger activity-type-pill type-fib" data-resource-id="{{ lesson.resource_id }}" data-activity-type="Fill in the Blanks" title="Preview Fill in the Blanks" aria-label="Preview Fill in the Blanks"><i class="fa-solid fa-i-cursor"></i></button>
                                     {% endif %}
                                     {% if 'Flashcards' in lesson.activity_type_names %}
-                                    <button type="button" class="activity-content-trigger" data-resource-id="{{ lesson.resource_id }}" data-activity-type="Flashcards" title="Preview Flashcards"><i class="fa-solid fa-clone"></i></button>
+                                    <button type="button" class="activity-content-trigger activity-type-pill type-fc" data-resource-id="{{ lesson.resource_id }}" data-activity-type="Flashcards" title="Preview Flashcards" aria-label="Preview Flashcards"><i class="fa-solid fa-clone"></i></button>
                                     {% endif %}
                                 </td>
                                 <td class="text-muted">{{ lesson.module }}</td>
@@ -176,14 +182,15 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
                         <span id="activitiesShowingCount">Showing {{ lessons|length }} of {{ total_activities|default(0) }} Activities</span>
                         <span>
-                            <button id="activitiesPrevBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
+                            <button type="button" id="activitiesPrevBtn" class="icon-button-reset" aria-label="Previous page" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
                             <span id="activitiesPageLabel">{{ page|default(1) }} of {{ total_pages|default(1) }}</span>
-                            <button id="activitiesNextBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
+                            <button type="button" id="activitiesNextBtn" class="icon-button-reset" aria-label="Next page" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
                         </span>
                     </div>
 

@@ -3218,6 +3218,7 @@ textarea.form-control-custom {
    buttons in the Categories modal (admin-manage-course.js). */
 .table-card .js-toggle-publish-module-btn,
 .table-card .js-toggle-publish-btn,
+.table-card .js-toggle-lesson-activities-publish-btn,
 .btn-pill-sm {
     display: inline-flex;
     align-items: center;
@@ -3295,7 +3296,8 @@ textarea.form-control-custom {
    Reuses .table-card / .btn-pill-green / .btn-round-green from Manage
    Course; only the resources-specific bits are below.
    ========================================================================== */
-.resources-table .table-item-title {
+.resources-table .table-item-title,
+.activities-table .table-item-title {
     font-size: 12px;
     font-weight: 500;
 }
@@ -3452,5 +3454,147 @@ textarea.form-control-custom {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
+}
+
+/* ==========================================================================
+   MANAGE LEARNING ACTIVITIES (admin redesign)
+   ========================================================================== */
+
+/* The older #activitiesDataTable column rules (right-aligned with
+   !important, extra right padding) predate the centered .table-card
+   style - neutralised here, inside the new card only. */
+.table-card #activitiesDataTable th.publish-status-column,
+.table-card #activitiesDataTable td.publish-status-column {
+    text-align: center !important;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.table-card #activitiesDataTable .activity-actions-column {
+    padding-right: 10px;
+}
+
+/* Lesson / Activity / Module / Category can be long - let them wrap instead of
+   pushing Actions and Publish Action off-screen. */
+.activities-table td:nth-child(1),
+.activities-table td:nth-child(2),
+.activities-table td:nth-child(3),
+.activities-table td:nth-child(4) {
+    white-space: normal;
+    min-width: 110px;
+    max-width: 200px;
+}
+
+/* Activity column: the preview buttons shown as labelled type pills */
+.activity-content-trigger.activity-type-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 2px 4px 2px 0;
+    padding: 5px 10px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: filter 0.2s;
+    gap: 5px;
+}
+
+.activity-type-pill i {
+    font-size: 10px;
+}
+
+.activity-content-trigger.activity-type-pill:hover {
+    filter: brightness(0.94);
+}
+
+.activity-content-trigger.activity-type-pill:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 1px;
+}
+
+.activity-type-pill.type-mc {
+    background: #C8F2D2;
+    color: #0F7A3D;
+}
+
+.activity-type-pill.type-fc {
+    background: #D4F3FA;
+    color: #0E7490;
+}
+
+.activity-type-pill.type-fib {
+    background: #ffffff;
+    border-color: #6b7280;
+    color: var(--admin-text);
+}
+
+.activity-type-pill.type-quiz {
+    background: #EDE9FE;
+    color: #6D28D9;
+}
+
+/* ==========================================================================
+   LEARNING ACTIVITIES MODALS - classes that replace the inline style=""
+   previously inside admin-learning-activities.js (archive checklist +
+   activity content preview). The archive checklist also reuses the
+   Learning Resources classes above (.archive-context-note, etc.).
+   ========================================================================== */
+.content-preview-card.activity-archive-card {
+    max-width: 460px;
+}
+
+/* Hidden by default; the JS shows/hides it with style.display */
+.archive-validation-msg {
+    display: none;
+    margin: 10px 0 0;
+    color: #dc2626;
+    font-size: 13px;
+}
+
+.preview-activity-block {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.preview-activity-title {
+    margin: 0 0 4px;
+    font-weight: 700;
+}
+
+.preview-activity-status {
+    font-weight: 400;
+    color: #6b7280;
+}
+
+.preview-question {
+    margin: 14px 0 6px;
+    font-weight: 600;
+}
+
+.preview-options {
+    margin: 0 0 10px;
+    padding-left: 20px;
+}
+
+.preview-correct-option {
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.preview-item {
+    margin: 14px 0 4px;
+}
+
+.preview-answer {
+    margin: 0 0 10px;
+    color: #16a34a;
+}
+
+.preview-item-back {
+    margin: 0 0 10px;
 }
 

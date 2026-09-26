@@ -7,13 +7,14 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-learning-activity.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-activity-page.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
-<body>
+<body class="create-activity-page">
 
     <div class="admin-layout">
         {% include 'admin-sidebar.html' %}
@@ -23,44 +24,40 @@
 
             <div class="dashboard-content-area">
                 
+                <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <div class="header-nav-inline">
-                            <a href="{{ url_for('admin_bp.learning_activities') }}" class="btn-back-custom">
-                                <i class="fa-solid fa-arrow-left"></i> Back
-                            </a>
-                            <h1>Create Learning Activity</h1>
-                        </div>
-                        <p>Create interactive activities for your learners.</p>
+                        <a href="{{ url_for('admin_bp.learning_activities') }}" class="btn-back-link">
+                            <i class="fa-solid fa-arrow-left"></i> Back
+                        </a>
+                        <h1>Create Learning Activity</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Create interactive activities for your learners.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
-                            <button type="button" class="btn btn-secondary-custom" id="previewActivityBtn">
+                        <div class="page-header-actions">
+                            <button type="button" class="btn-pill-light" id="previewActivityBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Activity
                             </button>
-                            <button type="button" class="btn btn-success-custom" id="saveDraftBtn">
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
                             <!--
-                                Task #104: relocated here from the bottom
-                                form-actions-footer, so all three primary
-                                actions sit together in the header (Preview
-                                Activity -> Save Draft -> Publish Activity).
-                                Uses form="createActivityForm" (the same
-                                pattern already used by upload-resource.html's
-                                header Publish button) so this still submits
-                                the SAME <form id="createActivityForm"> below
-                                despite living outside of it - the submit
-                                event still fires on that form exactly as
-                                before, so create-learning-activity-draft-
-                                guard.js's existing form.addEventListener("submit", ...)
+                                Task #104: uses form="createActivityForm" so this
+                                still submits the SAME <form id="createActivityForm">
+                                below despite living outside of it -
+                                create-learning-activity-draft-guard.js's submit
                                 validation/confirmation flow needs no changes.
                             -->
-                            <button type="submit" form="createActivityForm" class="btn btn-success-custom" id="publishActivityBtn">
+                            <button type="submit" form="createActivityForm" class="btn-pill-green" id="publishActivityBtn">
                                 <i class="fa-solid fa-paper-plane"></i> Publish Activity
                             </button>
                         </div>

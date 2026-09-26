@@ -913,7 +913,7 @@ function addNewQuestionCard(prefilledData = null) {
     card.innerHTML = `
         <div class="question-card-header">
             <span class="question-number">Question ${qNum}</span>
-            <div class="question-controls" style="display: flex; gap: 8px; align-items: center;">
+            <div class="question-controls card-controls">
                 <button type="button" class="icon-control-btn" title="Move Up" onclick="moveQuestionUp(this)"><i class="fa-solid fa-arrow-up"></i></button>
                 <button type="button" class="icon-control-btn" title="Move Down" onclick="moveQuestionDown(this)"><i class="fa-solid fa-arrow-down"></i></button>
                 <button type="button" class="icon-control-btn" title="Duplicate Question" onclick="duplicateQuestionCard(this)"><i class="fa-regular fa-copy"></i></button>
@@ -922,7 +922,7 @@ function addNewQuestionCard(prefilledData = null) {
         </div>
 
         <div class="question-body-content">
-            <div class="form-group mb-20" style="position: relative;">
+            <div class="form-group mb-20 form-group-relative">
                 <label class="form-label">Question *</label>
                 <textarea name="questions[${qIndex}][text]" class="form-control question-textarea" rows="2" placeholder="Type your question here..." required>${escapeAttr(questionTextVal)}</textarea>
                 <span class="char-counter">${questionTextVal.length} / 1000</span>
@@ -1068,7 +1068,7 @@ function removeQuestionCard(btn) {
     
     if (remainingCards.length === 0) {
         container.innerHTML = `
-            <div class="text-muted text-center py-4" id="noQuestionsMessage" style="padding: 30px; background: #f8fafc; border: 2px dashed #e2e8f0; border-radius: 8px; margin-bottom: 20px;">
+            <div class="text-muted text-center placeholder-box" id="noQuestionsMessage">
                 No questions added yet. Click the button below to add your first question.
             </div>
         `;
@@ -1236,7 +1236,7 @@ function addNewFillBlankCard(prefilledData = null) {
     card.innerHTML = `
         <div class="fill-blank-card-header">
             <span class="fill-blank-title">Item ${num}</span>
-            <div class="fill-blank-controls" style="display: flex; gap: 8px; align-items: center;">
+            <div class="fill-blank-controls card-controls">
                 <button type="button" class="icon-control-btn" title="Move Up" onclick="moveFillBlankUp(this)"><i class="fa-solid fa-arrow-up"></i></button>
                 <button type="button" class="icon-control-btn" title="Move Down" onclick="moveFillBlankDown(this)"><i class="fa-solid fa-arrow-down"></i></button>
                 <button type="button" class="icon-control-btn" title="Duplicate Item" onclick="duplicateFillBlankCard(this)"><i class="fa-regular fa-copy"></i></button>
@@ -1244,7 +1244,7 @@ function addNewFillBlankCard(prefilledData = null) {
             </div>
         </div>
 
-        <div class="form-group mb-20" style="position: relative;">
+        <div class="form-group mb-20 form-group-relative">
             <label class="form-label">Question / Content (Include the blank) *</label>
             <textarea name="fill_blanks[${index}][content]" class="form-control question-textarea" rows="3" placeholder="e.g. To define a function in Python, we use the [_____] keyword." required>${escapeAttr(textVal)}</textarea>
             <span class="char-counter">${textVal.length} / 500</span>
@@ -1383,7 +1383,7 @@ function addNewFlashcardCard(prefilledData = null) {
     card.innerHTML = `
         <div class="flashcard-card-header">
             <span class="flashcard-title">Flashcard ${num}</span>
-            <div class="flashcard-controls" style="display: flex; gap: 8px; align-items: center;">
+            <div class="flashcard-controls card-controls">
                 <button type="button" class="icon-control-btn" title="Move Up" onclick="moveFlashcardUp(this)"><i class="fa-solid fa-arrow-up"></i></button>
                 <button type="button" class="icon-control-btn" title="Move Down" onclick="moveFlashcardDown(this)"><i class="fa-solid fa-arrow-down"></i></button>
                 <button type="button" class="icon-control-btn" title="Duplicate Flashcard" onclick="duplicateFlashcardCard(this)"><i class="fa-regular fa-copy"></i></button>
@@ -1392,12 +1392,12 @@ function addNewFlashcardCard(prefilledData = null) {
         </div>
 
         <div class="flashcard-grid-2">
-            <div class="form-group" style="position: relative;">
+            <div class="form-group form-group-relative">
                 <label class="form-label">Front Card *</label>
                 <textarea name="flashcards[${index}][front]" class="form-control question-textarea" rows="3" placeholder="Prompt, term, or question on the front" required>${escapeAttr(frontVal)}</textarea>
                 <span class="char-counter">${frontVal.length} / 500</span>
             </div>
-            <div class="form-group" style="position: relative;">
+            <div class="form-group form-group-relative">
                 <label class="form-label">Back Card *</label>
                 <textarea name="flashcards[${index}][back]" class="form-control question-textarea" rows="3" placeholder="Answer or definition revealed on the back" required>${escapeAttr(backVal)}</textarea>
                 <span class="char-counter">${backVal.length} / 500</span>

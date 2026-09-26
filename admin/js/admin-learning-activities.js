@@ -120,10 +120,20 @@
             "Quiz": "fa-solid fa-gamepad",
         };
 
+        // Admin redesign: the same preview buttons, shown as icon-only
+        // pills (color per type). The type name stays in the title
+        // tooltip and aria-label.
+        const ACTIVITY_TYPE_PILL_CLASSES = {
+            "Multiple Choice": "type-mc",
+            "Fill in the Blanks": "type-fib",
+            "Flashcards": "type-fc",
+            "Quiz": "type-quiz",
+        };
+
         function activityIconsHtml(resourceId, typeNames) {
             return (typeNames || [])
                 .filter((t) => ACTIVITY_TYPE_ICONS[t])
-                .map((t) => `<button type="button" class="activity-content-trigger" data-resource-id="${resourceId}" data-activity-type="${escapeHtml(t)}" title="Preview ${escapeHtml(t)}"><i class="${ACTIVITY_TYPE_ICONS[t]}"></i></button>`)
+                .map((t) => `<button type="button" class="activity-content-trigger activity-type-pill ${ACTIVITY_TYPE_PILL_CLASSES[t] || ''}" data-resource-id="${resourceId}" data-activity-type="${escapeHtml(t)}" title="Preview ${escapeHtml(t)}" aria-label="Preview ${escapeHtml(t)}"><i class="${ACTIVITY_TYPE_ICONS[t]}"></i></button>`)
                 .join("");
         }
 
@@ -514,15 +524,15 @@
             const contextParts = [lessonContext?.category, lessonContext?.module, lessonContext?.lessonName]
                 .filter((part) => part && part !== "—");
             const contextHtml = contextParts.length
-                ? `<p style="margin: 0 0 16px; padding: 8px 12px; background: #f1f5f9; border-radius: 8px; font-size: 13px; color: #475569;">
-                       <i class="fa-solid fa-location-dot" style="margin-right: 6px; color: #64748b;"></i>${contextParts.map(escapeHtml).join(" &rsaquo; ")}
+                ? `<p class="archive-context-note">
+                       <i class="fa-solid fa-location-dot archive-context-icon"></i>${contextParts.map(escapeHtml).join(" &rsaquo; ")}
                    </p>`
                 : "";
 
             const itemsHtml = activities.map((a) => `
                 <label class="archive-checklist-item${a.status === "Published" ? " archive-checklist-item-disabled" : ""}">
                     <input type="checkbox" class="archive-checklist-checkbox" value="${a.activity_id}" ${a.status === "Published" ? "disabled" : ""}>
-                    <span><i class="${ACTIVITY_TYPE_ICONS[a.activity_type] || 'fa-solid fa-file-lines'}"></i> ${escapeHtml(a.activity_type)}: ${escapeHtml(a.activity_title)}${a.status === "Published" ? ' <span style="color:#b45309; font-weight:600;">(Published)</span>' : ""}</span>
+                    <span><i class="${ACTIVITY_TYPE_ICONS[a.activity_type] || 'fa-solid fa-file-lines'}"></i> ${escapeHtml(a.activity_type)}: ${escapeHtml(a.activity_title)}${a.status === "Published" ? ' <span class="archive-published-tag">(Published)</span>' : ""}</span>
                 </label>
             `).join("");
 
@@ -532,16 +542,16 @@
             // item's own checkbox. No bypass/confirm-anyway option.
             const hasAnyBlocker = activities.some((a) => a.status === "Published");
             const warningHtml = hasAnyBlocker
-                ? `<p style="margin: 0 0 14px; padding: 10px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">
+                ? `<p class="archive-warning-note">
                        You must unpublish these items first before you can archive this parent record.
                    </p>`
                 : "";
 
             overlay.innerHTML = `
-                <div class="content-preview-card" style="max-width: 460px;">
+                <div class="content-preview-card activity-archive-card">
                     <div class="content-preview-header">
                         <strong>Archive which activities?</strong>
-                        <button type="button" id="activityArchiveCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
+                        <button type="button" id="activityArchiveCloseBtn" class="modal-close-btn modal-close-inline" title="Close">&times;</button>
                     </div>
                     <div class="content-preview-body">
                         ${contextHtml}
@@ -551,8 +561,8 @@
                             <span><strong>Select all</strong></span>
                         </label>
                         ${itemsHtml}
-                        <p id="activityArchiveValidationMsg" style="display:none; color:#dc2626; font-size:13px; margin: 10px 0 0;"></p>
-                        <div style="margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px;">
+                        <p id="activityArchiveValidationMsg" class="archive-validation-msg"></p>
+                        <div class="archive-choice-actions">
                             <button type="button" class="modal-btn-cancel" id="activityArchiveCancelBtn">Cancel</button>
                             <button type="button" class="modal-btn-save" id="activityArchiveConfirmBtn" ${hasAnyBlocker ? "disabled" : ""}>Archive Selected</button>
                         </div>
@@ -645,24 +655,24 @@
                 let itemsHtml = "";
                 if (type === "Multiple Choice" || type === "Quiz") {
                     itemsHtml = a.items.map((q, idx) => `
-                        <p style="font-weight: 600; margin: 14px 0 6px;">${idx + 1}. ${escapeHtml(q.question_text)}</p>
-                        <ul style="margin: 0 0 10px; padding-left: 20px;">
-                            ${q.options.map((o) => `<li style="${o.is_correct ? 'color:#16a34a; font-weight:600;' : ''}">${escapeHtml(o.option_letter)}. ${escapeHtml(o.text)}${o.is_correct ? ' ✓' : ''}</li>`).join("")}
+                        <p class="preview-question">${idx + 1}. ${escapeHtml(q.question_text)}</p>
+                        <ul class="preview-options">
+                            ${q.options.map((o) => `<li class="${o.is_correct ? 'preview-correct-option' : ''}">${escapeHtml(o.option_letter)}. ${escapeHtml(o.text)}${o.is_correct ? ' ✓' : ''}</li>`).join("")}
                         </ul>
                     `).join("");
                 } else if (type === "Fill in the Blanks") {
                     itemsHtml = a.items.map((f, idx) => `
-                        <p style="margin: 14px 0 4px;"><strong>${idx + 1}.</strong> ${escapeHtml(f.content)}</p>
-                        <p style="margin: 0 0 10px; color:#16a34a;">Answer: ${escapeHtml(f.correct_answer)}</p>
+                        <p class="preview-item"><strong>${idx + 1}.</strong> ${escapeHtml(f.content)}</p>
+                        <p class="preview-answer">Answer: ${escapeHtml(f.correct_answer)}</p>
                     `).join("");
                 } else if (type === "Flashcards") {
                     itemsHtml = a.items.map((c, idx) => `
-                        <p style="margin: 14px 0 4px;"><strong>Card ${idx + 1} - Front:</strong> ${escapeHtml(c.front)}</p>
-                        <p style="margin: 0 0 10px;"><strong>Back:</strong> ${escapeHtml(c.back)}</p>
+                        <p class="preview-item"><strong>Card ${idx + 1} - Front:</strong> ${escapeHtml(c.front)}</p>
+                        <p class="preview-item-back"><strong>Back:</strong> ${escapeHtml(c.back)}</p>
                     `).join("");
                 }
-                return `<div style="margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #e5e7eb;">
-                    <p style="font-weight: 700; margin: 0 0 4px;">${escapeHtml(a.activity_title)} <span style="font-weight:400; color:#6b7280;">(${escapeHtml(a.status)})</span></p>
+                return `<div class="preview-activity-block">
+                    <p class="preview-activity-title">${escapeHtml(a.activity_title)} <span class="preview-activity-status">(${escapeHtml(a.status)})</span></p>
                     ${itemsHtml}
                 </div>`;
             }).join("");
@@ -679,7 +689,7 @@
                 <div class="content-preview-card">
                     <div class="content-preview-header">
                         <strong>${escapeHtml(activityType)}</strong>
-                        <button type="button" id="activityPreviewCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
+                        <button type="button" id="activityPreviewCloseBtn" class="modal-close-btn modal-close-inline" title="Close">&times;</button>
                     </div>
                     <div class="content-preview-body">${renderActivityPreviewBody(activities, activityType)}</div>
                 </div>
