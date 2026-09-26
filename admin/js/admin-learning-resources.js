@@ -69,10 +69,10 @@
             overlay.id = "videoPreviewModalOverlay";
             overlay.className = "modal-overlay";
             overlay.innerHTML = `
-                <div style="position: relative; width: 100%; max-width: 720px; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);">
-                    <button type="button" id="videoPreviewModalCloseBtn" class="modal-close-btn" style="top: 8px; right: 12px; color: #ffffff;" title="Close">&times;</button>
-                    <div style="position: relative; width: 100%; aspect-ratio: 16 / 9;">
-                        <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1" style="position:absolute; top:0; left:0; width:100%; height:100%; border:none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
+                <div class="video-preview-modal-card">
+                    <button type="button" id="videoPreviewModalCloseBtn" class="modal-close-btn video-preview-close-btn" title="Close">&times;</button>
+                    <div class="video-preview-frame">
+                        <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1" class="video-preview-iframe" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
                     </div>
                 </div>
             `;
@@ -514,7 +514,7 @@
                 <div class="content-preview-card">
                     <div class="content-preview-header">
                         <strong id="contentPreviewTitle">Loading...</strong>
-                        <button type="button" id="contentPreviewCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
+                        <button type="button" id="contentPreviewCloseBtn" class="modal-close-btn modal-close-inline" title="Close">&times;</button>
                     </div>
                     <div class="content-preview-body lesson-content-body" id="contentPreviewBody">Loading content...</div>
                 </div>

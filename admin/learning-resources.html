@@ -27,38 +27,43 @@
             <!-- Manage Learning Resources Content Area -->
             <div class="dashboard-content-area">
                 
-                <!-- Top Bar -->
+                <!-- Page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
                         <h1>Manage Learning Resources</h1>
-                        <p>Upload and manage tutorial videos, PDFs, images, and documents.</p>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Upload and manage tutorial videos and lessons.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
-                            <a href="{{ url_for('admin_bp.upload_resource') }}" id="openUploadResourceBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-upload"></i> Upload Lesson
+                        <div class="page-header-actions">
+                            <a href="{{ url_for('admin_bp.upload_resource') }}" id="openUploadResourceBtn" class="btn-pill-green">
+                                <span class="mask-icon icon-upload"></span> Upload Lesson
                             </a>
-                            <a href="{{ url_for('admin_bp.upload_video_tutorial') }}" id="openUploadVideoBtn" class="btn btn-success-custom">
-                                <i class="fa-solid fa-video"></i> Upload Video
+                            <a href="{{ url_for('admin_bp.upload_video_tutorial') }}" id="openUploadVideoBtn" class="btn-pill-green">
+                                <span class="mask-icon icon-play"></span> Upload Video
                             </a>
-                            <button id="openArchivedResourcesBtn" class="btn btn-icon-custom" title="Archived Items">
-                                <i class="fa-solid fa-box-archive"></i>
+                            <button type="button" id="openArchivedResourcesBtn" class="btn-round-green" title="Archived Items" aria-label="Archived Items">
+                                <span class="mask-icon icon-archive"></span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Data Table Card Box -->
-                <div class="card-box padded-card">
-                    
+                <!-- Resources Table Card -->
+                <div class="table-card">
+
                     <!-- Table Toolbar -->
                     <div class="table-toolbar">
                         <div class="header-search search-override">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <span class="mask-icon icon-search search-icon"></span>
                             <input type="text" id="resourceSearchInput" placeholder="Search resources, types, categories, statuses...">
                         </div>
                         <div class="toolbar-filters">
@@ -120,10 +125,11 @@
                     </div>
 
                     <!-- Task #40: inline validation message (e.g. invalid date range) -->
-                    <p id="resourceDateFilterError" class="text-muted" style="display: none; color: #e02424; font-size: 12px; margin: -10px 0 15px 0;"></p>
+                    <p id="resourceDateFilterError" class="date-filter-error"></p>
 
                     <!-- Resources Table -->
-                    <table class="data-table" id="resourcesDataTable">
+                    <div class="table-scroll">
+                    <table class="data-table resources-table" id="resourcesDataTable">
                         <thead>
                             <tr>
                                 <th>Resource</th>
@@ -251,14 +257,15 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    </div>
 
                     <!-- Pagination Footer -->
                     <div class="table-pagination">
                         <span id="resourcesShowingCount">Showing {{ resources|length }} of {{ total_resources|default(0) }} Resources</span>
                         <span>
-                            <button id="resourcesPrevBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
+                            <button type="button" id="resourcesPrevBtn" class="icon-button-reset" aria-label="Previous page" {{ 'disabled' if page|default(1) <= 1 }}>&lt;</button>
                             <span id="resourcesPageLabel">{{ page|default(1) }} of {{ total_pages|default(1) }}</span>
-                            <button id="resourcesNextBtn" class="icon-button-reset" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
+                            <button type="button" id="resourcesNextBtn" class="icon-button-reset" aria-label="Next page" {{ 'disabled' if page|default(1) >= total_pages|default(1) }}>&gt;</button>
                         </span>
                     </div>
 

@@ -2,25 +2,37 @@
    UPLOAD VIDEO TUTORIAL PAGE (Front-end only)
    ========================================================================== */
 
-/* .btn-light-custom - same white-background button style already used
-   for this exact purpose elsewhere in the admin (see module-editor.css),
-   copied here rather than importing that whole stylesheet, since it
-   defines many other shared class names (.card-box, .form-group,
-   .form-control, etc.) that could otherwise clash with this page's own
-   styling. */
-.btn-light-custom {
-    background-color: #ffffff !important;
-    color: #374151 !important;
-    border: 1px solid #d1d5db !important;
-    font-weight: 600 !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-    transition: all 0.2s ease !important;
+/* Category / Module / Lesson row (was an inline style="" on the
+   .lesson-meta-grid div in upload-video-tutorial.html) */
+.video-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
 }
 
-.btn-light-custom:hover {
-    background-color: #f3f4f6 !important;
-    border-color: #9ca3af !important;
-    color: #111827 !important;
+@media (max-width: 900px) {
+    .video-meta-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Spacing between the stacked left-column cards (was inline) */
+.video-form-card {
+    margin-bottom: 18px;
+}
+
+/* "Description About the Video" / "YouTube Video Link" labels (was inline) */
+.video-field-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #111111;
+}
+
+/* Hint under the YouTube link input (was inline) */
+.video-url-hint {
+    margin-top: 8px;
 }
 
 .video-tutorial-grid {

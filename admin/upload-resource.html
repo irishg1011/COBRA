@@ -7,15 +7,14 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/module-editor.css') }}">
-    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-learning-activity.css') }}">
-     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-exercise.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/upload-pages.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
-<body>
+<body class="upload-page">
 
     <div class="admin-layout">
         <!-- Sidebar (Modularized) -->
@@ -29,37 +28,41 @@
             <!-- Upload Resource Content Area -->
             <div class="dashboard-content-area">
                 
-                <!-- Top Bar -->
+                <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <a href="{{ url_for('admin_bp.learning_resources') }}" class="btn-back-custom">
-                                <i class="fa-solid fa-arrow-left"></i> Back
-                            </a>
+                        <a href="{{ url_for('admin_bp.learning_resources') }}" class="btn-back-link">
+                            <i class="fa-solid fa-arrow-left"></i> Back
+                        </a>
                         <h1>Manage Learning Resources</h1>
-                        <p>{{ greeting }}, {{ current_admin.full_name if current_admin else 'Administrator' }}!</p>
-                        <small class="text-muted">Upload and manage tutorial videos and lessons.</small>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Upload and manage tutorial videos and lessons.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
-                            <button type="button" class="btn btn-light-custom">
+                        <div class="page-header-actions">
+                            <button type="button" class="btn-pill-light">
                                 <i class="fa-regular fa-eye"></i> Preview Lesson
                             </button>
                             {% if existing_resource and existing_resource.status == 'Published' %}
-                            <button type="button" class="btn btn-light-custom" id="saveDraftBtn" data-is-published="true">
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="true">
                                 <i class="fa-regular fa-floppy-disk"></i> Save
                             </button>
-                            <button type="button" class="btn btn-unpublish-custom" id="unpublishResourceBtn" data-resource-id="{{ existing_resource.resource_id }}">
+                            <button type="button" class="btn-pill-danger" id="unpublishResourceBtn" data-resource-id="{{ existing_resource.resource_id }}">
                                 <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish
                             </button>
                             {% else %}
-                            <button type="button" class="btn btn-light-custom" id="saveDraftBtn" data-is-published="false">
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="false">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
-                            <button type="submit" form="uploadModuleForm" class="btn btn-success-custom" id="publishResourceBtn">
+                            <button type="submit" form="uploadModuleForm" class="btn-pill-green" id="publishResourceBtn">
                                 <i class="fa-solid fa-paper-plane"></i> Publish
                             </button>
                             {% endif %}
@@ -199,7 +202,6 @@
                             <input type="hidden" name="resource_id" id="resourceIdInput" value="{{ existing_resource.resource_id if existing_resource else '' }}">
                         </div>
 
-                    </div>
                     </div>
                 </form>
 

@@ -254,7 +254,7 @@
             const itemsHtml = options.map((o) => `
                 <label class="archive-checklist-item${o.status === "Published" ? " archive-checklist-item-disabled" : ""}">
                     <input type="checkbox" class="archive-checklist-checkbox" value="${o.key}" ${o.status === "Published" ? "disabled" : ""}>
-                    <span><i class="${o.icon}"></i> ${escapeHtml(o.label)}${o.status === "Published" ? ' <span style="color:#b45309; font-weight:600;">(Published)</span>' : ""}</span>
+                    <span><i class="${o.icon}"></i> ${escapeHtml(o.label)}${o.status === "Published" ? ' <span class="archive-published-tag">(Published)</span>' : ""}</span>
                 </label>
             `).join("");
 
@@ -267,14 +267,14 @@
             const extraBlockers = blockers.filter((b) => !shownTypes.has(b.type));
             const extraBlockersHtml = extraBlockers.map((b) => `
                 <div class="archive-checklist-item archive-checklist-item-disabled">
-                    <i class="fa-solid fa-triangle-exclamation" style="color:#b45309;"></i>
-                    <span>${escapeHtml(b.type)}: ${escapeHtml(b.title)} <span style="color:#b45309; font-weight:600;">(Published)</span></span>
+                    <i class="fa-solid fa-triangle-exclamation archive-warning-icon"></i>
+                    <span>${escapeHtml(b.type)}: ${escapeHtml(b.title)} <span class="archive-published-tag">(Published)</span></span>
                 </div>
             `).join("");
 
             const hasAnyBlocker = blockers.length > 0;
             const warningHtml = hasAnyBlocker
-                ? `<p style="margin: 0 0 14px; padding: 10px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; color: #92400e; font-size: 13px; font-weight: 500;">
+                ? `<p class="archive-warning-note">
                        You must unpublish these items first before you can archive this parent record.
                    </p>`
                 : "";
@@ -288,8 +288,8 @@
                     .filter((part) => part && part !== "—")
                 : [];
             const contextHtml = contextParts.length
-                ? `<p style="margin: 0 0 16px; padding: 8px 12px; background: #f1f5f9; border-radius: 8px; font-size: 13px; color: #475569;">
-                       <i class="fa-solid fa-location-dot" style="margin-right: 6px; color: #64748b;"></i>${contextParts.map(escapeHtml).join(" &rsaquo; ")}
+                ? `<p class="archive-context-note">
+                       <i class="fa-solid fa-location-dot archive-context-icon"></i>${contextParts.map(escapeHtml).join(" &rsaquo; ")}
                    </p>`
                 : "";
 
@@ -297,10 +297,10 @@
             overlay.id = "resourceArchiveModalOverlay";
             overlay.className = "modal-overlay";
             overlay.innerHTML = `
-                <div class="content-preview-card" style="max-width: 440px;">
+                <div class="content-preview-card archive-choice-card">
                     <div class="content-preview-header">
                         <strong>Archive which content?</strong>
-                        <button type="button" id="resourceArchiveCloseBtn" class="modal-close-btn" style="position: static; font-size: 22px;" title="Close">&times;</button>
+                        <button type="button" id="resourceArchiveCloseBtn" class="modal-close-btn modal-close-inline" title="Close">&times;</button>
                     </div>
                     <div class="content-preview-body">
                         ${contextHtml}
@@ -312,7 +312,7 @@
                         </label>` : ""}
                         ${itemsHtml}
                         ${extraBlockersHtml}
-                        <div style="margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px;">
+                        <div class="archive-choice-actions">
                             <button type="button" class="modal-btn-cancel" id="resourceArchiveCancelBtn">Cancel</button>
                             <button type="button" class="modal-btn-save" id="resourceArchiveConfirmBtn" ${hasAnyBlocker ? "disabled" : ""}>Archive Selected</button>
                         </div>

@@ -7,13 +7,14 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/upload-video-tutorial.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/upload-pages.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
-<body>
+<body class="upload-page">
 
     <div class="admin-layout">
         <!-- Sidebar (Modularized) -->
@@ -27,29 +28,33 @@
             <!-- Upload Video Tutorial Content Area -->
             <div class="dashboard-content-area">
 
-                <!-- Top Bar -->
+                <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <a href="{{ url_for('admin_bp.learning_resources') }}" class="btn-back-custom">
+                        <a href="{{ url_for('admin_bp.learning_resources') }}" class="btn-back-link">
                             <i class="fa-solid fa-arrow-left"></i> Back
                         </a>
                         <h1>Manage Learning Resources</h1>
-                        <p>{{ greeting }}, {{ current_admin.full_name if current_admin else 'Administrator' }}!</p>
-                        <small class="text-muted">Upload and manage tutorial videos and lessons.</small>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Upload and manage tutorial videos and lessons.</p>
                     </div>
-                    <div class="header-actions-group">
+                    <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
                             <strong id="current-time"></strong>
                             <small id="current-date"></small>
                         </div>
-                        <div class="header-actions">
-                            <button type="button" class="btn btn-light-custom" id="previewVideoBtn">
+                        <div class="page-header-actions">
+                            <button type="button" class="btn-pill-light" id="previewVideoBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Video
                             </button>
-                            <button type="button" class="btn btn-success-custom" id="saveVideoDraftBtn">
+                            <button type="button" class="btn-pill-light" id="saveVideoDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save Draft
                             </button>
-                            <button type="button" class="btn btn-success-custom" id="publishVideoBtn">
+                            <button type="button" class="btn-pill-green" id="publishVideoBtn">
                                 <i class="fa-solid fa-paper-plane"></i> Publish
                             </button>
                         </div>
@@ -69,7 +74,7 @@
                 <input type="hidden" id="videoTutorialIdInput" value="{{ existing_video.video_tutorial_id if existing_video else '' }}">
                 <input type="hidden" id="existingVideoIdInput" value="{{ existing_video.video_id if existing_video else '' }}">
                 <input type="hidden" id="hiddenVideoDescription">
-                <div class="lesson-meta-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 18px;">
+                <div class="lesson-meta-grid video-meta-grid">
                     <div class="form-group">
                         <label for="videoCategorySelect">Category</label>
                         <select id="videoCategorySelect" class="form-control">
@@ -97,15 +102,15 @@
 
                     <!-- LEFT COLUMN: Title, Description, File Upload -->
                     <div>
-                        <div class="card-box padded-card" style="margin-bottom: 18px;">
+                        <div class="card-box padded-card video-form-card">
                             <div class="form-group">
                                 <label for="videoTitleInput">Video Tutorial Title</label>
                                 <input type="text" id="videoTitleInput" class="form-control" placeholder="Enter video tutorial title..." value="{{ existing_video.video_title if existing_video else '' }}">
                             </div>
                         </div>
 
-                        <div class="card-box padded-card" style="margin-bottom: 18px;">
-                            <label class="form-label" style="display:block; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #374151;">Description About the Video</label>
+                        <div class="card-box padded-card video-form-card">
+                            <label class="form-label video-field-label">Description About the Video</label>
                             <div class="video-desc-toolbar">
                                 <button type="button" title="Bold"><i class="fa-solid fa-bold"></i></button>
                                 <button type="button" title="Italic"><i class="fa-solid fa-italic"></i></button>
@@ -116,9 +121,9 @@
                         </div>
 
                         <div class="card-box padded-card">
-                            <label class="form-label" style="display:block; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #374151;">YouTube Video Link</label>
+                            <label class="form-label video-field-label">YouTube Video Link</label>
                             <input type="url" id="videoUrlInput" class="form-control" placeholder="Paste a YouTube video link..." value="{{ existing_video.youtube_url if existing_video else '' }}">
-                            <div class="video-dropzone-hint" id="videoUrlHint" style="margin-top: 8px;">Paste a link from youtube.com or youtu.be - it will be embedded and playable below, the link itself is never shown to learners.</div>
+                            <div class="video-dropzone-hint video-url-hint" id="videoUrlHint">Paste a link from youtube.com or youtu.be - it will be embedded and playable below, the link itself is never shown to learners.</div>
                         </div>
                     </div>
 

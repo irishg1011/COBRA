@@ -1,0 +1,134 @@
+/* ==========================================================================
+   upload-pages.css - Upload Lesson (upload-resource.html) and
+   Upload Video (upload-video-tutorial.html) - admin redesign
+   --------------------------------------------------------------------------
+   Everything is scoped to <body class="upload-page">, so the other pages
+   that share module-editor.css (Create Learning Activity, Create Coding
+   Exercise) keep their current look until they get redesigned too.
+   Buttons (.btn-pill-*, .btn-back-link) live in admin-style.css.
+   ========================================================================== */
+
+/* --- Section title ("New Lesson" / "New Video Tutorial") --- */
+.upload-page .editor-section-title h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.upload-page .editor-section-title i {
+    color: #09B300;
+}
+
+/* --- Labels & inputs --- */
+.upload-page .form-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--admin-text);
+}
+
+.upload-page .form-control {
+    width: 100%;
+    height: 42px;
+    padding: 0 12px;
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
+    background-color: #ffffff;
+    font-size: 14px;
+    color: var(--admin-text);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.upload-page .form-control:focus {
+    border-color: #09B300;
+    box-shadow: 0 0 0 3px rgba(9, 179, 0, 0.15);
+}
+
+.upload-page select.form-control {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 36px;
+    background: #ffffff url('/assets/images/icons/icon-chevron-down.svg') right 12px center / 16px no-repeat;
+    cursor: pointer;
+}
+
+.upload-page select.form-control:disabled {
+    background-color: #f3f4f6;
+    color: var(--admin-muted);
+    cursor: not-allowed;
+}
+
+/* --- Upload Lesson: editor card, toolbar and writing area --- */
+.upload-page .module-card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.upload-page .editor-toolbar {
+    gap: 10px;
+    padding: 10px 14px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid var(--admin-line);
+}
+
+.upload-page .toolbar-group button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    box-shadow: none;
+    color: var(--admin-text);
+}
+
+.upload-page .toolbar-group button:hover {
+    background: #ffffff;
+    border-color: var(--admin-line);
+    color: #09B300;
+}
+
+.upload-page .headings-group button {
+    color: #0F7A3D;
+}
+
+.upload-page .editor-toolbar button.active {
+    background: #09B300;
+    border-color: #09B300;
+    color: #ffffff;
+    box-shadow: none;
+}
+
+.upload-page .form-textarea {
+    border: 1px solid var(--admin-line);
+    border-radius: 6px;
+    box-shadow: none;
+}
+
+.upload-page .form-textarea:focus {
+    border-color: #09B300;
+}
+
+/* --- Upload Video: cards and description editor --- */
+.upload-page .card-box {
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.upload-page .video-desc-toolbar {
+    background: #f5f5f5;
+    border-color: #9ca3af;
+}
+
+.upload-page .video-desc-toolbar button:hover {
+    background: #ffffff;
+    color: #09B300;
+}
+
+.upload-page .video-desc-textarea {
+    border-color: #9ca3af;
+}
+
+.upload-page .video-preview-card h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
