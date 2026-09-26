@@ -33,6 +33,29 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // --------------------------------------------------------------
+    // Admin redesign: collapsible sidebar (icon-only when closed).
+    // The button lives in the shared admin-header.html. The state is a
+    // single "sidebar-collapsed" class on <html> - all visuals are in
+    // admin-style.css - and it's saved to localStorage so it stays the
+    // same across pages (admin-sidebar-state.js re-applies it in <head>).
+    // --------------------------------------------------------------
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    if (sidebarToggleBtn) {
+        const rootEl = document.documentElement;
+        sidebarToggleBtn.setAttribute('aria-expanded', String(!rootEl.classList.contains('sidebar-collapsed')));
+
+        sidebarToggleBtn.addEventListener('click', () => {
+            const isCollapsed = rootEl.classList.toggle('sidebar-collapsed');
+            sidebarToggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+            try {
+                localStorage.setItem('cobrabyteAdminSidebarCollapsed', String(isCollapsed));
+            } catch (err) {
+                /* storage unavailable - toggle still works for this page */
+            }
+        });
+    }
 });
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -89,4 +112,4 @@ document.addEventListener("DOMContentLoaded", () => {
             closeCreateAdminModal();
         }
     });
-});
+});

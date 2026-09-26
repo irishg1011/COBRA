@@ -1,54 +1,76 @@
 <!-- admin/admin-sidebar.html -->
-<aside class="admin-sidebar">
+<aside class="admin-sidebar" id="adminSidebar">
     <div class="sidebar-brand">
-        <img src="/assets/images/logo-ad.png" class="brand-logo">
+        <img src="/assets/images/logo-ad.png" class="brand-logo" alt="CobraByte">
     </div>
+
     <nav class="sidebar-nav">
-        <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.admin_dashboard' else '' }}">
-            <img src="/assets/images/dashboard-1.png" class="sidebar-icon"> Dashboard
+        <a href="{{ url_for('admin_bp.admin_dashboard') }}" title="Dashboard" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.admin_dashboard' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-dashboard"></span>
+            <span class="nav-label">Dashboard</span>
         </a>
-        <a href="{{ url_for('admin_bp.account_security') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs'] else '' }}">
-            <img src="/assets/images/book-3-11.png" class="sidebar-icon"> Account & Security
+        <a href="{{ url_for('admin_bp.account_security') }}" title="Account & Security" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs'] else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-account"></span>
+            <span class="nav-label">Account & Security</span>
         </a>
-        <a href="{{ url_for('admin_bp.manage_course') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">
-            <img src="/assets/images/book-1.png" class="sidebar-icon"> Manage Course
-        </a>
-        <a href="{{ url_for('admin_bp.learning_resources') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learning_resources', 'admin_bp.upload_resource'] else '' }}">
-            <img src="/assets/images/video-1.png" class="sidebar-icon"> Learning Resources
+        <a href="{{ url_for('admin_bp.publishing') }}" title="Publishing" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.publishing' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-publishing"></span>
+            <span class="nav-label">Publishing</span>
         </a>
 
-        <!-- Task #19: wired up to real routes + Under Construction pages -->
-        <a href="{{ url_for('admin_bp.learning_activities') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learning_activities', 'admin_bp.create_learning_activity_page', 'admin_bp.create_activity_submit'] else '' }}">
-            <img src="/assets/images/rise-1.png" class="sidebar-icon"> Learning Activities
+        <div class="sidebar-section-label"><span>Learning</span></div>
+        <a href="{{ url_for('admin_bp.manage_course') }}" title="Manage Course" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.manage_course' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-course"></span>
+            <span class="nav-label">Manage Course</span>
         </a>
-        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.coding_exercises', 'admin_bp.create_coding_exercise'] else '' }}">
-            <img src="/assets/images/code-1.png" class="sidebar-icon"> Coding Exercises
+        <a href="{{ url_for('admin_bp.learning_resources') }}" title="Learning Resources" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learning_resources', 'admin_bp.upload_resource'] else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-resources"></span>
+            <span class="nav-label">Learning Resources</span>
         </a>
-        <a href="{{ url_for('admin_bp.publishing') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.publishing' else '' }}">
-            <img src="/assets/images/book-1.png" class="sidebar-icon"> Publishing
+        <a href="{{ url_for('admin_bp.learning_activities') }}" title="Learning Activities" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learning_activities', 'admin_bp.create_learning_activity_page', 'admin_bp.create_activity_submit'] else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-activities"></span>
+            <span class="nav-label">Learning Activities</span>
         </a>
-        <a href="{{ url_for('admin_bp.coding_sandbox') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
-            <img src="/assets/images/programming-1.png" class="sidebar-icon"> Coding Sandbox
+
+        <div class="sidebar-section-label"><span>Coding</span></div>
+        <a href="{{ url_for('admin_bp.coding_exercises') }}" title="Coding Exercises" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.coding_exercises', 'admin_bp.create_coding_exercise'] else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-exercises"></span>
+            <span class="nav-label">Coding Exercises</span>
         </a>
-        <a href="{{ url_for('admin_bp.learner_progress') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learner_progress' else '' }}">
-            <img src="/assets/images/image-6.png" class="sidebar-icon"> Learner Progress
+        <a href="{{ url_for('admin_bp.coding_sandbox') }}" title="Coding Sandbox" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-sandbox"></span>
+            <span class="nav-label">Coding Sandbox</span>
         </a>
-        <a href="{{ url_for('admin_bp.analytics') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.analytics' else '' }}">
-            <img src="/assets/images/report-1.png" class="sidebar-icon"> Analytics
+
+        <div class="sidebar-section-label"><span>Progress</span></div>
+        <a href="{{ url_for('admin_bp.learner_progress') }}" title="Learner Progress" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learner_progress' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-progress"></span>
+            <span class="nav-label">Learner Progress</span>
         </a>
-        <a href="{{ url_for('admin_bp.recommendations') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
-            <img src="/assets/images/bulb-1.png" class="sidebar-icon"> Recommendations
+        <a href="{{ url_for('admin_bp.analytics') }}" title="Analytics" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.analytics' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-analytics"></span>
+            <span class="nav-label">Analytics</span>
         </a>
-        <a href="{{ url_for('admin_bp.achievements') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
-            <img src="/assets/images/ribbon-1.png" class="sidebar-icon"> Achievements
+        <a href="{{ url_for('admin_bp.recommendations') }}" title="Recommendations" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-recommendations"></span>
+            <span class="nav-label">Recommendations</span>
         </a>
-        <a href="{{ url_for('admin_bp.reports') }}" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
-            <img src="/assets/images/image-11.png" class="sidebar-icon"> Reports
+        <a href="{{ url_for('admin_bp.achievements') }}" title="Achievements" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-achievements"></span>
+            <span class="nav-label">Achievements</span>
+        </a>
+
+        <div class="sidebar-section-label"><span>Support</span></div>
+        <a href="{{ url_for('admin_bp.reports') }}" title="Reports" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-reports"></span>
+            <span class="nav-label">Reports</span>
         </a>
     </nav>
+
     <div class="sidebar-footer">
-        <a href="{{ url_for('admin_bp.admin_logout') }}" id="adminLogoutBtn" class="logout-btn">
-            <img src="/assets/images/logout-1.png" class="sidebar-icon"> Logout
+        <a href="{{ url_for('admin_bp.admin_logout') }}" id="adminLogoutBtn" class="logout-btn" title="Logout">
+            <span class="sidebar-icon mask-icon icon-nav-logout"></span>
+            <span class="nav-label">Logout</span>
         </a>
     </div>
 </aside>
@@ -56,20 +78,14 @@
 <!--
     Task #14: Custom Logout Confirmation Modal
     -------------------------------------------
-    Reuses the exact design/markup already used by the Learner Dashboard's
-    logout modal (see templates/dashboard.html: #logoutModal) so both
-    modules share one consistent look. Lives here (in the shared sidebar
-    partial) so every admin page that includes the sidebar gets it for
-    free, with no duplicated HTML across Dashboard / Account & Security /
-    future pages. Hidden by default; admin-auth-guard.js toggles it and
-    wires up Cancel / Yes, Logout - no window.confirm() involved anywhere.
+    Shared by every admin page that includes this sidebar. Hidden by
+    default; admin-auth-guard.js toggles it and wires up Cancel /
+    Yes, Logout - no window.confirm() involved anywhere.
 -->
 <div id="adminLogoutModal" class="modal-overlay modal-hidden">
     <div class="modal-card modal-card-confirm">
         <div class="modal-confirm-icon modal-confirm-icon-danger">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="modal-confirm-icon-svg">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-            </svg>
+            <span class="modal-confirm-icon-svg mask-icon icon-warning"></span>
         </div>
         <h3 class="modal-confirm-title">Are you sure you want to log out?</h3>
         <p class="modal-confirm-text">You will need to sign back in to access your dashboard.</p>

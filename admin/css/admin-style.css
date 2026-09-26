@@ -1,15 +1,27 @@
 /* ==========================================================================
-   ADMIN STYLESHEET - ALIGNED DASHBOARD DATE-TIME & FIGMA COLORS
+   ADMIN STYLESHEET - COBRABYTE ADMIN REDESIGN (Figma: CobraByte Desktop Admin)
    ========================================================================== */
+:root {
+    --admin-blue: #1D6FDC;
+    --admin-text: #111111;
+    --admin-muted: #6b7280;
+    --admin-line: #d1d5db;
+    --admin-mint: #5CD6A9;
+    --admin-track: #dcdcdc;
+    --brand-gradient: linear-gradient(135deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%);
+    --sidebar-width: 260px;
+    --sidebar-collapsed-width: 80px;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-    background-color: #EFECE1;
+    background: #eef6f8 url('/assets/images/landingpage.jpg') center / cover no-repeat fixed;
     color: #333;
     min-height: 100vh;
     display: flex;
@@ -23,33 +35,84 @@ body {
     width: 100%;
 }
 
-/* Sidebar Styling */
+/* ==========================================================================
+   MASK ICONS
+   One element, any color: the icon file is used as a CSS mask and the
+   visible color comes from `color` (background-color: currentColor).
+   Works with the existing white PNGs and the new /icons/*.svg files.
+   ========================================================================== */
+.mask-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    background-color: currentColor;
+    -webkit-mask: var(--icon) center / contain no-repeat;
+    mask: var(--icon) center / contain no-repeat;
+}
+
+/* Sidebar icons (existing PNGs) */
+.icon-nav-dashboard       { --icon: url('/assets/images/dashboard-1.png'); }
+.icon-nav-account         { --icon: url('/assets/images/book-3-11.png'); }
+.icon-nav-publishing      { --icon: url('/assets/images/icons/icon-send.svg'); }
+.icon-nav-course          { --icon: url('/assets/images/book-1.png'); }
+.icon-nav-resources       { --icon: url('/assets/images/video-1.png'); }
+.icon-nav-activities      { --icon: url('/assets/images/rise-1.png'); }
+.icon-nav-exercises       { --icon: url('/assets/images/code-1.png'); }
+.icon-nav-sandbox         { --icon: url('/assets/images/programming-1.png'); }
+.icon-nav-progress        { --icon: url('/assets/images/image-6.png'); }
+.icon-nav-analytics       { --icon: url('/assets/images/report-1.png'); }
+.icon-nav-recommendations { --icon: url('/assets/images/bulb-1.png'); }
+.icon-nav-achievements    { --icon: url('/assets/images/ribbon-1.png'); }
+.icon-nav-reports         { --icon: url('/assets/images/image-11.png'); }
+.icon-nav-logout          { --icon: url('/assets/images/logout-1.png'); }
+
+/* UI icons (new SVG files) */
+.icon-menu        { --icon: url('/assets/images/icons/icon-menu.svg'); }
+.icon-warning     { --icon: url('/assets/images/icons/icon-warning.svg'); }
+.icon-book-open   { --icon: url('/assets/images/icons/icon-book-open.svg'); }
+.icon-user        { --icon: url('/assets/images/icons/icon-user.svg'); }
+.icon-play        { --icon: url('/assets/images/icons/icon-play.svg'); }
+.icon-code        { --icon: url('/assets/images/icons/icon-code.svg'); }
+.icon-check-circle{ --icon: url('/assets/images/icons/icon-check-circle.svg'); }
+.icon-eye         { --icon: url('/assets/images/icons/icon-eye.svg'); }
+.icon-plus        { --icon: url('/assets/images/icons/icon-plus.svg'); }
+.icon-upload      { --icon: url('/assets/images/icons/icon-upload.svg'); }
+.icon-file-plus   { --icon: url('/assets/images/icons/icon-file-plus.svg'); }
+.icon-terminal    { --icon: url('/assets/images/icons/icon-terminal.svg'); }
+.icon-bolt        { --icon: url('/assets/images/icons/icon-bolt.svg'); }
+.icon-award       { --icon: url('/assets/images/icons/icon-award.svg'); }
+.icon-file-text   { --icon: url('/assets/images/icons/icon-file-text.svg'); }
+
+/* ==========================================================================
+   SIDEBAR
+   ========================================================================== */
 .admin-sidebar {
-    width: 260px;
-    background: linear-gradient(180deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%);
-    color: #fff;
+    width: var(--sidebar-width);
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    color: var(--admin-text);
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    padding: 20px 0;
+    padding: 18px 0 12px;
     position: fixed;
     height: 100vh;
+    overflow-x: hidden;
     overflow-y: auto;
     z-index: 100;
+    transition: width 0.25s ease;
 }
 
 .sidebar-brand {
-    padding: 6px 10px 6px 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 0 20px 18px;
     display: flex;
     align-items: center;
-    gap: 8px;
 }
 
 .brand-logo {
-    height: 55px;
-    max-height: none;
+    height: 52px;
     width: auto;
+    max-width: 100%;
     object-fit: contain;
 }
 
@@ -57,85 +120,172 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 10px;
+    padding: 0 10px;
     flex-grow: 1;
 }
 
-.nav-item {
-    color: #ffffff;
+.nav-item,
+.logout-btn {
+    color: var(--admin-text);
     text-decoration: none;
-    padding: 10px 15px;
+    padding: 11px 12px;
+    border: 1px solid transparent;
     border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 400;
     display: flex;
     align-items: center;
     gap: 12px;
+    white-space: nowrap;
     transition: background 0.2s, color 0.2s;
 }
 
-.nav-item:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
-}
-
-.nav-item:hover .sidebar-icon {
-    filter: none;
+.nav-item:hover,
+.logout-btn:hover {
+    background: #f3f4f6;
 }
 
 .nav-item.active {
-    background: #ffffff !important;
-    color: #111111 !important;
+    background: #f5f5f5;
+    border-color: var(--admin-line);
+    color: var(--admin-blue);
+    font-weight: 600;
 }
 
-.nav-item.active .sidebar-icon {
-    filter: brightness(0);
-}
-
-.sidebar-footer {
-    padding: 15px 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.logout-btn {
-    color: #fff;
-    text-decoration: none;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.nav-item:focus-visible,
+.logout-btn:focus-visible,
+.sidebar-toggle-btn:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
 }
 
 .sidebar-icon {
-    width: 18px;
-    height: 18px;
-    object-fit: contain;
-    vertical-align: middle;
+    width: 22px;
+    height: 22px;
 }
 
-/* Main Content Area */
+.sidebar-section-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 4px 4px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #9ca3af;
+    white-space: nowrap;
+}
+
+.sidebar-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--admin-line);
+}
+
+.sidebar-footer {
+    margin: 12px 10px 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--admin-line);
+}
+
+/* --- Collapsed (icon-only) sidebar ---
+   The class lives on <html>: admin-sidebar-state.js adds it in <head>
+   before first paint, admin-script.js toggles it on click. */
+html.sidebar-collapsed .admin-sidebar {
+    width: var(--sidebar-collapsed-width);
+}
+
+html.sidebar-collapsed .sidebar-brand {
+    padding: 0 14px 18px;
+    justify-content: center;
+}
+
+html.sidebar-collapsed .brand-logo {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    object-position: left center;
+}
+
+html.sidebar-collapsed .nav-item,
+html.sidebar-collapsed .logout-btn {
+    justify-content: center;
+    padding: 11px 0;
+}
+
+html.sidebar-collapsed .nav-label,
+html.sidebar-collapsed .sidebar-section-label span {
+    display: none;
+}
+
+html.sidebar-collapsed .sidebar-section-label {
+    margin: 10px 8px 4px;
+}
+
+/* ==========================================================================
+   MAIN CONTENT AREA
+   ========================================================================== */
 .admin-main-content {
-    margin-left: 260px;
+    margin-left: var(--sidebar-width);
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    width: calc(100% - 260px);
+    width: calc(100% - var(--sidebar-width));
     padding: 0;
-    box-sizing: border-box;
     height: 100vh;
     overflow-y: auto;
+    transition: margin-left 0.25s ease, width 0.25s ease;
 }
 
-/* Header Styling */
+html.sidebar-collapsed .admin-main-content {
+    margin-left: var(--sidebar-collapsed-width);
+    width: calc(100% - var(--sidebar-collapsed-width));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-sidebar,
+    .admin-main-content {
+        transition: none;
+    }
+}
+
+/* ==========================================================================
+   HEADER
+   Scoped to .admin-header so the reused .header-search on toolbars and
+   archive modals keeps its own look.
+   ========================================================================== */
 .admin-header {
     display: flex;
-    justify-content: flex-start;
     align-items: center;
-    gap: 30px;
-    padding: 15px 30px;
-    background-color: #ffffff;
+    gap: 16px;
+    padding: 16px 30px;
+    background: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
     width: 100%;
-    box-sizing: border-box;
+}
+
+.sidebar-toggle-btn {
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--admin-text);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.sidebar-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.sidebar-toggle-btn .mask-icon {
+    width: 22px;
+    height: 22px;
 }
 
 .header-search {
@@ -147,7 +297,6 @@ body {
     border-radius: 8px;
     width: 320px;
     min-width: 320px;
-    box-sizing: border-box;
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.01);
 }
 
@@ -165,21 +314,53 @@ body {
     color: #333;
 }
 
+.admin-header .header-search {
+    width: 500px;
+    min-width: 260px;
+    max-width: 100%;
+    flex-shrink: 1;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid #6b7280;
+    padding: 10px 16px;
+    box-shadow: none;
+}
+
+.admin-header .header-search input {
+    margin-left: 12px;
+    font-size: 16px;
+}
+
+.admin-header .header-search input::placeholder {
+    color: #6b7280;
+}
+
+.search-icon-img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    opacity: 0.7;
+}
+
 .header-right {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 22px;
     margin-left: auto;
 }
 
 .notification-btn {
     background: transparent;
     border: none;
-    font-size: 16px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.notification-btn .header-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
 }
 
 .admin-profile-badge {
@@ -189,11 +370,11 @@ body {
     cursor: pointer;
 }
 
-.avatar {
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.avatar-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
 }
 
 .admin-info {
@@ -202,126 +383,141 @@ body {
 }
 
 .admin-info strong {
-    font-size: 13px;
-    color: #111111;
-    font-weight: 700;
+    font-size: 16px;
+    color: var(--admin-text);
+    font-weight: 600;
     line-height: 1.2;
 }
 
 .admin-info small {
-    color: #6b7280;
-    font-size: 11px;
+    color: var(--admin-muted);
+    font-size: 12px;
 }
 
-.dropdown-arrow {
-    font-size: 10px;
-    color: #6b7280;
-    margin-left: 4px;
+.dropdown-arrow-img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    margin-left: 8px;
 }
 
-/* Dashboard Content Area & Top Bar */
+/* ==========================================================================
+   PAGE TOP BAR (shared by every admin page)
+   ========================================================================== */
 .dashboard-content-area {
-    padding: 30px 40px;
+    padding: 22px 30px 30px;
     display: flex;
     flex-direction: column;
-    gap: 25px;
+    gap: 22px;
     width: 100%;
 }
 
 .dashboard-top-bar {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: flex-start;
+    gap: 20px;
     width: 100%;
-    background: transparent;
-    padding: 0;
-    box-shadow: none;
 }
 
 .welcome-section h1 {
-    font-size: 26px;
-    font-weight: bold;
-    color: #111111;
+    font-size: 36px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--admin-text);
 }
 
 .welcome-section p {
-    color: #6b7280;
+    color: var(--admin-muted);
     font-size: 14px;
     margin-top: 2px;
 }
 
-.dashboard-datetime-badge {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+.welcome-section .welcome-greeting {
+    font-size: 20px;
+    color: var(--admin-text);
+    margin-top: 0;
 }
 
-.dashboard-datetime-badge strong {
-    font-size: 14px;
-    color: #111111;
-    font-weight: 700;
-    line-height: 1.2;
+.welcome-section .welcome-subtext {
+    font-size: 12px;
+    margin-top: 4px;
 }
 
-.dashboard-datetime-badge small {
-    color: #6b7280;
-    font-size: 11px;
-}
-
-/* Metrics Grid */
+/* ==========================================================================
+   METRIC CARDS (Dashboard, Account & Security, Login Logs)
+   .metric-icon-box holds either a .mask-icon (Dashboard) or a Font
+   Awesome <i> (other pages) - both render white on the gradient circle.
+   ========================================================================== */
 .metrics-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 15px;
+    gap: 14px;
 }
 
 .metric-card {
     background: #ffffff;
-    padding: 16px;
-    border-radius: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    padding: 14px;
+    border-radius: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "title title"
+        "value icon"
+        "trend icon";
+    align-items: center;
+    column-gap: 8px;
+}
+
+/* Lets the title / value / trend inside .metric-info sit directly on the
+   card's grid, so the title spans the full card width like the Figma. */
+.metric-info {
+    display: contents;
 }
 
 .metric-title {
-    font-size: 11px;
-    color: #6b7280;
-    font-weight: 600;
+    grid-area: title;
+    font-size: 14px;
+    color: var(--admin-text);
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .metric-value {
-    font-size: 22px;
-    font-weight: bold;
-    margin: 4px 0;
-    color: #111111;
+    grid-area: value;
+    font-size: 40px;
+    font-weight: 600;
+    line-height: 1.15;
+    margin: 2px 0;
+    color: var(--admin-text);
 }
 
 .metric-trend {
+    grid-area: trend;
     font-size: 10px;
-    color: #002633;
+    color: var(--admin-text);
     font-weight: 400;
 }
 
 .metric-icon-box {
-    background: #DCF5DC;
-    color: #09B300;
-    width: 40px;
-    height: 40px;
+    grid-area: icon;
+    background: var(--brand-gradient);
+    color: #ffffff;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
-    font-size: 16px;
+    font-size: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
 
-.dashboard-grid-split {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
+.metric-icon-box .mask-icon {
+    width: 30px;
+    height: 30px;
 }
 
 @media (max-width: 1400px) {
@@ -330,13 +526,9 @@ body {
     }
 }
 
-@media (max-width: 1024px) {
-    .dashboard-grid-split,
-    .metrics-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
+/* ==========================================================================
+   GENERIC CARD (shared by every admin page)
+   ========================================================================== */
 .card-box {
     background: #ffffff;
     padding: 20px;
@@ -344,191 +536,322 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 }
 
-.card-header-flex {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0;
-}
-
 .card-box h3 {
     font-size: 16px;
     font-weight: 600;
-    color: #111111;
+    color: var(--admin-text);
     margin-bottom: 15px;
 }
 
-.view-all-link {
-    color: #09B300;
-    text-decoration: none;
-    font-size: 13px;
+/* ==========================================================================
+   DASHBOARD - QUICK ACTIONS
+   ========================================================================== */
+.quick-actions-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 16px 22px 18px;
+}
+
+.quick-actions-card h3 {
+    font-size: 15px;
     font-weight: 600;
+    color: var(--admin-text);
+    margin-bottom: 10px;
 }
 
-.activity-list, .student-progress-list, .health-list {
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 26px;
+}
+
+.action-tile {
+    background: #ffffff;
+    border: 1px solid #9ca3af;
+    border-radius: 8px;
+    padding: 14px 18px;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
 }
 
-.activity-item {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    padding: 12px 0;
-    border-bottom: 1px solid #C5C2B5;
+.action-tile:hover {
+    border-color: #24C7B7;
+    background: #f5fcfb;
 }
 
-.activity-item:first-child {
-    padding-top: 0;
+.action-tile:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
 }
 
-.activity-item:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.activity-icon {
-    background: #DCF5DC;
-    color: #09B300;
-    width: 36px;
-    height: 36px;
+.tile-icon {
+    background: var(--brand-gradient);
+    color: #ffffff;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
-    font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
 
-.activity-details p {
-    font-size: 13px;
-    font-weight: 500;
-    color: #111;
+.tile-icon .mask-icon {
+    width: 22px;
+    height: 22px;
 }
 
-.activity-details small {
-    color: #6b7280;
-    font-size: 11px;
-}
-
-.quick-actions-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 15px;
-}
-
-.action-tile {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    padding: 15px;
-    border-radius: 10px;
+.tile-text {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 5px;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.2s, border-color 0.2s;
-}
-
-.action-tile:hover {
-    background: #DCF5DC;
-    border-color: #09B300;
 }
 
 .action-tile strong {
-    font-size: 13px;
-    color: #333;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--admin-text);
 }
 
 .action-tile small {
     font-size: 11px;
-    color: #6b7280;
-}
-
-.tile-icon {
-    background: #DCF5DC;
-    color: #09B300;
-    width: 35px;
-    height: 35px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    font-weight: bold;
-}
-
-.health-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px solid #C5C2B5;
-}
-
-.health-item:first-child {
-    padding-top: 0;
-}
-
-.health-item:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.health-item span {
-    font-size: 13px;
-    font-weight: 500;
-    color: #4b5563;
+    color: var(--admin-muted);
 }
 
 /* ==========================================================================
-   STUDENT OVERVIEW - ALIGNED SIDE-BY-SIDE PROGRESS BAR & UNIFORM SPACING
+   DASHBOARD - PANELS (Recent Activities / Student Overview / System Health)
    ========================================================================== */
-.student-progress-list {
+.dashboard-panels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    align-items: stretch;
+}
+
+.panel-card {
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
 
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--admin-line);
+}
+
+.panel-header h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.view-all-link {
+    color: #09B300;
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.view-all-link:hover {
+    text-decoration: underline;
+}
+
+.panel-list {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Recent Activities */
+.activity-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 14px 8px;
+    border-bottom: 1px solid var(--admin-line);
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-icon {
+    background: var(--brand-gradient);
+    color: #ffffff;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.activity-icon .mask-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.activity-details p {
+    font-size: 11px;
+    color: var(--admin-text);
+}
+
+.activity-details small {
+    color: var(--admin-muted);
+    font-size: 9px;
+}
+
+/* Student Overview */
 .student-progress-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 15px;
-    padding: 12px 0;
-    border-bottom: 1px solid #C5C2B5;
-}
-
-.student-progress-item:first-child {
-    padding-top: 0;
+    gap: 12px;
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--admin-line);
 }
 
 .student-progress-item:last-child {
     border-bottom: none;
-    padding-bottom: 0;
 }
 
 .student-meta {
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-width: 180px;
+    gap: 8px;
+    min-width: 0;
 }
 
 .student-meta strong {
-    font-size: 13px;
-    font-weight: 500;
-    color: #111;
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--admin-text);
     line-height: 1.2;
 }
 
 .student-meta small {
     display: block;
-    color: #6b7280;
-    font-size: 11px;
-    margin-top: 2px;
+    color: var(--admin-muted);
+    font-size: 10px;
 }
 
+.student-avatar {
+    background: linear-gradient(160deg, #3FA9F5 0%, #1D6FDC 100%);
+    color: #ffffff;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.student-avatar .mask-icon {
+    width: 26px;
+    height: 26px;
+    margin-bottom: -3px;
+}
+
+.student-progress-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    width: 45%;
+    max-width: 160px;
+    flex-shrink: 0;
+}
+
+/* System Health */
+.health-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px 8px;
+}
+
+.health-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.health-label {
+    font-size: 14px;
+    color: var(--admin-text);
+}
+
+/* Progress bars (dashboard only - named dash-* so they never collide with
+   the learner-side .progress-fill that the Publishing preview loads) */
+.dash-progress {
+    background: var(--admin-track);
+    height: 6px;
+    border-radius: 10px;
+    width: 100%;
+    overflow: hidden;
+}
+
+.dash-progress-fill {
+    background: var(--admin-mint);
+    height: 100%;
+    border-radius: 10px;
+}
+
+.dash-progress-fill.pct-9 { width: 9%; }
+.dash-progress-fill.pct-22 { width: 22%; }
+.dash-progress-fill.pct-35 { width: 35%; }
+.dash-progress-fill.pct-52 { width: 52%; }
+.dash-progress-fill.pct-62 { width: 62%; }
+.dash-progress-fill.pct-65 { width: 65%; }
+.dash-progress-fill.pct-66 { width: 66%; }
+.dash-progress-fill.pct-78 { width: 78%; }
+.dash-progress-fill.pct-99-8 { width: 99.8%; }
+
+.progress-pct {
+    font-size: 10px;
+    color: var(--admin-mint);
+    font-weight: 500;
+}
+
+@media (max-width: 1200px) {
+    .dashboard-panels {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-actions-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid,
+    .quick-actions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-top-bar {
+        flex-direction: column;
+    }
+
+    .dashboard-datetime-badge {
+        text-align: left;
+    }
+}
+
+/* ==========================================================================
+   STUDENT AVATAR (tables on Account & Security / Login Logs)
+   ========================================================================== */
 .avatar-sm {
     background: #DCF5DC;
     color: #09B300;
@@ -540,38 +863,6 @@ body {
     border-radius: 50%;
     font-size: 14px;
     flex-shrink: 0;
-}
-
-.student-progress-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-grow: 1;
-    justify-content: flex-end;
-}
-
-.progress-bar-wrapper {
-    background: #e5e7eb;
-    height: 8px;
-    border-radius: 10px;
-    width: 140px;
-    position: relative;
-    overflow: hidden;
-}
-
-.progress-fill {
-    background: #09B300;
-    height: 100%;
-    border-radius: 10px;
-}
-
-.progress-pct {
-    font-size: 12px;
-    color: #6b7280;
-    font-weight: 600;
-    min-width: 32px;
-    text-align: right;
-    position: static;
 }
 
 /* Custom Button Styles */
@@ -1204,36 +1495,6 @@ button.table-action-icon {
     flex-direction: column;
 }
 
-/* ==========================================================================
-   ADMIN LAYOUT FIXES FOR LEARNING RESOURCES & TABLES
-   ========================================================================== */
-.admin-container {
-    display: flex;
-    min-height: 100vh;
-    position: relative;
-    width: 100%;
-}
-
-.admin-main {
-    margin-left: 260px;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    width: calc(100% - 260px);
-    box-sizing: border-box;
-    min-height: 100vh;
-    overflow-y: auto;
-}
-
-.admin-content {
-    padding: 30px 40px;
-    display: flex;
-    flex-direction: column;
-    gap: 25px;
-    width: 100%;
-    box-sizing: border-box;
-}
-
 /* Manage Header & Actions */
 .manage-header-section {
     display: flex;
@@ -1473,17 +1734,6 @@ button.table-action-icon {
     background: #fef3c7;
     color: #d97706;
 }
-
-/* Dashboard progress-bar percentage modifiers (admin_dashboard.html) */
-.progress-fill.pct-9 { width: 9%; }
-.progress-fill.pct-22 { width: 22%; }
-.progress-fill.pct-35 { width: 35%; }
-.progress-fill.pct-52 { width: 52%; }
-.progress-fill.pct-62 { width: 62%; }
-.progress-fill.pct-65 { width: 65%; }
-.progress-fill.pct-66 { width: 66%; }
-.progress-fill.pct-78 { width: 78%; }
-.progress-fill.pct-99-8 { width: 99.8%; }
 
 /* ==========================================================================
    LOGOUT CONFIRMATION MODAL (admin-sidebar.html: #adminLogoutModal)

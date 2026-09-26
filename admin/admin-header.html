@@ -1,20 +1,23 @@
 <!-- admin/admin-header.html -->
 <header class="admin-header">
+    <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle sidebar" aria-controls="adminSidebar" aria-expanded="true">
+        <span class="mask-icon icon-menu"></span>
+    </button>
     <div class="header-search">
-        <img src="/assets/images/search-interface-symbol.png" class="header-icon search-icon-img">
-        <input type="text" placeholder="Search modules, students, resources...">
+        <img src="/assets/images/search-interface-symbol.png" class="header-icon search-icon-img" alt="">
+        <input type="text" placeholder="Search anything...">
     </div>
     <div class="header-right">
-        <button class="notification-btn">
-            <img src="/assets/images/notif-bell-1.png" class="header-icon">
+        <button type="button" class="notification-btn" aria-label="Notifications">
+            <img src="/assets/images/notif-bell-1.png" class="header-icon" alt="">
         </button>
         <div class="admin-profile-badge">
-            <img src="/assets/images/avatar.png" class="avatar-icon">
+            <img src="/assets/images/avatar.png" class="avatar-icon" alt="">
             <div class="admin-info">
                 <strong>{{ current_admin.full_name if current_admin else 'Administrator' }}</strong>
                 <small>{{ current_admin.role if current_admin else 'Administrator' }}</small>
             </div>
-            <img src="/assets/images/d-down.png" class="dropdown-arrow-img">
+            <img src="/assets/images/d-down.png" class="dropdown-arrow-img" alt="">
         </div>
     </div>
 </header>

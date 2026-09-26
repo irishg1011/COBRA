@@ -16,6 +16,10 @@
     <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-activities.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/publishing-preview.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 
 <body>
@@ -71,6 +75,7 @@
     {% include 'confirm-action-modal.html' %}
     {% include 'publishing-preview-modal.html' %}
 
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-publishing.js') }}"></script>
     <!-- Needed for the Exercise step's Run/Submit, same runtime the

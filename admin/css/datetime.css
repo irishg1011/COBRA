@@ -1,10 +1,9 @@
 /* ==========================================================================
-   datetime.css - Live Date & Time Badge (Dashboard / Account & Security)
+   datetime.css - Live Date & Time Badge (every admin page's top bar)
    ==========================================================================
-   Styles the badge populated by static/js/datetime.js. Values here mirror
-   the existing .dashboard-datetime-badge rules in admin-style.css exactly,
-   so swapping the hardcoded strings for live #current-time / #current-date
-   text does not change any spacing, color, or alignment on either page.
+   Styles the badge populated by static/js/datetime.js. This is the ONLY
+   place the badge is styled - the old duplicate rules in admin-style.css
+   were removed during the admin redesign.
    ========================================================================== */
 
 .dashboard-datetime-badge {
@@ -12,16 +11,17 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 #current-time {
-    font-size: 14px;
+    font-size: 18px;
     color: #111111;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.2;
 }
 
 #current-date {
     color: #6b7280;
-    font-size: 11px;
+    font-size: 12px;
 }

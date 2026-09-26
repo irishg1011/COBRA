@@ -21,15 +21,16 @@
     "use strict";
 
     /**
-     * Formats a Date as a 12-hour clock string with AM/PM, e.g. "3:45:08 PM".
+     * Formats a Date as a 12-hour clock string with AM/PM and no seconds,
+     * e.g. "3:45PM" (admin redesign). The whitespace strip also removes
+     * the narrow no-break space some browsers put before AM/PM.
      */
     function formatTime(date) {
         return date.toLocaleTimeString('en-US', {
             hour: 'numeric',
             minute: '2-digit',
-            second: '2-digit',
             hour12: true
-        });
+        }).replace(/\s/g, '');
     }
 
     /**
