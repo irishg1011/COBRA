@@ -6,8 +6,8 @@
  * that order (Multiple Choice first). Multiple Choice is the cobra arena
  * (/api/lesson-activities/mcq/*). Fill in the Blanks is handed to the
  * Cobra vs SyntaxBug game via window.cobraByteRenderFillBlanks
- * (lesson-fill-blanks.js). Flashcards still use
- * /api/lesson-activities/check-answer until its game version lands.
+ * (lesson-fill-blanks.js), and Flashcards to Cobra's Card Duel via
+ * window.cobraByteRenderFlashcards (lesson-flashcards.js).
  * Answer checking always happens server-side - this file never has
  * access to a correct answer before the learner has submitted a guess.
  *
@@ -1148,7 +1148,14 @@
                 renderFillBlanks(activity, container, onActivityDone);
             }
         } else if (activity.activity_type === "Flashcards") {
-            renderFlashcards(activity, container, onActivityDone);
+            // Cobra's Card Duel (lesson-flashcards.js + flashcards3d.js).
+            // The plain card version below is only a fallback if that
+            // script didn't load.
+            if (typeof window.cobraByteRenderFlashcards === "function") {
+                window.cobraByteRenderFlashcards(activity, container, onActivityDone);
+            } else {
+                renderFlashcards(activity, container, onActivityDone);
+            }
         } else {
             onActivityDone();
         }

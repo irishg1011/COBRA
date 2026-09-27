@@ -29,6 +29,7 @@ from password_reset_logs import log_password_reset  # NEW: reusable password-res
 from admin_routes import admin_bp  # NEW: import admin blueprint
 from learner_routes import learner_bp  # NEW: import learner blueprint|
 from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (own blueprint)
+from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
 from account_status import refresh_inactive_accounts, is_account_inactive  # NEW: shared, configurable Active/Inactive logic
 from session_tracker import create_session, end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
 from lockout_logs import log_lockout_event  # NEW: distinct-per-day lockout event logging
@@ -67,6 +68,7 @@ app.register_blueprint(admin_bp, url_prefix='/admin')
 app.register_blueprint(learner_bp)
 
 app.register_blueprint(learner_fib_bp)
+app.register_blueprint(learner_flashcard_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
