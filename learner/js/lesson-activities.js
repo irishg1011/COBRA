@@ -245,7 +245,8 @@
     // question and pause/resume all live on the server:
     //   GET  /mcq/state      POST /mcq/play
     //   POST /mcq/answer     POST /mcq/lose-life
-    // Wrong answer -> -1 life + Try Again on the SAME question.
+    // Wrong answer -> -1 life, the correct option is revealed, and the
+    // learner picks Try Again (SAME question) or Skip (next question).
     // Before every question a preview modal shows the question and its
     // choices; the cobra only moves after the learner presses Start.
     // Lives (shared by every Multiple Choice activity): 5 regular, all
@@ -375,6 +376,7 @@
         let arena = null;
         let qIndex = 0;
         let triedIds = new Set();   // wrong options already tried on this question
+        let revealed = null;        // correct option, revealed by the server after a wrong answer
         let streak = 0, bestStreak = 0;
         let COLS = 40, ROWS = 15;
         let snake = [], prevSnake = [], pellets = [];
@@ -480,6 +482,7 @@
             (q.options || []).forEach((opt) => {
                 const row = el("div", "mcq-arena-preview-choice");
                 if (triedIds.has(opt.option_id)) row.classList.add("is-wrong");
+                if (revealed && revealed.option_id === opt.option_id) row.classList.add("is-revealed");
                 const badge = el("span", "mcq-arena-key " + letterClass(opt.option_letter));
                 badge.textContent = opt.option_letter;
                 const text = el("span", "mcq-arena-choice-text");
@@ -526,21 +529,45 @@
             setMode("playing");
         }
 
+        // The correct option (revealed by the server after a wrong answer)
+        // as a small "letter + text" row - built with textContent only.
+        function fillReveal(node) {
+            if (!node) return;
+            node.hidden = !revealed;
+            if (!revealed) return;
+            node.innerHTML = "";
+            const label = el("span", "mcq-arena-reveal-label");
+            label.textContent = "Correct answer";
+            const key = el("span", "mcq-arena-key " + letterClass(revealed.option_letter));
+            key.textContent = revealed.option_letter;
+            const text = el("span", "mcq-arena-reveal-text");
+            text.textContent = revealed.option_text;
+            node.appendChild(label);
+            node.appendChild(key);
+            node.appendChild(text);
+        }
+
+        // Wrong answer: show why, show the right answer, then let the
+        // learner Try Again (same question) or Skip to the next one.
         function showTryAgain(option, feedback) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
             showOverlay(`
                 <div class="mcq-arena-overlay-card">
                     <i class="fa-solid fa-circle-xmark mcq-arena-overlay-icon is-danger"></i>
-                    <h4>Try Again</h4>
+                    <h4>Not quite</h4>
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
-                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. You're still on question ${qIndex + 1}.</p>
+                    <div class="mcq-arena-reveal" data-ui="tryReveal" hidden></div>
+                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Try question ${qIndex + 1} again for the satisfaction, or skip to the next one.</p>
                     <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn"><i class="fa-solid fa-forward"></i> Skip question</button>
                         <button type="button" class="mcq-arena-primary-btn" data-ui="tryBtn"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
                     </div>
                 </div>
             `);
             overlayNode("tryFeedback").textContent = feedback || `${option.option_letter} isn't the right answer.`;
+            fillReveal(overlayNode("tryReveal"));
+            overlayNode("skipBtn").addEventListener("click", skipQuestion);
             overlayNode("tryBtn").addEventListener("click", () => {
                 if (disposed) return;
                 startQuestion();
@@ -553,6 +580,29 @@
             });
         }
 
+        // Skip the current question (only offered after a wrong answer):
+        // no life, no score - the server logs it as 'skipped'.
+        async function skipQuestion() {
+            if (disposed || mode !== "tryagain") return;
+            setMode("busy");
+            let data = null;
+            try {
+                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id });
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (!data.skipped) {
+                resyncFromState();
+                return;
+            }
+            streak = 0;
+            updateHUD();
+            advance();
+        }
+
         function showOutOfLives() {
             setMode("outoflives");
             showOverlay(`
@@ -560,6 +610,7 @@
                     <div class="mcq-arena-overlay-hearts" data-ui="outHearts">${heartsHtml(server)}</div>
                     <h4 data-ui="outTitle">You're out of lives.</h4>
                     <p>While waiting for at least 1 life to become available, you can review the current lesson or previous lessons. Your activity progress is paused and will continue from where you stopped once you have at least 1 life.</p>
+                    <div class="mcq-arena-reveal" data-ui="outReveal" hidden></div>
                     <p class="mcq-arena-subnote" data-ui="outWhere"></p>
                     <div class="mcq-arena-countdown-row" data-ui="outCountdownRow">
                         <span>All 5 lives refill in</span>
@@ -574,6 +625,7 @@
                 </div>
             `);
             overlayNode("outWhere").textContent = `Paused at question ${qIndex + 1} of ${total}.`;
+            fillReveal(overlayNode("outReveal"));
             overlayNode("reviewBtn").addEventListener("click", () => {
                 document.dispatchEvent(new CustomEvent("cobrabyte:review-lesson"));
             });
@@ -664,6 +716,7 @@
                 btn.tabIndex = fallback ? 0 : -1;
                 btn.dataset.optionId = opt.option_id;
                 if (triedIds.has(opt.option_id)) btn.classList.add("is-wrong");
+                if (revealed && revealed.option_id === opt.option_id) btn.classList.add("is-revealed");
                 const keyBadge = el("span", "mcq-arena-key " + letterClass(opt.option_letter));
                 keyBadge.textContent = opt.option_letter;
                 const label = el("span", "mcq-arena-choice-text");
@@ -726,7 +779,10 @@
 
         function goToServerQuestion() {
             const next = Math.min(server.current_index, total - 1);
-            if (next !== qIndex) triedIds = new Set();
+            if (next !== qIndex) {
+                triedIds = new Set();
+                revealed = null;
+            }
             qIndex = next;
             startQuestion();
         }
@@ -806,6 +862,11 @@
             shake = 12;
             triedIds.add(option.option_id);
             if (chip) chip.classList.add("is-wrong");
+            if (result.correct_option) {
+                revealed = result.correct_option;
+                const rightChip = ui.choices.querySelector(`.mcq-arena-choice[data-option-id="${revealed.option_id}"]`);
+                if (rightChip) rightChip.classList.add("is-revealed");
+            }
             bump(ui.livesStat);
             updateHUD();
             if (server.total_lives <= 0) {

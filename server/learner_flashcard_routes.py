@@ -9,7 +9,9 @@ never touches the Multiple Choice or Fill in the Blanks routes.
     POST /api/lesson-activities/flashcard-start   {la_id}
          -> starts the ONE play, or resumes the same paused play
     POST /api/lesson-activities/flashcard-answer  {la_id, flashcard_id, answer, recommendation_id?}
-         -> graded result + updated state
+         -> graded result + updated state (+ the card's answer)
+    POST /api/lesson-activities/flashcard-skip    {la_id, flashcard_id}
+         -> skip the current card after a wrong answer + updated state
 
 Registered onto the main app in login.py via:
     app.register_blueprint(learner_flashcard_bp)
@@ -17,7 +19,7 @@ Registered onto the main app in login.py via:
 
 from flask import Blueprint, jsonify, request
 from learner_routes import get_current_learner_acc_id
-from lesson_flashcards import get_flashcard_play, start_flashcard_play, submit_flashcard_answer
+from lesson_flashcards import get_flashcard_play, start_flashcard_play, submit_flashcard_answer, skip_flashcard
 
 learner_flashcard_bp = Blueprint("learner_flashcard_bp", __name__)
 
@@ -63,6 +65,19 @@ def flashcard_answer():
         acc_id, data.get("la_id"), data.get("flashcard_id"), data.get("answer"),
         data.get("recommendation_id")
     )
+    if result is None:
+        return _fail(error_message)
+    return jsonify({"success": True, **result}), 200
+
+
+@learner_flashcard_bp.route("/api/lesson-activities/flashcard-skip", methods=["POST"])
+def flashcard_skip():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    result, error_message = skip_flashcard(acc_id, data.get("la_id"), data.get("flashcard_id"))
     if result is None:
         return _fail(error_message)
     return jsonify({"success": True, **result}), 200

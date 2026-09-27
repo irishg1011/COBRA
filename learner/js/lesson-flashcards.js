@@ -10,8 +10,9 @@
  *   - right (or "close" - only capital letters/spacing differ): the card
  *     flips to its answer and the cobra flicks it into the scorpion
  *     (-1 HP), then the next card
- *   - wrong: the scorpion stings (-1 life), a Try Again modal shows the
- *     card's feedback, and the SAME card comes back
+ *   - wrong: the scorpion stings (-1 life) and a modal shows the card's
+ *     feedback and its back; the learner picks Try Again (SAME card) or
+ *     Skip card (next card - no life, no score)
  * A preview modal shows every card's front before it is played.
  *
  * Rules (all enforced server-side - see lesson_flashcards.py):
@@ -187,6 +188,7 @@
         let stage3d = null;
         let qIndex = 0;
         let score = 0, streak = 0, bestStreak = 0;
+        let revealedAnswer = null;  // the card's back, revealed after a wrong answer
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
 
@@ -298,21 +300,40 @@
             btn.focus({ preventScroll: true });
         }
 
+        function fillReveal(node) {
+            if (!node) return;
+            node.hidden = !revealedAnswer;
+            if (!revealedAnswer) return;
+            node.innerHTML = "";
+            const label = el("span", "fc-reveal-label");
+            label.textContent = "Back of the card";
+            const text = el("span", "fc-reveal-text");
+            text.textContent = revealedAnswer;
+            node.appendChild(label);
+            node.appendChild(text);
+        }
+
+        // Wrong answer: show why, reveal the back, then Try Again (same
+        // card) or Skip card (next card - no life, no score).
         function showTryAgain(feedback) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
             showOverlay(`
                 <div class="fc-overlay-card">
                     <i class="fa-solid fa-circle-xmark fc-overlay-icon is-danger"></i>
-                    <h4>Try Again</h4>
+                    <h4>Not quite</h4>
                     <p class="fc-tryagain-feedback" data-c="taFeedback"></p>
-                    <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. It's still card ${qIndex + 1}.</p>
+                    <div class="fc-reveal" data-c="taReveal" hidden></div>
+                    <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Try card ${qIndex + 1} again for the satisfaction, or skip to the next one.</p>
                     <div class="fc-overlay-actions">
+                        <button type="button" class="fc-ghost-btn" data-c="skipBtn"><i class="fa-solid fa-forward"></i> Skip card</button>
                         <button type="button" class="fc-primary-btn" data-c="taBtn"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
                     </div>
                 </div>
             `);
             overlayNode("taFeedback").textContent = feedback || "That's not what's on the back of this card.";
+            fillReveal(overlayNode("taReveal"));
+            overlayNode("skipBtn").addEventListener("click", skipCard);
             const btn = overlayNode("taBtn");
             btn.addEventListener("click", () => {
                 hideOverlay();
@@ -334,6 +355,7 @@
                     <div class="fc-overlay-hearts" data-c="cdHearts">${fcHearts(server)}</div>
                     <h4 data-c="cdTitle">You're out of lives.</h4>
                     <p>While waiting for at least 1 life to become available, you can review the current lesson or previous lessons. Your activity progress is paused and will continue from where you stopped once you have at least 1 life.</p>
+                    <div class="fc-reveal" data-c="cdReveal" hidden></div>
                     <p class="fc-subnote" data-c="cdWhere"></p>
                     <div class="fc-countdown-row" data-c="cdRow">
                         <span>All 5 lives refill in</span>
@@ -348,6 +370,7 @@
                 </div>
             `);
             overlayNode("cdWhere").textContent = `Paused at card ${qIndex + 1} of ${total}.`;
+            fillReveal(overlayNode("cdReveal"));
             overlayNode("reviewBtn").addEventListener("click", () => {
                 document.dispatchEvent(new CustomEvent("cobrabyte:review-lesson"));
             });
@@ -433,6 +456,7 @@
             ui.front.textContent = card.front_text;
             ui.input.value = "";
             ui.feedback.hidden = true;
+            revealedAnswer = null;
             fx.thrown = false;
             fx.glow = "";
             if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, "?");
@@ -540,8 +564,9 @@
                 return;
             }
 
-            // Wrong: stay on this card (Try Again).
+            // Wrong: reveal the back, then Try Again or Skip.
             streak = 0;
+            revealedAnswer = result.answer || null;
             bump(ui.livesStat);
             fx.glow = "bad";
             stingAnim();
@@ -552,6 +577,44 @@
                 if (server.total_lives <= 0) enterCooldown();
                 else showTryAgain(result.feedback);
             }, FC_ANIM.sting);
+        }
+
+        // Skip the current card (only offered after a wrong answer): no
+        // life, no score - the server logs it as 'skipped'. The card still
+        // flips to its back and flies off, so the duel moves on.
+        async function skipCard() {
+            if (disposed || mode !== "tryagain") return;
+            setMode("busy");
+            const card = currentCard();
+            let data = null;
+            try {
+                data = await postJson("flashcard-skip", { la_id: laId, flashcard_id: card.flashcard_id });
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (!data.skipped) {
+                resyncFromState();
+                return;
+            }
+            hideOverlay();
+            streak = 0;
+            updateHUD();
+            if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, revealedAnswer || "?");
+            fx.glow = "";
+            winAnim(true);
+            setTimeout(() => {
+                if (disposed) return;
+                if (server.completed) {
+                    setTimeout(() => { if (!disposed) finish(); }, fx.anim ? FC_ANIM.death : 0);
+                    return;
+                }
+                qIndex = Math.min(server.current_index, total - 1);
+                loadCard();
+                showPreview("next");
+            }, FC_ANIM.win + 60);
         }
 
         function advance() {
@@ -573,15 +636,15 @@
             fx.hitDone = false;
         }
 
-        function winAnim() {
+        function winAnim(skipped) {
             playAnim("win", () => {
                 fx.foeHP = Math.max(0, fx.foeHP - 1);
                 fx.collected += 1;
                 fx.flashFoe = 1;
-                fx.shake = 16;
+                fx.shake = skipped ? 6 : 16;
                 if (stage3d) {
-                    stage3d.float("foe", "-1 HP", "#7c3aed");
-                    stage3d.burst("foe", fx.glow === "close" ? "#f59e0b" : "#22c55e", 30);
+                    stage3d.float("foe", skipped ? "Skipped" : "-1 HP", skipped ? "#64748b" : "#7c3aed");
+                    stage3d.burst("foe", skipped ? "#94a3b8" : fx.glow === "close" ? "#f59e0b" : "#22c55e", skipped ? 14 : 30);
                 }
                 drawBars();
             }, () => {

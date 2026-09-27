@@ -730,3 +730,40 @@
     .mcq-arena-overlay-card.mcq-arena-preview { padding: 16px; }
     .mcq-arena-overlay-card h4.mcq-arena-preview-question { font-size: 16px; }
 }
+
+/* ---------- Multiple Choice arena: correct answer revealed after a wrong one ---------- */
+.mcq-arena-choice.is-revealed,
+.mcq-arena-preview-choice.is-revealed {
+    border-color: #16a34a;
+    border-style: dashed;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.mcq-arena-reveal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    font-size: 14px;
+    font-weight: 700;
+    color: #166534;
+}
+
+.mcq-arena-reveal[hidden] { display: none; }
+
+.mcq-arena-reveal-label {
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #15803d;
+}
+
+.mcq-arena-reveal-text { color: var(--arena-text); }

@@ -7,7 +7,9 @@ routes the Multiple Choice cobra arena uses in learner_routes.py.
     GET  /api/lesson-activities/fib-play?la_id=<id>
          -> items (learner-safe, no answers) + lives/current-item state
     POST /api/lesson-activities/fib-answer   {la_id, fib_id, answer}
-         -> graded result + updated state
+         -> graded result + updated state (+ correct_answer after a wrong one)
+    POST /api/lesson-activities/fib-skip     {la_id, fib_id}
+         -> skip the current item after a wrong answer + updated state
 
 Registered onto the main app in login.py via:
     app.register_blueprint(learner_fib_bp)
@@ -15,7 +17,7 @@ Registered onto the main app in login.py via:
 
 from flask import Blueprint, jsonify, request
 from learner_routes import get_current_learner_acc_id
-from lesson_fill_blanks import get_fib_play, submit_fib_answer
+from lesson_fill_blanks import get_fib_play, submit_fib_answer, skip_fib_item
 
 learner_fib_bp = Blueprint("learner_fib_bp", __name__)
 
@@ -48,4 +50,17 @@ def fib_answer():
     )
     if result is None:
         return jsonify({"success": False, "message": error_message or "Could not check this answer."}), 400
+    return jsonify({"success": True, **result}), 200
+
+
+@learner_fib_bp.route("/api/lesson-activities/fib-skip", methods=["POST"])
+def fib_skip():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    result, error_message = skip_fib_item(acc_id, data.get("la_id"), data.get("fib_id"))
+    if result is None:
+        return jsonify({"success": False, "message": error_message or "Could not skip this item."}), 400
     return jsonify({"success": True, **result}), 200

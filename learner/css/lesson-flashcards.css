@@ -484,3 +484,27 @@
     .fc-answer-row .fc-primary-btn,
     .fc-feedback .fc-primary-btn { width: 100%; justify-content: center; }
 }
+
+/* ---- the back of the card, revealed after a wrong answer ---- */
+.fc-reveal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+}
+
+.fc-reveal-label {
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #15803d;
+}
+
+.fc-reveal-text { font-size: 15px; font-weight: 800; color: #14532d; word-break: break-word; }

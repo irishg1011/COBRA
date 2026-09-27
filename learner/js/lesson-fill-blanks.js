@@ -12,7 +12,9 @@
  *     refilled 10 minutes after the first one is lost, plus 5 bonus
  *     lives every day at 8:00 AM PH time (spent first, not refilled by
  *     the timer). The HUD shows total/5, e.g. "7/5".
- *   - Wrong answer: -1 life and Try Again on the same item.
+ *   - Wrong answer: -1 life; the correct answer is revealed and the
+ *     learner picks Try again (same item) or Skip puzzle (next item,
+ *     no life, no score).
  *   - Correct answer: Cobra strikes SyntaxBug, next item.
  *   - 0 lives: the play pauses on its item; review the lesson and come
  *     back - it resumes the same play once a life is back.
@@ -204,8 +206,13 @@
                         <div class="fib-feedback-body">
                             <b class="fib-feedback-title" data-f="fbTitle"></b>
                             <p class="fib-feedback-text" data-f="fbText"></p>
+                            <p class="fib-feedback-answer" data-f="fbAnswer" hidden></p>
                         </div>
                         <button type="button" class="fib-primary-btn" data-f="nextBtn" hidden>Next puzzle</button>
+                        <div class="fib-feedback-actions" data-f="fbActions" hidden>
+                            <button type="button" class="fib-ghost-btn" data-f="skipBtn"><i class="fa-solid fa-forward"></i> Skip puzzle</button>
+                            <button type="button" class="fib-primary-btn" data-f="retryBtn"><i class="fa-solid fa-rotate-right"></i> Try again</button>
+                        </div>
                     </div>
                 </section>
                 <div class="fib-overlay" data-f="overlay" hidden></div>
@@ -578,6 +585,8 @@
         function hideFeedback() {
             ui.feedback.hidden = true;
             ui.nextBtn.hidden = true;
+            ui.fbActions.hidden = true;
+            ui.fbAnswer.hidden = true;
         }
 
         function showFeedback(result) {
@@ -589,6 +598,17 @@
             ui.fbText.textContent = result.is_correct
                 ? (result.feedback || "")
                 : `${result.feedback || ""} SyntaxBug bites back (−1 life).`.trim();
+            // After a wrong answer: reveal the answer, then Try again or Skip.
+            const reveal = !result.is_correct && !!result.correct_answer;
+            ui.fbAnswer.hidden = !reveal;
+            ui.fbAnswer.innerHTML = "";
+            if (reveal) {
+                ui.fbAnswer.appendChild(document.createTextNode("Correct answer: "));
+                const code = el("code");
+                code.textContent = result.correct_answer;
+                ui.fbAnswer.appendChild(code);
+            }
+            ui.fbActions.hidden = result.is_correct || server.total_lives <= 0;
             ui.nextBtn.hidden = !result.is_correct;
             ui.nextBtn.textContent = server.completed ? "See results" : "Next puzzle";
         }
@@ -652,6 +672,63 @@
                 setMode("playing");
                 if (slotInput) slotInput.select();
             }
+        }
+
+        // Skip the current puzzle (only offered after a wrong answer): no
+        // life, no score - the server logs it as 'skipped'.
+        async function skipItem() {
+            if (disposed || mode !== "playing") return;
+            setMode("busy");
+            let data = null;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/lesson-activities/fib-skip`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ la_id: laId, fib_id: currentItem().fib_id })
+                });
+                data = await readJson(response, "fib-skip");
+                if (!response.ok || !data.success) throw new Error(data.message || `Request failed (HTTP ${response.status}).`);
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (!data.skipped) {
+                resyncFromState();
+                return;
+            }
+            streak = 0;
+            hideFeedback();
+            // The skipped puzzle leaves SyntaxBug's HP bar like a solved one.
+            bt.foeHP = Math.max(0, total - server.solved_count);
+            drawBars();
+            if (stage3d) stage3d.float("foe", "Skipped", "#64748b");
+            updateHUD();
+            if (server.completed) {
+                if (bt.foeHP === 0) {
+                    playAnim("death", null, () => { bt.defeated = true; });
+                    setTimeout(() => { if (!disposed) finish(); }, FIB_ANIM.death);
+                } else {
+                    finish();
+                }
+                return;
+            }
+            qIndex = Math.min(server.current_index, total - 1);
+            setMode("playing");
+            loadItem();
+        }
+
+        function retryItem() {
+            if (mode !== "playing") return;
+            hideFeedback();
+            clearSlot();
+            if (slotInput) {
+                slotInput.value = "";
+                slotInput.focus({ preventScroll: true });
+            }
+            updateControls();
         }
 
         function advance() {
@@ -873,6 +950,8 @@
         ui.checkBtn.addEventListener("click", submitAnswer);
         ui.clearBtn.addEventListener("click", () => { if (mode === "playing") clearSlot(); });
         ui.nextBtn.addEventListener("click", advance);
+        ui.skipBtn.addEventListener("click", skipItem);
+        ui.retryBtn.addEventListener("click", retryItem);
 
         // ---- boot ----
         async function boot() {

@@ -515,3 +515,12 @@
     color: #0f172a;
     font-variant-numeric: tabular-nums;
 }
+
+/* ---------- after a wrong answer: Try again or Skip puzzle ---------- */
+.fib-feedback-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 720px) {
+    .fib-feedback-actions { width: 100%; }
+    .fib-feedback-actions .fib-primary-btn,
+    .fib-feedback-actions .fib-ghost-btn { flex: 1 1 0; justify-content: center; }
+}

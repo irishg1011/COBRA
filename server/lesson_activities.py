@@ -502,7 +502,9 @@ def get_activity_type_name(la_id):
 #                                         (status + first-attempt score)
 #
 # Rules:
-#   - wrong answer: -1 life, stay on the same question (Try Again)
+#   - wrong answer: -1 life; the correct option is revealed and the
+#     learner chooses Try Again (same question) or Skip (next question,
+#     logged as status 'skipped', no life, no score)
 #   - correct answer: move to the next question
 #   - wall hit / self-bite: -1 life, nothing logged as an answer
 #   - 0 lives: the play is paused on its current question - never reset
@@ -736,14 +738,14 @@ def _first_unsolved_index(cursor, acc_id, q_ids):
     """
     Fallback position when the stored current_q_id no longer exists
     (question removed after the learner started): the first question
-    in order that this learner hasn't answered correctly yet.
+    in order that this learner hasn't answered correctly (or skipped) yet.
     """
     if not q_ids:
         return 0
     placeholders = ",".join(["%s"] * len(q_ids))
     cursor.execute(
         f"""SELECT DISTINCT q_id FROM {MCQ_ANSWERS_TABLE}
-            WHERE acc_id = %s AND status = 'correct' AND q_id IN ({placeholders})""",
+            WHERE acc_id = %s AND status IN ('correct', 'skipped') AND q_id IN ({placeholders})""",
         tuple([acc_id] + q_ids)
     )
     solved = {r["q_id"] for r in cursor.fetchall()}
@@ -1053,7 +1055,7 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
             return {"graded": False, "state": _mcq_state(cursor, ctx)}, None
 
         cursor.execute(
-            f"SELECT option_id, is_correct, feedback FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s",
+            f"SELECT option_id, option_letter, option_text, is_correct, feedback FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s",
             (q_id,)
         )
         options = cursor.fetchall()
@@ -1082,19 +1084,7 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
         )
 
         if is_correct:
-            ctx["index"] = index + 1
-            if ctx["index"] >= len(q_ids):
-                _complete_mcq(cursor, ctx)
-            else:
-                next_q = q_ids[ctx["index"]]
-                cursor.execute(
-                    f"""UPDATE {MCQ_SESSIONS_TABLE}
-                        SET current_q_id = %s, score = %s
-                        WHERE session_id = %s""",
-                    (next_q, _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]),
-                     session_row["session_id"])
-                )
-                session_row["current_q_id"] = next_q
+            _advance_mcq(cursor, ctx)
         else:
             _take_life(pool)
             cursor.execute(
@@ -1103,14 +1093,87 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
             )
             _pause_if_out_of_lives(cursor, ctx)
 
-        return {
+        payload = {
             "graded": True,
             "is_correct": is_correct,
             "attempt_number": attempt_number,
             "feedback": feedback,
             "state": _mcq_state(cursor, ctx),
-        }, None
+        }
+        if not is_correct:
+            # Revealed only AFTER a wrong answer (never before one).
+            right = next((o for o in options if o["is_correct"]), None)
+            if right:
+                payload["correct_option"] = {
+                    "option_id": right["option_id"],
+                    "option_letter": right.get("option_letter") or "",
+                    "option_text": right.get("option_text") or "",
+                }
+        return payload, None
     return _run_mcq(acc_id, la_id, action, "grade MCQ answer")
+
+
+def _advance_mcq(cursor, ctx):
+    """Moves the play to the next question, or completes it after the last."""
+    session_row = ctx["session"]
+    q_ids = ctx["q_ids"]
+    ctx["index"] = ctx["index"] + 1
+    if ctx["index"] >= len(q_ids):
+        _complete_mcq(cursor, ctx)
+        return
+    next_q = q_ids[ctx["index"]]
+    cursor.execute(
+        f"""UPDATE {MCQ_SESSIONS_TABLE}
+            SET current_q_id = %s, score = %s
+            WHERE session_id = %s""",
+        (next_q, _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]), session_row["session_id"])
+    )
+    session_row["current_q_id"] = next_q
+
+
+def skip_mcq_question(acc_id, la_id, q_id):
+    """
+    Skip the current question - only offered after a wrong answer on it.
+    Appends a status 'skipped' row (option_id NULL, no life, no score) and
+    moves to the next question; skipping the last one completes the play.
+    payload["skipped"] is False when it wasn't allowed (no running play,
+    0 lives, a different question, or no wrong answer on it yet).
+    """
+    q_id = _to_int(q_id)
+    if not q_id:
+        return None, "A skip needs q_id."
+
+    def action(cursor, ctx):
+        session_row = ctx["session"]
+        index = ctx["index"]
+        q_ids = ctx["q_ids"]
+        allowed = (not ctx["completed"] and session_row and session_row["status"] == "in_progress"
+                   and _total_lives(ctx["pool"]) > 0 and index < len(q_ids) and q_ids[index] == q_id)
+        if allowed:
+            cursor.execute(
+                f"""SELECT COUNT(*) AS wrong FROM {MCQ_ANSWERS_TABLE}
+                    WHERE acc_id = %s AND q_id = %s AND status = 'incorrect'""",
+                (ctx["acc_id"], q_id)
+            )
+            allowed = cursor.fetchone()["wrong"] > 0
+        if not allowed:
+            return {"skipped": False, "state": _mcq_state(cursor, ctx)}, None
+
+        cursor.execute(
+            f"SELECT COUNT(*) AS cnt FROM {MCQ_ANSWERS_TABLE} WHERE acc_id = %s AND q_id = %s",
+            (ctx["acc_id"], q_id)
+        )
+        attempt_number = cursor.fetchone()["cnt"] + 1
+        cursor.execute(
+            f"""INSERT INTO {MCQ_ANSWERS_TABLE}
+                (acc_id, q_id, option_id, attempt_number, status, source,
+                 recommendation_id, feedback_given, answered_at)
+                VALUES (%s, %s, NULL, %s, 'skipped', 'self', NULL, NULL, NOW())""",
+            (ctx["acc_id"], q_id, attempt_number)
+        )
+        _advance_mcq(cursor, ctx)
+        return {"skipped": True, "state": _mcq_state(cursor, ctx)}, None
+    return _run_mcq(acc_id, la_id, action, "skip MCQ question")
 
 
 def lose_mcq_life(acc_id, la_id):

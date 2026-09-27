@@ -25,6 +25,7 @@ from lesson_activities import (
     play_mcq_activity,
     submit_mcq_answer,
     lose_mcq_life,
+    skip_mcq_question,
 )
 from learner_exercise import (
     get_published_exercise_for_resource,
@@ -331,10 +332,12 @@ def learning_map_data():
             total_activities = cursor.fetchone()["total"]
 
             cursor.execute(
-                """SELECT COUNT(*) AS done
+                """SELECT COUNT(DISTINCT lap.la_id) AS done
                    FROM learner_activity_progress_tbl lap
                    JOIN learning_activities_tbl la ON lap.la_id = la.la_id
-                   WHERE la.module_id = %s AND lap.acc_id = %s AND lap.status = 'completed'""",
+                   JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
+                   WHERE la.module_id = %s AND lap.acc_id = %s AND lap.status = 'completed'
+                     AND las.la_stats_name = 'Published'""",
                 (module_id, acc_id)
             )
             completed_activities = cursor.fetchone()["done"]
@@ -520,17 +523,25 @@ def lessons_data():
                 has_ever_touched = progress_row is not None
                 resource_watched = bool(progress_row and progress_row["status"] == "completed")
 
+                # Only Published activities count - Draft / Ready to Publish /
+                # Archived ones are never shown to the learner, so they must
+                # not appear in "x/y activities" or block lesson completion.
                 cursor.execute(
-                    "SELECT COUNT(*) AS total FROM learning_activities_tbl WHERE resource_id = %s",
+                    """SELECT COUNT(*) AS total
+                       FROM learning_activities_tbl la
+                       JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
+                       WHERE la.resource_id = %s AND las.la_stats_name = 'Published'""",
                     (resource_id,)
                 )
                 activities_total = cursor.fetchone()["total"]
 
                 cursor.execute(
-                    """SELECT COUNT(*) AS done
+                    """SELECT COUNT(DISTINCT lap.la_id) AS done
                        FROM learner_activity_progress_tbl lap
                        JOIN learning_activities_tbl la ON lap.la_id = la.la_id
-                       WHERE la.resource_id = %s AND lap.acc_id = %s AND lap.status = 'completed'""",
+                       JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
+                       WHERE la.resource_id = %s AND lap.acc_id = %s AND lap.status = 'completed'
+                         AND las.la_stats_name = 'Published'""",
                     (resource_id, acc_id)
                 )
                 activities_completed = cursor.fetchone()["done"]
@@ -976,6 +987,7 @@ def lesson_activities_check_answer():
 #   POST /mcq/play       start the ONE play, or resume the same paused play
 #   POST /mcq/answer     grade an eaten pellet (every attempt is recorded)
 #   POST /mcq/lose-life  wall hit / self-bite (not an answer)
+#   POST /mcq/skip       skip the current question after a wrong answer
 # ============================================================
 def _mcq_response(payload, error_message):
     if payload is None:
@@ -1022,6 +1034,20 @@ def lesson_activities_mcq_answer():
         acc_id, data.get("la_id"), data.get("q_id"), data.get("option_id"),
         data.get("recommendation_id")
     )
+    failed = _mcq_response(result, error_message)
+    if failed:
+        return failed
+    return jsonify({"success": True, **result}), 200
+
+
+@learner_bp.route("/api/lesson-activities/mcq/skip", methods=["POST"])
+def lesson_activities_mcq_skip():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    result, error_message = skip_mcq_question(acc_id, data.get("la_id"), data.get("q_id"))
     failed = _mcq_response(result, error_message)
     if failed:
         return failed

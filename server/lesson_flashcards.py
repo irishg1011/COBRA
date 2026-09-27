@@ -21,7 +21,9 @@ Rules:
   - Grading: exact match with back_text (trimmed) = "correct";
     same apart from capital letters / extra spaces = "close" (accepted,
     no life lost, the exact spelling is shown); anything else =
-    "incorrect" (-1 life, SAME card - Try Again).
+    "incorrect" (-1 life; the card's back is revealed and the learner
+    chooses Try Again (SAME card) or Skip (next card, logged as status
+    'skipped' - no life, no score)).
   - Lives: 5 regular (all back 10 min after the first loss) + 5 daily
     bonus lives at 8:00 AM PH time, spent first. Shared by every
     Flashcards activity in every lesson.
@@ -167,7 +169,7 @@ def _solved_ids(cursor, acc_id, card_ids):
     placeholders = ",".join(["%s"] * len(card_ids))
     cursor.execute(
         f"""SELECT DISTINCT flashcard_id FROM {FLASHCARD_ANSWERS_TABLE}
-            WHERE acc_id = %s AND status IN ('correct', 'close')
+            WHERE acc_id = %s AND status IN ('correct', 'close', 'skipped')
               AND flashcard_id IN ({placeholders})""",
         tuple([acc_id] + card_ids)
     )
@@ -378,6 +380,26 @@ def _run(acc_id, la_id, action, error_label):
             connection.close()
 
 
+def _advance(cursor, ctx, flashcard_id):
+    """Marks the card solved and moves to the next unsolved card (or completes)."""
+    session_row = ctx["session"]
+    card_ids = ctx["card_ids"]
+    index = ctx["index"]
+    ctx["solved"].add(flashcard_id)
+    remaining = [i for i, cid in enumerate(card_ids) if cid not in ctx["solved"]]
+    if not remaining:
+        _complete(cursor, ctx)
+        return
+    ctx["index"] = next((i for i in remaining if i > index), remaining[0])
+    next_id = card_ids[ctx["index"]]
+    cursor.execute(
+        f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
+            SET current_flashcard_id = %s, score = %s WHERE session_id = %s""",
+        (next_id, _first_try_score(cursor, ctx["acc_id"], card_ids), session_row["session_id"])
+    )
+    session_row["current_flashcard_id"] = next_id
+
+
 # ---------------- public API ----------------
 def get_flashcard_play(acc_id, la_id):
     """
@@ -443,9 +465,9 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
       correct / close -> next card (or completes the activity)
       incorrect       -> -1 life, SAME card; at 0 lives the play pauses
 
-    back_text is only returned for a 'close' answer (to show the exact
-    spelling) or 'correct' (it's what the learner typed anyway) - never
-    after a wrong answer. payload["graded"] is False when nothing was
+    back_text ("answer") is returned after the card is answered - for a
+    wrong answer too, so the learner can Try Again or Skip - but never
+    before the first answer on a card. payload["graded"] is False when nothing was
     graded (no running play, 0 lives, completed, or a different card).
     """
     flashcard_id = _to_int(flashcard_id)
@@ -490,19 +512,7 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
 
         passed = status in ("correct", "close")
         if passed:
-            ctx["solved"].add(flashcard_id)
-            remaining = [i for i, cid in enumerate(card_ids) if cid not in ctx["solved"]]
-            if not remaining:
-                _complete(cursor, ctx)
-            else:
-                ctx["index"] = next((i for i in remaining if i > index), remaining[0])
-                next_id = card_ids[ctx["index"]]
-                cursor.execute(
-                    f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
-                        SET current_flashcard_id = %s, score = %s WHERE session_id = %s""",
-                    (next_id, _first_try_score(cursor, ctx["acc_id"], card_ids), session_row["session_id"])
-                )
-                session_row["current_flashcard_id"] = next_id
+            _advance(cursor, ctx, flashcard_id)
         else:
             take_life(pool)
             _pause_if_out_of_lives(cursor, ctx)
@@ -515,7 +525,53 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
             "first_try": attempt_number == 1 and status == "correct",
             "attempt_number": attempt_number,
             "feedback": feedback,
-            "answer": (card["back_text"] or "").strip() if passed else None,
+            "answer": (card["back_text"] or "").strip(),
             "state": _state(cursor, ctx),
         }, None
     return _run(acc_id, la_id, action, "grade flashcard answer")
+
+
+def skip_flashcard(acc_id, la_id, flashcard_id):
+    """
+    Skip the current card - only offered after a wrong answer on it.
+    Appends a status 'skipped' row (answer_given '', no life, no score)
+    and moves to the next card; skipping the last one completes the play.
+    payload["skipped"] is False when it wasn't allowed (no running play,
+    0 lives, a different card, or no wrong answer on it yet).
+    """
+    flashcard_id = _to_int(flashcard_id)
+    if not flashcard_id:
+        return None, "A skip needs flashcard_id."
+
+    def action(cursor, ctx):
+        session_row = ctx["session"]
+        card_ids = ctx["card_ids"]
+        index = ctx["index"]
+        allowed = (not ctx["completed"] and session_row and session_row["status"] == "in_progress"
+                   and total_lives(ctx["pool"]) > 0 and index < len(card_ids)
+                   and card_ids[index] == flashcard_id)
+        if allowed:
+            cursor.execute(
+                f"""SELECT COUNT(*) AS wrong FROM {FLASHCARD_ANSWERS_TABLE}
+                    WHERE acc_id = %s AND flashcard_id = %s AND status = 'incorrect'""",
+                (ctx["acc_id"], flashcard_id)
+            )
+            allowed = cursor.fetchone()["wrong"] > 0
+        if not allowed:
+            return {"skipped": False, "state": _state(cursor, ctx)}, None
+
+        cursor.execute(
+            f"SELECT COUNT(*) AS cnt FROM {FLASHCARD_ANSWERS_TABLE} WHERE acc_id = %s AND flashcard_id = %s",
+            (ctx["acc_id"], flashcard_id)
+        )
+        attempt_number = cursor.fetchone()["cnt"] + 1
+        cursor.execute(
+            f"""INSERT INTO {FLASHCARD_ANSWERS_TABLE}
+                (acc_id, flashcard_id, answer_given, attempt_number, status, source,
+                 recommendation_id, feedback_given, answered_at)
+                VALUES (%s, %s, '', %s, 'skipped', 'self', NULL, NULL, NOW())""",
+            (ctx["acc_id"], flashcard_id, attempt_number)
+        )
+        _advance(cursor, ctx, flashcard_id)
+        return {"skipped": True, "state": _state(cursor, ctx)}, None
+    return _run(acc_id, la_id, action, "skip flashcard")

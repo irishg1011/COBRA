@@ -13,8 +13,9 @@ Learner rules (same shape as the MCQ arena):
     one is lost, plus 5 bonus lives every day at 8:00 AM PH time (spent
     first, never refilled by the timer). fib_learner_lives_tbl from the
     first build is no longer used.
-  - Wrong answer: -1 life, logged, and the learner stays on the SAME
-    item (Try Again). Correct answer: move to the next item.
+  - Wrong answer: -1 life, logged, and the correct answer is revealed;
+    the learner chooses Try Again (SAME item) or Skip (next item, logged
+    as status 'skipped' - no life, no score). Correct answer: next item.
   - At 0 lives the play pauses on its current item; the learner can go
     review the lesson and resumes the same play once a life is back.
   - The current item is derived from the answer log: the first item (in
@@ -214,7 +215,7 @@ def _learner_item(row):
 def _answer_summary(cursor, acc_id, fib_ids):
     """
     Returns (solved_ids, first_try_correct):
-      solved_ids        fib_ids with at least one correct attempt
+      solved_ids        fib_ids with a correct attempt or a skip
       first_try_correct items whose attempt_number = 1 is correct
     """
     if not fib_ids:
@@ -227,10 +228,10 @@ def _answer_summary(cursor, acc_id, fib_ids):
     )
     solved, first_try = set(), set()
     for r in cursor.fetchall():
-        if r["status"] == "correct":
+        if r["status"] in ("correct", "skipped"):
             solved.add(r["fib_id"])
-            if r["attempt_number"] == 1:
-                first_try.add(r["fib_id"])
+        if r["status"] == "correct" and r["attempt_number"] == 1:
+            first_try.add(r["fib_id"])
     return solved, len(first_try)
 
 
@@ -371,8 +372,8 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
     Returns (payload, error_message). payload["graded"] is False when
     nothing was graded - out of lives, already completed, or the browser
     is on a different item than the server - and payload["state"] tells
-    the browser where it really is. The correct answer is never returned
-    (a wrong answer means Try Again).
+    the browser where it really is. The correct answer is only returned
+    AFTER a wrong answer (so the learner can Try Again or Skip).
     """
     la_id, fib_id = _to_int(la_id), _to_int(fib_id)
     answer = (answer or "").strip()
@@ -453,18 +454,99 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
         connection.commit()
         cursor.close()
 
-        return {
+        payload = {
             "graded": True,
             "is_correct": is_correct,
             "is_close": is_close,
             "first_try": is_correct and attempt_number == 1,
             "feedback": feedback,
             "state": _state(pool, min(index, total), total, first_try, solved_count, completed),
-        }, None
+        }
+        if not is_correct:
+            payload["correct_answer"] = (item.get("correct_answer") or "").strip()
+        return payload, None
     except Error as e:
         connection.rollback()
         print(f"lesson_fill_blanks: failed to grade la_id={la_id} fib_id={fib_id}: {e}")
         return None, f"Could not check this answer (database error: {e})."
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def skip_fib_item(acc_id, la_id, fib_id):
+    """
+    Skip the current item - only offered after a wrong answer on it.
+    Appends a status 'skipped' row (answer_given '', no life, no score);
+    the next unsolved item becomes current, and skipping the last one
+    saves the completion (score = first-attempt correct count).
+    payload["skipped"] is False when it wasn't allowed (0 lives,
+    completed, a different item, or no wrong answer on it yet).
+    """
+    la_id, fib_id = _to_int(la_id), _to_int(fib_id)
+    if not la_id or not fib_id:
+        return None, "A skip needs la_id and fib_id."
+    connection = get_db_connection()
+    if connection is None:
+        return None, "Could not connect to the database."
+    try:
+        if not (ensure_activity_game_schema(connection) and ensure_fib_schema(connection)):
+            return None, "Could not prepare the Fill in the Blanks tables - check the Flask console."
+        cursor = connection.cursor(dictionary=True)
+        play = _open(cursor, acc_id, la_id)
+        if play is None:
+            connection.rollback()
+            cursor.close()
+            return None, "This activity is not available."
+
+        fib_ids = play["fib_ids"]
+        total = len(fib_ids)
+        index = play["index"]
+        pool = play["pool"]
+        first_try = play["first_try"]
+        solved_count = len(play["solved"])
+        completed = play["already_completed"] or index >= total
+
+        allowed = not completed and total_lives(pool) > 0 and fib_ids[index] == fib_id
+        if allowed:
+            cursor.execute(
+                f"""SELECT COUNT(*) AS wrong FROM {FIB_ANSWERS_TABLE}
+                    WHERE acc_id = %s AND fib_id = %s AND status = 'incorrect'""",
+                (acc_id, fib_id)
+            )
+            allowed = cursor.fetchone()["wrong"] > 0
+
+        if allowed:
+            cursor.execute(
+                f"SELECT COUNT(*) AS cnt FROM {FIB_ANSWERS_TABLE} WHERE acc_id = %s AND fib_id = %s",
+                (acc_id, fib_id)
+            )
+            attempt_number = cursor.fetchone()["cnt"] + 1
+            cursor.execute(
+                f"""INSERT INTO {FIB_ANSWERS_TABLE}
+                    (acc_id, fib_id, answer_given, attempt_number, status, source,
+                     recommendation_id, feedback_given, answered_at)
+                    VALUES (%s, %s, '', %s, 'skipped', 'self', NULL, NULL, NOW())""",
+                (acc_id, fib_id, attempt_number)
+            )
+            solved = set(play["solved"]) | {fib_id}
+            solved_count = len(solved)
+            index = next((i for i, fid in enumerate(fib_ids) if fid not in solved), total)
+            completed = index >= total
+            if completed:
+                _save_completion(cursor, acc_id, la_id, first_try)
+
+        save_lives_pool(cursor, pool)
+        connection.commit()
+        cursor.close()
+        return {
+            "skipped": bool(allowed),
+            "state": _state(pool, min(index, total), total, first_try, solved_count, completed),
+        }, None
+    except Error as e:
+        connection.rollback()
+        print(f"lesson_fill_blanks: failed to skip fib_id={fib_id} for la_id={la_id}: {e}")
+        return None, "Something went wrong. Your progress is saved."
     finally:
         if connection.is_connected():
             connection.close()
