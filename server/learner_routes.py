@@ -253,8 +253,9 @@ def sandbox_log_run():
     output = data.get("output", "")
     status = data.get("status", "success")
     snippet_id = data.get("snippet_id")
+    exec_time_ms = data.get("exec_time_ms")
 
-    log_run(acc_id, code, output, status, snippet_id=snippet_id)
+    log_run(acc_id, code, output, status, snippet_id=snippet_id, exec_time_ms=exec_time_ms)
     return jsonify({"success": True}), 200
 
 

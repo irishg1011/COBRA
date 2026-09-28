@@ -25,6 +25,11 @@ SCHEMA (sandbox_runs_tbl):
     code_content  LONGTEXT   - snapshot of exactly what ran
     output        LONGTEXT   - what the console showed
     status        VARCHAR(20) - 'success' or 'error'
+    exec_time_ms  DECIMAL(10,3) NULL - how long the Python actually ran,
+                               measured client-side in sandbox.js
+                               (excludes Pyodide loading and time
+                               paused on input()); NULL for runs
+                               logged before this column existed
     run_at        DATETIME
 """
 
@@ -35,8 +40,33 @@ SANDBOX_RUNS_TABLE = "sandbox_runs_tbl"
 MAX_CODE_LENGTH = 20000
 MAX_OUTPUT_LENGTH = 20000
 MAX_RUNS_PER_LEARNER = 200
+MAX_EXEC_TIME_MS = 3600000  # 1 hour cap - keeps a bad value inside DECIMAL(10,3)
 
 _table_ensured = False
+
+
+def _clean_exec_time(value):
+    """
+    exec_time_ms comes from the browser, so never trust it as-is:
+    anything that isn't a real, non-negative number becomes None
+    (stored as NULL) instead of breaking the insert.
+    """
+    try:
+        ms = float(value)
+    except (TypeError, ValueError):
+        return None
+    if ms != ms or ms < 0:  # NaN or negative
+        return None
+    return round(min(ms, MAX_EXEC_TIME_MS), 3)
+
+
+def _clean_snippet_id(value):
+    """snippet_id must be a positive int or None (unsaved code)."""
+    try:
+        snippet_id = int(value)
+    except (TypeError, ValueError):
+        return None
+    return snippet_id if snippet_id > 0 else None
 
 
 def _ensure_table(connection):
@@ -60,6 +90,7 @@ def _ensure_table(connection):
                 code_content LONGTEXT NULL,
                 output LONGTEXT NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'success',
+                exec_time_ms DECIMAL(10,3) NULL DEFAULT NULL,
                 run_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_sandbox_runs_acc_id (acc_id)
             )
@@ -72,7 +103,7 @@ def _ensure_table(connection):
         print(f"sandbox_runs: failed to ensure table exists: {e}")
 
 
-def log_run(acc_id, code, output, status, snippet_id=None):
+def log_run(acc_id, code, output, status, snippet_id=None, exec_time_ms=None):
     """
     Records one Run Code execution. Best-effort by design - see module
     docstring for why a failure here never surfaces to the learner.
@@ -94,13 +125,15 @@ def log_run(acc_id, code, output, status, snippet_id=None):
         code = (code or "")[:MAX_CODE_LENGTH]
         output = (output or "")[:MAX_OUTPUT_LENGTH]
         status = status if status in ("success", "error") else "success"
+        snippet_id = _clean_snippet_id(snippet_id)
+        exec_time_ms = _clean_exec_time(exec_time_ms)
 
         cursor.execute(
             f"""
-            INSERT INTO {SANDBOX_RUNS_TABLE} (acc_id, snippet_id, code_content, output, status, run_at)
-            VALUES (%s, %s, %s, %s, %s, NOW())
+            INSERT INTO {SANDBOX_RUNS_TABLE} (acc_id, snippet_id, code_content, output, status, exec_time_ms, run_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
             """,
-            (acc_id, snippet_id, code, output, status)
+            (acc_id, snippet_id, code, output, status, exec_time_ms)
         )
         connection.commit()
 

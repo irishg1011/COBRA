@@ -60,6 +60,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
     let pyodideLoadPromise = null;
 
+    // Exec-time tracking for sandbox_runs_tbl.exec_time_ms.
+    // inputWaitMs adds up how long the program sat paused on input()
+    // prompts, so time spent typing is subtracted from the run time.
+    // lastExecTimeMs is null when the run never actually started
+    // (e.g. Pyodide failed to load) so no fake time gets logged.
+    let inputWaitMs = 0;
+    let lastExecTimeMs = null;
+
     function getPyodideInstance() {
         if (!pyodideLoadPromise) {
             if (typeof loadPyodide !== 'function') {
@@ -97,10 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
             outputBody.scrollTop = outputBody.scrollHeight;
             input.focus();
 
+            const waitStartedAt = performance.now();
+
             input.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     input.disabled = true;
+                    inputWaitMs += performance.now() - waitStartedAt;
                     resolve(input.value);
                 }
             });
@@ -118,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // not just at the top level) into an awaitable call that pauses
     // the whole script and shows the inline prompt above.
     async function runPythonCode(code) {
+        lastExecTimeMs = null;
         let pyodide;
         try {
             pyodide = await getPyodideInstance();
@@ -126,6 +138,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         pyodide.globals.set('_cobrabyte_user_code', code || '');
+
+        inputWaitMs = 0;
+        const execStartedAt = performance.now();
 
         try {
             const result = await pyodide.runPythonAsync(
@@ -175,10 +190,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
                 "_cobrabyte_stdout.getvalue() + _cobrabyte_stderr.getvalue()\n"
             );
+            lastExecTimeMs = computeExecTimeMs(execStartedAt);
             return result;
         } catch (err) {
+            lastExecTimeMs = computeExecTimeMs(execStartedAt);
             return 'Error running code: ' + (err && err.message ? err.message : String(err));
         }
+    }
+
+    // Run time = total time minus time spent paused on input() prompts,
+    // rounded to 3 decimals to match the DECIMAL(10,3) column.
+    function computeExecTimeMs(startedAt) {
+        const ms = performance.now() - startedAt - inputWaitMs;
+        return Math.round(Math.max(0, ms) * 1000) / 1000;
     }
 
     function clearConsole() {
@@ -256,6 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     output: trimmed,
                     status: isError ? 'error' : 'success',
                     snippet_id: currentSnippetId,
+                    exec_time_ms: lastExecTimeMs,
                 }),
             }).catch(() => { /* best-effort only */ });
 
