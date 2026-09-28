@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Learner Progress</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-progress.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+
+                <!-- Page title, greeting & live date/time -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Monitor Learner Progress</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Track lesson completion, activity scores, and exercise results.</p>
+                    </div>
+                    <div class="top-bar-right">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metric cards (follow search + dates, not status) -->
+                <div class="metrics-grid progress-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Total Progress Records</span>
+                            <h2 class="metric-value" id="metricTotalRecords">{{ metrics.total_records }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Average Score</span>
+                            <h2 class="metric-value metric-value-good" id="metricAverageScore">{{ metrics.average_score }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Completed 100%</span>
+                            <h2 class="metric-value metric-value-good" id="metricCompleted100">{{ metrics.completed_100 }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Below 80%</span>
+                            <h2 class="metric-value metric-value-bad" id="metricBelow80">{{ metrics.below_80 }}</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Table Card -->
+                <div class="table-card">
+
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="progressSearchInput" placeholder="Search by learner ID or name..." value="{{ search }}">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="progressStatusSelect">
+                                <option value="">All Status</option>
+                                <option value="passed" {{ 'selected' if status_filter == 'passed' }}>Passed (80% and up)</option>
+                                <option value="below" {{ 'selected' if status_filter == 'below' }}>Below 80%</option>
+                            </select>
+
+                            <div class="date-filter-group" id="progressStartedDateGroup">
+                                <span class="date-filter-label">Started</span>
+                                <input type="date" class="custom-select" id="progressStartedFromInput" title="Started from" value="{{ started_from }}">
+                                <span class="progress-date-separator">to</span>
+                                <input type="date" class="custom-select" id="progressStartedToInput" title="Started to" value="{{ started_to }}">
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearProgressStartedDateBtn" title="Clear Started filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+
+                            <div class="date-filter-group" id="progressCompletedDateGroup">
+                                <span class="date-filter-label">Completed</span>
+                                <input type="date" class="custom-select" id="progressCompletedFromInput" title="Completed from" value="{{ completed_from }}">
+                                <span class="progress-date-separator">to</span>
+                                <input type="date" class="custom-select" id="progressCompletedToInput" title="Completed to" value="{{ completed_to }}">
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearProgressCompletedDateBtn" title="Clear Completed filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <p id="progressDateFilterError" class="date-filter-error"></p>
+
+                    <div class="table-scroll">
+                        <table class="data-table progress-table" id="progressTable">
+                            <thead>
+                                <tr>
+                                    <th>Learner ID</th>
+                                    <th>Name</th>
+                                    <th>Lesson</th>
+                                    <th>Score</th>
+                                    <th>Completion</th>
+                                    <th>Started At</th>
+                                    <th>Complete At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="progressTableBody" data-page="{{ page }}" data-total-pages="{{ total_pages }}">
+                                {% for rec in records %}
+                                <tr data-progress-id="{{ rec.progress_id }}">
+                                    <td>{{ rec.acc_id }}</td>
+                                    <td>{{ rec.name }}</td>
+                                    <td>{{ rec.lesson }}</td>
+                                    <td>
+                                        {% if rec.score is none %}
+                                        <span class="progress-no-score">—</span>
+                                        {% elif rec.score >= 80 %}
+                                        <span class="badge badge-active">{{ rec.score }}%</span>
+                                        {% else %}
+                                        <span class="badge badge-locked">{{ rec.score }}%</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="completion-cell">
+                                            <progress class="completion-bar" value="{{ rec.completion }}" max="100" aria-label="Completion {{ rec.completion }}%"></progress>
+                                            <span class="completion-pct">{{ rec.completion }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ rec.started_at }}</td>
+                                    <td>
+                                        {% if rec.is_completed %}
+                                        {{ rec.completed_at }}
+                                        {% else %}
+                                        <span class="progress-in-progress">In progress</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button type="button" class="icon-button-reset progress-view-btn js-view-progress-btn" data-progress-id="{{ rec.progress_id }}" title="View details" aria-label="View details for {{ rec.acc_id }}">
+                                            <span class="mask-icon icon-eye"></span>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-muted table-empty-message">No progress records found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-pagination">
+                        <span id="progressShowingCount">Showing {{ records|length }} of {{ total_records }} records</span>
+                        <div class="pagination-controls">
+                            <button type="button" class="btn-pagination" id="progressPrevBtn" {{ 'disabled' if page <= 1 }} title="Previous Page">&lt;</button>
+                            <span id="progressPageLabel">{{ page }} of {{ total_pages }}</span>
+                            <button type="button" class="btn-pagination" id="progressNextBtn" {{ 'disabled' if page >= total_pages }} title="Next Page">&gt;</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    {% include 'learner-progress-modal.html' %}
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-progress.js') }}"></script>
+</body>
+</html>

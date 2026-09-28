@@ -88,6 +88,7 @@ from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - re
 )
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
 from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
+from learner_progress_monitor import get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview  # NEW: Admin > Learner Progress page
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -2669,9 +2670,66 @@ def coding_sandbox_run_detail(run_id):
     return jsonify({"success": True, "run": run}), 200
 
 
+# ============================================================
+# ROUTE: LEARNER PROGRESS (page + live data + one record)
+# ============================================================
+def _read_progress_filters():
+    """Same query params for the page load and the live-data endpoint."""
+    return {
+        "search_query": request.args.get('q', ''),
+        "status_filter": request.args.get('status', ''),
+        "started_from": request.args.get('started_from', '') or None,
+        "started_to": request.args.get('started_to', '') or None,
+        "completed_from": request.args.get('completed_from', '') or None,
+        "completed_to": request.args.get('completed_to', '') or None,
+        "page": request.args.get('page', 1, type=int),
+    }
+
+
 @admin_bp.route('/learner-progress')
 def learner_progress():
-    return render_placeholder("Learner Progress")
+    """
+    Admin > Learner Progress (By Lesson): one row per learner per
+    lesson, with score, completion, filters and pagination
+    (see learner_progress_monitor.py).
+    """
+    filters = _read_progress_filters()
+    overview = get_learner_progress_overview(**filters) or empty_learner_progress_overview()
+
+    return render_template(
+        'learner-progress.html',
+        records=overview["records"],
+        metrics=overview["metrics"],
+        total_records=overview["total"],
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        search=filters["search_query"] or '',
+        status_filter=filters["status_filter"] or '',
+        started_from=filters["started_from"] or '',
+        started_to=filters["started_to"] or '',
+        completed_from=filters["completed_from"] or '',
+        completed_to=filters["completed_to"] or '',
+    )
+
+
+@admin_bp.route('/learner-progress/data')
+def learner_progress_data():
+    """Live search/filter/pagination for admin-learner-progress.js."""
+    overview = get_learner_progress_overview(**_read_progress_filters())
+    if overview is None:
+        return jsonify({"success": False, **empty_learner_progress_overview()}), 500
+
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/learner-progress/records/<int:progress_id>')
+def learner_progress_detail(progress_id):
+    """One record's full breakdown for the eye-button modal."""
+    record = get_learner_progress_detail(progress_id)
+    if record is None:
+        return jsonify({"success": False, "message": "Record not found or could not be loaded."}), 404
+
+    return jsonify({"success": True, "record": record}), 200
 
 
 @admin_bp.route('/analytics')

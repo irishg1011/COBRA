@@ -1,0 +1,64 @@
+<!-- learner-progress-modal.html - Admin > Learner Progress: one learner's
+     breakdown for one lesson. Opened by the eye button
+     (admin-learner-progress.js). Hidden by default with .modal-hidden. -->
+<div id="progressDetailModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="progressDetailTitle">
+    <div class="progress-detail-card">
+
+        <div class="progress-detail-header">
+            <div>
+                <h3 id="progressDetailTitle">Lesson Progress</h3>
+                <p class="progress-detail-subtitle">
+                    <strong id="progressDetailName">—</strong>
+                    <span class="progress-detail-dot">•</span>
+                    <span id="progressDetailAccId">—</span>
+                </p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeProgressDetailBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <p id="progressDetailError" class="progress-detail-error"></p>
+
+        <div class="progress-detail-body">
+
+            <div class="progress-summary-grid">
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Lesson</span>
+                    <strong id="progressDetailLesson">—</strong>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Score</span>
+                    <strong id="progressDetailScore">—</strong>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Completion</span>
+                    <strong id="progressDetailCompletion">—</strong>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Started</span>
+                    <strong id="progressDetailStarted">—</strong>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Completed</span>
+                    <strong id="progressDetailCompleted">—</strong>
+                </div>
+            </div>
+
+            <section class="progress-detail-section">
+                <h4><i class="fa-solid fa-list-check"></i> Lesson Steps</h4>
+                <ul id="progressDetailSteps" class="progress-step-list"></ul>
+            </section>
+
+            <section class="progress-detail-section">
+                <h4><i class="fa-solid fa-puzzle-piece"></i> Learning Activities</h4>
+                <div id="progressDetailActivities"></div>
+            </section>
+
+            <section class="progress-detail-section">
+                <h4><i class="fa-solid fa-code"></i> Coding Exercise</h4>
+                <div id="progressDetailExercise"></div>
+            </section>
+
+            <p id="progressDetailGraded" class="progress-detail-note"></p>
+        </div>
+    </div>
+</div>
