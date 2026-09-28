@@ -186,6 +186,22 @@ document.addEventListener('DOMContentLoaded', () => {
             afterEl.insertAdjacentElement('afterend', errorEl);
         }
         errorEl.textContent = message;
+
+        // feat/login-animations: calm red outline on the field (no shaking).
+        // Cleared by clearInlineError() or as soon as the user types again.
+        const field = getErrorField(afterEl);
+        if (field && !field.classList.contains('auth-input-error')) {
+            field.classList.add('auth-input-error');
+            field.addEventListener('input', () => field.classList.remove('auth-input-error'), { once: true });
+        }
+    }
+
+    // The input an error belongs to: afterEl is either the input itself
+    // or a .password-wrapper that contains it.
+    function getErrorField(afterEl) {
+        if (!afterEl) return null;
+        if (afterEl.matches('input, select')) return afterEl;
+        return afterEl.querySelector('input');
     }
 
     function clearInlineError(afterEl) {
@@ -196,6 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // so it goes away whenever that error is cleared.
         const hintEl = afterEl.parentElement.querySelector('.auth-signup-hint');
         if (hintEl) hintEl.remove();
+        const field = getErrorField(afterEl);
+        if (field) field.classList.remove('auth-input-error');
     }
 
     // =========================================================================
@@ -515,12 +533,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // revealed. Re-adding the animation class every call (after forcing a
     // reflow) makes the fade+slide-up animation replay each time, even if
     // the same panel was shown before with the class still attached.
-    function showPanel(panel, displayValue = 'block') {
+    //
+    // feat/login-animations: `direction` picks which side the fields glide
+    // in from - 'forward' (default, from the right) or 'back' (from the
+    // left, used by Back links and when returning to Sign In). The actual
+    // animation lives in animations.css (.panel-animate-in).
+    function showPanel(panel, displayValue = 'block', direction = 'forward') {
         if (!panel) return;
         panel.style.display = displayValue;
-        panel.classList.remove('panel-animate-in');
+        panel.classList.remove('panel-animate-in', 'panel-from-left');
         void panel.offsetWidth; // force reflow so the animation retriggers
         panel.classList.add('panel-animate-in');
+        if (direction === 'back') panel.classList.add('panel-from-left');
+    }
+
+    // feat/login-animations: the gradient Sign In / Sign Up pill stretches
+    // while it slides (animations.css .is-stretching). Only when it moves.
+    function stretchToggleSlider() {
+        if (!toggleSlider) return;
+        toggleSlider.classList.remove('is-stretching');
+        void toggleSlider.offsetWidth;
+        toggleSlider.classList.add('is-stretching');
     }
 
     function hideAllPanels() {
@@ -532,7 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const toggleSlider = document.getElementById('toggleSlider');
 
-    function showSignInView() {
+    function showSignInView(direction = 'forward') {
+        const sliderMoves = !!(toggleSlider && toggleSlider.classList.contains('slide-right'));
         resetSignUpForm();
         resetForgotPasswordForm();
         resetSignInForm();
@@ -541,7 +575,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (signInBtn) signInBtn.classList.add('active');
         if (signUpBtn) signUpBtn.classList.remove('active');
         if (toggleSlider) toggleSlider.classList.remove('slide-right');
-        showPanel(signInPanel);
+        if (sliderMoves) stretchToggleSlider();
+        showPanel(signInPanel, 'block', direction);
     }
 
     function showSignUpView() {
@@ -552,7 +587,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (authToggleBar) authToggleBar.style.display = 'flex';
         if (signInBtn) signInBtn.classList.remove('active');
         if (signUpBtn) signUpBtn.classList.add('active');
+        const sliderMoves = !!(toggleSlider && !toggleSlider.classList.contains('slide-right'));
         if (toggleSlider) toggleSlider.classList.add('slide-right');
+        if (sliderMoves) stretchToggleSlider();
         showPanel(signUpPanel);
     }
     
@@ -654,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         signInBtn.addEventListener('click', () => {
             if (signUpBtn.classList.contains('active') && !confirmViewSwitch()) return;
-            showSignInView();
+            showSignInView('back');
         });
     }
 
@@ -682,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (backToStep1) backToStep1.addEventListener('click', (e) => { e.preventDefault(); hideAllPanels(); showPanel(signUpPanel); });
+    if (backToStep1) backToStep1.addEventListener('click', (e) => { e.preventDefault(); hideAllPanels(); showPanel(signUpPanel, 'block', 'back'); });
 
     if (proceedToStep3) {
         proceedToStep3.addEventListener('click', async (e) => {
@@ -823,7 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
         backToStep2.addEventListener('click', (e) => {
             e.preventDefault(); hideAllPanels();
             if (authToggleBar) authToggleBar.style.display = 'flex';
-            showPanel(signUpStep2Panel);
+            showPanel(signUpStep2Panel, 'block', 'back');
         });
     }
 
@@ -883,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (backToSignIn) backToSignIn.addEventListener('click', showSignInView);
+    if (backToSignIn) backToSignIn.addEventListener('click', () => showSignInView());
 
     const setupOtpJumping = (containerSelector) => {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
@@ -1307,7 +1344,7 @@ if (result.success) {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             if (!confirmViewSwitch()) return;
-            showSignInView();
+            showSignInView('back');
         });
     });
 
@@ -1371,6 +1408,31 @@ if (result.success) {
             if (resetBtn) resetBtn.click();
         }
     });
+
+    // =========================================================================
+    // --- feat/login-animations: SNAKE BORDER TRACE (page load only) ---
+    // =========================================================================
+    // Sizes the SVG outline to the card, then adds .is-running so the
+    // gradient "snake" coils around the card once (animations.css). With
+    // reduce-motion on, the CSS simply never shows it.
+    const snakeTrace = document.getElementById('snakeTrace');
+    const snakeTraceRect = document.getElementById('snakeTraceRect');
+    const authCard = document.querySelector('.auth-card');
+
+    function runSnakeTrace() {
+        if (!snakeTrace || !snakeTraceRect || !authCard) return;
+        const w = authCard.offsetWidth;
+        const h = authCard.offsetHeight;
+        snakeTrace.setAttribute('viewBox', `0 0 ${w + 8} ${h + 8}`);
+        snakeTraceRect.setAttribute('width', w + 4);
+        snakeTraceRect.setAttribute('height', h + 4);
+        snakeTrace.classList.remove('is-running');
+        void snakeTrace.getBoundingClientRect();
+        snakeTrace.classList.add('is-running');
+    }
+
+    // After pageshow has put the Sign In panel in place, so the size is final.
+    window.addEventListener('load', () => requestAnimationFrame(runSnakeTrace), { once: true });
 
     // =========================================================================
     // --- feat/login-signup-redirect: "CREATE AN EMAIL" HELP POPUP ---

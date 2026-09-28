@@ -60,3 +60,256 @@ body.page-fade-out {
     opacity: 0;
     transition: opacity 0.2s ease;
 }
+
+/* ==========================================================================
+   feat/login-animations: SNAKE-THEMED LOGIN / SIGN-UP ANIMATIONS
+   --------------------------------------------------------------------------
+   Everything here is scoped to login-page classes (.auth-card, .auth-toggle,
+   .input-group, .btn-login, ...) so the landing page that also loads this
+   file is not affected. Turned into simple fades for people who have
+   "reduce motion" on (see the @media block at the end).
+   ========================================================================== */
+
+/* --- 1. Card entrance ---------------------------------------------------- */
+.auth-card {
+    position: relative;
+    animation: authCardIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+}
+
+@keyframes authCardIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* --- 2. Snake border trace (once, on page load - started by script.js) --- */
+.snake-trace {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    overflow: visible;
+    pointer-events: none;
+}
+
+.snake-trace rect {
+    fill: none;
+    stroke: url(#snake-trace-gradient);
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    stroke-dasharray: 20 80;
+    stroke-dashoffset: 100;
+    opacity: 0;
+}
+
+.snake-trace.is-running rect {
+    animation: authSnakeCoil 1.6s cubic-bezier(0.55, 0.1, 0.35, 1) 0.35s forwards;
+}
+
+@keyframes authSnakeCoil {
+    0%   { opacity: 1;   stroke-dashoffset: 100; stroke-dasharray: 20 80; }
+    78%  { opacity: 1;   stroke-dashoffset: 0;   stroke-dasharray: 20 80; }
+    90%  { opacity: 0.9; stroke-dasharray: 100 0; }
+    100% { opacity: 0;   stroke-dasharray: 100 0; }
+}
+
+/* --- 3. Panel switch: fields glide in one after another, then stop -------
+   script.js showPanel() adds .panel-animate-in (and .panel-from-left for
+   Back). Containers (forms, verification/success wrappers) don't animate
+   themselves - their children do, so nothing animates twice. */
+.panel-animate-in > :not(.auth-form):not(.verification-container):not(.success-container),
+.panel-animate-in .auth-form > *,
+.panel-animate-in .verification-container > :not(.auth-form),
+.panel-animate-in .success-container > * {
+    animation: authGlideFromRight 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.panel-animate-in.panel-from-left > :not(.auth-form):not(.verification-container):not(.success-container),
+.panel-animate-in.panel-from-left .auth-form > *,
+.panel-animate-in.panel-from-left .verification-container > :not(.auth-form),
+.panel-animate-in.panel-from-left .success-container > * {
+    animation-name: authGlideFromLeft;
+}
+
+/* Stagger: the "snake" flow - each row starts a little after the last */
+.panel-animate-in .auth-form > :nth-child(1),
+.panel-animate-in .verification-container > :nth-child(1),
+.panel-animate-in .success-container > :nth-child(1) { animation-delay: 0.07s; }
+.panel-animate-in .auth-form > :nth-child(2),
+.panel-animate-in .verification-container > :nth-child(2),
+.panel-animate-in .success-container > :nth-child(2) { animation-delay: 0.14s; }
+.panel-animate-in .auth-form > :nth-child(3),
+.panel-animate-in .verification-container > :nth-child(3),
+.panel-animate-in .success-container > :nth-child(3) { animation-delay: 0.21s; }
+.panel-animate-in .auth-form > :nth-child(4),
+.panel-animate-in .verification-container > :nth-child(4) { animation-delay: 0.28s; }
+.panel-animate-in .auth-form > :nth-child(5),
+.panel-animate-in .verification-container > :nth-child(5) { animation-delay: 0.35s; }
+.panel-animate-in .auth-form > :nth-child(n+6),
+.panel-animate-in .verification-container > :nth-child(n+6) { animation-delay: 0.42s; }
+
+@keyframes authGlideFromRight {
+    from { opacity: 0; transform: translateX(28px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes authGlideFromLeft {
+    from { opacity: 0; transform: translateX(-28px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* --- 4. Stretchy Sign In / Sign Up pill ----------------------------------
+   Uses the separate `scale` property so it doesn't fight the existing
+   transform: translateX(100%) that moves the pill. */
+.toggle-slider.is-stretching {
+    animation: authPillStretch 0.35s ease;
+}
+
+@keyframes authPillStretch {
+    0%   { scale: 1 1; }
+    45%  { scale: 1.3 1; }
+    100% { scale: 1 1; }
+}
+
+/* --- 5. Focus underline that slithers across the input -------------------
+   Drawn with a background gradient, so no extra HTML wrapper is needed.
+   The input keeps its #EDEAE4 background color from style.css. */
+.input-group input {
+    background-image: linear-gradient(90deg, #00D0FF 0%, #1CE8C8 50%, #38FF92 100%);
+    background-repeat: no-repeat;
+    background-position: left bottom;
+    background-size: 0% 3px;
+    transition: background-size 0.45s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.input-group input:focus {
+    background-size: 100% 3px;
+}
+
+/* --- 6. Error: calm red outline (no shaking) + fade-in messages --------- */
+.input-group input.auth-input-error {
+    box-shadow: inset 0 0 0 1.5px rgba(224, 36, 36, 0.7);
+    animation: authErrorGlow 1.2s ease;
+}
+
+@keyframes authErrorGlow {
+    0%   { box-shadow: inset 0 0 0 1.5px rgba(224, 36, 36, 0),   0 0 0 0   rgba(224, 36, 36, 0); }
+    25%  { box-shadow: inset 0 0 0 1.5px rgba(224, 36, 36, 1),   0 0 0 4px rgba(224, 36, 36, 0.15); }
+    100% { box-shadow: inset 0 0 0 1.5px rgba(224, 36, 36, 0.7), 0 0 0 0   rgba(224, 36, 36, 0); }
+}
+
+.js-error-message,
+.auth-signup-hint {
+    animation: authFadeIn 0.3s ease both;
+}
+
+@keyframes authFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* --- 7. Buttons: scale shimmer on hover, squash on press ----------------- */
+.btn-login {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-login::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    transform: skewX(-20deg);
+    pointer-events: none;
+}
+
+.btn-login:hover:not(:disabled)::after {
+    animation: authScaleShimmer 0.9s ease;
+}
+
+@keyframes authScaleShimmer {
+    to { left: 130%; }
+}
+
+.btn-login:active:not(:disabled) {
+    transform: scale(0.97, 0.94);
+}
+
+/* --- 8. Ouroboros loader: restyles setButtonLoading()'s .btn-spinner ------
+   A snake chasing its tail - the ring is the body, ::after is the head. */
+.btn-spinner {
+    position: relative;
+    border-color: rgba(255, 255, 255, 0.35);
+    border-top-color: #FFFFFF;
+    border-right-color: #FFFFFF;
+    animation-duration: 0.8s;
+}
+
+.btn-spinner::after {
+    content: "";
+    position: absolute;
+    top: 8.5px;
+    left: 8.5px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #FFFFFF;
+}
+
+/* --- 9. Coiling success check ("Sign In Successful!") -------------------
+   Plays whenever the success panel is shown. */
+.signin-success-icon .success-coil {
+    stroke-dasharray: 63;
+    stroke-dashoffset: 63;
+    transform: rotate(-90deg);
+    transform-origin: 12px 12px;
+    animation: authDraw 0.7s ease 0.15s forwards;
+}
+
+.signin-success-icon .success-check {
+    stroke-dasharray: 14;
+    stroke-dashoffset: 14;
+    animation: authDraw 0.35s ease-out 0.8s forwards;
+}
+
+@keyframes authDraw {
+    to { stroke-dashoffset: 0; }
+}
+
+/* --- Reduce motion: keep only simple fades ------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    .auth-card,
+    .panel-animate-in > *,
+    .panel-animate-in .auth-form > *,
+    .panel-animate-in .verification-container > :not(.auth-form),
+    .panel-animate-in .success-container > * {
+        animation: authFadeIn 0.2s ease both !important;
+    }
+
+    .snake-trace,
+    .btn-login::after,
+    .btn-spinner::after {
+        display: none;
+    }
+
+    .toggle-slider.is-stretching,
+    .input-group input.auth-input-error {
+        animation: none;
+    }
+
+    .input-group input {
+        transition: none;
+    }
+
+    .btn-login:active:not(:disabled) {
+        transform: none;
+    }
+
+    .signin-success-icon .success-coil,
+    .signin-success-icon .success-check {
+        animation: none;
+        stroke-dashoffset: 0;
+    }
+}
