@@ -88,7 +88,11 @@ from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - re
 )
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
 from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
-from learner_progress_monitor import get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview  # NEW: Admin > Learner Progress page
+from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By Lesson + By Learner)
+    get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
+    get_learners_progress_overview, get_learner_course_detail, empty_learners_progress_overview,
+    get_progress_filter_options,
+)
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -2730,6 +2734,68 @@ def learner_progress_detail(progress_id):
         return jsonify({"success": False, "message": "Record not found or could not be loaded."}), 404
 
     return jsonify({"success": True, "record": record}), 200
+
+
+# ============================================================
+# ROUTE: LEARNER PROGRESS - BY LEARNER VIEW
+# ============================================================
+def _read_learner_view_filters():
+    return {
+        "search_query": request.args.get('q', ''),
+        "status_filter": request.args.get('status', ''),
+        "cat_id": request.args.get('cat_id', '') or None,
+        "module_id": request.args.get('module_id', '') or None,
+        "active_from": request.args.get('active_from', '') or None,
+        "active_to": request.args.get('active_to', '') or None,
+        "page": request.args.get('page', 1, type=int),
+    }
+
+
+@admin_bp.route('/learner-progress/learners')
+def learner_progress_learners():
+    """
+    Admin > Learner Progress (By Learner): one row per learner across
+    the course, scoped by the Chapter/Module filter
+    (see learner_progress_monitor.py).
+    """
+    filters = _read_learner_view_filters()
+    overview = get_learners_progress_overview(**filters) or empty_learners_progress_overview()
+
+    return render_template(
+        'learner-progress-learners.html',
+        learners=overview["learners"],
+        metrics=overview["metrics"],
+        total_learners=overview["total"],
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        chapters=get_progress_filter_options(),
+        search=filters["search_query"] or '',
+        status_filter=filters["status_filter"] or '',
+        cat_id=str(filters["cat_id"] or ''),
+        module_id=str(filters["module_id"] or ''),
+        active_from=filters["active_from"] or '',
+        active_to=filters["active_to"] or '',
+    )
+
+
+@admin_bp.route('/learner-progress/learners/data')
+def learner_progress_learners_data():
+    """Live search/filter/pagination for admin-learner-progress-learners.js."""
+    overview = get_learners_progress_overview(**_read_learner_view_filters())
+    if overview is None:
+        return jsonify({"success": False, **empty_learners_progress_overview()}), 500
+
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/learner-progress/learner-detail/<acc_id>')
+def learner_progress_learner_detail(acc_id):
+    """One learner's course breakdown (Chapter -> Module -> Lesson)."""
+    detail = get_learner_course_detail(acc_id)
+    if detail is None:
+        return jsonify({"success": False, "message": "Learner not found or could not be loaded."}), 404
+
+    return jsonify({"success": True, "learner": detail}), 200
 
 
 @admin_bp.route('/analytics')

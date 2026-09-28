@@ -41,6 +41,14 @@
                     </div>
                 </div>
 
+                <!-- View switcher (plain links to the two routes) -->
+                <div class="page-actions-row">
+                    <nav class="page-switcher" aria-label="Learner Progress views">
+                        <a href="{{ url_for('admin_bp.learner_progress') }}" class="page-switch-link active" aria-current="page">By Lesson</a>
+                        <a href="{{ url_for('admin_bp.learner_progress_learners') }}" class="page-switch-link">By Learner</a>
+                    </nav>
+                </div>
+
                 <!-- Metric cards (follow search + dates, not status) -->
                 <div class="metrics-grid progress-metrics-grid">
                     <div class="metric-card">
@@ -185,6 +193,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-progress-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-progress.js') }}"></script>
 </body>
 </html>

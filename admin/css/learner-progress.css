@@ -329,3 +329,196 @@
         display: none;
     }
 }
+
+/* ==========================================================================
+   BY LEARNER VIEW (learner-progress-learners.html + learner-progress-learner-modal.html)
+   ========================================================================== */
+
+/* --- 5 metric cards --- */
+.metrics-grid.progress-metrics-grid.progress-metrics-5 {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+@media (max-width: 1300px) {
+    .metrics-grid.progress-metrics-grid.progress-metrics-5 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .metrics-grid.progress-metrics-grid.progress-metrics-5 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid.progress-metrics-grid.progress-metrics-5 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Module dropdown stays locked until a Chapter is picked */
+.table-card select.custom-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* --- Table: "Currently On" cell --- */
+.learners-table td:nth-child(3) {
+    white-space: normal;
+    min-width: 160px;
+    max-width: 260px;
+}
+
+.current-lesson-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.current-lesson-title {
+    font-size: 12px;
+}
+
+.current-lesson-path {
+    font-size: 10px;
+    color: var(--admin-muted);
+}
+
+/* ==========================================================================
+   COURSE MODAL - Chapter > Module > Lesson (native <details> accordion)
+   ========================================================================== */
+.course-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.course-chapter {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.course-summary {
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+.course-summary::-webkit-details-marker {
+    display: none;
+}
+
+.course-summary:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: -2px;
+}
+
+.course-summary-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.course-caret {
+    font-size: 11px;
+    color: var(--admin-muted);
+    transition: transform 0.2s;
+}
+
+details[open] > .course-summary .course-caret {
+    transform: rotate(90deg);
+}
+
+.course-summary-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--admin-muted);
+    white-space: nowrap;
+}
+
+.course-chapter.is-locked > .course-summary {
+    opacity: 0.7;
+}
+
+.course-chapter-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px 12px;
+}
+
+.course-module {
+    border: 1px solid #eef0f3;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.course-summary-module {
+    background: #ffffff;
+    padding: 10px 12px;
+}
+
+.course-summary-module .course-summary-title {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.course-lesson-scroll {
+    overflow-x: auto;
+    border-top: 1px solid #eef0f3;
+}
+
+.course-lesson-table td,
+.course-lesson-table th {
+    white-space: nowrap;
+}
+
+.course-lesson-table td:first-child {
+    white-space: normal;
+    min-width: 180px;
+}
+
+.course-lesson-table tr.is-current-lesson td {
+    background: #f0fdf4;
+}
+
+.completion-bar.completion-bar-sm {
+    width: 70px;
+}
+
+.course-empty {
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+@media (max-width: 700px) {
+    .course-summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .course-summary-stats {
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+
+    .course-lesson-table th:nth-child(5),
+    .course-lesson-table td:nth-child(5),
+    .course-lesson-table th:nth-child(6),
+    .course-lesson-table td:nth-child(6) {
+        display: none;
+    }
+}

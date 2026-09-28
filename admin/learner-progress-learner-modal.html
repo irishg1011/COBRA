@@ -1,0 +1,55 @@
+<!-- learner-progress-learner-modal.html - Admin > Learner Progress (By
+     Learner): one learner's whole course, Chapter -> Module -> Lesson.
+     Opened by the eye button (admin-learner-progress-learners.js).
+     Each lesson's eye opens the shared Lesson Progress modal on top.
+     Hidden by default with .modal-hidden. -->
+<div id="learnerCourseModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="learnerCourseTitle">
+    <div class="progress-detail-card">
+
+        <div class="progress-detail-header">
+            <div>
+                <h3 id="learnerCourseTitle">Course Progress</h3>
+                <p class="progress-detail-subtitle">
+                    <strong id="learnerCourseName">—</strong>
+                    <span class="progress-detail-dot">•</span>
+                    <span id="learnerCourseAccId">—</span>
+                </p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeLearnerCourseBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <p id="learnerCourseError" class="progress-detail-error"></p>
+
+        <div class="progress-detail-body">
+
+            <div class="progress-summary-grid">
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Currently On</span>
+                    <strong id="learnerCourseCurrent">—</strong>
+                    <small id="learnerCourseCurrentPath" class="progress-summary-sub"></small>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Lessons</span>
+                    <strong id="learnerCourseLessons">—</strong>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Avg Score</span>
+                    <strong id="learnerCourseScore">—</strong>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Course Completion</span>
+                    <strong id="learnerCourseCompletion">—</strong>
+                </div>
+                <div class="progress-summary-item">
+                    <span class="progress-summary-label">Last Active</span>
+                    <strong id="learnerCourseLastActive">—</strong>
+                </div>
+            </div>
+
+            <section class="progress-detail-section">
+                <h4><i class="fa-solid fa-sitemap"></i> Course Breakdown</h4>
+                <div id="learnerCourseChapters" class="course-breakdown"></div>
+            </section>
+        </div>
+    </div>
+</div>

@@ -85,7 +85,7 @@ def empty_learner_progress_overview():
 # 1. Progress rows (learner x lesson)
 # ------------------------------------------------------------------
 def _fetch_progress_rows(cursor, search_query=None, started_from=None, started_to=None,
-                         completed_from=None, completed_to=None, progress_id=None):
+                         completed_from=None, completed_to=None, progress_id=None, acc_id=None):
     clauses = [
         "ut.u_type = 'Learner'",
         "(a.is_deleted = 0 OR a.is_deleted IS NULL)",
@@ -95,6 +95,10 @@ def _fetch_progress_rows(cursor, search_query=None, started_from=None, started_t
     if progress_id is not None:
         clauses.append("lrp.progress_id = %s")
         params.append(progress_id)
+
+    if acc_id is not None:
+        clauses.append("lrp.acc_id = %s")
+        params.append(acc_id)
 
     term = (search_query or "").strip().lower()
     if term:
@@ -467,6 +471,421 @@ def get_learner_progress_detail(progress_id):
 
     except Error as e:
         print(f"learner_progress_monitor: failed to load record {progress_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ==================================================================
+# BY LEARNER VIEW
+# ------------------------------------------------------------------
+# One row = one learner across the course. Every learner account is
+# listed, including ones who haven't started (0%).
+#
+#   Course      = published lessons in non-archived chapters/modules,
+#                 ordered like the Learning Map (display_order, then id)
+#   Scope       = the whole course, or just the Chapter / Module picked
+#                 in the filter - every number is recalculated for it
+#   Lessons     = completed lessons in scope / lessons in scope
+#   Avg Score   = average of the learner's lesson scores in scope
+#                 (lessons with nothing graded are skipped)
+#   Completion  = completed / total lessons in scope
+#   Last Active = latest started or completed date in scope
+#   Locked      = mirrors the Learning Map: first chapter always open;
+#                 otherwise open if saved in learner_progress_unlocks_tbl,
+#                 the previous chapter is finished, or the learner has
+#                 already touched a lesson in it
+# ==================================================================
+def _to_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _strip_private(summary):
+    return {k: v for k, v in summary.items() if not k.startswith("_")}
+
+
+def _load_course_tree(cursor):
+    """Returns (chapters, lesson_path). chapters -> modules -> lessons, in course order."""
+    cursor.execute(
+        """
+        SELECT
+            c.cat_id, c.category_name,
+            m.module_id, m.module_name,
+            lr.resource_id, lr.resource_title
+        FROM learning_resources_tbl lr
+        JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+        JOIN modules_tbl m ON lr.module_id = m.module_id
+        JOIN category_tbl c ON m.cat_id = c.cat_id
+        WHERE lrs.lr_stats_name = 'Published'
+          AND COALESCE(c.is_archived, 0) = 0
+          AND COALESCE(m.is_archived, 0) = 0
+        ORDER BY
+            COALESCE(c.display_order, 999999), c.cat_id,
+            COALESCE(m.display_order, 999999), m.module_id,
+            COALESCE(lr.display_order, 999999), lr.resource_id
+        """
+    )
+    chapters = []
+    chapter_index = {}
+    module_index = {}
+    lesson_path = {}
+
+    for r in cursor.fetchall():
+        chapter = chapter_index.get(r["cat_id"])
+        if chapter is None:
+            chapter = {"cat_id": r["cat_id"], "name": r["category_name"], "modules": []}
+            chapter_index[r["cat_id"]] = chapter
+            chapters.append(chapter)
+
+        module = module_index.get(r["module_id"])
+        if module is None:
+            module = {"module_id": r["module_id"], "name": r["module_name"], "lessons": []}
+            module_index[r["module_id"]] = module
+            chapter["modules"].append(module)
+
+        module["lessons"].append({"resource_id": r["resource_id"], "title": r["resource_title"]})
+        lesson_path[r["resource_id"]] = {
+            "cat_id": r["cat_id"],
+            "module_id": r["module_id"],
+            "chapter": r["category_name"],
+            "module": r["module_name"],
+        }
+
+    return chapters, lesson_path
+
+
+def _fetch_learners(cursor, search_query=None, acc_id=None):
+    clauses = [
+        "ut.u_type = 'Learner'",
+        "(a.is_deleted = 0 OR a.is_deleted IS NULL)",
+    ]
+    params = []
+
+    if acc_id is not None:
+        clauses.append("a.acc_id = %s")
+        params.append(acc_id)
+
+    term = (search_query or "").strip().lower()
+    if term:
+        like = f"%{term}%"
+        clauses.append(
+            "(LOWER(a.acc_id) LIKE %s "
+            "OR LOWER(CONCAT(COALESCE(p.firstname, ''), ' ', COALESCE(p.lastname, ''))) LIKE %s)"
+        )
+        params.extend([like, like])
+
+    cursor.execute(
+        f"""
+        SELECT a.acc_id, p.firstname, p.lastname
+        FROM account_tbl a
+        JOIN usertype_tbl ut ON a.u_type = ut.ut_id
+        LEFT JOIN profile_tbl p ON a.acc_id = p.acc_id
+        WHERE {' AND '.join(clauses)}
+        ORDER BY a.acc_id ASC
+        """,
+        tuple(params)
+    )
+    return cursor.fetchall()
+
+
+def _group_stats(lessons):
+    """Totals for a module or chapter from its lesson entries."""
+    total = len(lessons)
+    done = sum(1 for l in lessons if l["status"] == "completed")
+    touched = sum(1 for l in lessons if l["status"] != "not_started")
+    scores = [l["score"] for l in lessons if l["score"] is not None]
+    return {
+        "lessons_total": total,
+        "lessons_completed": done,
+        "lessons_touched": touched,
+        "avg_score": round(sum(scores) / len(scores)) if scores else None,
+        "completion": round((done / total) * 100) if total else 0,
+    }
+
+
+def _summarize_learner(learner, pairs, scope_ids, lesson_path, lessons_total):
+    """One learner's row. pairs = [(raw progress row, evaluated row), ...]."""
+    in_scope = [(row, ev) for row, ev in pairs if row["resource_id"] in scope_ids]
+    completed = [(row, ev) for row, ev in in_scope if ev["is_completed"]]
+    open_pairs = [(row, ev) for row, ev in in_scope if not ev["is_completed"]]
+    scores = [ev["score"] for _, ev in in_scope if ev["score"] is not None]
+
+    last_active = None
+    for row, ev in in_scope:
+        for dt in (row.get("started_at"), row.get("completed_at") if ev["is_completed"] else None):
+            if dt and (last_active is None or dt > last_active):
+                last_active = dt
+
+    current = None
+    if not in_scope:
+        state = "not_started"
+    elif open_pairs:
+        state = "in_progress"
+        current = max(open_pairs, key=lambda p: (p[0].get("started_at") or datetime.min, p[0]["progress_id"]))
+    elif lessons_total and len(completed) >= lessons_total:
+        state = "finished"
+    else:
+        state = "idle"  # nothing open right now - show the last lesson they completed
+        current = max(completed, key=lambda p: (p[0].get("completed_at") or datetime.min, p[0]["progress_id"]))
+
+    current_lesson, current_path, current_rid = "—", "", None
+    if current:
+        current_rid = current[0]["resource_id"]
+        current_lesson = current[1]["lesson"]
+        path = lesson_path.get(current_rid)
+        if path:
+            current_path = f"{path['chapter']} › {path['module']}"
+
+    return {
+        "acc_id": learner["acc_id"],
+        "name": _full_name(learner),
+        "current_state": state,
+        "current_lesson": current_lesson,
+        "current_path": current_path,
+        "lessons_completed": len(completed),
+        "lessons_total": lessons_total,
+        "avg_score": round(sum(scores) / len(scores)) if scores else None,
+        "completion": round((len(completed) / lessons_total) * 100) if lessons_total else 0,
+        "last_active": _fmt_date(last_active),
+        "_last_active_raw": last_active,
+        "_current_resource_id": current_rid,
+    }
+
+
+def _empty_learner_metrics():
+    return {"total_learners": 0, "not_started": 0, "average_score": "—", "finished": 0, "below_80": 0}
+
+
+def empty_learners_progress_overview():
+    """Used when the DB is unreachable so the page still renders."""
+    return {
+        "learners": [], "metrics": _empty_learner_metrics(),
+        "total": 0, "page": 1, "per_page": DEFAULT_PER_PAGE, "total_pages": 1,
+    }
+
+
+def get_progress_filter_options():
+    """Chapters with their modules for the Chapter/Module dropdowns."""
+    connection = get_db_connection()
+    if connection is None:
+        return []
+    try:
+        cursor = connection.cursor(dictionary=True)
+        chapters, _ = _load_course_tree(cursor)
+        cursor.close()
+        return [{
+            "cat_id": ch["cat_id"],
+            "name": ch["name"],
+            "modules": [{"module_id": m["module_id"], "name": m["name"]} for m in ch["modules"]],
+        } for ch in chapters]
+    except Error as e:
+        print(f"learner_progress_monitor: failed to load filter options: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_learners_progress_overview(search_query=None, status_filter=None, cat_id=None,
+                                   module_id=None, active_from=None, active_to=None,
+                                   page=1, per_page=DEFAULT_PER_PAGE):
+    """
+    Returns {"learners", "metrics", "total", "page", "per_page", "total_pages"}
+    or None if the database is unreachable. Metric cards follow search,
+    Chapter/Module and Last Active - never the status filter.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        cat_id = _to_int(cat_id)
+        module_id = _to_int(module_id)
+        active_from = _clean_date(active_from)
+        active_to = _clean_date(active_to)
+
+        chapters, lesson_path = _load_course_tree(cursor)
+        scope_ids = {
+            rid for rid, path in lesson_path.items()
+            if (cat_id is None or path["cat_id"] == cat_id)
+            and (module_id is None or path["module_id"] == module_id)
+        }
+
+        learners = _fetch_learners(cursor, search_query)
+        rows = _fetch_progress_rows(cursor, search_query)
+        evaluated = _evaluate_rows(cursor, rows)
+        cursor.close()
+
+        by_acc = {}
+        for row, ev in zip(rows, evaluated):
+            by_acc.setdefault(row["acc_id"], []).append((row, ev))
+
+        summaries = [
+            _summarize_learner(l, by_acc.get(l["acc_id"], []), scope_ids, lesson_path, len(scope_ids))
+            for l in learners
+        ]
+
+        # --- Last Active range (learners with no activity drop out) ---
+        if active_from or active_to:
+            start = datetime.strptime(active_from, "%Y-%m-%d").date() if active_from else None
+            end = datetime.strptime(active_to, "%Y-%m-%d").date() if active_to else None
+            summaries = [
+                s for s in summaries
+                if s["_last_active_raw"]
+                and (start is None or s["_last_active_raw"].date() >= start)
+                and (end is None or s["_last_active_raw"].date() <= end)
+            ]
+
+        # --- Metric cards ---
+        avgs = [s["avg_score"] for s in summaries if s["avg_score"] is not None]
+        metrics = {
+            "total_learners": len(summaries),
+            "not_started": sum(1 for s in summaries if s["current_state"] == "not_started"),
+            "average_score": f"{round(sum(avgs) / len(avgs))}%" if avgs else "—",
+            "finished": sum(1 for s in summaries if s["current_state"] == "finished"),
+            "below_80": sum(1 for a in avgs if a < PASS_MARK),
+        }
+
+        # --- Status filter (table only) ---
+        status = (status_filter or "").strip().lower()
+        if status == "passed":
+            summaries = [s for s in summaries if s["avg_score"] is not None and s["avg_score"] >= PASS_MARK]
+        elif status == "below":
+            summaries = [s for s in summaries if s["avg_score"] is not None and s["avg_score"] < PASS_MARK]
+
+        # Most recently active first, never-started learners last
+        summaries.sort(key=lambda s: (
+            s["_last_active_raw"] is None,
+            -(s["_last_active_raw"].timestamp()) if s["_last_active_raw"] else 0,
+            s["acc_id"],
+        ))
+
+        total = len(summaries)
+        per_page = max(1, per_page)
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = min(max(1, page or 1), total_pages)
+        offset = (page - 1) * per_page
+
+        return {
+            "learners": [_strip_private(s) for s in summaries[offset:offset + per_page]],
+            "metrics": metrics,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+        }
+
+    except Error as e:
+        print(f"learner_progress_monitor: failed to load learners overview: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_learner_course_detail(acc_id):
+    """
+    One learner's whole course, grouped Chapter -> Module -> Lesson
+    (every published lesson, including ones not started). None if the
+    learner doesn't exist.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        learners = _fetch_learners(cursor, acc_id=acc_id)
+        if not learners:
+            cursor.close()
+            return None
+
+        chapters, lesson_path = _load_course_tree(cursor)
+        rows = _fetch_progress_rows(cursor, acc_id=acc_id)
+        evaluated = _evaluate_rows(cursor, rows)
+        pairs = list(zip(rows, evaluated))
+
+        cursor.execute(
+            """SELECT entity_id FROM learner_progress_unlocks_tbl
+               WHERE acc_id = %s AND entity_type = 'category'""",
+            (acc_id,)
+        )
+        unlocked = {r["entity_id"] for r in cursor.fetchall()}
+        cursor.close()
+
+        all_ids = set(lesson_path.keys())
+        summary = _summarize_learner(learners[0], pairs, all_ids, lesson_path, len(all_ids))
+        current_rid = summary["_current_resource_id"] if summary["current_state"] == "in_progress" else None
+
+        by_resource = {}
+        for row, ev in pairs:
+            by_resource.setdefault(row["resource_id"], ev)  # rows are newest-first
+
+        chapters_out = []
+        previous_finished = True
+        for index, chapter in enumerate(chapters):
+            modules_out = []
+            chapter_lessons = []
+
+            for module in chapter["modules"]:
+                lessons_out = []
+                for lesson in module["lessons"]:
+                    ev = by_resource.get(lesson["resource_id"])
+                    if ev:
+                        status = "completed" if ev["is_completed"] else "in_progress"
+                    else:
+                        status = "not_started"
+                    lessons_out.append({
+                        "resource_id": lesson["resource_id"],
+                        "title": lesson["title"],
+                        "progress_id": ev["progress_id"] if ev else None,
+                        "score": ev["score"] if ev else None,
+                        "completion": ev["completion"] if ev else 0,
+                        "status": status,
+                        "started_at": ev["started_at"] if ev else "—",
+                        "completed_at": ev["completed_at"] if ev else "—",
+                        "is_current": lesson["resource_id"] == current_rid,
+                    })
+
+                chapter_lessons.extend(lessons_out)
+                modules_out.append({
+                    "module_id": module["module_id"],
+                    "name": module["name"],
+                    "is_current": any(l["is_current"] for l in lessons_out),
+                    **_group_stats(lessons_out),
+                    "lessons": lessons_out,
+                })
+
+            stats = _group_stats(chapter_lessons)
+            locked = not (
+                index == 0
+                or chapter["cat_id"] in unlocked
+                or previous_finished
+                or stats["lessons_touched"] > 0
+            )
+            chapters_out.append({
+                "cat_id": chapter["cat_id"],
+                "name": chapter["name"],
+                "locked": locked,
+                "is_current": any(m["is_current"] for m in modules_out),
+                **stats,
+                "modules": modules_out,
+            })
+            previous_finished = stats["lessons_total"] > 0 and stats["lessons_completed"] == stats["lessons_total"]
+
+        result = _strip_private(summary)
+        result["chapters"] = chapters_out
+        return result
+
+    except Error as e:
+        print(f"learner_progress_monitor: failed to load course detail for {acc_id}: {e}")
         return None
     finally:
         if connection.is_connected():

@@ -43,7 +43,7 @@
         </a>
 
         <div class="sidebar-section-label"><span>Progress</span></div>
-        <a href="{{ url_for('admin_bp.learner_progress') }}" title="Learner Progress" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.learner_progress' else '' }}">
+        <a href="{{ url_for('admin_bp.learner_progress') }}" title="Learner Progress" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learner_progress', 'admin_bp.learner_progress_learners'] else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-progress"></span>
             <span class="nav-label">Learner Progress</span>
         </a>
