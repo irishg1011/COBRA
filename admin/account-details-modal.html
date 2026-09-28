@@ -14,7 +14,6 @@
                     <strong id="accountDetailsName">—</strong>
                     <span class="progress-detail-dot">•</span>
                     <span id="accountDetailsAccId">—</span>
-                    <span id="accountDetailsBadges" class="account-detail-badges"></span>
                 </p>
             </div>
             <button type="button" class="modal-close-btn modal-close-inline" id="closeAccountDetailsBtn" title="Close" aria-label="Close">&times;</button>
@@ -40,8 +39,17 @@
         <div class="progress-detail-body">
 
             <!-- PROFILE -->
+            <!-- Styled like the Figma "Edit Profile" card, but view-only and
+                 only the fields the database actually has (no Bio / no
+                 camera / no Save). Filled by admin-account-actions.js. -->
             <section id="accountPanelProfile" class="account-tab-panel" role="tabpanel" aria-labelledby="accountTabProfile">
-                <div class="account-info-grid" id="accountProfileGrid"></div>
+                <div class="account-profile">
+                    <div class="account-profile-side">
+                        <div class="account-profile-avatar" aria-hidden="true"></div>
+                        <div class="account-detail-badges" id="accountDetailsBadges"></div>
+                    </div>
+                    <div class="account-profile-fields" id="accountProfileGrid"></div>
+                </div>
             </section>
 
             <!-- SECURITY -->

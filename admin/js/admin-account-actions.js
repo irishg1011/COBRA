@@ -194,7 +194,7 @@
             badgesEl.innerHTML = "";
             detailsError.textContent = "";
             detailsError.classList.remove("is-visible");
-            profileGrid.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
+            profileGrid.innerHTML = `<p class="progress-detail-empty is-full">Loading...</p>`;
             securityGrid.innerHTML = "";
             recentLoginsEl.innerHTML = "";
             learningGrid.innerHTML = "";
@@ -208,18 +208,33 @@
             return acc.status === "Active" ? badge("badge-active", "Active") : badge("badge-inactive", acc.status);
         }
 
+        // Read-only "input" box like the Figma Edit Profile fields.
+        // full = takes the whole row (Full Name / Username / Email).
+        function profileField(label, value, { full = false, note = "" } = {}) {
+            return `
+                <div class="account-profile-field${full ? " is-full" : ""}">
+                    <span class="account-profile-label">${escapeHtml(label)}</span>
+                    <div class="account-profile-value">${escapeHtml(value)}${note ? ` <small>${escapeHtml(note)}</small>` : ""}</div>
+                </div>`;
+        }
+
         function fillProfile(acc) {
+            // Mobile is only saved for accounts made with Create
+            // Administrator - hide it when there's none, and let
+            // Birthdate take the whole row instead.
+            const hasMobile = acc.mobile && acc.mobile !== "—";
+            const age = acc.age !== null && acc.age !== undefined ? `${acc.age} years old` : "";
+
             profileGrid.innerHTML = [
-                infoItem("Full Name", acc.full_name),
-                infoItem("Account ID", acc.acc_id),
-                infoItem("Username", acc.username),
-                infoItem("Email", acc.email),
-                infoItem("Role", acc.role),
-                infoItem("Gender", acc.gender),
-                infoItem("Birthdate", acc.birthdate, acc.age !== null && acc.age !== undefined ? `${acc.age} years old` : ""),
-                infoItem("Mobile", acc.mobile),
-                infoItem("Date Created", acc.date_created),
-                infoItem("Last Login", acc.last_login),
+                profileField("Full Name", acc.full_name, { full: true }),
+                profileField("Username", acc.username, { full: true }),
+                profileField("Email", acc.email, { full: true }),
+                profileField("Account ID", acc.acc_id),
+                profileField("Gender", acc.gender),
+                profileField("Birthdate", acc.birthdate, { full: !hasMobile, note: age }),
+                hasMobile ? profileField("Mobile", acc.mobile) : "",
+                profileField("Date Created", acc.date_created),
+                profileField("Last Login", acc.last_login),
             ].join("");
         }
 
