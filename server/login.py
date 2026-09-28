@@ -78,6 +78,11 @@ DB_PASSWORD = ""
 DB_NAME = "cobra_db"
 
 ACCOUNT_TABLE = "account_tbl" 
+# feat/archive-accounts: shown on Login and Forgot Password for an
+# archived (soft-deleted, is_deleted = 1) account. Returned with 403 so
+# the login page shows it WITHOUT the "No account yet? Sign up" hint
+# (that hint only appears on 401 / 404).
+ARCHIVED_ACCOUNT_MESSAGE = "This account has been archived. Please contact an administrator."
 PROFILE_TABLE = "profile_tbl"
 GENDER_TABLE = "gender_tbl"
 DEFAULT_U_TYPE = 2  # 2 = Learner
@@ -387,11 +392,19 @@ def login():
         )
         account = cursor.fetchone()
 
-        if not account or account.get("is_deleted"):
+        if not account:
             cursor.close()
-            # NEW: log failed attempt for unknown/deleted username (acc_id=None)
+            # NEW: log failed attempt for unknown username (acc_id=None)
             log_login_attempt(acc_id=None, ip_address=request.remote_addr, attempt_status="Failed")
             return jsonify({"success": False, "message": "Invalid username or password."}), 401
+
+        # feat/archive-accounts: archived accounts get their own message
+        # (logged against the real acc_id so it shows in the account's
+        # Security tab / Login Logs).
+        if account.get("is_deleted"):
+            cursor.close()
+            log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
+            return jsonify({"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}), 403
 
         # ------------------------------------------------------------
         # ACCOUNT INACTIVITY CHECK
@@ -546,12 +559,17 @@ def forgot_password_send_otp():
 
     try:
         cursor = connection.cursor()
-        cursor.execute(f"SELECT acc_id FROM {ACCOUNT_TABLE} WHERE email = %s AND is_deleted = 0", (email,))
+        cursor.execute(f"SELECT acc_id, is_deleted FROM {ACCOUNT_TABLE} WHERE email = %s", (email,))
         account = cursor.fetchone()
         cursor.close()
 
         if not account:
             return jsonify({"success": False, "message": "No account found with this email address."}), 404
+
+        # feat/archive-accounts: archived -> clear message, no reset code,
+        # and no "Sign up with this email" hint (that one is 404-only).
+        if account[1]:
+            return jsonify({"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}), 403
 
         # Generate OTP and store in memory with expiration timestamp
         otp_code = generate_otp()

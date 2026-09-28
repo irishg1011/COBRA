@@ -6,6 +6,8 @@
     <title>CobraByte Admin - Account & Security</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <!-- feat/archive-accounts: detail-modal card + the shared Course / Lesson Progress modals -->
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-progress.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,9 +50,14 @@
                         <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link">Login Logs</a>
                         <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link active" aria-current="page">Account Management</a>
                     </nav>
-                    <button type="button" id="openCreateAdminBtn" class="btn-create-admin">
-                        <span class="mask-icon icon-plus"></span> Create Administrator
-                    </button>
+                    <div class="page-actions-buttons">
+                        <button type="button" id="openArchivedAccountsBtn" class="btn-pill-light">
+                            <span class="mask-icon icon-archive"></span> Archived Accounts
+                        </button>
+                        <button type="button" id="openCreateAdminBtn" class="btn-create-admin">
+                            <span class="mask-icon icon-plus"></span> Create Administrator
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Metrics Grid -->
@@ -58,42 +65,42 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Total Accounts</span>
-                            <h2 class="metric-value">{{ metrics.total_accounts }}</h2>
+                            <h2 class="metric-value" data-metric="total_accounts">{{ metrics.total_accounts }}</h2>
                         </div>
                         <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-users"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Active Accounts</span>
-                            <h2 class="metric-value">{{ metrics.active_accounts }}</h2>
+                            <h2 class="metric-value" data-metric="active_accounts">{{ metrics.active_accounts }}</h2>
                         </div>
                         <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-check"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Inactive Accounts</span>
-                            <h2 class="metric-value">{{ metrics.inactive_accounts }}</h2>
+                            <h2 class="metric-value" data-metric="inactive_accounts">{{ metrics.inactive_accounts }}</h2>
                         </div>
                         <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user-x"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Administrators</span>
-                            <h2 class="metric-value">{{ metrics.administrators }}</h2>
+                            <h2 class="metric-value" data-metric="administrators">{{ metrics.administrators }}</h2>
                         </div>
                         <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-shield-user"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Learners</span>
-                            <h2 class="metric-value">{{ metrics.learners }}</h2>
+                            <h2 class="metric-value" data-metric="learners">{{ metrics.learners }}</h2>
                         </div>
                         <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-user"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Locked Accounts</span>
-                            <h2 class="metric-value">{{ metrics.locked_accounts }}</h2>
+                            <h2 class="metric-value" data-metric="locked_accounts">{{ metrics.locked_accounts }}</h2>
                         </div>
                         <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-lock"></span></div>
                     </div>
@@ -177,7 +184,22 @@
                                     </td>
                                     <td class="text-muted">{{ acc.date_created }}</td>
                                     <td class="text-muted">{{ acc.last_login }}</td>
-                                    <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+<td>
+                                        <div class="account-actions">
+                                            <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="profile" title="View profile" aria-label="View profile of {{ acc.full_name }}"><i class="fa-solid fa-eye"></i></button>
+                                            <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="security" title="Security" aria-label="Security details of {{ acc.full_name }}"><i class="fa-solid fa-shield-halved"></i></button>
+                                            {% if acc.role == 'Admin' %}
+                                            <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="content" title="Content created" aria-label="Content created by {{ acc.full_name }}"><i class="fa-solid fa-book"></i></button>
+                                            {% else %}
+                                            <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="learning" title="Learning progress" aria-label="Learning progress of {{ acc.full_name }}"><i class="fa-solid fa-chart-simple"></i></button>
+                                            {% endif %}
+                                            {% if acc.archive_block %}
+                                            <button type="button" class="account-action-btn account-action-btn--archive is-disabled" aria-disabled="true" title="{{ acc.archive_block }}" aria-label="{{ acc.archive_block }}"><i class="fa-solid fa-box-archive"></i></button>
+                                            {% else %}
+                                            <button type="button" class="account-action-btn account-action-btn--archive js-account-archive" data-acc-id="{{ acc.acc_id }}" data-name="{{ acc.full_name }}" data-role="{{ acc.role }}" title="Archive" aria-label="Archive {{ acc.full_name }}"><i class="fa-solid fa-box-archive"></i></button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                 </tr>
                                 {% else %}
                                 <tr>
@@ -205,10 +227,21 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-progress-modal.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-course-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-account-search.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-account-actions.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-create-admin.js') }}"></script>
 
     <!-- Include Create New Administrator Modal -->
     {% include 'admin-create-admin-modal.html' %}
+
+    {# feat/archive-accounts - order matters: later modals stack on top.
+       Details -> Course Progress -> Lesson Progress -> Confirm. #}
+    {% include 'account-details-modal.html' %}
+    {% include 'archived-accounts-modal.html' %}
+    {% include 'learner-progress-learner-modal.html' %}
+    {% include 'learner-progress-modal.html' %}
+    {% include 'confirm-action-modal.html' %}
 </body>
 </html>

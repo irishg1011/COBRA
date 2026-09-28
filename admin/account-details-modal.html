@@ -1,0 +1,80 @@
+<!-- account-details-modal.html - Admin > Account & Security (feat/archive-accounts)
+     One account's details in tabs: Profile / Security / Learning (learners)
+     or Content (admins). Opened by the row icons; filled by
+     admin-account-actions.js from /admin/accounts/<acc_id>/detail.
+     Reuses the .progress-detail-card look from learner-progress.css.
+     Hidden by default with .modal-hidden. No inline styles or scripts. -->
+<div id="accountDetailsModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="accountDetailsTitle">
+    <div class="progress-detail-card account-detail-card">
+
+        <div class="progress-detail-header">
+            <div>
+                <h3 id="accountDetailsTitle">Account Details</h3>
+                <p class="progress-detail-subtitle">
+                    <strong id="accountDetailsName">—</strong>
+                    <span class="progress-detail-dot">•</span>
+                    <span id="accountDetailsAccId">—</span>
+                    <span id="accountDetailsBadges" class="account-detail-badges"></span>
+                </p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeAccountDetailsBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="account-tabs" role="tablist" aria-label="Account details sections">
+            <button type="button" class="account-tab" role="tab" id="accountTabProfile" data-tab="profile" aria-controls="accountPanelProfile">
+                <i class="fa-solid fa-eye"></i> Profile
+            </button>
+            <button type="button" class="account-tab" role="tab" id="accountTabSecurity" data-tab="security" aria-controls="accountPanelSecurity">
+                <i class="fa-solid fa-shield-halved"></i> Security
+            </button>
+            <button type="button" class="account-tab is-hidden" role="tab" id="accountTabLearning" data-tab="learning" aria-controls="accountPanelLearning">
+                <i class="fa-solid fa-chart-simple"></i> Learning
+            </button>
+            <button type="button" class="account-tab is-hidden" role="tab" id="accountTabContent" data-tab="content" aria-controls="accountPanelContent">
+                <i class="fa-solid fa-book"></i> Content
+            </button>
+        </div>
+
+        <p id="accountDetailsError" class="progress-detail-error"></p>
+
+        <div class="progress-detail-body">
+
+            <!-- PROFILE -->
+            <section id="accountPanelProfile" class="account-tab-panel" role="tabpanel" aria-labelledby="accountTabProfile">
+                <div class="account-info-grid" id="accountProfileGrid"></div>
+            </section>
+
+            <!-- SECURITY -->
+            <section id="accountPanelSecurity" class="account-tab-panel is-hidden" role="tabpanel" aria-labelledby="accountTabSecurity">
+                <div class="account-info-grid" id="accountSecurityGrid"></div>
+                <div class="progress-detail-section">
+                    <h4><i class="fa-solid fa-clock-rotate-left"></i> Recent Login Attempts</h4>
+                    <div id="accountRecentLogins"></div>
+                </div>
+            </section>
+
+            <!-- LEARNING (learners only) -->
+            <section id="accountPanelLearning" class="account-tab-panel is-hidden" role="tabpanel" aria-labelledby="accountTabLearning">
+                <div class="account-info-grid" id="accountLearningGrid"></div>
+                <div class="account-panel-actions">
+                    <button type="button" class="btn-pill-light" id="openCourseProgressBtn">
+                        <i class="fa-solid fa-sitemap"></i> View full course progress
+                    </button>
+                </div>
+            </section>
+
+            <!-- CONTENT (admins only) -->
+            <section id="accountPanelContent" class="account-tab-panel is-hidden" role="tabpanel" aria-labelledby="accountTabContent">
+                <p class="progress-detail-note">Everything this administrator has uploaded, by status.</p>
+                <div id="accountContentTable"></div>
+            </section>
+        </div>
+
+        <div class="account-detail-footer">
+            <span class="account-archive-note" id="accountArchiveNote">Archiving hides the account and blocks login. Nothing is deleted - you can restore it anytime.</span>
+            <button type="button" class="btn-pill-danger" id="accountArchiveBtn">
+                <i class="fa-solid fa-box-archive"></i> Archive Account
+            </button>
+        </div>
+    </div>
+</div>

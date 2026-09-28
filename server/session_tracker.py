@@ -164,6 +164,32 @@ def end_session(token):
             connection.close()
 
 
+def end_sessions_for_account(acc_id):
+    """
+    feat/archive-accounts: removes EVERY active-session row for acc_id
+    (not just one token) - used right after an account is archived so it
+    drops out of "Active Sessions" immediately. Same safety rules as
+    end_session(): safe no-op for a falsy acc_id, never raises.
+    """
+    if not acc_id:
+        return
+    connection = None
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return
+        _ensure_table(connection)
+        cursor = connection.cursor()
+        cursor.execute(f"DELETE FROM {ACTIVE_SESSIONS_TABLE} WHERE acc_id = %s", (acc_id,))
+        connection.commit()
+        cursor.close()
+    except Error as e:
+        print(f"session_tracker: failed to end sessions for {acc_id}: {e}")
+    finally:
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
 def touch_session(token, acc_id=None):
     """
     Bumps last_seen_at for an in-use session, so an admin actively

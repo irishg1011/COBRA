@@ -1,0 +1,46 @@
+<!-- archived-accounts-modal.html - Admin > Account & Security (feat/archive-accounts)
+     Archived (soft-deleted) accounts with search + Restore. Same shell as
+     the other Archived modals (archived-modules-modal.html). Restore only -
+     accounts are never permanently deleted from here.
+     Driven by admin-account-actions.js via /admin/accounts/archived. -->
+<div id="archivedAccountsModal" class="custom-modal-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="archivedAccountsTitle">
+    <div class="custom-modal-dialog">
+        <div class="custom-modal-header">
+            <h3 id="archivedAccountsTitle">Archived Accounts</h3>
+            <button type="button" class="categories-close-btn" id="closeArchivedAccountsModal" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="custom-modal-body">
+            <div class="header-search search-override">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="archivedAccountsSearchInput" placeholder="Search by name, username, or email...">
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Archived</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="archivedAccountsTableBody">
+                    <tr>
+                        <td colspan="5" class="text-muted table-empty-message">Loading archived accounts&hellip;</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="table-pagination">
+                <span id="archivedAccountsShowingCount">Showing 0 of 0 archived accounts</span>
+                <span>
+                    <button type="button" id="archivedAccountsPrevBtn" class="icon-button-reset" disabled>&lt;</button>
+                    <span id="archivedAccountsPageLabel">1 of 1</span>
+                    <button type="button" id="archivedAccountsNextBtn" class="icon-button-reset" disabled>&gt;</button>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>

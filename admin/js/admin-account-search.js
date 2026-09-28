@@ -55,6 +55,44 @@
             return `<span class="badge ${roleClass}">${escapeHtml(acc.role)}</span>`;
         }
 
+        // feat/archive-accounts: the 4 row icons - same markup as the
+        // Jinja rows in account-security.html. The 3rd icon depends on
+        // role (Learning for learners, Content for admins); Archive is
+        // shown disabled, with the reason as its tooltip, when blocked.
+        function actionsHtml(acc) {
+            const id = escapeHtml(acc.acc_id);
+            const name = escapeHtml(acc.full_name);
+            const viewBtn = (tab, icon, title, label) =>
+                `<button type="button" class="account-action-btn js-account-view" data-acc-id="${id}" data-tab="${tab}" title="${title}" aria-label="${label} ${name}"><i class="fa-solid ${icon}"></i></button>`;
+
+            const third = acc.role === "Admin"
+                ? viewBtn("content", "fa-book", "Content created", "Content created by")
+                : viewBtn("learning", "fa-chart-simple", "Learning progress", "Learning progress of");
+
+            const block = escapeHtml(acc.archive_block || "");
+            const archive = block
+                ? `<button type="button" class="account-action-btn account-action-btn--archive is-disabled" aria-disabled="true" title="${block}" aria-label="${block}"><i class="fa-solid fa-box-archive"></i></button>`
+                : `<button type="button" class="account-action-btn account-action-btn--archive js-account-archive" data-acc-id="${id}" data-name="${name}" data-role="${escapeHtml(acc.role)}" title="Archive" aria-label="Archive ${name}"><i class="fa-solid fa-box-archive"></i></button>`;
+
+            return `
+                <div class="account-actions">
+                    ${viewBtn("profile", "fa-eye", "View profile", "View profile of")}
+                    ${viewBtn("security", "fa-shield-halved", "Security", "Security details of")}
+                    ${third}
+                    ${archive}
+                </div>`;
+        }
+
+        // feat/archive-accounts: metric cards are marked with
+        // data-metric="<key>" in account-security.html.
+        function updateMetrics(metrics) {
+            if (!metrics) return;
+            document.querySelectorAll("[data-metric]").forEach((el) => {
+                const value = metrics[el.dataset.metric];
+                if (value !== undefined) el.textContent = value;
+            });
+        }
+
         function renderRows(accounts) {
             if (!accounts || accounts.length === 0) {
                 // Task #17, Requirement #9: centered empty-state row.
@@ -80,7 +118,7 @@
                     <td>${statusBadgeHtml(acc)}</td>
                     <td class="text-muted">${escapeHtml(acc.date_created)}</td>
                     <td class="text-muted">${escapeHtml(acc.last_login)}</td>
-                    <td class="text-right"><i class="fa-solid fa-ellipsis-vertical table-action-icon"></i></td>
+                    <td>${actionsHtml(acc)}</td>
                 </tr>
             `).join("");
 
@@ -120,6 +158,7 @@
 
         async function runSearch() {
             const requestId = ++activeRequestId;
+            if (debounceTimer) clearTimeout(debounceTimer);
             const params = buildQueryParams();
 
             try {
@@ -134,6 +173,7 @@
 
                 if (result.success) {
                     renderRows(result.accounts);
+                    updateMetrics(result.metrics);
                 } else {
                     tableBody.innerHTML = `
                         <tr>
@@ -157,6 +197,12 @@
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(runSearch, DEBOUNCE_MS);
         }
+
+        // feat/archive-accounts: lets admin-account-actions.js reload the
+        // table (keeping the current search/filters/sort) after an
+        // archive or restore. Returns a promise that resolves once the
+        // new rows are in the DOM.
+        window.CobraAccountsTable = { refresh: runSearch };
 
         // Live search: debounced so it doesn't fire a request on every
         // single keystroke.

@@ -89,6 +89,10 @@ from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - re
 )
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
 from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
+from account_management import (  # feat/archive-accounts: Account Details modal + soft-delete archive/restore
+    get_account_detail, archive_account, restore_account, get_archived_accounts,
+    get_archive_block_reason, is_account_archived,
+)
 from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By Lesson + By Learner)
     get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
     get_learners_progress_overview, get_learner_course_detail, empty_learners_progress_overview,
@@ -197,6 +201,14 @@ def _require_admin_session():
     if request.endpoint == 'admin_bp.static':
         return
     if not session.get("admin_id"):
+        return redirect(LOGIN_REDIRECT_URL)
+    # feat/archive-accounts: an admin archived while logged in is logged
+    # out on their very next request instead of keeping access until they
+    # log out on their own. is_account_archived() returns False on a DB
+    # hiccup, so a database blip can never lock every admin out.
+    if is_account_archived(session.get("admin_id")):
+        end_active_session(session.get("session_token"))
+        session.clear()
         return redirect(LOGIN_REDIRECT_URL)
     # NEW: bump active_sessions_tbl.last_seen_at so an admin actively
     # browsing isn't swept as a stale/expired session mid-use (see
@@ -643,6 +655,18 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "locked_accounts": locked_accounts,
             }
 
+        # feat/archive-accounts: per-row Archive permission, so the table
+        # can disable the archive icon (with the reason as its tooltip).
+        # metrics["administrators"] is always the FULL registry count (see
+        # above), so filtering the table never changes the last-admin rule.
+        # archive_account() re-checks the same rule on the server.
+        current_admin_id = session.get("admin_id")
+        for acc in accounts:
+            acc["is_self"] = acc["acc_id"] == current_admin_id
+            acc["archive_block"] = get_archive_block_reason(
+                acc["acc_id"], acc["role"], current_admin_id, metrics["administrators"]
+            )
+
         return {"accounts": accounts, "metrics": metrics}
 
     except Error as e:
@@ -925,6 +949,9 @@ def search_accounts():
         "success": True,
         "accounts": overview["accounts"],
         "total": len(overview["accounts"]),
+        # feat/archive-accounts: full-registry metric cards, so the page can
+        # refresh them after an archive/restore without a reload.
+        "metrics": overview["metrics"],
     }), 200
 
 
@@ -936,6 +963,45 @@ admin_bp.add_url_rule(
     endpoint='accounts_filter',
     view_func=search_accounts,
 )
+
+
+# ============================================================
+# feat/archive-accounts: ACCOUNT DETAILS + ARCHIVE / RESTORE (JSON)
+# Thin wrappers only - all logic lives in account_management.py.
+# Archive is a soft delete (is_deleted = 1); nothing is ever
+# permanently deleted from here.
+# ============================================================
+@admin_bp.route('/accounts/<acc_id>/detail')
+def account_detail(acc_id):
+    """Profile / Security / Learning (learners) / Content (admins) for the details modal."""
+    detail = get_account_detail(acc_id, current_admin_id=session.get("admin_id"))
+    if detail is None:
+        return jsonify({"success": False, "message": "Account not found or could not be loaded."}), 404
+    return jsonify({"success": True, "account": detail}), 200
+
+
+@admin_bp.route('/accounts/<acc_id>/archive', methods=['POST'])
+def account_archive(acc_id):
+    success, message = archive_account(acc_id, current_admin_id=session.get("admin_id"))
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/accounts/<acc_id>/restore', methods=['POST'])
+def account_restore(acc_id):
+    success, message = restore_account(acc_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/accounts/archived')
+def accounts_archived():
+    """Archived Accounts modal - search + pagination."""
+    overview = get_archived_accounts(
+        search_query=request.args.get('q', ''),
+        page=request.args.get('page', 1, type=int),
+    )
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **overview}), 200
 
 
 @admin_bp.route('/login-logs.html')
