@@ -78,11 +78,22 @@
         function currentLessonHtml(l) {
             if (l.current_state === "not_started") return `<span class="progress-in-progress">Not started</span>`;
             if (l.current_state === "finished") return `<span class="badge badge-active">Finished</span>`;
-            const prefix = l.current_state === "idle" ? "Last completed • " : "";
+            const note = l.current_state === "idle"
+                ? `<small class="current-lesson-path">Last completed</small>`
+                : "";
             return `
                 <div class="current-lesson-cell">
                     <span class="current-lesson-title">${escapeHtml(l.current_lesson)}</span>
-                    <small class="current-lesson-path">${prefix}${escapeHtml(l.current_path)}</small>
+                    ${note}
+                </div>
+            `;
+        }
+
+        function progressCountHtml(l) {
+            return `
+                <div class="progress-count-cell">
+                    <span>${escapeHtml(l.modules_completed)}/${escapeHtml(l.modules_total)} modules</span>
+                    <small>${escapeHtml(l.lessons_completed)}/${escapeHtml(l.lessons_total)} lessons</small>
                 </div>
             `;
         }
@@ -154,7 +165,7 @@
             if (!learners || learners.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-muted table-empty-message">No learners found.</td>
+                        <td colspan="10" class="text-muted table-empty-message">No learners found.</td>
                     </tr>
                 `;
                 return;
@@ -164,8 +175,10 @@
                 <tr data-acc-id="${escapeHtml(l.acc_id)}">
                     <td>${escapeHtml(l.acc_id)}</td>
                     <td>${escapeHtml(l.name)}</td>
+                    <td>${escapeHtml(l.current_chapter)}</td>
+                    <td>${escapeHtml(l.current_module)}</td>
                     <td>${currentLessonHtml(l)}</td>
-                    <td>${escapeHtml(l.lessons_completed)} / ${escapeHtml(l.lessons_total)}</td>
+                    <td>${progressCountHtml(l)}</td>
                     <td>${scoreBadgeHtml(l.avg_score)}</td>
                     <td>${completionHtml(l.completion)}</td>
                     <td>${escapeHtml(l.last_active)}</td>
@@ -273,6 +286,7 @@
         const currentEl = document.getElementById("learnerCourseCurrent");
         const currentPathEl = document.getElementById("learnerCourseCurrentPath");
         const lessonsEl = document.getElementById("learnerCourseLessons");
+        const modulesEl = document.getElementById("learnerCourseModules");
         const scoreEl = document.getElementById("learnerCourseScore");
         const completionEl = document.getElementById("learnerCourseCompletion");
         const lastActiveEl = document.getElementById("learnerCourseLastActive");
@@ -307,13 +321,19 @@
             [nameEl, accIdEl, currentEl, lessonsEl, scoreEl, completionEl, lastActiveEl]
                 .forEach((el) => setText(el, "—"));
             setText(currentPathEl, "");
+            setText(modulesEl, "");
             if (chaptersEl) chaptersEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
             hideError();
         }
 
+        // Chapters also show modules done; module rows only show lessons.
         function groupStatsHtml(g) {
             const avg = g.avg_score === null || g.avg_score === undefined ? "—" : `${g.avg_score}%`;
+            const modules = g.modules_total !== undefined
+                ? `<span>${escapeHtml(g.modules_completed)}/${escapeHtml(g.modules_total)} modules</span>`
+                : "";
             return `
+                ${modules}
                 <span>${escapeHtml(g.lessons_completed)}/${escapeHtml(g.lessons_total)} lessons</span>
                 <span>Avg ${escapeHtml(avg)}</span>
                 ${completionHtml(g.completion, true)}
@@ -416,7 +436,8 @@
                 setText(currentPathEl, `${learner.current_state === "idle" ? "Last completed • " : ""}${learner.current_path || ""}`);
             }
 
-            setText(lessonsEl, `${learner.lessons_completed} / ${learner.lessons_total}`);
+            setText(lessonsEl, `${learner.lessons_completed} / ${learner.lessons_total} lessons`);
+            setText(modulesEl, `${learner.modules_completed} / ${learner.modules_total} modules`);
             setText(scoreEl, learner.avg_score === null || learner.avg_score === undefined ? "—" : `${learner.avg_score}%`);
             setText(completionEl, `${learner.completion}%`);
             setText(lastActiveEl, learner.last_active || "—");

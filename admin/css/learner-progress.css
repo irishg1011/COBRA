@@ -43,7 +43,7 @@
     color: var(--admin-muted);
 }
 
-/* Shown by admin-learner-progress.js when From is after To */
+/* Shown by the page JS when From is after To */
 .date-filter-error.is-visible {
     display: block;
 }
@@ -131,7 +131,7 @@
 }
 
 /* ==========================================================================
-   DETAIL MODAL
+   DETAIL MODAL (shared card for the Lesson modal and the Course modal)
    ========================================================================== */
 .progress-detail-card {
     background: #ffffff;
@@ -206,7 +206,7 @@
     gap: 18px;
 }
 
-/* Lesson gets double width - lesson names are the longest value */
+/* First box (Lesson / Currently On) gets double width - longest value */
 .progress-summary-grid {
     display: grid;
     grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(120px, 1fr));
@@ -363,11 +363,26 @@
     cursor: not-allowed;
 }
 
-/* --- Table: "Currently On" cell --- */
-.learners-table td:nth-child(3) {
+/* --- Table: Chapter / Module / Current Lesson wrap instead of stretching --- */
+.learners-table td:nth-child(3),
+.learners-table td:nth-child(4),
+.learners-table td:nth-child(5) {
     white-space: normal;
-    min-width: 160px;
-    max-width: 260px;
+    min-width: 110px;
+    max-width: 200px;
+}
+
+/* Progress cell: modules on top, lessons underneath */
+.progress-count-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.progress-count-cell small {
+    font-size: 10px;
+    color: var(--admin-muted);
 }
 
 .current-lesson-cell {
@@ -437,6 +452,12 @@
 
 details[open] > .course-summary .course-caret {
     transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .course-caret {
+        transition: none;
+    }
 }
 
 .course-summary-stats {

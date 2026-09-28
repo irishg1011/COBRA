@@ -1,12 +1,14 @@
 """
-learner_progress_monitor.py - Admin > Learner Progress (By Lesson view)
+learner_progress_monitor.py - Admin > Learner Progress (By Lesson + By Learner)
 ------------------------------------------------------------------
-Read-only helpers behind the Admin > Learner Progress page. One row =
-one learner in one lesson (learner_resource_progress_tbl). Learner
+Read-only helpers behind the Admin > Learner Progress page. Learner
 accounts only (usertype_tbl.u_type = 'Learner'), deleted accounts
 excluded. This file never writes anything.
 
-SCORE
+BY LESSON VIEW: one row = one learner in one lesson
+(learner_resource_progress_tbl).
+
+BY LESSON VIEW - SCORE
     The SAME Performance % the learner sees on their lesson summary.
     The formula mirrors lesson_summary.get_lesson_performance_summary()
     exactly - it is loaded in bulk here so a whole table costs a handful
@@ -19,15 +21,17 @@ SCORE
         attempt's test_cases_passed
       - lessons with nothing graded -> score None (shown as "—")
 
-COMPLETION
+BY LESSON VIEW - COMPLETION
     lesson steps done / lesson steps that exist:
       video (only if the lesson has a published video), content, each
       published activity, the exercise (only if the lesson has one).
 
-FILTERS
+BY LESSON VIEW - FILTERS
     search (learner ID or name), status ('passed' = score >= 80,
     'below' = score < 80), Started range, Completed range.
     Metric cards follow search + dates, never the status filter.
+
+BY LEARNER VIEW: see the section further down.
 """
 
 from datetime import datetime
@@ -387,7 +391,7 @@ TABLE_KEYS = ("progress_id", "acc_id", "name", "lesson", "score", "completion",
 
 
 # ------------------------------------------------------------------
-# Public: page data
+# Public: By Lesson page data
 # ------------------------------------------------------------------
 def get_learner_progress_overview(search_query=None, status_filter=None,
                                   started_from=None, started_to=None,
@@ -454,7 +458,7 @@ def get_learner_progress_overview(search_query=None, status_filter=None,
 
 
 # ------------------------------------------------------------------
-# Public: modal data
+# Public: By Lesson modal data
 # ------------------------------------------------------------------
 def get_learner_progress_detail(progress_id):
     """One record with its full breakdown, or None if not found."""
@@ -487,6 +491,7 @@ def get_learner_progress_detail(progress_id):
 #                 ordered like the Learning Map (display_order, then id)
 #   Scope       = the whole course, or just the Chapter / Module picked
 #                 in the filter - every number is recalculated for it
+#   Modules     = modules in scope where every lesson is completed
 #   Lessons     = completed lessons in scope / lessons in scope
 #   Avg Score   = average of the learner's lesson scores in scope
 #                 (lessons with nothing graded are skipped)
@@ -607,8 +612,20 @@ def _group_stats(lessons):
     }
 
 
-def _summarize_learner(learner, pairs, scope_ids, lesson_path, lessons_total):
-    """One learner's row. pairs = [(raw progress row, evaluated row), ...]."""
+def _scope_modules(lesson_path, scope_ids):
+    """module_id -> set of its lesson ids that are in scope."""
+    modules = {}
+    for rid in scope_ids:
+        modules.setdefault(lesson_path[rid]["module_id"], set()).add(rid)
+    return modules
+
+
+def _summarize_learner(learner, pairs, scope_ids, lesson_path, lessons_total, scope_modules):
+    """
+    One learner's row. pairs = [(raw progress row, evaluated row), ...].
+    scope_modules = module_id -> lesson ids in scope; a module counts as
+    done when every one of those lessons is completed.
+    """
     in_scope = [(row, ev) for row, ev in pairs if row["resource_id"] in scope_ids]
     completed = [(row, ev) for row, ev in in_scope if ev["is_completed"]]
     open_pairs = [(row, ev) for row, ev in in_scope if not ev["is_completed"]]
@@ -633,19 +650,31 @@ def _summarize_learner(learner, pairs, scope_ids, lesson_path, lessons_total):
         current = max(completed, key=lambda p: (p[0].get("completed_at") or datetime.min, p[0]["progress_id"]))
 
     current_lesson, current_path, current_rid = "—", "", None
+    current_chapter, current_module = "—", "—"
     if current:
         current_rid = current[0]["resource_id"]
         current_lesson = current[1]["lesson"]
         path = lesson_path.get(current_rid)
         if path:
+            current_chapter = path["chapter"]
+            current_module = path["module"]
             current_path = f"{path['chapter']} › {path['module']}"
+
+    completed_ids = {row["resource_id"] for row, _ in completed}
+    modules_completed = sum(
+        1 for lesson_ids in scope_modules.values() if lesson_ids and lesson_ids <= completed_ids
+    )
 
     return {
         "acc_id": learner["acc_id"],
         "name": _full_name(learner),
         "current_state": state,
         "current_lesson": current_lesson,
+        "current_chapter": current_chapter,
+        "current_module": current_module,
         "current_path": current_path,
+        "modules_completed": modules_completed,
+        "modules_total": len(scope_modules),
         "lessons_completed": len(completed),
         "lessons_total": lessons_total,
         "avg_score": round(sum(scores) / len(scores)) if scores else None,
@@ -726,8 +755,10 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
         for row, ev in zip(rows, evaluated):
             by_acc.setdefault(row["acc_id"], []).append((row, ev))
 
+        scope_modules = _scope_modules(lesson_path, scope_ids)
         summaries = [
-            _summarize_learner(l, by_acc.get(l["acc_id"], []), scope_ids, lesson_path, len(scope_ids))
+            _summarize_learner(l, by_acc.get(l["acc_id"], []), scope_ids, lesson_path,
+                               len(scope_ids), scope_modules)
             for l in learners
         ]
 
@@ -821,7 +852,8 @@ def get_learner_course_detail(acc_id):
         cursor.close()
 
         all_ids = set(lesson_path.keys())
-        summary = _summarize_learner(learners[0], pairs, all_ids, lesson_path, len(all_ids))
+        summary = _summarize_learner(learners[0], pairs, all_ids, lesson_path, len(all_ids),
+                                     _scope_modules(lesson_path, all_ids))
         current_rid = summary["_current_resource_id"] if summary["current_state"] == "in_progress" else None
 
         by_resource = {}
@@ -875,6 +907,11 @@ def get_learner_course_detail(acc_id):
                 "name": chapter["name"],
                 "locked": locked,
                 "is_current": any(m["is_current"] for m in modules_out),
+                "modules_total": len(modules_out),
+                "modules_completed": sum(
+                    1 for m in modules_out
+                    if m["lessons_total"] > 0 and m["lessons_completed"] == m["lessons_total"]
+                ),
                 **stats,
                 "modules": modules_out,
             })

@@ -133,8 +133,10 @@
                                 <tr>
                                     <th>Learner ID</th>
                                     <th>Name</th>
-                                    <th>Currently On</th>
-                                    <th>Lessons</th>
+                                    <th>Chapter</th>
+                                    <th>Module</th>
+                                    <th>Current Lesson</th>
+                                    <th>Progress</th>
                                     <th>Avg Score</th>
                                     <th>Course Completion</th>
                                     <th>Last Active</th>
@@ -146,6 +148,8 @@
                                 <tr data-acc-id="{{ l.acc_id }}">
                                     <td>{{ l.acc_id }}</td>
                                     <td>{{ l.name }}</td>
+                                    <td>{{ l.current_chapter }}</td>
+                                    <td>{{ l.current_module }}</td>
                                     <td>
                                         {% if l.current_state == 'not_started' %}
                                         <span class="progress-in-progress">Not started</span>
@@ -154,11 +158,18 @@
                                         {% else %}
                                         <div class="current-lesson-cell">
                                             <span class="current-lesson-title">{{ l.current_lesson }}</span>
-                                            <small class="current-lesson-path">{% if l.current_state == 'idle' %}Last completed • {% endif %}{{ l.current_path }}</small>
+                                            {% if l.current_state == 'idle' %}
+                                            <small class="current-lesson-path">Last completed</small>
+                                            {% endif %}
                                         </div>
                                         {% endif %}
                                     </td>
-                                    <td>{{ l.lessons_completed }} / {{ l.lessons_total }}</td>
+                                    <td>
+                                        <div class="progress-count-cell">
+                                            <span>{{ l.modules_completed }}/{{ l.modules_total }} modules</span>
+                                            <small>{{ l.lessons_completed }}/{{ l.lessons_total }} lessons</small>
+                                        </div>
+                                    </td>
                                     <td>
                                         {% if l.avg_score is none %}
                                         <span class="progress-no-score">—</span>
@@ -183,7 +194,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="8" class="text-muted table-empty-message">No learners found.</td>
+                                    <td colspan="10" class="text-muted table-empty-message">No learners found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
