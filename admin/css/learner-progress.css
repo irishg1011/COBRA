@@ -137,7 +137,7 @@
     background: #ffffff;
     border-radius: 12px;
     width: 100%;
-    max-width: 760px;
+    max-width: 960px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
@@ -206,10 +206,30 @@
     gap: 18px;
 }
 
+/* Lesson gets double width - lesson names are the longest value */
 .progress-summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(120px, 1fr));
     gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .progress-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .progress-summary-grid .progress-summary-item:first-child {
+        grid-column: 1 / -1;
+    }
+}
+
+.progress-summary-sub {
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.progress-summary-sub:empty {
+    display: none;
 }
 
 .progress-summary-item {

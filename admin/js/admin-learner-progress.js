@@ -241,6 +241,7 @@
         const lessonEl = document.getElementById("progressDetailLesson");
         const scoreEl = document.getElementById("progressDetailScore");
         const completionEl = document.getElementById("progressDetailCompletion");
+        const stepCountEl = document.getElementById("progressDetailStepCount");
         const startedEl = document.getElementById("progressDetailStarted");
         const completedEl = document.getElementById("progressDetailCompleted");
         const stepsEl = document.getElementById("progressDetailSteps");
@@ -276,6 +277,7 @@
         function resetModal() {
             [nameEl, accIdEl, lessonEl, scoreEl, completionEl, startedEl, completedEl]
                 .forEach((el) => setText(el, "—"));
+            setText(stepCountEl, "");
             if (stepsEl) stepsEl.innerHTML = "";
             if (activitiesEl) activitiesEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
             if (exerciseEl) exerciseEl.innerHTML = "";
@@ -352,7 +354,8 @@
             setText(accIdEl, rec.acc_id || "—");
             setText(lessonEl, rec.lesson || "—");
             setText(scoreEl, rec.score === null || rec.score === undefined ? "—" : `${rec.score}%`);
-            setText(completionEl, `${rec.completion}% (${rec.steps_done} of ${rec.steps_total} steps)`);
+            setText(completionEl, `${rec.completion}%`);
+            setText(stepCountEl, `${rec.steps_done} of ${rec.steps_total} steps`);
             setText(startedEl, rec.started_at || "—");
             setText(completedEl, rec.is_completed ? rec.completed_at : "In progress");
 
