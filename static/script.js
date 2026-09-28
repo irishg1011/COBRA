@@ -25,6 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const API_BASE_URL = "http://127.0.0.1:5000";
 
+    // Stop every auth form from doing a real page submit. Replaces the
+    // inline onsubmit="event.preventDefault();" that used to sit on each
+    // <form> in login.html. Buttons keep their own click handlers below.
+    document.querySelectorAll('.auth-form').forEach((form) => {
+        form.addEventListener('submit', (e) => e.preventDefault());
+    });
+
     const headerPlaceholder = document.getElementById('header-placeholder');
     if (headerPlaceholder) {
         fetch('/header.html')
@@ -106,8 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             input.setAttribute('placeholder', 'X');
 
             input.addEventListener('input', () => {
-                input.style.borderColor = '';
-                input.style.backgroundColor = '';
+                input.classList.remove('otp-input--correct', 'otp-input--wrong');
             });
         });
     };
@@ -118,12 +124,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.setOtpBoxesState = function(containerSelector, isCorrect, shouldClear = false) {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
         inputs.forEach(input => {
-            if (isCorrect) {
-                input.style.borderColor = '#0e9f6e';
-                input.style.backgroundColor = '#ecfdf5';
-            } else {
-                input.style.borderColor = '#e02424';
-                input.style.backgroundColor = '#fef2f2';
+            input.classList.toggle('otp-input--correct', isCorrect);
+            input.classList.toggle('otp-input--wrong', !isCorrect);
+            if (!isCorrect) {
                 if (shouldClear) {
                     input.value = '';
                 }
@@ -166,8 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
         inputs.forEach(input => {
             input.value = '';
-            input.style.borderColor = '';
-            input.style.backgroundColor = '';
+            input.classList.remove('otp-input--correct', 'otp-input--wrong');
             input.setAttribute('type', 'password');
         });
         const checkbox = document.getElementById(checkboxId);
@@ -181,9 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!errorEl) {
             errorEl = document.createElement('p');
             errorEl.className = 'js-error-message';
-            errorEl.style.color = '#e02424';
-            errorEl.style.fontSize = '14px';
-            errorEl.style.marginTop = '8px';
             afterEl.insertAdjacentElement('afterend', errorEl);
         }
         errorEl.textContent = message;
@@ -193,6 +192,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!afterEl) return;
         const errorEl = afterEl.parentElement.querySelector('.js-error-message');
         if (errorEl) errorEl.remove();
+        // A "Sign up" hint (see showSignUpHint) always belongs to an error,
+        // so it goes away whenever that error is cleared.
+        const hintEl = afterEl.parentElement.querySelector('.auth-signup-hint');
+        if (hintEl) hintEl.remove();
+    }
+
+    // =========================================================================
+    // --- feat/login-signup-redirect: "SIGN UP" HINT UNDER AN ERROR ---
+    // =========================================================================
+    // Adds a line like "No account yet? Sign up" right under the red
+    // message showInlineError() just placed after `afterEl`. Built with
+    // textContent (never innerHTML) so nothing typed by the user can inject
+    // markup. Removed automatically by clearInlineError().
+    function showSignUpHint(afterEl, leadText, linkText, prefillEmail = '') {
+        if (!afterEl) return;
+        const errorEl = afterEl.parentElement.querySelector('.js-error-message');
+        if (!errorEl) return;
+
+        let hintEl = afterEl.parentElement.querySelector('.auth-signup-hint');
+        if (hintEl) hintEl.remove();
+
+        hintEl = document.createElement('p');
+        hintEl.className = 'auth-signup-hint';
+        hintEl.append(`${leadText} `);
+
+        const link = document.createElement('a');
+        link.href = '#';
+        link.className = 'auth-inline-link';
+        link.textContent = linkText;
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            goToSignUp(prefillEmail);
+        });
+
+        hintEl.appendChild(link);
+        errorEl.insertAdjacentElement('afterend', hintEl);
+    }
+
+    // Opens Sign Up (step 1) on purpose, so no "switch views?" confirm.
+    // showSignUpView() clears the sign-up form first, so the email is
+    // filled in AFTER it runs - it's waiting in step 2's Email field.
+    function goToSignUp(prefillEmail = '') {
+        showSignUpView();
+        if (prefillEmail && emailInput) emailInput.value = prefillEmail;
     }
 
     function setButtonLoading(button, loadingText = "Processing...") {
@@ -236,38 +279,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (reqLength) {
                 reqLength.textContent = (hasLength ? '✓' : '✗') + ' Requires at least 8 characters';
-                reqLength.style.color = hasLength ? '#0e9f6e' : '#e02424';
+                reqLength.classList.toggle('password-req--met', hasLength);
             }
             if (reqUpper) {
                 reqUpper.textContent = (hasUpper ? '✓' : '✗') + ' Requires an uppercase letter (A-Z)';
-                reqUpper.style.color = hasUpper ? '#0e9f6e' : '#e02424';
+                reqUpper.classList.toggle('password-req--met', hasUpper);
             }
             if (reqLower) {
                 reqLower.textContent = (hasLower ? '✓' : '✗') + ' Requires a lowercase letter (a-z)';
-                reqLower.style.color = hasLower ? '#0e9f6e' : '#e02424';
+                reqLower.classList.toggle('password-req--met', hasLower);
             }
             if (reqNumber) {
                 reqNumber.textContent = (hasNumber ? '✓' : '✗') + ' Requires a number (0-9)';
-                reqNumber.style.color = hasNumber ? '#0e9f6e' : '#e02424';
+                reqNumber.classList.toggle('password-req--met', hasNumber);
             }
             if (reqSpecial) {
                 reqSpecial.textContent = (hasSpecial ? '✓' : '✗') + ' Requires a special character (!@#$%^&*_)';
-                reqSpecial.style.color = hasSpecial ? '#0e9f6e' : '#e02424';
+                reqSpecial.classList.toggle('password-req--met', hasSpecial);
             }
         };
 
         pwdInput.addEventListener('focus', () => {
-            checkerBox.style.display = 'block';
+            checkerBox.classList.remove('auth-hidden');
             updateValidationUI(pwdInput.value);
         });
 
         pwdInput.addEventListener('input', () => {
-            checkerBox.style.display = 'block';
+            checkerBox.classList.remove('auth-hidden');
             updateValidationUI(pwdInput.value);
         });
 
         pwdInput.addEventListener('blur', () => {
-            checkerBox.style.display = 'none';
+            checkerBox.classList.add('auth-hidden');
         });
     }
 
@@ -289,18 +332,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const confirmVal = confirmInput.value;
 
             if (!confirmVal) {
-                indicator.style.display = 'none';
+                indicator.classList.add('auth-hidden');
                 return;
             }
 
-            indicator.style.display = 'block';
-            if (pwdVal === confirmVal) {
-                indicator.textContent = '✓ Passwords match';
-                indicator.style.color = '#0e9f6e';
-            } else {
-                indicator.textContent = '✗ Passwords do not match';
-                indicator.style.color = '#e02424';
-            }
+            indicator.classList.remove('auth-hidden');
+            const isMatch = pwdVal === confirmVal;
+            indicator.textContent = isMatch ? '✓ Passwords match' : '✗ Passwords do not match';
+            indicator.classList.toggle('password-match--ok', isMatch);
+            indicator.classList.toggle('password-match--bad', !isMatch);
         };
 
         confirmInput.addEventListener('focus', updateMatchUI);
@@ -326,11 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isSignUp) signUpOtpExpired = false;
         else forgotOtpExpired = false;
 
-        if (resendLinkEl) {
-            resendLinkEl.style.pointerEvents = 'none';
-            resendLinkEl.style.opacity = '0.5';
-            resendLinkEl.style.cursor = 'default';
-        }
+        if (resendLinkEl) resendLinkEl.classList.add('resend-link--disabled');
 
         timerDisplayEl.intervalId = setInterval(() => {
             const minutes = Math.floor(timeLeft / 60);
@@ -343,11 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isSignUp) signUpOtpExpired = true;
                 else forgotOtpExpired = true;
 
-                if (resendLinkEl) {
-                    resendLinkEl.style.pointerEvents = 'auto';
-                    resendLinkEl.style.opacity = '1';
-                    resendLinkEl.style.cursor = 'pointer';
-                }
+                if (resendLinkEl) resendLinkEl.classList.remove('resend-link--disabled');
             } else {
                 timeLeft--;
             }
@@ -549,11 +581,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (birthdateInput) clearInlineError(birthdateInput);
 
         const createChecker = document.getElementById('createPassword-checker');
-        if (createChecker) createChecker.style.display = 'none';
+        if (createChecker) createChecker.classList.add('auth-hidden');
 
         const matchIndicator = document.getElementById('confirmPassword-match');
         if (matchIndicator) {
-            matchIndicator.style.display = 'none';
+            matchIndicator.classList.add('auth-hidden');
             matchIndicator.textContent = '';
         }
     }
@@ -597,11 +629,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const forgotChecker = document.getElementById('forgotNewPassword-checker');
-        if (forgotChecker) forgotChecker.style.display = 'none';
+        if (forgotChecker) forgotChecker.classList.add('auth-hidden');
 
         const forgotMatchIndicator = document.getElementById('forgotConfirmPassword-match');
         if (forgotMatchIndicator) {
-            forgotMatchIndicator.style.display = 'none';
+            forgotMatchIndicator.classList.add('auth-hidden');
             forgotMatchIndicator.textContent = '';
         }
     }
@@ -749,12 +781,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resendOtpLink) {
         resendOtpLink.addEventListener('click', async (e) => {
             e.preventDefault();
-            if (resendOtpLink.style.pointerEvents === 'none' || resendOtpLink.dataset.sending === "true") return;
+            if (resendOtpLink.classList.contains('resend-link--disabled') || resendOtpLink.dataset.sending === "true") return;
 
             resendOtpLink.dataset.sending = "true";
-            resendOtpLink.style.pointerEvents = 'none';
-            resendOtpLink.style.opacity = '0.5';
-            resendOtpLink.style.cursor = 'not-allowed';
+            resendOtpLink.classList.add('resend-link--disabled');
             const originalText = resendOtpLink.textContent;
             resendOtpLink.textContent = 'Sending code...';
 
@@ -777,16 +807,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     startOtpCountdown(document.getElementById('otpTimerDisplay'), resendOtpLink, true);
                 } else {
                     alert(result.message);
-                    resendOtpLink.style.pointerEvents = 'auto';
-                    resendOtpLink.style.opacity = '1';
-                    resendOtpLink.style.cursor = 'pointer';
+                    resendOtpLink.classList.remove('resend-link--disabled');
                 }
             } catch (err) {
                 resendOtpLink.textContent = originalText;
                 alert('Could not resend code.');
-                resendOtpLink.style.pointerEvents = 'auto';
-                resendOtpLink.style.opacity = '1';
-                resendOtpLink.style.cursor = 'pointer';
+                resendOtpLink.classList.remove('resend-link--disabled');
             } finally {
                 resendOtpLink.dataset.sending = "false";
             }
@@ -1030,6 +1056,13 @@ if (result.success) {
                         submitBtn.innerHTML = "Login";
                         
                         showInlineError(passwordInput.closest('.password-wrapper'), result.message);
+
+                        // feat/login-signup-redirect: shown on EVERY failed
+                        // login (unknown username AND wrong password) so the
+                        // form never reveals whether a username exists.
+                        if (response.status === 401) {
+                            showSignUpHint(passwordInput.closest('.password-wrapper'), 'No account yet?', 'Sign up');
+                        }
                     }
                 }
             } catch (err) {
@@ -1098,6 +1131,12 @@ if (result.success) {
                     );
                 } else {
                     showInlineError(forgotEmailInput, result.message);
+
+                    // feat/login-signup-redirect: 404 = no account uses this
+                    // email -> offer Sign Up with the email already filled in.
+                    if (response.status === 404) {
+                        showSignUpHint(forgotEmailInput, 'Want to make one?', 'Sign up with this email', userEmail);
+                    }
                 }
             } catch (err) {
                 alert('Could not reach the server. Make sure your Flask backend is running.');
@@ -1111,12 +1150,10 @@ if (result.success) {
     if (resendForgotLink) {
         resendForgotLink.addEventListener('click', async (e) => {
             e.preventDefault();
-            if (resendForgotLink.style.pointerEvents === 'none' || resendForgotLink.dataset.sending === "true") return;
+            if (resendForgotLink.classList.contains('resend-link--disabled') || resendForgotLink.dataset.sending === "true") return;
 
             resendForgotLink.dataset.sending = "true";
-            resendForgotLink.style.pointerEvents = 'none';
-            resendForgotLink.style.opacity = '0.5';
-            resendForgotLink.style.cursor = 'not-allowed';
+            resendForgotLink.classList.add('resend-link--disabled');
             const originalText = resendForgotLink.textContent;
             resendForgotLink.textContent = 'Sending code...';
 
@@ -1136,16 +1173,12 @@ if (result.success) {
                     startOtpCountdown(document.getElementById('forgotTimerDisplay'), resendForgotLink, false);
                 } else {
                     alert(result.message);
-                    resendForgotLink.style.pointerEvents = 'auto';
-                    resendForgotLink.style.opacity = '1';
-                    resendForgotLink.style.cursor = 'pointer';
+                    resendForgotLink.classList.remove('resend-link--disabled');
                 }
             } catch (err) {
                 resendForgotLink.textContent = originalText;
                 alert('Could not resend code.');
-                resendForgotLink.style.pointerEvents = 'auto';
-                resendForgotLink.style.opacity = '1';
-                resendForgotLink.style.cursor = 'pointer';
+                resendForgotLink.classList.remove('resend-link--disabled');
             } finally {
                 resendForgotLink.dataset.sending = "false";
             }
@@ -1231,7 +1264,7 @@ if (result.success) {
             }
 
             if (errors.length > 0) {
-                if (matchIndicator) matchIndicator.style.display = 'none';
+                if (matchIndicator) matchIndicator.classList.add('auth-hidden');
                 showInlineError(confirmWrapper, errors.join(' '));
                 return;
             }
@@ -1257,11 +1290,11 @@ if (result.success) {
                     hideAllPanels();
                     showPanel(forgotSuccessPanel);
                 } else {
-                    if (matchIndicator) matchIndicator.style.display = 'none';
+                    if (matchIndicator) matchIndicator.classList.add('auth-hidden');
                     showInlineError(confirmWrapper, result.message);
                 }
             } catch (err) {
-                if (matchIndicator) matchIndicator.style.display = 'none';
+                if (matchIndicator) matchIndicator.classList.add('auth-hidden');
                 showInlineError(confirmWrapper, 'Could not reset password.');
             } finally {
                 resetButtonLoading(btnResetPassword);
@@ -1337,6 +1370,48 @@ if (result.success) {
             const resetBtn = document.getElementById('btnResetPassword');
             if (resetBtn) resetBtn.click();
         }
+    });
+
+    // =========================================================================
+    // --- feat/login-signup-redirect: "CREATE AN EMAIL" HELP POPUP ---
+    // =========================================================================
+    // Opened from "Create one" under the sign-up Email field. The provider
+    // buttons are plain links with target="_blank" (see login.html), so
+    // they open in a new tab and this sign-up form stays exactly as it was.
+    const createEmailModal = document.getElementById('createEmailModal');
+    const openCreateEmailHelp = document.getElementById('openCreateEmailHelp');
+    const closeCreateEmailHelp = document.getElementById('closeCreateEmailHelp');
+
+    function openCreateEmailModal() {
+        if (!createEmailModal) return;
+        createEmailModal.classList.remove('auth-hidden');
+        if (closeCreateEmailHelp) closeCreateEmailHelp.focus();
+    }
+
+    function closeCreateEmailModal() {
+        if (!createEmailModal || createEmailModal.classList.contains('auth-hidden')) return;
+        createEmailModal.classList.add('auth-hidden');
+        if (openCreateEmailHelp) openCreateEmailHelp.focus();
+    }
+
+    if (openCreateEmailHelp) {
+        openCreateEmailHelp.addEventListener('click', (e) => {
+            e.preventDefault();
+            openCreateEmailModal();
+        });
+    }
+
+    if (closeCreateEmailHelp) closeCreateEmailHelp.addEventListener('click', closeCreateEmailModal);
+
+    if (createEmailModal) {
+        // Click on the dark backdrop (not the card) closes it.
+        createEmailModal.addEventListener('click', (e) => {
+            if (e.target === createEmailModal) closeCreateEmailModal();
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeCreateEmailModal();
     });
 
 });

@@ -42,7 +42,7 @@
                         <p>Sign in to continue your Python journey</p>
                     </div>
 
-                    <form class="auth-form" onsubmit="event.preventDefault();">
+                    <form class="auth-form">
                         <div class="input-group">
                             <label for="username">Username</label>
                             <input type="text" id="username" placeholder="Enter username" required>
@@ -67,7 +67,7 @@
                 </div>
                 
                 <!-- SIGN IN SUCCESS PANEL -->
-                <div id="signInSuccessPanel" style="display: none;">
+                <div id="signInSuccessPanel" class="auth-hidden">
                     <div class="success-container">
                         <div class="signin-success-icon">
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -83,7 +83,7 @@
                 </div>
 
                 <!-- FORGOT PASSWORD SYSTEM PANELS -->
-                <div id="forgotPasswordPanel" style="display: none;">
+                <div id="forgotPasswordPanel" class="auth-hidden">
                     <div class="verification-container">
                         <div class="verification-icon">
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -102,12 +102,12 @@
                             <h2>Forgot your password?</h2>
                             <p>No worries! Enter your email address below and we'll send you a link to reset your password.</p>
                         </div>
-                        <form class="auth-form" style="width: 100%;" onsubmit="event.preventDefault();">
-                            <div class="input-group" style="text-align: left;">
+                        <form class="auth-form auth-form--full">
+                            <div class="input-group auth-text-left">
                                 <label for="forgotEmail">Email address</label>
                                 <input type="email" id="forgotEmail" placeholder="Enter valid email address" required>
                             </div>
-                            <button type="button" class="btn-login" id="btnForgotProceed" style="border-radius: 12px; margin-top: 10px;">Proceed</button>
+                            <button type="button" class="btn-login auth-btn-rounded auth-btn-spaced" id="btnForgotProceed">Proceed</button>
                         </form>
                         <div class="footer-back-wrapper">
                             <a href="#" class="back-to-login-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to log in</a>
@@ -116,7 +116,7 @@
                 </div>
 
                 <!-- FORGOT PASSWORD OTP VERIFICATION -->
-                <div id="forgotOtpPanel" style="display: none;">
+                <div id="forgotOtpPanel" class="auth-hidden">
                     <div class="verification-container">
                         <div class="verification-icon">
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -132,7 +132,7 @@
                         </div>
                         <div class="form-header centered-header">
                             <h2>Verify your email</h2>
-                            <p>We sent a 6-digit verification code to <span class="dynamic-forgot-email" style="font-weight: 600; color: #111111;">danzenaquino@gmail.com</span></p>
+                            <p>We sent a 6-digit verification code to <span class="dynamic-forgot-email auth-text-strong auth-text-dark">danzenaquino@gmail.com</span></p>
                         </div>
                         <div class="otp-wrapper">
                             <div class="otp-container forgot-otp-inputs">
@@ -149,12 +149,12 @@
                             </div>
                         </div>
                         
-                        <div class="timer-container" style="margin-bottom: 20px; font-size: 14px;">
-                            <p class="timer-text" style="color: #666; margin-bottom: 4px;">Code expires in <span id="forgotTimerDisplay" style="font-weight: 600; color: #111;">1:00</span></p>
-                            <a href="#" class="resend-link" id="resendForgotLink" style="color: #139C38; font-weight: 600; text-decoration: none;">Resend code</a>
+                        <div class="timer-container timer-container--compact">
+                            <p class="timer-text timer-text--muted">Code expires in <span id="forgotTimerDisplay" class="auth-text-strong auth-text-dark">1:00</span></p>
+                            <a href="#" class="resend-link resend-link--regular" id="resendForgotLink">Resend code</a>
                         </div>
 
-                        <button type="button" class="btn-login" id="btnVerifyForgotCode" style="border-radius: 12px;">Verify Code</button>
+                        <button type="button" class="btn-login auth-btn-rounded" id="btnVerifyForgotCode">Verify Code</button>
                         <div class="footer-back-wrapper">
                             <a href="#" class="back-to-login-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to log in</a>
                         </div>
@@ -162,7 +162,7 @@
                 </div>
 
                 <!-- SET NEW PASSWORD PANEL -->
-                <div id="setNewPasswordPanel" style="display: none;">
+                <div id="setNewPasswordPanel" class="auth-hidden">
                     <div class="verification-container">
                         <div class="verification-icon">
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -179,9 +179,9 @@
                         </div>
                         <div class="form-header centered-header">
                             <h2>Set New Password</h2>
-                            <p>Create a strong password for <span class="dynamic-forgot-email" style="font-weight: 600;">danzenaquino@gmail.com</span></p>
+                            <p>Create a strong password for <span class="dynamic-forgot-email auth-text-strong">danzenaquino@gmail.com</span></p>
                         </div>
-                        <form class="auth-form" style="width: 100%; text-align: left;" onsubmit="event.preventDefault();">
+                        <form class="auth-form auth-form--full auth-text-left">
                             <div class="input-group password-group">
                                 <label for="forgotNewPassword">New Password</label>
                                 <div class="password-wrapper">
@@ -193,12 +193,12 @@
                                         </svg>
                                     </div>
                                 </div>
-                                <div id="forgotNewPassword-checker" class="password-strength-box" style="display: none; margin-top: 6px; font-size: 13px;">
-                                    <p id="forgot-req-length" style="color: #e02424; margin: 2px 0;">✗ Requires at least 8 characters</p>
-                                    <p id="forgot-req-upper" style="color: #e02424; margin: 2px 0;">✗ Requires an uppercase letter (A-Z)</p>
-                                    <p id="forgot-req-lower" style="color: #e02424; margin: 2px 0;">✗ Requires a lowercase letter (a-z)</p>
-                                    <p id="forgot-req-number" style="color: #e02424; margin: 2px 0;">✗ Requires a number (0-9)</p>
-                                    <p id="forgot-req-special" style="color: #e02424; margin: 2px 0;">✗ Requires a special character (!@#$%^&*_)</p>
+                                <div id="forgotNewPassword-checker" class="password-strength-box auth-hidden">
+                                    <p id="forgot-req-length" class="password-req">✗ Requires at least 8 characters</p>
+                                    <p id="forgot-req-upper" class="password-req">✗ Requires an uppercase letter (A-Z)</p>
+                                    <p id="forgot-req-lower" class="password-req">✗ Requires a lowercase letter (a-z)</p>
+                                    <p id="forgot-req-number" class="password-req">✗ Requires a number (0-9)</p>
+                                    <p id="forgot-req-special" class="password-req">✗ Requires a special character (!@#$%^&*_)</p>
                                 </div>
                             </div>
                             <div class="input-group password-group">
@@ -212,32 +212,32 @@
                                         </svg>
                                     </div>
                                 </div>
-                                <p id="forgotConfirmPassword-match" style="display: none; margin-top: 6px; font-size: 13px; font-weight: 500;"></p>
+                                <p id="forgotConfirmPassword-match" class="password-match auth-hidden"></p>
                             </div>
-                            <button type="button" class="btn-login" id="btnResetPassword" style="border-radius: 12px; margin-top: 10px;">Reset Password</button>
+                            <button type="button" class="btn-login auth-btn-rounded auth-btn-spaced" id="btnResetPassword">Reset Password</button>
                         </form>
                     </div>
                 </div>
 
                 <!-- PASSWORD RESET SUCCESS -->
-                <div id="forgotSuccessPanel" style="display: none;">
+                <div id="forgotSuccessPanel" class="auth-hidden">
                     <div class="verification-container">
                         <div class="form-header centered-header">
                             <h2>Password Reset Successful!</h2>
                             <p>Your password has been updated. You can now sign in with your new password.</p>
                         </div>
-                        <button type="button" class="btn-login back-to-login-btn" style="border-radius: 12px; margin-top: 10px;">Back to Sign in</button>
+                        <button type="button" class="btn-login back-to-login-btn auth-btn-rounded auth-btn-spaced">Back to Sign in</button>
                     </div>
                 </div>
 
                 <!-- 2. SIGN UP FORM PANEL - STEP 1 -->
-                <div id="signUpPanel" style="display: none;">
+                <div id="signUpPanel" class="auth-hidden">
                     <div class="form-header">
                         <h2>Create your account</h2>
                         <p>Start learning Python with CobraByte today</p>
                     </div>
 
-                    <form class="auth-form" onsubmit="event.preventDefault();">
+                    <form class="auth-form">
                         <div class="input-group">
                             <label for="firstName">First name</label>
                             <input type="text" id="firstName" placeholder="Enter first name" required>
@@ -268,16 +268,17 @@
                 </div>
 
                 <!-- SIGN UP FORM PANEL - STEP 2 -->
-                <div id="signUpStep2Panel" style="display: none;">
+                <div id="signUpStep2Panel" class="auth-hidden">
                     <a href="#" class="back-link" id="backToStep1">Back</a>
                     <div class="form-header">
                         <h2>Create your account</h2>
                         <p>Start learning Python with CobraByte today</p>
                     </div>
-                    <form class="auth-form" onsubmit="event.preventDefault();">
+                    <form class="auth-form">
                         <div class="input-group">
                             <label for="email">Email address</label>
                             <input type="email" id="email" placeholder="Enter valid email address" required>
+                            <p class="auth-field-hint">Don't have an email yet? <a href="#" class="auth-inline-link" id="openCreateEmailHelp">Create one</a></p>
                         </div>
                         <div class="input-group">
                             <label for="regUsername">Username</label>
@@ -294,12 +295,12 @@
                                     </svg>
                                 </div>
                             </div>
-                            <div id="createPassword-checker" class="password-strength-box" style="display: none; margin-top: 6px; font-size: 13px; text-align: left;">
-                                <p id="req-length" style="color: #e02424; margin: 2px 0;">✗ Requires at least 8 characters</p>
-                                <p id="req-upper" style="color: #e02424; margin: 2px 0;">✗ Requires an uppercase letter (A-Z)</p>
-                                <p id="req-lower" style="color: #e02424; margin: 2px 0;">✗ Requires a lowercase letter (a-z)</p>
-                                <p id="req-number" style="color: #e02424; margin: 2px 0;">✗ Requires a number (0-9)</p>
-                                <p id="req-special" style="color: #e02424; margin: 2px 0;">✗ Requires a special character (!@#$%^&*_)</p>
+                            <div id="createPassword-checker" class="password-strength-box auth-hidden">
+                                <p id="req-length" class="password-req">✗ Requires at least 8 characters</p>
+                                <p id="req-upper" class="password-req">✗ Requires an uppercase letter (A-Z)</p>
+                                <p id="req-lower" class="password-req">✗ Requires a lowercase letter (a-z)</p>
+                                <p id="req-number" class="password-req">✗ Requires a number (0-9)</p>
+                                <p id="req-special" class="password-req">✗ Requires a special character (!@#$%^&*_)</p>
                             </div>
                         </div>
                         <div class="input-group password-group">
@@ -313,7 +314,7 @@
                                     </svg>
                                 </div>
                             </div>
-                            <p id="confirmPassword-match" style="display: none; margin-top: 6px; font-size: 13px; font-weight: 500;"></p>
+                            <p id="confirmPassword-match" class="password-match auth-hidden"></p>
                         </div>
                         <div class="button-wrapper">
                             <button type="submit" class="btn-login btn-next">Proceed</button>
@@ -322,12 +323,12 @@
                 </div>
 
                 <!-- SIGN UP FORM PANEL - STEP 3 (Email Verification) -->
-                <div id="signUpStep3Panel" style="display: none;">
+                <div id="signUpStep3Panel" class="auth-hidden">
                     <a href="#" class="back-link" id="backToStep2">Back</a>
                     <div class="verification-container">
                         <div class="form-header centered-header">
                             <h2>Verify your email</h2>
-                            <p>We sent a 6-digit verification code to <span id="userEmailPlaceholder" style="font-weight: 600; color: #111111;">danzenaquino@gmail.com</span></p>
+                            <p>We sent a 6-digit verification code to <span id="userEmailPlaceholder" class="auth-text-strong auth-text-dark">danzenaquino@gmail.com</span></p>
                         </div>
                         <div class="otp-wrapper">
                             <div class="otp-container">
@@ -352,7 +353,7 @@
                 </div>
 
                 <!-- SIGN UP FORM PANEL - STEP 4 (Success) -->
-                <div id="signUpStep4Panel" style="display: none;">
+                <div id="signUpStep4Panel" class="auth-hidden">
                     <div class="success-container">
                         <div class="form-header centered-header">
                             <h2>Account Verified!</h2>
@@ -372,6 +373,50 @@
             </div>
         </section>
     </main>
+
+    <!-- feat/login-signup-redirect: "Create an email" help popup.
+         Opened from the "Create one" link under the sign-up Email field.
+         Hidden with .auth-hidden; script.js shows/hides it. Each provider
+         opens its own sign-up page in a new tab so this sign-up form keeps
+         everything the learner already typed. -->
+    <div id="createEmailModal" class="auth-modal-overlay auth-hidden" role="dialog" aria-modal="true" aria-labelledby="createEmailTitle">
+        <div class="auth-modal-card">
+            <button type="button" class="auth-modal-close" id="closeCreateEmailHelp" aria-label="Close">&times;</button>
+            <div class="verification-container">
+                <div class="verification-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6M22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6M22 6L12 13L2 6" stroke="url(#create-email-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="19" cy="6" r="4" fill="#38FF92"/>
+                        <path d="M19 4.5V7.5M17.5 6H20.5" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round"/>
+                        <defs>
+                            <linearGradient id="create-email-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#00D0FF" /><stop offset="100%" stop-color="#38FF92" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="form-header centered-header">
+                    <h2 id="createEmailTitle">Create an email address</h2>
+                    <p>You need an email to receive your verification code and to reset your password later. Pick a free provider:</p>
+                </div>
+                <div class="email-provider-list">
+                    <a href="https://accounts.google.com/signup" target="_blank" rel="noopener noreferrer" class="email-provider-btn">
+                        <span>Gmail</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+                    </a>
+                    <a href="https://signup.live.com/" target="_blank" rel="noopener noreferrer" class="email-provider-btn">
+                        <span>Outlook</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+                    </a>
+                    <a href="https://login.yahoo.com/account/create" target="_blank" rel="noopener noreferrer" class="email-provider-btn">
+                        <span>Yahoo</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+                    </a>
+                </div>
+                <p class="email-help-note">Opens in a new tab. When you're done, come back to this tab. Your details are still filled in.</p>
+            </div>
+        </div>
+    </div>
 
     <script src="../static/script.js"></script>
     <script src="../static/page-transitions.js"></script>

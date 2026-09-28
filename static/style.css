@@ -892,3 +892,233 @@ select {
 .form-textarea::placeholder {
     color: #9ca3af;
 }
+
+/* ==========================================================================
+   feat/login-signup-redirect: LOGIN PAGE HELPERS
+   Replace the inline style="" that used to be in login.html and the
+   element.style.* colors that used to be set in script.js.
+   Prefixed "auth-" so they can't clash with other pages using style.css.
+   ========================================================================== */
+
+/* Panels / checker boxes that start hidden. script.js still shows a
+   panel with style.display (showPanel), which always beats this class. */
+.auth-hidden {
+    display: none;
+}
+
+.auth-form--full {
+    width: 100%;
+}
+
+.auth-text-left {
+    text-align: left;
+}
+
+/* Square-ish button variant used on the Forgot Password screens
+   (was style="border-radius: 12px; margin-top: 10px;") */
+.auth-btn-rounded {
+    border-radius: 12px;
+}
+
+.auth-btn-spaced {
+    margin-top: 10px;
+}
+
+/* Emphasized email / timer text inside a sentence */
+.auth-text-strong {
+    font-weight: 600;
+}
+
+.auth-text-dark {
+    color: #111111;
+}
+
+/* Forgot Password OTP timer (slightly tighter than the sign-up one) */
+.timer-container--compact {
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.timer-text--muted {
+    color: #666666;
+    margin-bottom: 4px;
+}
+
+.resend-link--regular {
+    font-weight: 600;
+}
+
+/* Resend link while the countdown runs / while sending */
+.resend-link--disabled {
+    pointer-events: none;
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Inline red error under a field (was set in showInlineError() via JS) */
+.js-error-message {
+    color: #e02424;
+    font-size: 14px;
+    margin-top: 8px;
+}
+
+/* Password strength checklist */
+.password-strength-box {
+    margin-top: 6px;
+    font-size: 13px;
+    text-align: left;
+}
+
+.password-req {
+    color: #e02424;
+    margin: 2px 0;
+}
+
+.password-req.password-req--met {
+    color: #0e9f6e;
+}
+
+/* "Passwords match" indicator */
+.password-match {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.password-match.password-match--ok {
+    color: #0e9f6e;
+}
+
+.password-match.password-match--bad {
+    color: #e02424;
+}
+
+/* OTP boxes after checking the code. Two classes so they still show
+   while the first box is focused again after a wrong code. */
+.otp-input.otp-input--correct {
+    border-color: #0e9f6e;
+    background-color: #ecfdf5;
+}
+
+.otp-input.otp-input--wrong {
+    border-color: #e02424;
+    background-color: #fef2f2;
+}
+
+
+/* ==========================================================================
+   feat/login-signup-redirect: SIGN-UP LINKS + CREATE-EMAIL POPUP
+   ========================================================================== */
+
+/* Small helper line under a field, e.g. under the sign-up Email field */
+.auth-field-hint {
+    font-size: 13px;
+    color: #666666;
+    margin-top: 8px;
+}
+
+/* Green text link - same look as .forgot-link */
+.auth-inline-link {
+    color: #139C38;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.auth-inline-link:hover {
+    text-decoration: underline;
+}
+
+/* "No account yet? Sign up" line under a login / forgot-password error */
+.auth-signup-hint {
+    font-size: 13px;
+    color: #666666;
+    margin-top: 4px;
+}
+
+/* Popup backdrop - above the sticky header (z-index 1000) */
+.auth-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.auth-modal-overlay.auth-hidden {
+    display: none;
+}
+
+/* Same card look as .auth-card */
+.auth-modal-card {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 40px;
+    background: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.auth-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    border: none;
+    background: none;
+    font-size: 24px;
+    line-height: 1;
+    color: #666666;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.auth-modal-close:hover {
+    color: #139C38;
+}
+
+/* Gmail / Outlook / Yahoo - styled like the login inputs (#EDEAE4) */
+.email-provider-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.email-provider-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: #EDEAE4;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+    text-decoration: none;
+    transition: color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.email-provider-btn:hover,
+.email-provider-btn:focus-visible {
+    color: #139C38;
+    box-shadow: inset 0 0 0 1px #1CE8C8;
+    outline: none;
+}
+
+.email-help-note {
+    margin-top: 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #666666;
+}
+
+@media (max-width: 480px) {
+    .auth-modal-card {
+        padding: 28px 22px;
+    }
+}
