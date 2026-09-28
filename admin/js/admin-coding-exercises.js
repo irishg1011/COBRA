@@ -108,13 +108,13 @@
                 return `
                 <tr data-exercise-id="${escapeHtml(ex.exercise_id)}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(ex.exercise_title)}</strong>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(ex.exercise_title)}</strong>
                     </td>
-                    <td class="text-muted">${escapeHtml(ex.category)}</td>
-                    <td class="text-muted">${escapeHtml(ex.module)}</td>
-                    <td class="text-muted">${escapeHtml(ex.lesson)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(ex.category)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(ex.module)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(ex.lesson)}</span></td>
                     <td class="js-status-cell">${statusBadgeHtml(ex.status)}</td>
-                    <td class="text-muted">${escapeHtml(ex.uploaded_by)}</td>
+                    <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">${escapeHtml(ex.uploaded_by)}</span></td>
                     <td class="text-muted">${escapeHtml(ex.created_at)}</td>
                     <td class="text-muted">${escapeHtml(ex.updated_at)}</td>
                     <td class="text-right exercise-actions-column">

@@ -44,6 +44,7 @@ request.
 from mysql.connector import Error
 from cobradb import get_db_connection
 from lesson_validation import format_lesson_title, is_lesson_title_taken
+from validators import validate_title_length  # feat/title-char-limit
 from resource_publishing import get_draft_status_id
 from lesson_content_validation import validate_lesson_content
 
@@ -233,6 +234,9 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
     normalized_name = format_lesson_title(lesson_name)
     if not normalized_name:
         return False, "Lesson name is required before saving a draft.", None
+    is_valid, length_msg = validate_title_length(normalized_name, "resource", "Lesson name")
+    if not is_valid:
+        return False, length_msg, None
 
     cat_id = cat_id or None
     module_id = module_id or None

@@ -9,6 +9,7 @@ these get turned into HTTP responses/JSON.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from validators import validate_title_length  # feat/title-char-limit
 
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 TEST_CASES_TABLE = "test_cases_tbl"
@@ -141,6 +142,10 @@ def validate_exercise_title(title: str, exclude_exercise_id=None):
         return False, "Exercise title is required.", ""
 
     formatted = format_exercise_title(cleaned)
+    is_valid, length_msg = validate_title_length(formatted, "exercise", "Exercise title")
+    if not is_valid:
+        return False, length_msg, formatted
+
     taken = is_exercise_title_taken(formatted, exclude_exercise_id=exclude_exercise_id)
 
     if taken is None:

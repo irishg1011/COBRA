@@ -45,6 +45,7 @@ etc.).
 from mysql.connector import Error
 from cobradb import get_db_connection
 from text_formatting import format_display_name
+from validators import validate_title_length  # feat/title-char-limit
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 
@@ -149,6 +150,10 @@ def validate_activity_title(title, exclude_la_id=None):
     normalized = format_activity_title(title)
     if not normalized:
         return False, "Activity title is required."
+
+    is_valid, length_msg = validate_title_length(normalized, "activity", "Activity title")
+    if not is_valid:
+        return False, length_msg
 
     taken = is_activity_title_taken(normalized, exclude_la_id=exclude_la_id)
     if taken is None:
@@ -281,4 +286,4 @@ def validate_activity_type_for_lesson(resource_id, activity_type, exclude_la_id=
             f"Each lesson can only have one activity of each type (Multiple Choice, Fill in the Blanks, Flashcards, Quiz)."
         )
 
-    return True, None
+    return True, None

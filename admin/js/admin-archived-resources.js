@@ -159,10 +159,10 @@
             tableBody.innerHTML = items.map(r => `
                 <tr data-resource-id="${r.resource_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(r.resource_title)}</strong>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(r.resource_title)}</strong>
                     </td>
-                    <td class="text-muted">${escapeHtml(r.category)}</td>
-                    <td class="text-muted">${escapeHtml(r.module)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(r.category)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(r.module)}</span></td>
                     <td><span class="badge badge-inactive">Archived</span></td>
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>
                     <td class="text-right">

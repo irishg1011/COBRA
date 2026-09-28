@@ -85,7 +85,8 @@
 
                         <div class="form-group mb-20">
                             <label class="form-label" for="activityTitle">Activity Title *</label>
-                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." value="{{ existing_activity.activity_title if existing_activity else '' }}">
+                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." maxlength="{{ title_limits.activity }}" value="{{ existing_activity.activity_title if existing_activity else '' }}">
+                            <small class="char-counter" data-counter-for="activityTitle"></small>
                         </div>
 
                         <div class="form-grid-3">

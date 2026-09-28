@@ -136,7 +136,7 @@
                 <tr>
                     <td class="profile-cell">
                         <div class="avatar-sm">👤</div>
-                        <strong>${escapeHtml(log.full_name)}</strong>
+                        <strong class="cell-truncate-1">${escapeHtml(log.full_name)}</strong>
                     </td>
                     <td class="text-muted">${escapeHtml(log.acc_id)}</td>
                     <td class="text-muted">${escapeHtml(log.ip_address)}</td>

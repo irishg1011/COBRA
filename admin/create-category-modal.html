@@ -3,7 +3,7 @@
      category creation inside the categories modal. Opens directly from the
      "+ Category" header button or "+ Add Category" triggers. Includes a
      cancel confirmation warning if input data is present. -->
-<div id="createCategoryModal" class="modal-overlay modal-hidden" style="display: none;">
+<div id="createCategoryModal" class="modal-overlay modal-hidden">
     <div class="modal-card create-admin-card edit-module-card">
         <button type="button" class="modal-close-btn" id="closeCreateCategoryModalBtn">&times;</button>
 
@@ -18,10 +18,11 @@
         <form id="createCategoryForm">
             <div class="form-group">
                 <label for="newCategoryName">Category Name</label>
-                <input type="text" id="newCategoryName" placeholder="New Category Name" required>
+                <input type="text" id="newCategoryName" placeholder="New Category Name" maxlength="{{ title_limits.category }}" required>
+                <small class="char-counter" data-counter-for="newCategoryName"></small>
             </div>
 
-            <div class="modal-footer-actions" style="gap: 12px;">
+            <div class="modal-footer-actions modal-footer-actions--gap">
                 <button type="button" class="btn-cancel-custom" id="cancelCreateCategoryBtn">Cancel</button>
                 <button type="submit" class="btn btn-create-account" id="submitCreateCategoryBtn">
                     <i class="fa-solid fa-plus"></i> Create Category

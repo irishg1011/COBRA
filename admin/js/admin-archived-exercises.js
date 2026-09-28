@@ -115,10 +115,10 @@
             exercisesTableBody.innerHTML = items.map(ce => `
                 <tr data-exercise-id="${ce.exercise_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(ce.exercise_title)}</strong>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(ce.exercise_title)}</strong>
                     </td>
-                    <td class="text-muted">${escapeHtml(ce.lesson_name)}</td>
-                    <td class="text-muted">${escapeHtml(ce.category)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(ce.lesson_name)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(ce.category)}</span></td>
                     <td>${ce.points} pts</td>
                     <td><span class="badge badge-inactive">Archived</span></td>
                     <td class="text-muted">${escapeHtml(ce.updated_at)}</td>

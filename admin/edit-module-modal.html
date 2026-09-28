@@ -21,7 +21,8 @@
 
             <div class="form-group">
                 <label for="editModuleName">Module Name</label>
-                <input type="text" id="editModuleName" placeholder="Enter module name" required>
+                <input type="text" id="editModuleName" placeholder="Enter module name" maxlength="{{ title_limits.module }}" required>
+                <small class="char-counter" data-counter-for="editModuleName"></small>
             </div>
 
             <div class="form-group">

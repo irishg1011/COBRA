@@ -25,10 +25,11 @@
 
             <div class="form-group">
                 <label for="editCategoryName">Category Name</label>
-                <input type="text" id="editCategoryName" placeholder="Enter category name" required>
+                <input type="text" id="editCategoryName" placeholder="Enter category name" maxlength="{{ title_limits.category }}" required>
+                <small class="char-counter" data-counter-for="editCategoryName"></small>
             </div>
 
-            <div class="modal-footer-actions" style="gap: 12px;">
+            <div class="modal-footer-actions modal-footer-actions--gap">
                 <button type="button" class="btn-cancel-custom" id="cancelEditCategoryBtn">Cancel</button>
                 <button type="submit" class="btn btn-create-account">
                     <i class="fa-solid fa-floppy-disk"></i> Save Changes

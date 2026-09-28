@@ -79,7 +79,8 @@
                             <!-- Row 1: Exercise Title -->
                             <div class="mb-20">
                                 <label class="form-label" for="exerciseTitle">Exercise Title *</label>
-                                <input type="text" id="exerciseTitle" name="title" class="form-control" placeholder="Enter exercise title..." value="{{ existing_exercise.exercise_title if existing_exercise else '' }}" data-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}" required autocomplete="off">
+                                <input type="text" id="exerciseTitle" name="title" class="form-control" placeholder="Enter exercise title..." maxlength="{{ title_limits.exercise }}" value="{{ existing_exercise.exercise_title if existing_exercise else '' }}" data-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}" required autocomplete="off">
+                                <small class="char-counter" data-counter-for="exerciseTitle"></small>
                                 <span id="exerciseTitleError" class="field-error-message"></span>
                             </div>
 
@@ -214,7 +215,7 @@
                                         <input type="text" name="test_cases[{{ loop.index0 }}][output]" class="form-control" value="{{ tc.expected_output }}" placeholder="e.g., Positive" required>
                                     </div>
                                     <div class="test-case-actions">
-                                        <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case" onclick="removeTestCaseRow(this)"><i class="fa-solid fa-trash-can"></i></button>
+                                        <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case"><i class="fa-solid fa-trash-can"></i></button>
                                     </div>
                                     <div class="test-case-duplicate-warning">⚠️ Warning: Identical Input and Output</div>
                                 </div>

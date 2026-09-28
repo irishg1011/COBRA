@@ -105,7 +105,8 @@
                         <div class="card-box padded-card video-form-card">
                             <div class="form-group">
                                 <label for="videoTitleInput">Video Tutorial Title</label>
-                                <input type="text" id="videoTitleInput" class="form-control" placeholder="Enter video tutorial title..." value="{{ existing_video.video_title if existing_video else '' }}">
+                                <input type="text" id="videoTitleInput" class="form-control" placeholder="Enter video tutorial title..." maxlength="{{ title_limits.video }}" value="{{ existing_video.video_title if existing_video else '' }}">
+                                <small class="char-counter" data-counter-for="videoTitleInput"></small>
                             </div>
                         </div>
 

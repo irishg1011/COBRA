@@ -145,10 +145,10 @@
                             {% for module in modules %}
                             <tr data-module-id="{{ module.module_id }}">
                                 <td>
-                                    <strong class="table-item-title">{{ module.module_name }}</strong>
-                                    <small class="text-muted">{{ module.description }}</small>
+                                    <strong class="table-item-title cell-truncate">{{ module.module_name }}</strong>
+                                    <small class="text-muted cell-truncate-1">{{ module.description }}</small>
                                 </td>
-                                <td class="text-muted">{{ module.category }}</td>
+                                <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ module.category }}</span></td>
                                 <td class="js-status-cell">
                                     {% if module.status == 'Published' %}
                                     <span class="badge badge-success-log">Published</span>

@@ -331,6 +331,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initialize exactly ONE empty test case row IF container is currently empty
     const testCaseContainer = document.getElementById('testCasesContainer');
+
+    // feat/title-char-limit cleanup: the Delete button used an inline
+    // onclick="removeTestCaseRow(this)". One delegated listener on the
+    // container now covers server-rendered rows AND rows added later by
+    // addTestCaseRow().
+    if (testCaseContainer) {
+        testCaseContainer.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.test-case-delete-btn');
+            if (deleteBtn) removeTestCaseRow(deleteBtn);
+        });
+    }
     if (testCaseContainer && testCaseContainer.children.length === 0) {
         addTestCaseRow('', '');
     } else if (testCaseContainer) {
@@ -998,7 +1009,7 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
         </div>
 
         <div class="test-case-actions">
-            <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case" onclick="removeTestCaseRow(this)"><i class="fa-solid fa-trash-can"></i></button>
+            <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case"><i class="fa-solid fa-trash-can"></i></button>
         </div>
 
         <div class="test-case-duplicate-warning">⚠️ Warning: Identical Input and Output</div>

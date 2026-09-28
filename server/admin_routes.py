@@ -22,6 +22,7 @@ from validators import (  # NEW: same validation rules used by login.py's Learne
     capitalize_name,
     ADMIN_MIN_SIGNUP_AGE,  # NEW: Admin accounts require 20-60, not Learner's 13-60
     ADMIN_MAX_SIGNUP_AGE,  # NEW
+    TITLE_LIMITS,  # feat/title-char-limit: shared title max lengths, injected into templates below
 )
 from id_generator import generate_prefixed_acc_id  # NEW: same sequential-ID generator login.py's signup uses, just with a different prefix
 from manage_course import (
@@ -365,6 +366,9 @@ def inject_current_admin():
         "current_admin": get_current_admin(),
         "greeting": get_greeting(),
         "genders": get_gender_options(),
+        # feat/title-char-limit: every title input's maxlength comes from
+        # validators.TITLE_LIMITS, e.g. maxlength="{{ title_limits.module }}"
+        "title_limits": TITLE_LIMITS,
     }
 
 

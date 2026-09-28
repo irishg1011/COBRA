@@ -169,9 +169,9 @@
             tableBody.innerHTML = items.map(a => `
                 <tr data-activity-id="${a.activity_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(a.activity_name)}</strong>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(a.activity_name)}</strong>
                     </td>
-                    <td class="text-muted">${escapeHtml(a.lesson_name)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(a.lesson_name)}</span></td>
                     <td>${a.points} pts</td>
                     <td><span class="badge badge-inactive">Archived</span></td>
                     <td class="text-muted">${escapeHtml(a.updated_at)}</td>

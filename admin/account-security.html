@@ -159,10 +159,10 @@
                                 <tr data-acc-id="{{ acc.acc_id }}">
                                     <td class="profile-cell">
                                         <div class="avatar-sm">👤</div>
-                                        <strong>{{ acc.full_name }}</strong>
+                                        <strong class="cell-truncate-1">{{ acc.full_name }}</strong>
                                     </td>
-                                    <td class="text-muted">{{ acc.username }}</td>
-                                    <td class="text-muted">{{ acc.email }}</td>
+                                    <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">{{ acc.username }}</span></td>
+                                    <td class="text-muted"><span class="cell-truncate-1">{{ acc.email }}</span></td>
                                     <td>
                                         <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else 'badge-learner' }}">{{ acc.role }}</span>
                                     </td>

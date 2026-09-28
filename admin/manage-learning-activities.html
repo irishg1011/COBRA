@@ -130,7 +130,7 @@
                             {% for lesson in lessons %}
                             <tr data-resource-id="{{ lesson.resource_id }}">
                                 <td>
-                                    <strong class="table-item-title">{{ lesson.lesson_name }}</strong>
+                                    <strong class="table-item-title cell-truncate">{{ lesson.lesson_name }}</strong>
                                 </td>
                                 <td>
                                     {% if 'Multiple Choice' in lesson.activity_type_names %}
@@ -143,9 +143,9 @@
                                     <button type="button" class="activity-content-trigger activity-type-pill type-fc" data-resource-id="{{ lesson.resource_id }}" data-activity-type="Flashcards" title="Preview Flashcards" aria-label="Preview Flashcards"><i class="fa-solid fa-clone"></i></button>
                                     {% endif %}
                                 </td>
-                                <td class="text-muted">{{ lesson.module }}</td>
-                                <td class="text-muted">{{ lesson.category }}</td>
-                                <td class="text-muted">{{ lesson.uploaded_by }}</td>
+                                <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ lesson.module }}</span></td>
+                                <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ lesson.category }}</span></td>
+                                <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">{{ lesson.uploaded_by }}</span></td>
                                 <td class="js-status-cell">
                                     {% if lesson.status == 'Published' %}
                                     <span class="badge badge-active">{{ lesson.status }}</span>

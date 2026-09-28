@@ -2,8 +2,8 @@
      Task #27 & #87: Unified Archives Modal - lets the Admin switch
      between viewing Archived Modules and Archived Categories with full
      Search, Restore, and Permanent Delete capabilities. -->
-<div id="archivedModulesModal" class="custom-modal-overlay" style="display: none;">
-    <div class="custom-modal-dialog" style="height: auto; max-height: 85vh; width: 100%; max-width: 720px;">
+<div id="archivedModulesModal" class="custom-modal-overlay is-hidden">
+    <div class="custom-modal-dialog">
         <div class="custom-modal-header">
             <h3>Archived Items</h3>
             <button type="button" class="categories-close-btn" id="closeArchivedModulesModal">&times;</button>
@@ -21,7 +21,7 @@
             </div>
 
             <!-- Unified Search Bar -->
-            <div class="header-search search-override" style="width: 100%; margin-bottom: 16px;">
+            <div class="header-search search-override">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
                 <input type="text" id="archivedSearchInput" placeholder="Search archived modules...">
             </div>
@@ -56,7 +56,7 @@
             </div>
 
             <!-- Tab 2: Archived Categories View -->
-            <div id="archivedCategoriesView" style="display: none;">
+            <div id="archivedCategoriesView" class="is-hidden">
                 <table class="data-table">
                     <thead>
                         <tr>

@@ -113,3 +113,80 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+// ======================================================================
+// feat/title-char-limit
+// Both features below use listeners on `document` (event delegation), so
+// they also work for rows/inputs that other scripts create later (live
+// search, pagination, archived modals, edit modals) with no extra calls.
+// ======================================================================
+
+// ----------------------------------------------------------------------
+// 1) Live character counter for title inputs.
+// Markup: an input with a maxlength, followed by
+//   <small class="char-counter" data-counter-for="INPUT_ID"></small>
+// The limit comes from the input's own maxlength (which the templates
+// fill from validators.TITLE_LIMITS), so no numbers are repeated here.
+// Refreshes on typing AND on focus - the edit/create modals set the
+// value by script and then focus the input, so the counter is always
+// correct when the admin starts typing.
+// ----------------------------------------------------------------------
+(function setupCharCounters() {
+    const NEAR_LIMIT_RATIO = 0.9;
+
+    function updateCounter(input) {
+        if (!input || !input.id) return;
+        const counter = document.querySelector(`.char-counter[data-counter-for="${input.id}"]`);
+        if (!counter) return;
+
+        const max = parseInt(input.getAttribute('maxlength'), 10);
+        if (!max) return;
+
+        const length = input.value.length;
+        counter.textContent = `${length}/${max}`;
+        counter.classList.toggle('is-over', length > max);
+        counter.classList.toggle('is-full', length === max);
+        counter.classList.toggle('is-near', length < max && length >= Math.ceil(max * NEAR_LIMIT_RATIO));
+    }
+
+    function refreshAll() {
+        document.querySelectorAll('.char-counter[data-counter-for]').forEach((counter) => {
+            updateCounter(document.getElementById(counter.dataset.counterFor));
+        });
+    }
+
+    document.addEventListener('input', (e) => updateCounter(e.target));
+    document.addEventListener('focusin', (e) => updateCounter(e.target));
+    // blur can re-format the value (e.g. sentence case), so re-count after it.
+    document.addEventListener('focusout', (e) => updateCounter(e.target));
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', refreshAll);
+    } else {
+        refreshAll();
+    }
+
+    // For any script that sets a title's value without focusing it.
+    window.cobraByteRefreshCharCounters = refreshAll;
+})();
+
+// ----------------------------------------------------------------------
+// 2) Hover tooltip for truncated table text (.cell-truncate /
+// .cell-truncate-1, see admin-style.css). The full text is shown only
+// when it's actually cut off - short titles get no tooltip.
+// ----------------------------------------------------------------------
+(function setupTruncateTooltips() {
+    const TRUNCATE_SELECTOR = '.cell-truncate, .cell-truncate-1';
+
+    document.addEventListener('mouseover', (e) => {
+        const el = e.target.closest ? e.target.closest(TRUNCATE_SELECTOR) : null;
+        if (!el) return;
+
+        const isCut = el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+        if (isCut) {
+            el.setAttribute('title', el.textContent.trim());
+        } else {
+            el.removeAttribute('title');
+        }
+    });
+})();

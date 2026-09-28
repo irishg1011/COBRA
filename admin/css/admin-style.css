@@ -2251,6 +2251,16 @@ textarea.form-control-custom {
     gap: 12px;
 }
 
+/* Moved from archived-modules-modal.html inline styles (feat/title-char-limit cleanup) */
+#archivedModulesModal .custom-modal-dialog {
+    height: auto;
+    max-width: 720px;
+}
+
+#archivedModulesModal .search-override {
+    width: 100%;
+}
+
 /* ==========================================================================
    TASK #87: UNIFIED ARCHIVES TOGGLE SWITCHER
    ========================================================================== */
@@ -3170,26 +3180,17 @@ textarea.form-control-custom {
     margin: -4px 12px 10px;
 }
 
-/* --- Modules table --- */
-.modules-table td:first-child {
-    white-space: normal;
-    min-width: 240px;
-    max-width: 380px;
-}
-
+/* --- Modules table ---
+   Width/truncation now comes from the shared .cell-truncate classes
+   (see "TABLE TEXT TRUNCATION" at the end of this file). */
 .modules-table .table-item-title {
     font-size: 12px;
     font-weight: 500;
 }
 
 .modules-table td:first-child small {
-    display: block;
-    max-width: 100%;
     font-size: 10px;
     color: var(--admin-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .table-card .table-actions-group {
@@ -3476,17 +3477,6 @@ textarea.form-control-custom {
     padding-right: 10px;
 }
 
-/* Lesson / Activity / Module / Category can be long - let them wrap instead of
-   pushing Actions and Publish Action off-screen. */
-.activities-table td:nth-child(1),
-.activities-table td:nth-child(2),
-.activities-table td:nth-child(3),
-.activities-table td:nth-child(4) {
-    white-space: normal;
-    min-width: 110px;
-    max-width: 200px;
-}
-
 /* Activity column: the preview buttons shown as icon-only type pills */
 .activity-content-trigger.activity-type-pill {
     display: inline-flex;
@@ -3613,17 +3603,6 @@ textarea.form-control-custom {
     padding-right: 10px;
 }
 
-/* Exercise / Category / Module / Lesson can be long - let them wrap
-   instead of pushing Actions and Publish Action off-screen. */
-.exercises-table td:nth-child(1),
-.exercises-table td:nth-child(2),
-.exercises-table td:nth-child(3),
-.exercises-table td:nth-child(4) {
-    white-space: normal;
-    min-width: 110px;
-    max-width: 200px;
-}
-
 /* Prev / page label / Next group in the table footer (was inline) */
 .pagination-controls {
     display: flex;
@@ -3637,3 +3616,111 @@ textarea.form-control-custom {
     cursor: pointer;
 }
 
+
+/* ==========================================================================
+   feat/title-char-limit: TABLE TEXT TRUNCATION
+   --------------------------------------------------------------------------
+   `.table-card .data-table td` is `white-space: nowrap`, so a long title
+   used to widen its column until Actions / Publish Action were pushed
+   off-screen. These classes go on the TEXT inside a cell (not the <td>),
+   cap its width, and cut it with "...". The full text shows on hover -
+   admin-script.js adds the tooltip only when the text is actually cut.
+   Used by every admin table: server-rendered rows AND the rows the JS
+   rebuilds on search / pagination / archived modals.
+   ========================================================================== */
+
+/* Titles: up to 2 lines, then "..." */
+.cell-truncate {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    max-width: 260px;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Single line, then "..." (descriptions, emails, names) */
+.cell-truncate-1 {
+    display: block;
+    max-width: 260px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Narrower cap for supporting columns (Category, Module, Lesson) */
+.cell-truncate.cell-truncate--sm,
+.cell-truncate-1.cell-truncate--sm {
+    max-width: 180px;
+}
+
+/* A <td> whose only content is truncated text: keep it from growing
+   past the text's cap. */
+.data-table td .cell-truncate,
+.data-table td .cell-truncate-1 {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.data-table td:first-child .cell-truncate,
+.data-table td:first-child .cell-truncate-1,
+.data-table td.profile-cell .cell-truncate-1 {
+    margin-left: 0;
+}
+
+
+/* ==========================================================================
+   feat/title-char-limit: CHARACTER COUNTER under title inputs
+   --------------------------------------------------------------------------
+   Markup: <small class="char-counter" data-counter-for="INPUT_ID"></small>
+   right after an input that has a maxlength. admin-script.js fills in
+   "12/60" and toggles the state classes below.
+   ========================================================================== */
+.char-counter {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--admin-muted);
+    text-align: right;
+}
+
+/* Variant that sits on the label's line (right side) instead of under
+   the input - for fields inside grids that align inputs by their bottom
+   edge, where an extra line under one input would knock it out of line. */
+.char-counter.char-counter--in-label {
+    display: inline;
+    float: right;
+    margin-top: 0;
+    font-weight: 400;
+}
+
+.char-counter.is-near {
+    color: #b45309;
+}
+
+.char-counter.is-full,
+.char-counter.is-over {
+    color: #e02424;
+    font-weight: 600;
+}
+
+
+/* ==========================================================================
+   feat/title-char-limit: replacements for removed inline styles
+   ========================================================================== */
+
+/* Starts hidden; the page JS shows it by setting style.display, exactly
+   as before (inline display from JS always beats this class). Compound
+   selectors so it beats `.custom-modal-overlay { display: flex; }`. */
+.is-hidden,
+.custom-modal-overlay.is-hidden,
+.archive-tab-view.is-hidden {
+    display: none;
+}
+
+/* Footer with 2+ buttons (Cancel + Save/Create) - was style="gap: 12px;" */
+.modal-footer-actions.modal-footer-actions--gap {
+    gap: 12px;
+}

@@ -72,10 +72,10 @@
                 <tr data-acc-id="${escapeHtml(acc.acc_id)}">
                     <td class="profile-cell">
                         <div class="avatar-sm">👤</div>
-                        <strong>${escapeHtml(acc.full_name)}</strong>
+                        <strong class="cell-truncate-1">${escapeHtml(acc.full_name)}</strong>
                     </td>
-                    <td class="text-muted">${escapeHtml(acc.username)}</td>
-                    <td class="text-muted">${escapeHtml(acc.email)}</td>
+                    <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">${escapeHtml(acc.username)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate-1">${escapeHtml(acc.email)}</span></td>
                     <td>${roleBadgeHtml(acc)}</td>
                     <td>${statusBadgeHtml(acc)}</td>
                     <td class="text-muted">${escapeHtml(acc.date_created)}</td>

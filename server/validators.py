@@ -59,6 +59,25 @@ EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 # ------------------------------------------------------------
 MOBILE_REGEX = re.compile(r"^09\d{9}$")
 
+# ------------------------------------------------------------
+# Title / name length limits (feat/title-char-limit).
+# Single source of truth for every admin-typed title. The same numbers
+# reach the HTML inputs' `maxlength` through admin_routes.py's context
+# processor (`title_limits`), and the live counters in JS read that
+# `maxlength` attribute - so changing a number here changes it
+# everywhere (input, counter, and backend check).
+# Kept well under the DB column sizes (255 / 100) so long titles can't
+# stretch the admin tables.
+# ------------------------------------------------------------
+TITLE_LIMITS = {
+    "category": 50,   # Chapter name   -> category_tbl.category_name
+    "module": 60,     # Module name    -> modules_tbl.module_name
+    "resource": 60,   # Lesson title   -> learning_resources_tbl.resource_title
+    "video": 60,      # Video title    -> video_tutorials_tbl.video_title
+    "activity": 60,   # Activity title -> learning_activities_tbl.activity_title
+    "exercise": 60,   # Exercise title -> coding_exercises_tbl.exercise_title
+}
+
 # Allowed characters for name-type fields (letters, spaces, hyphens,
 # apostrophes, periods) - covers First/Middle/Last Name and Suffix.
 NAME_CHARS_REGEX = re.compile(r"^[A-Za-z\s'\-.]+$")
@@ -108,6 +127,20 @@ def validate_name_field(value, label, required=True):
         return True, ""
     if not NAME_CHARS_REGEX.match(value):
         return False, f"{label} may only contain letters, spaces, hyphens, and apostrophes."
+    return True, ""
+
+
+def validate_title_length(value, limit_key, label):
+    """
+    Checks a title/name against its TITLE_LIMITS entry.
+    Returns (is_valid, message) like the other helpers here. Only checks
+    LENGTH - "is it required?" stays with each route's existing check, so
+    a blank Save Draft still behaves exactly as before.
+    """
+    limit = TITLE_LIMITS[limit_key]
+    length = len((value or "").strip())
+    if length > limit:
+        return False, f"{label} must be {limit} characters or less (currently {length})."
     return True, ""
 
 

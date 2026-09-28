@@ -594,11 +594,11 @@
                 return `
                 <tr data-resource-id="${r.resource_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(r.resource_title)}</strong>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(r.resource_title)}</strong>
                     </td>
                     <td>${contentIconsHtml(r.resource_id, r.type, r.video_file_path)}</td>
-                    <td class="text-muted">${escapeHtml(r.category)}</td>
-                    <td class="text-muted">${escapeHtml(r.uploaded_by)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(r.category)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">${escapeHtml(r.uploaded_by)}</span></td>
                     <td class="text-muted js-status-cell">${statusBadgeHtml(r.status)}</td>
                     <td class="text-muted">${escapeHtml(r.created_at)}</td>
                     <td class="text-muted">${escapeHtml(r.updated_at)}</td>

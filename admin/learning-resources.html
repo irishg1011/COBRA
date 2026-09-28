@@ -155,7 +155,7 @@
                             {% for resource in resources %}
                             <tr data-resource-id="{{ resource.resource_id }}">
                                 <td>
-                                    <strong class="table-item-title">{{ resource.resource_title }}</strong>
+                                    <strong class="table-item-title cell-truncate">{{ resource.resource_title }}</strong>
                                 </td>
                                 <td>
                                     <button type="button" class="resource-content-trigger" data-resource-id="{{ resource.resource_id }}" title="Preview {{ resource.type }}">
@@ -167,8 +167,8 @@
                                     </button>
                                     {% endif %}
                                 </td>
-                                <td class="text-muted">{{ resource.category }}</td>
-                                <td class="text-muted">{{ resource.uploaded_by }}</td>
+                                <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ resource.category }}</span></td>
+                                <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">{{ resource.uploaded_by }}</span></td>
                                 <!--
                                     Task #43: js-status-cell lets
                                     admin-resource-publish.js update just

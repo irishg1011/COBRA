@@ -175,12 +175,12 @@
             tableBody.innerHTML = lessons.map(l => `
                 <tr data-resource-id="${l.resource_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(l.lesson_name)}</strong>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(l.lesson_name)}</strong>
                     </td>
                     <td>${activityIconsHtml(l.resource_id, l.activity_type_names)}</td>
-                    <td class="text-muted">${escapeHtml(l.module)}</td>
-                    <td class="text-muted">${escapeHtml(l.category)}</td>
-                    <td class="text-muted">${escapeHtml(l.uploaded_by)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(l.module)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(l.category)}</span></td>
+                    <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">${escapeHtml(l.uploaded_by)}</span></td>
                     <td class="js-status-cell">${statusBadgeHtml(l.status)}</td>
                     <td class="text-muted">${escapeHtml(l.created_at)}</td>
                     <td class="text-muted">${escapeHtml(l.updated_at)}</td>

@@ -55,6 +55,7 @@ import re
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from validators import validate_title_length  # feat/title-char-limit
 
 VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
@@ -211,6 +212,9 @@ def validate_video_title(title):
     formatted = format_video_title(title)
     if not formatted:
         return False, "Video Tutorial Title is required.", ""
+    is_valid, length_msg = validate_title_length(formatted, "video", "Video Tutorial Title")
+    if not is_valid:
+        return False, length_msg, ""
     return True, None, formatted
 
 

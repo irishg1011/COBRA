@@ -235,10 +235,10 @@
             tableBody.innerHTML = modules.map(m => `
                 <tr data-module-id="${m.module_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(m.module_name)}</strong>
-                        <small class="text-muted">${escapeHtml(m.description)}</small>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(m.module_name)}</strong>
+                        <small class="text-muted cell-truncate-1">${escapeHtml(m.description)}</small>
                     </td>
-                    <td class="text-muted">${escapeHtml(m.category)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(m.category)}</span></td>
                     <td class="js-status-cell">${statusBadgeHtml(m.status)}</td>
                     <td class="text-muted">${escapeHtml(m.created_at)}</td>
                     <td class="text-muted">${escapeHtml(m.updated_at)}</td>
@@ -1149,10 +1149,10 @@
             archivedModulesTableBody.innerHTML = modules.map(m => `
                 <tr data-module-id="${m.module_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(m.module_name)}</strong>
-                        <small class="text-muted">${escapeHtml(m.description)}</small>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(m.module_name)}</strong>
+                        <small class="text-muted cell-truncate-1">${escapeHtml(m.description)}</small>
                     </td>
-                    <td class="text-muted">${escapeHtml(m.category)}</td>
+                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(m.category)}</span></td>
                     <td>${statusBadgeHtml(m.status)}</td>
                     <td class="text-muted">${escapeHtml(m.updated_at)}</td>
                     <td class="text-right">
@@ -1206,7 +1206,7 @@
             archivedCategoriesTableBody.innerHTML = categories.map(c => `
                 <tr data-cat-id="${c.cat_id}">
                     <td>
-                        <strong class="table-item-title">${escapeHtml(c.category_name)}</strong>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(c.category_name)}</strong>
                     </td>
                     <td class="text-muted">${c.module_count} module${c.module_count === 1 ? '' : 's'}</td>
                     <td class="text-right">

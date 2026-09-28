@@ -119,11 +119,11 @@
                             {% for exercise in exercises %}
                             <tr data-exercise-id="{{ exercise.exercise_id }}">
                                 <td>
-                                    <strong class="table-item-title">{{ exercise.exercise_title }}</strong>
+                                    <strong class="table-item-title cell-truncate">{{ exercise.exercise_title }}</strong>
                                 </td>
-                                <td class="text-muted">{{ exercise.category }}</td>
-                                <td class="text-muted">{{ exercise.module }}</td>
-                                <td class="text-muted">{{ exercise.lesson }}</td>
+                                <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ exercise.category }}</span></td>
+                                <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ exercise.module }}</span></td>
+                                <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ exercise.lesson }}</span></td>
                                 <td class="js-status-cell">
                                     {% if exercise.status == 'Published' %}
                                     <span class="badge badge-active">{{ exercise.status }}</span>
@@ -135,7 +135,7 @@
                                     <span class="badge badge-draft">{{ exercise.status }}</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-muted">{{ exercise.uploaded_by }}</td>
+                                <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">{{ exercise.uploaded_by }}</span></td>
                                 <td class="text-muted">{{ exercise.created_at }}</td>
                                 <td class="text-muted">{{ exercise.updated_at }}</td>
                                 <td class="text-right exercise-actions-column">

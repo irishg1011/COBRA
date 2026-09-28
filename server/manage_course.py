@@ -9,6 +9,7 @@ responses, so this file never touches Flask/session state directly.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from validators import validate_title_length  # feat/title-char-limit: shared max-length check (limits live in validators.TITLE_LIMITS)
 from text_formatting import format_display_name, format_sentence_case  # NEW: sentence-case normalization for Category/Module names; format_sentence_case (Task #77) additionally restarts casing after every period, for Module Name + Description
 
 CATEGORY_TABLE = "category_tbl"
@@ -360,6 +361,9 @@ def create_category(category_name):
     name = format_display_name(category_name)
     if not name:
         return False, "Category name is required.", None
+    is_valid, length_msg = validate_title_length(name, "category", "Category name")
+    if not is_valid:
+        return False, length_msg, None
 
     connection = get_db_connection()
     if connection is None:
@@ -394,6 +398,9 @@ def update_category(cat_id, category_name):
     name = format_display_name(category_name)
     if not name:
         return False, "Category name is required."
+    is_valid, length_msg = validate_title_length(name, "category", "Category name")
+    if not is_valid:
+        return False, length_msg
 
     connection = get_db_connection()
     if connection is None:
@@ -695,6 +702,9 @@ def create_module(module_name, description, cat_id, module_stats_id):
 
     if not name:
         return False, "Module name is required.", None
+    is_valid, length_msg = validate_title_length(name, "module", "Module name")
+    if not is_valid:
+        return False, length_msg, None
     if not desc:
         return False, "Description is required.", None
     if not cat_id:
@@ -756,6 +766,9 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id=N
 
     if not name:
         return False, "Module name is required."
+    is_valid, length_msg = validate_title_length(name, "module", "Module name")
+    if not is_valid:
+        return False, length_msg
     if not desc:
         return False, "Description is required."
     if not cat_id:
