@@ -723,6 +723,9 @@
         // date filters.
         if (typeSelect) typeSelect.addEventListener("change", () => scheduleLoad(true));
 
+        // feat/module-title-history: a reverted name shows up right away.
+        document.addEventListener("cobra:title-changed", () => loadResources());
+
         if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; loadResources(); } });
         if (nextBtn) nextBtn.addEventListener("click", () => { if (currentPage < totalPages) { currentPage++; loadResources(); } });
 

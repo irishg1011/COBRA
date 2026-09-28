@@ -4052,3 +4052,187 @@ textarea.form-control-custom {
     background: #d1d5db;
     color: #374151;
 }
+
+
+/* ==========================================================================
+   feat/module-title-history: NAME HISTORY MODAL (title-history-modal.html)
+   Shares the .content-preview-card shell with the other preview modals.
+   ========================================================================== */
+.content-preview-card.title-history-card {
+    max-width: 580px;
+}
+
+.title-history-heading {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.title-history-subtitle {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.title-history-subtitle:empty {
+    display: none;
+}
+
+.title-history-section + .title-history-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.title-history-label {
+    display: inline-block;
+    margin-bottom: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    font-size: 11px;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.title-history-current {
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+.title-history-current strong {
+    color: var(--admin-text);
+}
+
+/* Timeline: icon dots joined by a thin line, newest on top */
+.title-history-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.title-history-item {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding-bottom: 14px;
+}
+
+.title-history-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 28px;
+    bottom: 0;
+    left: 13px;
+    width: 2px;
+    background: #e5e7eb;
+}
+
+.title-history-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #e0f2fe;
+    color: var(--admin-blue);
+    font-size: 11px;
+}
+
+.title-history-item--created .title-history-icon {
+    background: #C8F2D2;
+    color: #0F7A3D;
+}
+
+.title-history-item--reverted .title-history-icon {
+    background: #FEF3C7;
+    color: #A16207;
+}
+
+.title-history-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.title-history-change {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #374151;
+    overflow-wrap: anywhere;
+}
+
+.title-history-change strong {
+    color: var(--admin-text);
+}
+
+.title-history-arrow {
+    margin: 0 4px;
+    font-size: 10px;
+    color: var(--admin-muted);
+}
+
+.title-history-meta {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.title-history-actions:empty {
+    display: none;
+}
+
+.title-history-actions {
+    margin-top: 6px;
+}
+
+.btn-pill-light.title-history-revert-btn {
+    padding: 3px 12px;
+    font-size: 12px;
+}
+
+/* Inline "Rename back to ...? [Cancel] [Revert]" */
+.title-history-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    font-size: 12px;
+    color: #374151;
+}
+
+.title-history-confirm span {
+    flex: 1 1 180px;
+    overflow-wrap: anywhere;
+}
+
+.modal-btn-cancel.title-history-small-btn,
+.modal-btn-save.title-history-small-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+.title-history-error {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #e02424;
+}
+
+.title-history-error:empty {
+    display: none;
+}
+
+.title-history-empty {
+    font-size: 13px;
+}
+
+/* The Categories modal's history icon (an <i>, like Rename / Archive next to it) */
+.category-actions .js-title-history {
+    cursor: pointer;
+}

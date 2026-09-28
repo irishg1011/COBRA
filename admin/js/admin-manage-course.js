@@ -245,6 +245,7 @@
                     <td class="text-right">
                         <div class="table-actions-group">
                             <a href="#" title="Edit" class="table-action-icon js-edit-module" data-id="${m.module_id}"><i class="fa-solid fa-pen-to-square"></i></a>
+                            <a href="#" title="Name history" class="table-action-icon js-title-history" data-scope="module" data-id="${m.module_id}"><i class="fa-solid fa-clock-rotate-left"></i></a>
                             <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="${m.module_id}"><i class="fa-solid fa-box-archive"></i></a>
                         </div>
                     </td>
@@ -754,6 +755,7 @@
                             ${categoryPublishButtonHtml(cat.cat_id, cat.status_name)}
                             <i class="fa-solid fa-square-plus js-add-module-to-category" title="Add Module"></i>
                             <i class="fa-solid fa-pen-to-square js-edit-category" title="Rename"></i>
+                            <i class="fa-solid fa-clock-rotate-left js-title-history" data-scope="category" data-id="${cat.cat_id}" title="Name history" role="button" tabindex="0" aria-label="Name history"></i>
                             <i class="fa-solid fa-trash js-delete-category" title="Archive Category"></i>
                         </span>
                     </div>
@@ -891,6 +893,14 @@
         if (modalAddModuleBtn) {
             modalAddModuleBtn.addEventListener("click", () => openCreateModule());
         }
+
+        // feat/module-title-history: after "Revert to this" in the Name
+        // History modal, reload the modules table + Categories modal so
+        // the restored name shows right away.
+        document.addEventListener("cobra:title-changed", () => {
+            loadModules();
+            refreshCategoriesModal();
+        });
 
         // ------------------------------------------------------------
         // Edit Module Modal (Task #90: Confirmation & Changes Saved Toast)

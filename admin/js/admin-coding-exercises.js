@@ -120,6 +120,7 @@
                     <td class="text-right exercise-actions-column">
                         <div class="table-actions-group">
                             <a href="/admin/coding-exercises/create?exercise_id=${escapeHtml(ex.exercise_id)}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+                            <a href="#" title="Name history" class="table-action-icon js-title-history" data-scope="exercise" data-id="${escapeHtml(ex.exercise_id)}"><i class="fa-solid fa-clock-rotate-left"></i></a>
                             <a href="#" title="Archive"
                                class="table-action-icon delete-action js-archive-exercise-btn"
                                data-exercise-id="${escapeHtml(ex.exercise_id)}">
@@ -274,6 +275,9 @@
 
         setupDateFilterEvents(createdFromInput, createdToInput, createdRangeToggle, clearCreatedDateBtn);
         setupDateFilterEvents(updatedFromInput, updatedToInput, updatedRangeToggle, clearUpdatedDateBtn);
+
+        // feat/module-title-history: a reverted name shows up right away.
+        document.addEventListener("cobra:title-changed", () => fetchExercises(currentPage));
 
         if (prevBtn) {
             prevBtn.addEventListener("click", () => {

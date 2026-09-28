@@ -65,6 +65,7 @@ from learning_activities import (
 from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
 from activity_points import calculate_activity_points_from_lists  # Task #55/#56: never trust client-supplied points
 from learning_activity_content import save_activity_content, get_activity_content  # Task #56: Section 2 persistence
+from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 
 
 def get_la_draft_status_id(connection=None):
@@ -324,6 +325,7 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
         return False, "Could not connect to the database.", None, 0
 
     try:
+        ensure_title_history(connection)  # before any write - DDL commits implicitly
         draft_status_id = get_la_draft_status_id(connection)
         if not draft_status_id:
             return False, "Could not resolve the Draft status.", None, 0
@@ -336,10 +338,11 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
 
         if existing_id:
             cursor.execute(
-                f"SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
+                f"SELECT activity_title FROM {LEARNING_ACTIVITIES_TABLE} WHERE la_id = %s",
                 (existing_id,)
             )
-            if cursor.fetchone() is None:
+            old_row = cursor.fetchone()
+            if old_row is None:
                 cursor.close()
                 return False, "This draft no longer exists. Please refresh and try again.", None, 0
 
@@ -352,6 +355,7 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
                 (title, cat_id, module_id, resource_id, activity_type_id,
                  points_val, draft_status_id, existing_id)
             )
+            log_title_change(cursor, "activity", existing_id, old_row[0], title, uploaded_by)
             cursor.close()
 
             # Task #56: Section 2 is saved on this SAME connection,
@@ -372,6 +376,7 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
              points_val, draft_status_id, uploaded_by)
         )
         new_id = cursor.lastrowid
+        log_title_change(cursor, "activity", new_id, None, title, uploaded_by)
         cursor.close()
 
         save_activity_content(

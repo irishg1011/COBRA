@@ -45,6 +45,7 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from lesson_validation import format_lesson_title, is_lesson_title_taken
 from validators import validate_title_length  # feat/title-char-limit
+from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 from resource_publishing import get_draft_status_id
 from lesson_content_validation import validate_lesson_content
 
@@ -264,6 +265,10 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
         return False, "Could not connect to the database.", None
 
     try:
+        # feat/module-title-history: before any write (DDL commits implicitly).
+        # uploaded_by is the admin saving right now - also who renamed it.
+        ensure_title_history(connection)
+
         # Task #42's exact global-uniqueness rule, just excluding this
         # resource's own row when re-saving an existing draft so a
         # lesson doesn't collide with itself.
@@ -288,10 +293,11 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
             # have been deleted/archived by another admin in the
             # meantime.
             cursor.execute(
-                f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
+                f"SELECT resource_title FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
                 (existing_id,)
             )
-            if cursor.fetchone() is None:
+            old_row = cursor.fetchone()
+            if old_row is None:
                 cursor.close()
                 return False, "This resource no longer exists. Please refresh and try again.", None
 
@@ -318,6 +324,8 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
                     (normalized_name, cat_id, module_id, draft_status_id, existing_id)
                 )
                 success_msg = "Draft saved successfully."
+
+            log_title_change(cursor, "lesson", existing_id, old_row[0], normalized_name, uploaded_by)
 
             cursor.execute(
                 f"SELECT lesson_content_id FROM {LESSON_CONTENT_TABLE} WHERE resource_id = %s",
@@ -365,6 +373,7 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
             (normalized_name, resource_type_id, cat_id, module_id, uploaded_by, draft_status_id)
         )
         new_resource_id = cursor.lastrowid
+        log_title_change(cursor, "lesson", new_resource_id, None, normalized_name, uploaded_by)
 
         cursor.execute(
             f"INSERT INTO {LESSON_CONTENT_TABLE} (resource_id, content_body) VALUES (%s, %s)",

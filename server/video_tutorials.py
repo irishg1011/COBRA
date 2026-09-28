@@ -56,6 +56,7 @@ import re
 from mysql.connector import Error
 from cobradb import get_db_connection
 from validators import validate_title_length  # feat/title-char-limit
+from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 
 VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
@@ -353,6 +354,7 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
 
     try:
         ensure_video_stats(connection)
+        ensure_title_history(connection)  # before any write - DDL commits implicitly
         cursor = connection.cursor(dictionary=True)
 
         video_tutorial_id = data.get("video_tutorial_id")
@@ -422,10 +424,11 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
 
         if video_tutorial_id:
             cursor.execute(
-                f"SELECT video_tutorial_id FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s",
+                f"SELECT video_title FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s",
                 (video_tutorial_id,)
             )
-            if cursor.fetchone() is None:
+            old_row = cursor.fetchone()
+            if old_row is None:
                 cursor.close()
                 return False, None, "This video tutorial no longer exists. Please refresh and try again."
 
@@ -440,6 +443,7 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
                 (resource_id, formatted_title, description, final_video_id,
                  status_id, video_tutorial_id)
             )
+            log_title_change(cursor, "video", video_tutorial_id, old_row.get("video_title"), formatted_title, uploader)
             connection.commit()
             cursor.close()
             action_msg = "published" if status_name == "Published" else "saved as draft"
@@ -456,6 +460,7 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
              status_id, uploader)
         )
         new_id = cursor.lastrowid
+        log_title_change(cursor, "video", new_id, None, formatted_title, uploader)
         connection.commit()
         cursor.close()
         action_msg = "published" if status_name == "Published" else "saved as draft"

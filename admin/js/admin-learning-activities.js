@@ -141,6 +141,7 @@
             return `
                 <div class="table-actions-group">
                     <button type="button" title="Edit" class="table-action-icon js-edit-activity-trigger" data-resource-id="${resourceId}"><i class="fa-solid fa-pen-to-square"></i></button>
+                    <button type="button" title="Name history" class="table-action-icon js-title-history" data-scope="activities" data-id="${resourceId}"><i class="fa-solid fa-clock-rotate-left"></i></button>
                     <button type="button" title="Archive" class="table-action-icon delete-action js-archive-activity-trigger" data-resource-id="${resourceId}"><i class="fa-solid fa-box-archive"></i></button>
                 </div>`;
         }
@@ -284,6 +285,9 @@
         searchInput.addEventListener("input", () => scheduleLoad(true));
         if (typeSelect) typeSelect.addEventListener("change", () => scheduleLoad(true));
         if (sortSelect) sortSelect.addEventListener("change", () => scheduleLoad(true));
+
+        // feat/module-title-history: a reverted name shows up right away.
+        document.addEventListener("cobra:title-changed", () => loadActivities());
 
         if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; loadActivities(); } });
         if (nextBtn) nextBtn.addEventListener("click", () => { if (currentPage < totalPages) { currentPage++; loadActivities(); } });

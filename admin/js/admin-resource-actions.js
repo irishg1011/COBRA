@@ -200,6 +200,10 @@
                        data-resource-id="${resourceId}" data-edit-url="${escapeHtml(href)}"${statusAttr}${videoAttr}>
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
+                    <button type="button" title="Name history" class="table-action-icon js-title-history"
+                       data-scope="lesson" data-id="${resourceId}">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </button>
                     <button type="button" title="Archive"
                        class="table-action-icon delete-action js-archive-resource-trigger"
                        data-resource-id="${resourceId}"${statusAttr}${videoIdAttr}${videoStatusAttr}>

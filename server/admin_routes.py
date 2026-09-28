@@ -89,6 +89,8 @@ from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - re
 )
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
 from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
+from title_history import get_title_history  # feat/module-title-history: History modal data
+from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from account_management import (  # feat/archive-accounts: Account Details modal + soft-delete archive/restore
     get_account_detail, archive_account, restore_account, get_archived_accounts,
     get_archive_block_reason, is_account_archived,
@@ -1512,7 +1514,7 @@ def manage_course_categories():
 @admin_bp.route('/manage-course/categories/create', methods=['POST'])
 def manage_course_create_category():
     data = request.form if request.form else (request.get_json(silent=True) or {})
-    success, message, cat_id = create_category(data.get('category_name'))
+    success, message, cat_id = create_category(data.get('category_name'), changed_by=session.get('admin_id'))
     status_code = 201 if success else 400
     return jsonify({"success": success, "message": message, "cat_id": cat_id}), status_code
  
@@ -1520,7 +1522,7 @@ def manage_course_create_category():
 @admin_bp.route('/manage-course/categories/<int:cat_id>/update', methods=['POST'])
 def manage_course_update_category(cat_id):
     data = request.form if request.form else (request.get_json(silent=True) or {})
-    success, message = update_category(cat_id, data.get('category_name'))
+    success, message = update_category(cat_id, data.get('category_name'), changed_by=session.get('admin_id'))
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -1572,7 +1574,8 @@ def manage_course_create_module():
     data = request.form if request.form else (request.get_json(silent=True) or {})
     success, message, module_id = create_module(
         data.get('module_name'), data.get('description'),
-        data.get('cat_id'), data.get('module_stats_id')
+        data.get('cat_id'), data.get('module_stats_id'),
+        changed_by=session.get('admin_id'),
     )
     return jsonify({"success": success, "message": message, "module_id": module_id}), (201 if success else 400)
  
@@ -1582,7 +1585,8 @@ def manage_course_update_module(module_id):
     data = request.form if request.form else (request.get_json(silent=True) or {})
     success, message = update_module(
         module_id, data.get('module_name'), data.get('description'),
-        data.get('cat_id'), data.get('module_stats_id')
+        data.get('cat_id'), data.get('module_stats_id'),
+        changed_by=session.get('admin_id'),
     )
     return jsonify({"success": success, "message": message}), (200 if success else 400)
  
@@ -1753,6 +1757,39 @@ def manage_course_permanently_delete_category(cat_id):
     Task #87: Permanently deletes an archived category from the database.
     """
     success, message = permanently_delete_category(cat_id)
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# ============================================================
+# feat/module-title-history: NAME HISTORY (JSON)
+# One route for every History icon; thin wrappers only - logic lives
+# in title_history.py / title_history_revert.py.
+# ============================================================
+TITLE_HISTORY_SCOPES = {"category", "module", "lesson", "activities", "exercise"}
+
+
+@admin_bp.route('/title-history/<scope>/<int:target_id>')
+def title_history(scope, target_id):
+    """
+    scope: category | module | exercise  -> that item
+           lesson     -> the lesson + its video tutorial(s)
+           activities -> every activity of that lesson (target_id = resource_id)
+    Returns JSON: { success, heading, sections: [{entity_type, entity_id,
+    label, current_title, entries: [...]}] }
+    """
+    if scope not in TITLE_HISTORY_SCOPES:
+        return jsonify({"success": False, "message": "Unknown history type."}), 400
+    history = get_title_history(scope, target_id)
+    if history is None:
+        return jsonify({"success": False, "message": "No history found for this item."}), 404
+    return jsonify({"success": True, **history}), 200
+
+
+@admin_bp.route('/title-history/revert', methods=['POST'])
+def title_history_revert():
+    """Puts back an older name - same validation as a normal rename. JSON body: { history_id }."""
+    data = request.get_json(silent=True) or {}
+    success, message = revert_title(data.get('history_id'), changed_by=session.get('admin_id'))
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 

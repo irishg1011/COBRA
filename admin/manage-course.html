@@ -165,6 +165,7 @@
                                 <td class="text-right">
                                     <div class="table-actions-group">
                                         <a href="#" title="Edit" class="table-action-icon js-edit-module" data-id="{{ module.module_id }}"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <a href="#" title="Name history" class="table-action-icon js-title-history" data-scope="module" data-id="{{ module.module_id }}"><i class="fa-solid fa-clock-rotate-left"></i></a>
                                         <a href="#" title="Archive" class="table-action-icon delete-action js-delete-module" data-id="{{ module.module_id }}"><i class="fa-solid fa-box-archive"></i></a>
                                     </div>
                                 </td>
@@ -212,11 +213,13 @@
 {% include 'archived-modules-modal.html' %}
 {% include 'confirm-action-modal.html' %}         {# NEW - Task #116 #}
 {% include 'restore-selection-modal.html' %}      {# NEW - Task #116 #}
+{% include 'title-history-modal.html' %}          {# feat/module-title-history #}
 
 <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/admin-manage-course.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/admin-title-history.js') }}"></script>  {# feat/module-title-history #}
 <script src="{{ url_for('admin_bp.static', filename='js/admin-relational-archive.js') }}"></script>  {# NEW - Task #116, must load LAST #}
 </body>
 </html>

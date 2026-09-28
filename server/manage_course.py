@@ -10,6 +10,7 @@ responses, so this file never touches Flask/session state directly.
 from mysql.connector import Error
 from cobradb import get_db_connection
 from validators import validate_title_length  # feat/title-char-limit: shared max-length check (limits live in validators.TITLE_LIMITS)
+from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 from text_formatting import format_display_name, format_sentence_case  # NEW: sentence-case normalization for Category/Module names; format_sentence_case (Task #77) additionally restarts casing after every period, for Module Name + Description
 
 CATEGORY_TABLE = "category_tbl"
@@ -354,7 +355,7 @@ def get_categories_with_modules(include_archived=False):
             connection.close()
 
 
-def create_category(category_name):
+def create_category(category_name, changed_by=None):
     # Task: Category names are auto-formatted to sentence case
     # ("pYtHoN bAsIcS" -> "Python basics") before any validation,
     # duplicate check, or save - see text_formatting.format_display_name().
@@ -371,6 +372,7 @@ def create_category(category_name):
 
     try:
         ensure_category_is_archived_column(connection)
+        ensure_title_history(connection)  # before any write - DDL commits implicitly
         cursor = connection.cursor()
         # Prevent duplicate active category names (case-insensitive).
         cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s) AND is_archived = 0", (name,))
@@ -379,8 +381,9 @@ def create_category(category_name):
             return False, "A category with this name already exists.", None
 
         cursor.execute(f"INSERT INTO {CATEGORY_TABLE} (category_name, is_archived) VALUES (%s, 0)", (name,))
-        connection.commit()
         new_id = cursor.lastrowid
+        log_title_change(cursor, "category", new_id, None, name, changed_by)
+        connection.commit()
         cursor.close()
         return True, "Category created successfully.", new_id
     except Error as e:
@@ -392,7 +395,7 @@ def create_category(category_name):
             connection.close()
 
 
-def update_category(cat_id, category_name):
+def update_category(cat_id, category_name, changed_by=None):
     # Task: same sentence-case formatting as create_category() above,
     # so a rename always ends up in the same normalized form.
     name = format_display_name(category_name)
@@ -408,6 +411,7 @@ def update_category(cat_id, category_name):
 
     try:
         ensure_category_is_archived_column(connection)
+        ensure_title_history(connection)
         cursor = connection.cursor()
         cursor.execute(
             f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s) AND cat_id != %s AND is_archived = 0",
@@ -417,7 +421,11 @@ def update_category(cat_id, category_name):
             cursor.close()
             return False, "A category with this name already exists."
 
+        cursor.execute(f"SELECT category_name FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
+        old_row = cursor.fetchone()
         cursor.execute(f"UPDATE {CATEGORY_TABLE} SET category_name = %s WHERE cat_id = %s", (name, cat_id))
+        if old_row:
+            log_title_change(cursor, "category", cat_id, old_row[0], name, changed_by)
         connection.commit()
         cursor.close()
         return True, "Category updated successfully."
@@ -691,7 +699,7 @@ def delete_category(cat_id):
 # ================================================================
 # MODULES
 # ================================================================
-def create_module(module_name, description, cat_id, module_stats_id):
+def create_module(module_name, description, cat_id, module_stats_id, changed_by=None):
     # Task #77: Module Name AND Description are both auto-formatted to
     # sentence case via format_sentence_case() - which, unlike
     # format_display_name() (still used for Category names), restarts
@@ -718,6 +726,7 @@ def create_module(module_name, description, cat_id, module_stats_id):
 
     try:
         ensure_module_stats(connection)
+        ensure_title_history(connection)
         cursor = connection.cursor()
 
         # Task #29: prevent duplicate modules WITHIN THE SAME CATEGORY.
@@ -742,8 +751,9 @@ def create_module(module_name, description, cat_id, module_stats_id):
                 VALUES (%s, %s, %s, %s, NOW(), NOW())""",
             (name, desc, cat_id, module_stats_id)
         )
-        connection.commit()
         new_id = cursor.lastrowid
+        log_title_change(cursor, "module", new_id, None, name, changed_by)
+        connection.commit()
         cursor.close()
         return True, "Module created successfully.", new_id
     except Error as e:
@@ -755,7 +765,7 @@ def create_module(module_name, description, cat_id, module_stats_id):
             connection.close()
 
 
-def update_module(module_id, module_name, description, cat_id, module_stats_id=None):
+def update_module(module_id, module_name, description, cat_id, module_stats_id=None, changed_by=None):
     # Task #77: same period-aware sentence-case formatting as
     # create_module() above, so editing an existing Module always ends
     # up in the same normalized form (e.g. "INTRODUCTION TO PYTHON. THIS
@@ -779,7 +789,10 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id=N
         return False, "Could not connect to the database."
 
     try:
+        ensure_title_history(connection)
         cursor = connection.cursor()
+        cursor.execute(f"SELECT module_name FROM {MODULES_TABLE} WHERE module_id = %s", (module_id,))
+        old_row = cursor.fetchone()
         # updated_at bumped, created_at intentionally left untouched.
         if module_stats_id:
             cursor.execute(
@@ -797,6 +810,8 @@ def update_module(module_id, module_name, description, cat_id, module_stats_id=N
                     WHERE module_id = %s""",
                 (name, desc, cat_id, module_id)
             )
+        if old_row:
+            log_title_change(cursor, "module", module_id, old_row[0], name, changed_by)
         connection.commit()
         cursor.close()
         return True, "Module updated successfully."

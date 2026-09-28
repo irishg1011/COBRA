@@ -141,6 +141,7 @@
                                 <td class="text-right exercise-actions-column">
                                     <div class="table-actions-group">
                                         <a href="{{ url_for('admin_bp.create_coding_exercise') }}?exercise_id={{ exercise.exercise_id }}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <a href="#" title="Name history" class="table-action-icon js-title-history" data-scope="exercise" data-id="{{ exercise.exercise_id }}"><i class="fa-solid fa-clock-rotate-left"></i></a>
                                         <a href="#" title="Archive"
                                            class="table-action-icon delete-action js-archive-exercise-btn"
                                            data-exercise-id="{{ exercise.exercise_id }}">
@@ -187,6 +188,7 @@
 
     {% include 'archived-exercises-modal.html' %}
     {% include 'confirm-action-modal.html' %}
+    {% include 'title-history-modal.html' %}
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
@@ -195,5 +197,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-coding-exercise-publish.js') }}"></script>
     <!-- NEW - Task #117: Dedicated Tabbed Archive Modal -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-archived-exercises.js') }}"></script>
+    <!-- feat/module-title-history: shared Name History modal -->
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-title-history.js') }}"></script>
 </body>
 </html>

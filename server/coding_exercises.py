@@ -10,6 +10,7 @@ these get turned into HTTP responses/JSON.
 from mysql.connector import Error
 from cobradb import get_db_connection
 from validators import validate_title_length  # feat/title-char-limit
+from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 TEST_CASES_TABLE = "test_cases_tbl"
@@ -495,6 +496,7 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
 
     try:
         ensure_exercise_stats(connection)
+        ensure_title_history(connection)  # before any write - DDL commits implicitly
         cursor = connection.cursor(dictionary=True)
 
         exercise_id = data.get('exercise_id')
@@ -543,6 +545,11 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
         uploader = uploaded_by or data.get('uploaded_by') or 'Admin'
 
         if exercise_id:
+            cursor.execute(
+                f"SELECT exercise_title FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
+                (exercise_id,)
+            )
+            old_row = cursor.fetchone()
             update_sql = f"""
                 UPDATE {CODING_EXERCISES_TABLE}
                 SET
@@ -564,6 +571,9 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
                 instruction, situation, problem_question, clue,
                 expected_answer, correct_feedback, exercise_id
             ))
+            if old_row:
+                # uploaded_by (not the 'Admin' fallback) - changed_by must be a real account
+                log_title_change(cursor, "exercise", exercise_id, old_row["exercise_title"], formatted_title, uploaded_by)
             # Clear old test cases
             cursor.execute(f"DELETE FROM {TEST_CASES_TABLE} WHERE exercise_id = %s", (exercise_id,))
         else:
@@ -583,6 +593,7 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
                 expected_answer, correct_feedback, uploader
             ))
             exercise_id = cursor.lastrowid
+            log_title_change(cursor, "exercise", exercise_id, None, formatted_title, uploaded_by)
 
         # Insert test cases
         test_cases = data.get('test_cases') or []

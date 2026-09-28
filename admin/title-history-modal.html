@@ -1,0 +1,20 @@
+<!-- title-history-modal.html - feat/module-title-history
+     Shared "Name History" modal, included on Manage Course, Learning
+     Resources, Learning Activities and Coding Exercises. Any element with
+     class .js-title-history + data-scope + data-id opens it
+     (admin-title-history.js). Hidden by default with .modal-hidden.
+     No inline styles or scripts. -->
+<div id="titleHistoryModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="titleHistoryTitle">
+    <div class="content-preview-card title-history-card">
+        <div class="content-preview-header">
+            <div>
+                <h3 id="titleHistoryTitle" class="title-history-heading">Name History</h3>
+                <p id="titleHistorySubtitle" class="title-history-subtitle"></p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeTitleHistoryBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+        <div class="content-preview-body" id="titleHistoryBody">
+            <p class="text-muted">Loading&hellip;</p>
+        </div>
+    </div>
+</div>
