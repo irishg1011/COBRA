@@ -1,0 +1,318 @@
+/* ==========================================================================
+   ADMIN > CODING SANDBOX (coding-sandbox.html + sandbox-run-modal.html)
+   Page-only styles. Everything shared (.table-card, .metric-card,
+   badges, pill buttons) comes from admin-style.css.
+   ========================================================================== */
+
+/* --- Metric cards: 4 across (the shared grid is 6) --- */
+.metrics-grid.sandbox-metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.sandbox-metrics-grid .metric-icon-box i {
+    font-size: 26px;
+}
+
+.sandbox-metrics-grid .metric-icon-box.metric-icon-danger {
+    background: #FDE2E2;
+    color: #C62828;
+}
+
+@media (max-width: 1100px) {
+    .metrics-grid.sandbox-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid.sandbox-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Toolbar: date range --- */
+.sandbox-date-separator {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+/* Shown by admin-coding-sandbox.js when From is after To */
+.date-filter-error.is-visible {
+    display: block;
+}
+
+/* --- Table: eye button --- */
+.sandbox-view-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 6px;
+    color: var(--admin-text);
+    transition: background 0.2s, color 0.2s;
+}
+
+.sandbox-view-btn:hover {
+    background: #f3f4f6;
+    color: var(--admin-blue);
+}
+
+.sandbox-view-btn:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 1px;
+}
+
+.sandbox-view-btn .mask-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* ==========================================================================
+   RUN MODAL
+   ========================================================================== */
+.sandbox-run-card {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 1040px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.sandbox-run-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 18px 22px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.sandbox-run-heading h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--admin-text);
+    margin-bottom: 8px;
+}
+
+.sandbox-run-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    font-size: 12px;
+    color: var(--admin-text);
+}
+
+.sandbox-run-meta-label {
+    color: var(--admin-muted);
+    margin-right: 4px;
+}
+
+.sandbox-run-meta strong {
+    font-weight: 500;
+}
+
+.sandbox-run-status {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.sandbox-run-status:empty {
+    display: none;
+}
+
+.sandbox-run-header .modal-close-btn {
+    color: var(--admin-muted);
+    line-height: 1;
+}
+
+.sandbox-run-header .modal-close-btn:hover {
+    color: var(--admin-text);
+}
+
+.sandbox-run-error {
+    display: none;
+    margin: 12px 22px 0;
+    padding: 10px 12px;
+    background: #fee2e2;
+    border-radius: 8px;
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+.sandbox-run-error.is-visible {
+    display: block;
+}
+
+.sandbox-run-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 16px;
+    padding: 18px 22px 22px;
+    overflow-y: auto;
+}
+
+.sandbox-run-side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.sandbox-run-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.sandbox-run-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+}
+
+.sandbox-run-panel-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.sandbox-run-panel-title i {
+    color: var(--admin-muted);
+}
+
+.sandbox-run-readonly-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.sandbox-run-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.sandbox-run-btn {
+    padding: 5px 14px;
+    font-size: 12px;
+}
+
+/* Read-only code editor */
+.sandbox-run-code {
+    width: 100%;
+    flex: 1;
+    min-height: 420px;
+    resize: none;
+    padding: 14px;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre;
+    overflow: auto;
+    tab-size: 4;
+    outline: none;
+}
+
+.sandbox-run-code:focus-visible {
+    border-color: var(--admin-blue);
+}
+
+/* What the learner's console showed when they ran it */
+.sandbox-run-output {
+    margin: 0;
+    min-height: 90px;
+    max-height: 160px;
+    overflow: auto;
+    padding: 12px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #f8fafc;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #1f2937;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.sandbox-run-output.is-empty {
+    color: var(--admin-muted);
+    font-style: italic;
+}
+
+/* Admin's own live run */
+.sandbox-run-console {
+    min-height: 180px;
+    max-height: 260px;
+    overflow: auto;
+    padding: 12px;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+
+.sandbox-run-console .console-line {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.sandbox-run-console .console-error {
+    color: #fca5a5;
+}
+
+.sandbox-run-console .console-placeholder {
+    margin: 0;
+    color: #94a3b8;
+    font-style: italic;
+}
+
+.sandbox-run-console .terminal-prompt-text {
+    white-space: pre-wrap;
+}
+
+.sandbox-run-console .terminal-inline-input {
+    width: 60%;
+    min-width: 120px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed #64748b;
+    color: #86efac;
+    font: inherit;
+    outline: none;
+}
+
+.sandbox-run-console .terminal-inline-input:disabled {
+    border-bottom-color: transparent;
+}
+
+@media (max-width: 900px) {
+    .sandbox-run-body {
+        grid-template-columns: 1fr;
+    }
+
+    .sandbox-run-code {
+        min-height: 260px;
+    }
+}

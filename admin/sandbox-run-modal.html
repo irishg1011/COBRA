@@ -1,0 +1,74 @@
+<!-- sandbox-run-modal.html - Admin > Coding Sandbox: view one learner run.
+     Opened by the eye button (admin-coding-sandbox.js). The code is
+     read-only; Run executes it in this browser with Pyodide and saves
+     nothing. Hidden by default with .modal-hidden. -->
+<div id="sandboxRunModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="sandboxRunModalTitle">
+    <div class="sandbox-run-card">
+
+        <div class="sandbox-run-header">
+            <div class="sandbox-run-heading">
+                <h3 id="sandboxRunModalTitle">Sandbox Run</h3>
+                <div class="sandbox-run-meta">
+                    <span class="sandbox-run-meta-item">
+                        <span class="sandbox-run-meta-label">Learner ID</span>
+                        <strong id="sandboxRunAccId">—</strong>
+                    </span>
+                    <span id="sandboxRunStatus" class="badge sandbox-run-status"></span>
+                    <span class="sandbox-run-meta-item">
+                        <span class="sandbox-run-meta-label">Exe Time</span>
+                        <strong id="sandboxRunExecTime">—</strong>
+                    </span>
+                    <span class="sandbox-run-meta-item">
+                        <span class="sandbox-run-meta-label">Size</span>
+                        <strong id="sandboxRunSize">—</strong>
+                    </span>
+                    <span class="sandbox-run-meta-item">
+                        <span class="sandbox-run-meta-label">Ran At</span>
+                        <strong id="sandboxRunAt">—</strong>
+                    </span>
+                    <span class="sandbox-run-meta-item">
+                        <span class="sandbox-run-meta-label">Snippet</span>
+                        <strong id="sandboxRunSnippet">—</strong>
+                    </span>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeSandboxRunModalBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <p id="sandboxRunLoadError" class="sandbox-run-error"></p>
+
+        <div class="sandbox-run-body">
+
+            <section class="sandbox-run-panel sandbox-run-code-panel">
+                <div class="sandbox-run-panel-header">
+                    <span class="sandbox-run-panel-title"><i class="fa-solid fa-code"></i> Learner's Code</span>
+                    <span class="sandbox-run-readonly-tag"><i class="fa-solid fa-lock"></i> Read-only</span>
+                </div>
+                <textarea id="sandboxRunCode" class="sandbox-run-code" readonly spellcheck="false" aria-label="Learner's code (read-only)"></textarea>
+            </section>
+
+            <div class="sandbox-run-side">
+                <section class="sandbox-run-panel">
+                    <div class="sandbox-run-panel-header">
+                        <span class="sandbox-run-panel-title"><i class="fa-solid fa-clock-rotate-left"></i> Learner's Output</span>
+                    </div>
+                    <pre id="sandboxRunOutput" class="sandbox-run-output"></pre>
+                </section>
+
+                <section class="sandbox-run-panel">
+                    <div class="sandbox-run-panel-header">
+                        <span class="sandbox-run-panel-title"><i class="fa-solid fa-terminal"></i> Live Console</span>
+                        <div class="sandbox-run-actions">
+                            <button type="button" class="btn-pill-light sandbox-run-btn" id="sandboxRunClearBtn">Clear</button>
+                            <button type="button" class="btn-pill-green sandbox-run-btn" id="sandboxRunCodeBtn" disabled>
+                                <i class="fa-solid fa-play"></i> Run
+                            </button>
+                        </div>
+                    </div>
+                    <div id="sandboxRunConsole" class="sandbox-run-console" aria-live="polite"><p id="sandboxRunConsolePlaceholder" class="console-placeholder">Click Run to execute this code here. Nothing is saved.</p></div>
+                </section>
+            </div>
+
+        </div>
+    </div>
+</div>

@@ -87,6 +87,7 @@ from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - re
     get_preview_video, get_preview_exercise, grade_preview_exercise, get_preview_next_lesson,
 )
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
+from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -2609,9 +2610,63 @@ def archive_coding_exercise(exercise_id):
     return redirect(url_for('admin_bp.coding_exercises'))
 
 
+# ============================================================
+# ROUTE: CODING SANDBOX MONITOR (page + live data + one run)
+# ============================================================
+def _read_sandbox_filters():
+    """Same query params for the page load and the live-data endpoint."""
+    return {
+        "search_query": request.args.get('q', ''),
+        "status_filter": request.args.get('status', ''),
+        "date_from": request.args.get('date_from', '') or None,
+        "date_to": request.args.get('date_to', '') or None,
+        "page": request.args.get('page', 1, type=int),
+    }
+
+
 @admin_bp.route('/coding-sandbox')
 def coding_sandbox():
-    return render_placeholder("Coding Sandbox")
+    """
+    Admin > Coding Sandbox: every learner Run Code from
+    sandbox_runs_tbl, with metric cards, search, status and date
+    range filters, and pagination (see sandbox_monitor.py).
+    """
+    filters = _read_sandbox_filters()
+    overview = get_sandbox_overview(**filters) or empty_sandbox_overview()
+
+    return render_template(
+        'coding-sandbox.html',
+        runs=overview["runs"],
+        metrics=overview["metrics"],
+        total_runs=overview["total"],
+        page=overview["page"],
+        total_pages=overview["total_pages"],
+        search=filters["search_query"] or '',
+        status_filter=filters["status_filter"] or '',
+        date_from=filters["date_from"] or '',
+        date_to=filters["date_to"] or '',
+    )
+
+
+@admin_bp.route('/coding-sandbox/data')
+def coding_sandbox_data():
+    """Live search/filter/pagination for admin-coding-sandbox.js."""
+    overview = get_sandbox_overview(**_read_sandbox_filters())
+    if overview is None:
+        empty = empty_sandbox_overview()
+        return jsonify({"success": False, **empty}), 500
+
+    return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/coding-sandbox/runs/<int:run_id>')
+def coding_sandbox_run_detail(run_id):
+    """One run's full code + recorded output for the eye-button modal."""
+    run = get_sandbox_run(run_id)
+    if run is None:
+        return jsonify({"success": False, "message": "Run not found or could not be loaded."}), 404
+
+    return jsonify({"success": True, "run": run}), 200
 
 
 @admin_bp.route('/learner-progress')

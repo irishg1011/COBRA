@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Coding Sandbox</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/coding-sandbox.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+
+                <!-- Page title, greeting & live date/time -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Coding Sandbox</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Monitor sandbox usage, execution logs, and statistics.</p>
+                    </div>
+                    <div class="top-bar-right">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metric cards (follow search + date, not status) -->
+                <div class="metrics-grid sandbox-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">Total Runs</p>
+                            <p class="metric-value" id="metricTotalRuns">{{ metrics.total_runs }}</p>
+                        </div>
+                        <div class="metric-icon-box metric-icon-soft">
+                            <span class="mask-icon icon-play"></span>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">Successful</p>
+                            <p class="metric-value" id="metricSuccessfulRuns">{{ metrics.successful }}</p>
+                        </div>
+                        <div class="metric-icon-box metric-icon-soft">
+                            <span class="mask-icon icon-check-circle"></span>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">Failed</p>
+                            <p class="metric-value" id="metricFailedRuns">{{ metrics.failed }}</p>
+                        </div>
+                        <div class="metric-icon-box metric-icon-danger">
+                            <i class="fa-regular fa-circle-xmark"></i>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">Avg Exec Time</p>
+                            <p class="metric-value" id="metricAvgExecTime">{{ metrics.avg_exec_time }}</p>
+                        </div>
+                        <div class="metric-icon-box metric-icon-soft">
+                            <i class="fa-regular fa-clock"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Runs Table Card -->
+                <div class="table-card">
+
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="sandboxSearchInput" placeholder="Search by learner ID..." value="{{ search }}">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="sandboxStatusSelect">
+                                <option value="">All Status</option>
+                                <option value="success" {{ 'selected' if status_filter == 'success' }}>Success</option>
+                                <option value="error" {{ 'selected' if status_filter == 'error' }}>Failed</option>
+                            </select>
+
+                            <div class="date-filter-group" id="sandboxDateGroup">
+                                <span class="date-filter-label">Run Date</span>
+                                <input type="date" class="custom-select" id="sandboxDateFromInput" title="From" value="{{ date_from }}">
+                                <span class="sandbox-date-separator">to</span>
+                                <input type="date" class="custom-select" id="sandboxDateToInput" title="To" value="{{ date_to }}">
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearSandboxDateBtn" title="Clear date filter">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <p id="sandboxDateFilterError" class="date-filter-error"></p>
+
+                    <div class="table-scroll">
+                        <table class="data-table sandbox-runs-table" id="sandboxRunsTable">
+                            <thead>
+                                <tr>
+                                    <th>Learner ID</th>
+                                    <th>Status</th>
+                                    <th>Exe Time</th>
+                                    <th>Size</th>
+                                    <th>Timestamp</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sandboxRunsTableBody" data-page="{{ page }}" data-total-pages="{{ total_pages }}">
+                                {% for run in runs %}
+                                <tr data-run-id="{{ run.run_id }}">
+                                    <td>{{ run.acc_id }}</td>
+                                    <td>
+                                        {% if run.status == 'success' %}
+                                        <span class="badge badge-active">{{ run.status_label }}</span>
+                                        {% else %}
+                                        <span class="badge badge-locked">{{ run.status_label }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ run.exec_time }}</td>
+                                    <td>{{ run.size }}</td>
+                                    <td>{{ run.run_at }}</td>
+                                    <td>
+                                        <button type="button" class="icon-button-reset sandbox-view-btn js-view-run-btn" data-run-id="{{ run.run_id }}" title="View code" aria-label="View code for run {{ run.run_id }}">
+                                            <span class="mask-icon icon-eye"></span>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-muted table-empty-message">No sandbox runs found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-pagination">
+                        <span id="sandboxShowingCount">Showing {{ runs|length }} of {{ total_runs }} Logs</span>
+                        <div class="pagination-controls">
+                            <button type="button" class="btn-pagination" id="sandboxPrevBtn" {{ 'disabled' if page <= 1 }} title="Previous Page">&lt;</button>
+                            <span id="sandboxPageLabel">{{ page }} of {{ total_pages }}</span>
+                            <button type="button" class="btn-pagination" id="sandboxNextBtn" {{ 'disabled' if page >= total_pages }} title="Next Page">&gt;</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    {% include 'sandbox-run-modal.html' %}
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-coding-sandbox.js') }}"></script>
+</body>
+</html>

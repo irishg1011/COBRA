@@ -39,7 +39,6 @@ from cobradb import get_db_connection
 SANDBOX_RUNS_TABLE = "sandbox_runs_tbl"
 MAX_CODE_LENGTH = 20000
 MAX_OUTPUT_LENGTH = 20000
-MAX_RUNS_PER_LEARNER = 200
 MAX_EXEC_TIME_MS = 3600000  # 1 hour cap - keeps a bad value inside DECIMAL(10,3)
 
 _table_ensured = False
@@ -137,22 +136,8 @@ def log_run(acc_id, code, output, status, snippet_id=None, exec_time_ms=None):
         )
         connection.commit()
 
-        # Task: keep this activity log from growing unbounded per
-        # learner - quietly drop their oldest runs beyond
-        # MAX_RUNS_PER_LEARNER.
-        cursor.execute(
-            f"SELECT run_id FROM {SANDBOX_RUNS_TABLE} WHERE acc_id = %s ORDER BY run_at DESC, run_id DESC LIMIT 1000",
-            (acc_id,)
-        )
-        all_ids = [row[0] for row in cursor.fetchall()]
-        stale_ids = all_ids[MAX_RUNS_PER_LEARNER:]
-        if stale_ids:
-            placeholders = ",".join(["%s"] * len(stale_ids))
-            cursor.execute(
-                f"DELETE FROM {SANDBOX_RUNS_TABLE} WHERE run_id IN ({placeholders})",
-                tuple(stale_ids)
-            )
-            connection.commit()
+        # Every run is kept permanently - the Admin > Coding Sandbox
+        # page needs full history for its totals and run viewer.
 
         cursor.close()
         return True
