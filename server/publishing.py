@@ -146,7 +146,29 @@ def _edited_sql(alias, status_expr):
             f"THEN 1 ELSE 0 END)")
 
 
+last_tree_error = None  # feat/publishing-tree: why the last build failed (shown on the page)
+
+
 def get_publishing_tree():
+    """
+    feat/publishing-tree: builds the tree, and if the build fails (for
+    example on the very first load after a restart, while the one-time
+    column setup runs) tries once more before giving up. On failure it
+    returns [] and leaves the reason in last_tree_error, so the page can
+    say "could not load" instead of "nothing here".
+    """
+    global last_tree_error
+    last_tree_error = None
+    tree = _build_publishing_tree()
+    if tree is None:
+        tree = _build_publishing_tree()
+    if tree is None:
+        return []
+    last_tree_error = None  # the retry worked - nothing to report
+    return tree
+
+
+def _build_publishing_tree():
     """
     Returns the full roadmap tree, in learner order:
 
@@ -168,12 +190,14 @@ def get_publishing_tree():
     Published item changed after it went live, which the Published tab
     shows with an Update button.
 
-    Archived items are excluded at every level. Returns [] (never raises)
-    on any database error.
+    Archived items are excluded at every level. Returns None (never
+    raises) on any database error - see get_publishing_tree().
     """
+    global last_tree_error
     connection = get_db_connection()
     if connection is None:
-        return []
+        last_tree_error = "Could not connect to the database."
+        return None
 
     try:
         ensure_category_stats_id_column(connection)
@@ -319,9 +343,10 @@ def get_publishing_tree():
             })
 
         return tree
-    except Error as e:
+    except Exception as e:  # any failure (not just DB errors) must reach the page, not look like "empty"
+        last_tree_error = str(e)
         print(f"publishing: failed to build publishing tree: {e}")
-        return []
+        return None
     finally:
-        if connection.is_connected():
+        if connection is not None and connection.is_connected():
             connection.close()

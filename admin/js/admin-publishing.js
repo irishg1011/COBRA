@@ -429,6 +429,11 @@
             if (editOrder) wireDragHandles();
         }
 
+        // A load error is shown as an error - never as "Nothing in Draft".
+        function showLoadError(message) {
+            root.innerHTML = `<p class="publishing-empty publishing-load-error">${escapeHtml(message)}</p>`;
+        }
+
         async function refreshTree() {
             try {
                 const resp = await fetch("/admin/publishing/data", { credentials: "same-origin" });
@@ -437,10 +442,13 @@
                     tree = result.tree || [];
                     updateCounts();
                     renderTree();
+                    return true;
                 }
+                showLoadError(result.message || "Could not load the course tree.");
             } catch (e) {
                 // keep the current tree rather than blanking the page
             }
+            return false;
         }
 
         // ------------------------------------------------------------
@@ -953,5 +961,16 @@
         setOrderActionsHtml();
         updateCounts();
         setTab(activeTab);
+
+        // feat/publishing-tree: the first load right after a server restart
+        // can fail during the one-time database setup. Ask again once
+        // instead of showing an empty page.
+        if (root.dataset.treeError || tree.length === 0) {
+            refreshTree().then((ok) => {
+                if (!ok && root.dataset.treeError) {
+                    showLoadError(`Could not load the course tree: ${root.dataset.treeError}`);
+                }
+            });
+        }
     });
 })();

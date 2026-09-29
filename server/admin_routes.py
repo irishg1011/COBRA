@@ -82,6 +82,7 @@ from archived_items import (  # NEW: fixes the pre-existing Archived Learning Re
     get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,  # NEW: same fix for Archived Coding Exercises modal
 )
 from publishing import get_publishing_tree, reorder_items
+import publishing as publishing_tree_module  # feat/publishing-tree: last_tree_error
 from publishing_actions import run_action, mark_ready as mark_item_ready  # feat/publishing-tree: one set of status rules for every item type
 from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - read-only, no progress tables touched
     get_preview_learning_map, get_preview_lessons,
@@ -757,104 +758,6 @@ def get_login_logs_metrics():
     it) - one connection, then:
 
         1 sweep          - refresh_inactive_accounts (keeps Active/
-                            Inactive current before counting)
-        1 aggregate query - get_account_status_counts
-                            (Active Sessions + Locked Out Due to Fails)
-        1 aggregate query - get_todays_login_metrics
-                            (Total Logins Today + Successful + Failed)
-        1 count query     - get_password_resets_today_count
-
-    Returns a dict whose keys line up 1:1 with what login-logs.html's
-    Jinja template - and the /admin/login-logs/metrics JSON endpoint
-    below, used for the page's live auto-refresh - both expect:
-
-        total_logins_today, successful_logins, failed_logins,
-        active_sessions, locked_out_fails, password_resets_today
-
-    Returns an all-zero dict (never raises) if the database is
-    unreachable, so the page/endpoint renders cleanly with 0s instead of
-    crashing or showing blank cards.
-    """
-    zero_metrics = {
-        "total_logins_today": 0,
-        "successful_logins": 0,
-        "failed_logins": 0,
-        "active_sessions": 0,
-        "locked_out_fails": 0,
-        "password_resets_today": 0,
-    }
-
-    connection = get_db_connection()
-    if connection is None:
-        return zero_metrics
-
-    try:
-        # Kept for other callers of get_account_status_counts (e.g. any
-        # future use of active_accounts/locked_accounts as-of-now), but
-        # "Active Sessions" and "Locked Out Due to Fails" below now come
-        # from real event tables (session_tracker / lockout_logs)
-        # instead of this account_tbl snapshot - see the docstring above
-        # for why account_tbl state can't answer either question
-        # correctly.
-        refresh_inactive_accounts(connection)
-        login_counts = get_todays_login_metrics(connection)
-        resets_today = get_password_resets_today_count(connection)
-
-        return {
-            "total_logins_today": login_counts["total_logins_today"],
-            "successful_logins": login_counts["successful_logins"],
-            "failed_logins": login_counts["failed_logins"],
-            # NEW: live COUNT(*) of open active_sessions_tbl rows -
-            # incremented at login, decremented at logout, and swept
-            # after SESSION_TIMEOUT_MINUTES of inactivity. Never derived
-            # from login/logout history.
-            "active_sessions": get_active_session_count(connection),
-            # NEW: COUNT(DISTINCT acc_id) of lockout_logs_tbl events
-            # today - counts each account once per day even if locked
-            # multiple times, and still counts accounts already
-            # unlocked again, per the task's requirements.
-            "locked_out_fails": get_lockouts_today_count(connection),
-            "password_resets_today": resets_today,
-        }
-    except Error as e:
-        print(f"admin_routes: database error while loading login logs metrics: {e}")
-        return zero_metrics
-    finally:
-        if connection.is_connected():
-            connection.close()
-
-
-def get_login_logs_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
-    """
-    Task #18: Pulls login attempt records from login_logs_tbl, joined
-    against account_tbl (email, u_type), usertype_tbl (role label), and
-    profile_tbl (display name) - ONE query, so there is no N+1 lookup per
-    row for the account/profile/role info the UI needs.
-
-    LEFT JOINs are used throughout because login_logs_tbl.acc_id can be
-    NULL (login_logs.log_login_attempt() logs a failed attempt with
-    acc_id=None whenever the typed username didn't match any account at
-    all) - an INNER JOIN would silently drop those rows instead of
-    showing them with a placeholder identity.
-
-    search_query (str | None): matches against the associated person's
-    first/last/full name, email, or acc_id (case-insensitive, prefix
-    match - same convention as get_accounts_overview's search).
-
-    role_filter (str | None): "Administrator" or "Learner", reusing the
-    exact same ROLE_FILTER_MAP as the accounts table for consistency.
-
-    status_filter (str | None): "Success" or "Failed" - the login
-    attempt's own outcome (login_logs_tbl.attempt_status), NOT the
-    account's Active/Inactive status.
-
-    sort_by (str | None): "attempted_at" (default, newest first) or
-    "name". Only ever selects one of the two hardcoded LOGIN_LOG_SORT_CLAUSES
-    entries - never built from raw input.
-
-    Returns a list of dicts (each with log_id, acc_id, ip_address,
-    full_name, email, role, status, attempted_at) ready for direct use
-    in Jinja (initial nts (keeps Active/
                             Inactive current before counting)
         1 aggregate query - get_account_status_counts
                             (Active Sessions + Locked Out Due to Fails)
@@ -1959,6 +1862,40 @@ def title_history_revert():
 
 
 # ============================================================
+# feat/publishing-tree: EDITOR PRE-FILL FROM THE PUBLISHING PAGE
+# The tree's "+" buttons open the normal editors with the parent
+# chapter / module / lesson already chosen and locked, e.g.
+#   /admin/upload-resource?cat_id=3&module_id=7&lock=1&return=publishing&tab=draft
+# `return=publishing` sends the admin back to the Publishing page after
+# a save / status change instead of the manage page.
+# ============================================================
+PUBLISHING_TABS = {"draft", "ready", "published"}
+
+
+def _read_prefill():
+    """Query-string pre-fill for the editors. Returns None when nothing is set."""
+    prefill = {
+        "cat_id": request.args.get('cat_id', type=int),
+        "module_id": request.args.get('module_id', type=int),
+        "resource_id": request.args.get('resource_id', type=int),
+        "activity_type": request.args.get('type', '') or None,
+        "lock": request.args.get('lock') == '1',
+    }
+    if not any(prefill[k] for k in ("cat_id", "module_id", "resource_id", "activity_type")):
+        return None
+    return prefill
+
+
+def _publishing_return_url(source=None):
+    """Publishing page URL when the editor was opened from it, else None."""
+    source = source or request.args
+    if (source.get('return') or source.get('return_to')) != 'publishing':
+        return None
+    tab = source.get('tab') or ''
+    return url_for('admin_bp.publishing', tab=tab) if tab in PUBLISHING_TABS else url_for('admin_bp.publishing')
+
+
+# ============================================================
 # ROUTE: PUBLISHING PAGE (Task #publishing-page-backend)
 # ============================================================
 @admin_bp.route('/publishing')
@@ -1973,7 +1910,15 @@ def publishing():
     """
     import json
     tree = get_publishing_tree()
-    return render_template('publishing.html', tree_json=json.dumps(tree))
+    # feat/publishing-tree: ?tab=draft|ready|published - the editors send
+    # the admin back to the tab they came from.
+    tab = request.args.get('tab', '')
+    return render_template(
+        'publishing.html',
+        tree_json=json.dumps(tree),
+        tree_error=publishing_tree_module.last_tree_error or '',
+        initial_tab=tab if tab in PUBLISHING_TABS else 'ready',
+    )
 
 
 @admin_bp.route('/publishing/data')
@@ -1985,7 +1930,11 @@ def publishing_data():
 
     Returns JSON: { "success": bool, "tree": [...] }
     """
-    return jsonify({"success": True, "tree": get_publishing_tree()}), 200
+    tree = get_publishing_tree()
+    error = publishing_tree_module.last_tree_error
+    if error:
+        return jsonify({"success": False, "tree": [], "message": f"Could not load the course tree: {error}"}), 500
+    return jsonify({"success": True, "tree": tree}), 200
 
 
 @admin_bp.route('/publishing/categories/<int:cat_id>/unpublish', methods=['POST'])
@@ -2021,6 +1970,26 @@ def publishing_unpublish_exercise(exercise_id):
     """Task #7: Publishing page's own Unpublish for a coding exercise - targets Ready to Publish, not Draft."""
     success, message = unpublish_exercise_to_ready(exercise_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+PUBLISHING_KINDS = {"category", "module", "lesson", "video", "activity", "exercise"}
+
+
+@admin_bp.route('/publishing/<kind>/<int:item_id>/<action>', methods=['POST'])
+def publishing_item_action(kind, item_id, action):
+    """
+    feat/publishing-tree: every status button on the Publishing page and
+    in the editors goes through here. kind = category | module | lesson |
+    video | activity | exercise; action = mark-ready | mark-all-ready |
+    move-to-draft | publish | unpublish | confirm-update. All rules live
+    in publishing_actions.py.
+
+    Returns JSON: { "success": bool, "message": str, ...counts }
+    """
+    if kind not in PUBLISHING_KINDS:
+        return jsonify({"success": False, "message": "Unknown item type."}), 400
+    success, message, extra = run_action(kind, item_id, action)
+    return jsonify({"success": success, "message": message, **extra}), (200 if success else 400)
 
 
 @admin_bp.route('/publishing/reorder', methods=['POST'])
@@ -3117,6 +3086,8 @@ def upload_video_tutorial():
         'upload-video-tutorial.html',
         categories=get_categories(),
         existing_video=existing_video,
+        prefill=None if existing_video else _read_prefill(),  # feat/publishing-tree
+        return_url=_publishing_return_url(),
     )
 
 
@@ -3148,9 +3119,18 @@ def _handle_video_tutorial_submit(status):
         "video_url": payload.get('video_url'),
     }
 
+    # feat/publishing-tree: a new video starts as Draft; saving an existing
+    # one never changes its status. The editor's main button ("Mark Ready")
+    # saves, then moves it to Ready to Publish - it only goes live from
+    # the Publishing page.
     success, video_tutorial_id, message = save_video_tutorial(
-        data, status=status, uploaded_by=session.get('admin_id')
+        data, status="Draft", uploaded_by=session.get('admin_id')
     )
+    if success and status == "Published":
+        ready_ok, ready_message, _ = mark_item_ready("video", video_tutorial_id)
+        message = "Video tutorial saved and marked as Ready to Publish." if ready_ok \
+            else f"Video tutorial saved, but could not mark it ready: {ready_message}"
+        success = ready_ok
 
     return jsonify({
         "success": success,
@@ -3266,7 +3246,7 @@ def upload_resource():
             return redirect(url_for('admin_bp.upload_resource'))
 
         flash(message, 'success')
-        return redirect(url_for('admin_bp.learning_resources'))
+        return redirect(_publishing_return_url(request.form) or url_for('admin_bp.learning_resources'))
 
     # Task #41: Category dropdown is rendered server-side from real
     # category_tbl rows (same get_categories() Manage Course already
@@ -3281,6 +3261,8 @@ def upload_resource():
         'upload-resource.html',
         categories=get_categories(),
         existing_resource=existing_resource,
+        prefill=None if existing_resource else _read_prefill(),  # feat/publishing-tree
+        return_url=_publishing_return_url(),
     )
 
 
@@ -3555,6 +3537,8 @@ def create_learning_activity_page():
         greeting=greeting,
         existing_activity=existing_activity,
         categories=get_categories(),
+        prefill=None if existing_activity else _read_prefill(),  # feat/publishing-tree
+        return_url=_publishing_return_url(),
     )
 
 
@@ -3688,17 +3672,17 @@ def create_activity_submit():
         redirect_kwargs = {'activity_id': redirect_activity_id} if redirect_activity_id else {}
         return redirect(url_for('admin_bp.create_learning_activity_page', **redirect_kwargs))
 
-    publish_success, publish_message = publish_activity(saved_activity_id)
-    if not publish_success:
-        # The activity itself saved successfully - only the "go live"
-        # step was blocked. Say so plainly and stay on this same
-        # activity, mirroring upload_resource()'s own partial-success
-        # messaging.
-        flash(f"Activity saved as a draft, but could not publish it: {publish_message}", 'error')
+    # feat/publishing-tree: the editor's main button is "Mark Ready" now -
+    # activities only go live from the Publishing page. (The editor's
+    # JavaScript normally does save + mark-ready itself over JSON; this
+    # form post is the no-JavaScript fallback.)
+    ready_success, ready_message, _ = mark_item_ready("activity", saved_activity_id)
+    if not ready_success:
+        flash(f"Activity saved, but could not mark it ready: {ready_message}", 'error')
         return redirect(url_for('admin_bp.create_learning_activity_page', activity_id=saved_activity_id))
 
-    flash('Learning activity created and published successfully!', 'success')
-    return redirect(url_for('admin_bp.learning_activities'))
+    flash('Learning activity saved and marked as Ready to Publish.', 'success')
+    return redirect(_publishing_return_url(request.form) or url_for('admin_bp.learning_activities'))
 # ============================================================
 # ROUTE: CREATE CODING EXERCISE (PAGE VIEW) & DEPENDENT DROPDOWNS
 # ============================================================
@@ -3778,11 +3762,25 @@ def create_coding_exercise():
             data['test_cases'] = parse_test_cases_from_form(request.form)
 
         action = (request.form.get('action') or (request.get_json(silent=True) or {}).get('action') or 'publish').lower()
-        target_status = 'Draft' if action in ('draft', 'save_draft') else 'Published'
 
+        # feat/publishing-tree: a new exercise starts as Draft and saving
+        # never changes the status. The editor's main button ("Mark
+        # Ready") saves, then moves it to Ready to Publish - it only goes
+        # live from the Publishing page.
         admin_id = session.get('admin_id')
-        success, exercise_id, msg = save_coding_exercise(data, status=target_status, uploaded_by=admin_id)
+        success, exercise_id, msg = save_coding_exercise(data, status='Draft', uploaded_by=admin_id)
+        if success and action not in ('draft', 'save_draft', 'save'):
+            ready_ok, ready_message, _ = mark_item_ready("exercise", exercise_id)
+            if ready_ok:
+                msg = "Coding exercise saved and marked as Ready to Publish."
+            else:
+                flash(f"Coding exercise saved, but could not mark it ready: {ready_message}", 'danger')
+                if is_ajax:
+                    return jsonify({"success": False, "exercise_id": exercise_id,
+                                    "message": f"Coding exercise saved, but could not mark it ready: {ready_message}"}), 400
+                return redirect(url_for('admin_bp.create_coding_exercise', exercise_id=exercise_id))
 
+        back_url = _publishing_return_url(request.form) or url_for('admin_bp.coding_exercises')
         if success:
             flash(msg, 'success')
             if is_ajax:
@@ -3790,9 +3788,9 @@ def create_coding_exercise():
                     "success": True,
                     "exercise_id": exercise_id,
                     "message": msg,
-                    "redirect_url": url_for('admin_bp.coding_exercises')
+                    "redirect_url": back_url
                 }), 200
-            return redirect(url_for('admin_bp.coding_exercises'))
+            return redirect(back_url)
         else:
             flash(msg, 'danger')
             if is_ajax:
@@ -3819,6 +3817,8 @@ def create_coding_exercise():
         'create-coding-exercise.html',
         categories=categories,
         existing_exercise=existing_exercise,
+        prefill=None if existing_exercise else _read_prefill(),  # feat/publishing-tree
+        return_url=_publishing_return_url(),
     )
 
 
@@ -3834,12 +3834,12 @@ def save_coding_exercise_draft():
     if not request.is_json:
         data['test_cases'] = parse_test_cases_from_form(request.form)
 
-    preserve = data.get('preserve_status') in (True, 'true', '1') or data.get('action') == 'save'
-    target_status = 'Published' if (preserve and data.get('status') == 'Published') else 'Draft'
-
+    # feat/publishing-tree: saving never changes an existing exercise's
+    # status (save_coding_exercise() only uses it for a new row).
     admin_id = session.get('admin_id')
-    success, exercise_id, msg = save_coding_exercise(data, status=target_status, uploaded_by=admin_id)
+    success, exercise_id, msg = save_coding_exercise(data, status='Draft', uploaded_by=admin_id)
 
+    back_url = _publishing_return_url(request.form) or url_for('admin_bp.coding_exercises')
     if success:
         flash(msg, 'success')
         if is_ajax:
@@ -3847,9 +3847,9 @@ def save_coding_exercise_draft():
                 "success": True,
                 "exercise_id": exercise_id,
                 "message": msg,
-                "redirect_url": url_for('admin_bp.coding_exercises')
+                "redirect_url": back_url
             }), 200
-        return redirect(url_for('admin_bp.coding_exercises'))
+        return redirect(back_url)
     else:
         flash(msg, 'danger')
         if is_ajax:

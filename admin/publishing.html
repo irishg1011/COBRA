@@ -77,7 +77,7 @@
                 </div>
 
                 <div class="publishing-card">
-                    <div id="publishingTreeRoot" data-tree='{{ tree_json | safe }}' data-initial-tab="{{ initial_tab or 'ready' }}">
+                    <div id="publishingTreeRoot" data-tree='{{ tree_json | safe }}' data-initial-tab="{{ initial_tab or 'ready' }}" data-tree-error="{{ tree_error or '' }}">
                         <p class="text-muted publishing-empty">Loading&hellip;</p>
                     </div>
                 </div>
