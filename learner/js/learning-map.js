@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
 
     const mapCanvas = document.getElementById('mapCanvas');
     const mapChain = document.getElementById('mapChain');

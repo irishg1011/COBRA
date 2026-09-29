@@ -23,7 +23,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.replace("/dashboard");
     }
 
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    // feat/admin-login-page: same-origin (relative) URLs. The page and the
+    // API are both served by Flask, so this works on 127.0.0.1:5000 and
+    // localhost:5000 alike, and the session cookie is always sent.
+    const API_BASE_URL = "";
 
     // Stop every auth form from doing a real page submit. Replaces the
     // inline onsubmit="event.preventDefault();" that used to sit on each
@@ -244,6 +247,28 @@ document.addEventListener('DOMContentLoaded', () => {
             goToSignUp(prefillEmail);
         });
 
+        hintEl.appendChild(link);
+        errorEl.insertAdjacentElement('afterend', hintEl);
+    }
+
+    // feat/admin-login-page: "Admin? Use the admin login page" line under
+    // an error, for an admin who used the learner page (server sends
+    // admin_login_url with a 403). Same textContent-only build as above.
+    function showAdminLoginHint(afterEl, url) {
+        if (!afterEl || !url) return;
+        const errorEl = afterEl.parentElement.querySelector('.js-error-message');
+        if (!errorEl) return;
+
+        let hintEl = afterEl.parentElement.querySelector('.auth-signup-hint');
+        if (hintEl) hintEl.remove();
+
+        hintEl = document.createElement('p');
+        hintEl.className = 'auth-signup-hint';
+        hintEl.append('Go to the ');
+        const link = document.createElement('a');
+        link.href = url;
+        link.className = 'auth-inline-link';
+        link.textContent = 'admin login page';
         hintEl.appendChild(link);
         errorEl.insertAdjacentElement('afterend', hintEl);
     }
@@ -995,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 response = await fetch(`${API_BASE_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include', // NEW: lets the browser store the admin session cookie from a cross-origin response
+                    credentials: 'same-origin',
                     body: JSON.stringify({
                         username: targetUsername,
                         password: passwordInput.value.trim()
@@ -1021,21 +1046,10 @@ if (result.success) {
     const successPanel = document.getElementById('signInSuccessPanel');
     showPanel(successPanel);
 
-    // --- ROLE-BASED REDIRECT (u_type: 1 = Admin, 2 = Learner) ---
-    // Admin dashboard is a Flask/Jinja page served by the backend
-    // (API_BASE_URL), while the Learner dashboard is served by this
-    // same merged Flask app at /dashboard.
-    const isAdmin = result.role === "Admin";
-    const destination = isAdmin
-        ? `${API_BASE_URL}${result.redirect || "/admin/dashboard"}`
-        : "/dashboard";
-
-    const successText = successPanel ? successPanel.querySelector('p') : null;
-    if (successText) {
-        successText.textContent = isAdmin
-            ? "Redirecting to the admin dashboard..."
-            : "Redirecting to your dashboard...";
-    }
+    // feat/admin-login-page: this page only signs learners in - admins
+    // get a 403 and a link to /admin/login instead - so it's always the
+    // learner dashboard.
+    const destination = result.redirect || "/dashboard";
 
     setTimeout(() => {
         window.location.replace(destination);
@@ -1099,6 +1113,10 @@ if (result.success) {
                         // form never reveals whether a username exists.
                         if (response.status === 401) {
                             showSignUpHint(passwordInput.closest('.password-wrapper'), 'No account yet?', 'Sign up');
+                        }
+                        // feat/admin-login-page: admin account on the learner page
+                        if (result.admin_login_url) {
+                            showAdminLoginHint(passwordInput.closest('.password-wrapper'), result.admin_login_url);
                         }
                     }
                 }
@@ -1173,6 +1191,10 @@ if (result.success) {
                     // email -> offer Sign Up with the email already filled in.
                     if (response.status === 404) {
                         showSignUpHint(forgotEmailInput, 'Want to make one?', 'Sign up with this email', userEmail);
+                    }
+                    // feat/admin-login-page: admin email -> reset on the admin page
+                    if (result.admin_login_url) {
+                        showAdminLoginHint(forgotEmailInput, result.admin_login_url);
                     }
                 }
             } catch (err) {

@@ -86,8 +86,8 @@
      * it, so a subsequent Back press from the landing page won't hop back
      * into this page either.
      */
-    // Same origin convention already used by script.js's API_BASE_URL.
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    // Relative (same-origin) - see script.js.
+    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
 
     function performLogout() {
         // NEW: tell the backend to end this account's active_sessions_tbl

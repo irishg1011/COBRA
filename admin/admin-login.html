@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Sign In</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap">
+    <!-- Same base + snake animations as the learner login, then the admin look on top -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='animations.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-login.css') }}">
+</head>
+<!-- feat/admin-login-page: admin-only sign in (no Sign Up). Every panel
+     starts hidden (.auth-hidden); admin-login.js shows one at a time.
+     No inline styles or scripts. -->
+<body class="admin-login-page">
+
+    <div class="al-topbar">
+        <a href="/" class="al-logo-link" aria-label="CobraByte home">
+            <img src="/assets/images/logo-ad.png" alt="CobraByte" class="al-logo">
+        </a>
+    </div>
+
+    <main class="hero-container al-hero">
+        <section class="content-col">
+            <h1 class="al-headline">
+                Learn<br>
+                Python<br>
+                <span class="al-gradient-text">The<br>Interactive<br>Way</span>
+            </h1>
+            <p class="description">
+                Master Python through interactive lessons, hands on coding exercises, and real-time feedback. Learn at your own pace and build your programming skills with confidence.
+            </p>
+        </section>
+
+        <section class="visual-col">
+            <div class="auth-card al-card">
+                <!-- Snake border that coils once around the card on load (animations.css) -->
+                <svg class="snake-trace" id="snakeTrace" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <defs>
+                        <linearGradient id="snake-trace-gradient" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#00D0FF" /><stop offset="0.5" stop-color="#1CE8C8" /><stop offset="1" stop-color="#38FF92" />
+                        </linearGradient>
+                    </defs>
+                    <rect id="snakeTraceRect" x="2" y="2" rx="14" ry="14" pathLength="100" />
+                </svg>
+
+                <!-- 1. SIGN IN -->
+                <div id="signInPanel" class="al-panel auth-hidden">
+                    <div class="verification-container">
+                        <span class="al-hero-icon al-hero-icon--ring" aria-hidden="true"><span class="al-mask al-mask--user"></span></span>
+                        <div class="form-header centered-header">
+                            <h2>Welcome Back</h2>
+                            <p>Sign in to manage your CobraByte system</p>
+                        </div>
+                        <form class="auth-form auth-form--full auth-text-left" id="adminSignInForm" novalidate>
+                            <div class="input-group">
+                                <label for="username">Username</label>
+                                <input type="text" id="username" placeholder="Enter username" autocomplete="username" required>
+                            </div>
+                            <div class="input-group password-group">
+                                <label for="password">Password</label>
+                                <div class="password-wrapper">
+                                    <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required>
+                                    <button type="button" class="toggle-password-visibility" aria-label="Show password">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <a href="#" class="forgot-link" id="openForgotLink">Forgot your password?</a>
+                            <div class="al-btn-row">
+                                <button type="submit" class="btn-login al-btn" id="btnAdminLogin">Login</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- SIGN IN SUCCESS -->
+                <div id="signInSuccessPanel" class="al-panel auth-hidden">
+                    <div class="success-container">
+                        <div class="signin-success-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <circle class="success-coil" cx="12" cy="12" r="10" stroke="#00D0FF" stroke-width="2"/>
+                                <path class="success-check" d="M8 12L11 15L16 9" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div class="form-header centered-header">
+                            <h2>Sign In Successful!</h2>
+                            <p>Redirecting to your dashboard...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. FORGOT PASSWORD - EMAIL -->
+                <div id="forgotPasswordPanel" class="al-panel auth-hidden">
+                    <div class="verification-container">
+                        <span class="al-hero-icon" aria-hidden="true"><span class="al-mask al-mask--lock"></span></span>
+                        <div class="form-header centered-header">
+                            <h2>Forgot your password?</h2>
+                            <p>No worries! Enter your email address below and we'll send you a code to reset your password.</p>
+                        </div>
+                        <form class="auth-form auth-form--full auth-text-left" novalidate>
+                            <div class="input-group">
+                                <label for="forgotEmail">Email address</label>
+                                <input type="email" id="forgotEmail" placeholder="Enter valid email address" autocomplete="email" required>
+                            </div>
+                            <div class="al-btn-row">
+                                <button type="button" class="btn-login al-btn" id="btnForgotProceed">Proceed</button>
+                            </div>
+                        </form>
+                        <div class="al-footer-back">
+                            <a href="#" class="back-to-login-link"><span class="al-chevron" aria-hidden="true"></span> Back to log in</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. FORGOT PASSWORD - VERIFY CODE -->
+                <div id="forgotOtpPanel" class="al-panel auth-hidden">
+                    <div class="verification-container">
+                        <span class="al-hero-icon" aria-hidden="true"><span class="al-mask al-mask--mail"></span></span>
+                        <div class="form-header centered-header">
+                            <h2>Verify your email</h2>
+                            <p>We sent a 6-digit verification code to <span class="dynamic-forgot-email auth-text-strong auth-text-dark"></span></p>
+                        </div>
+                        <div class="otp-wrapper" id="forgotOtpWrapper">
+                            <div class="otp-container">
+                                <input type="password" class="otp-input" maxlength="1" inputmode="numeric" autocomplete="one-time-code" aria-label="Digit 1">
+                                <input type="password" class="otp-input" maxlength="1" inputmode="numeric" aria-label="Digit 2">
+                                <input type="password" class="otp-input" maxlength="1" inputmode="numeric" aria-label="Digit 3">
+                                <input type="password" class="otp-input" maxlength="1" inputmode="numeric" aria-label="Digit 4">
+                                <input type="password" class="otp-input" maxlength="1" inputmode="numeric" aria-label="Digit 5">
+                                <input type="password" class="otp-input" maxlength="1" inputmode="numeric" aria-label="Digit 6">
+                            </div>
+                            <div class="show-otp-container">
+                                <input type="checkbox" id="showForgotOtp">
+                                <label for="showForgotOtp">Show code</label>
+                            </div>
+                        </div>
+                        <div class="timer-container timer-container--compact">
+                            <p class="timer-text">Code expires in <span id="forgotTimerDisplay" class="auth-text-strong">1:00</span></p>
+                            <a href="#" class="resend-link" id="resendForgotLink">Resend code</a>
+                        </div>
+                        <div class="al-btn-row">
+                            <button type="button" class="btn-login al-btn" id="btnVerifyForgotCode">Verify Code</button>
+                        </div>
+                        <div class="al-footer-back">
+                            <a href="#" class="back-to-login-link"><span class="al-chevron" aria-hidden="true"></span> Back to log in</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. SET NEW PASSWORD -->
+                <div id="setNewPasswordPanel" class="al-panel auth-hidden">
+                    <div class="verification-container">
+                        <span class="al-hero-icon" aria-hidden="true"><span class="al-mask al-mask--lock-reset"></span></span>
+                        <div class="form-header centered-header">
+                            <h2>Set New Password</h2>
+                            <p>Create a strong password for <span class="dynamic-forgot-email auth-text-strong auth-text-dark"></span></p>
+                        </div>
+                        <form class="auth-form auth-form--full auth-text-left" novalidate>
+                            <div class="input-group password-group">
+                                <label for="forgotNewPassword">New Password</label>
+                                <div class="password-wrapper">
+                                    <input type="password" id="forgotNewPassword" placeholder="Enter new password" autocomplete="new-password" required>
+                                    <button type="button" class="toggle-password-visibility" aria-label="Show password">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div id="forgotNewPassword-checker" class="password-strength-box auth-hidden">
+                                    <p id="forgot-req-length" class="password-req">✗ Requires at least 8 characters</p>
+                                    <p id="forgot-req-upper" class="password-req">✗ Requires an uppercase letter (A-Z)</p>
+                                    <p id="forgot-req-lower" class="password-req">✗ Requires a lowercase letter (a-z)</p>
+                                    <p id="forgot-req-number" class="password-req">✗ Requires a number (0-9)</p>
+                                    <p id="forgot-req-special" class="password-req">✗ Requires a special character (!@#$%^&amp;*_)</p>
+                                </div>
+                            </div>
+                            <div class="input-group password-group">
+                                <label for="forgotConfirmPassword">Confirm Password</label>
+                                <div class="password-wrapper">
+                                    <input type="password" id="forgotConfirmPassword" placeholder="Enter confirm password" autocomplete="new-password" required>
+                                    <button type="button" class="toggle-password-visibility" aria-label="Show password">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="eye-icon" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p id="forgotConfirmPassword-match" class="password-match auth-hidden"></p>
+                            </div>
+                            <div class="al-btn-row">
+                                <button type="button" class="btn-login al-btn" id="btnResetPassword">Reset Password</button>
+                            </div>
+                        </form>
+                        <div class="al-footer-back">
+                            <a href="#" class="back-to-login-link"><span class="al-chevron" aria-hidden="true"></span> Back to log in</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. PASSWORD RESET SUCCESS -->
+                <div id="forgotSuccessPanel" class="al-panel auth-hidden">
+                    <div class="verification-container">
+                        <span class="al-hero-icon" aria-hidden="true"><span class="al-mask al-mask--doc-check"></span></span>
+                        <div class="form-header centered-header">
+                            <h2>Password Reset Successful!</h2>
+                            <p>Your password has been updated. You can now sign in with your new password.</p>
+                        </div>
+                        <div class="al-btn-row">
+                            <button type="button" class="btn-login al-btn back-to-login-btn">Back to Sign in</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-login.js') }}"></script>
+    <script src="{{ url_for('static', filename='page-transitions.js') }}"></script>
+</body>
+</html>

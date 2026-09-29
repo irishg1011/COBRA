@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
     const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
     const LESSON_MODULES_DIR = "/lesson_modules";
     const VIDEO_WATCH_THRESHOLD = 0.9; // 90% watched unlocks Continue

@@ -31,7 +31,7 @@
 (function () {
     "use strict";
 
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
     const FC_JS_BASE = (document.currentScript && document.currentScript.src)
         ? new URL(".", document.currentScript.src).href
         : "";

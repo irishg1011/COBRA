@@ -1,0 +1,296 @@
+/* ==========================================================================
+   admin-login.css - feat/admin-login-page
+   Admin sign-in (admin-login.html), from the Figma "CobraByte Desktop
+   Admin" screens. Loaded AFTER style.css + animations.css (the learner
+   login's base + snake animations), so it only changes the look -
+   the animations keep working. Everything is scoped under
+   body.admin-login-page so the learner login is never affected.
+   ========================================================================== */
+
+body.admin-login-page {
+    font-family: 'Inter', sans-serif;
+}
+
+/* --- Top bar: logo only --- */
+.admin-login-page .al-topbar {
+    padding: 16px 24px 0;
+}
+
+.admin-login-page .al-logo-link {
+    display: inline-block;
+}
+
+.admin-login-page .al-logo {
+    display: block;
+    height: 60px;
+    width: auto;
+}
+
+/* --- Two columns: headline left, card right --- */
+.admin-login-page .al-hero {
+    max-width: 1320px;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    padding: 24px 5% 48px;
+}
+
+.admin-login-page .al-headline {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-size: 76px;
+    font-weight: 800;
+    line-height: 1.55;
+    letter-spacing: 0;
+    color: #000000;
+}
+
+.admin-login-page .al-gradient-text {
+    background: linear-gradient(90deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.admin-login-page .description {
+    font-size: 19px;
+    line-height: 1.45;
+    color: #111111;
+    max-width: 480px;
+}
+
+/* --- Card --- */
+.admin-login-page .al-card {
+    max-width: 600px;
+    min-height: 700px;
+    padding: 56px 72px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.admin-login-page .al-panel {
+    width: 100%;
+}
+
+/* Headers: centered, Figma sizes */
+.admin-login-page .centered-header h2 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #000000;
+    margin-bottom: 4px;
+}
+
+.admin-login-page .centered-header p {
+    font-size: 15px;
+    color: #111111;
+    margin-bottom: 28px;
+}
+
+/* --- Big gradient icon above each title (mask + gradient fill) --- */
+.admin-login-page .al-hero-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 112px;
+    height: 112px;
+    margin-bottom: 14px;
+}
+
+.admin-login-page .al-mask {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #00D0FF 0%, #3B82F6 100%);
+    -webkit-mask: var(--al-icon) center / contain no-repeat;
+    mask: var(--al-icon) center / contain no-repeat;
+}
+
+.admin-login-page .al-mask--user       { --al-icon: url('/assets/images/icons/icon-user.svg'); }
+.admin-login-page .al-mask--lock       { --al-icon: url('/assets/images/icons/icon-lock.svg'); }
+.admin-login-page .al-mask--mail       { --al-icon: url('/assets/images/icons/icon-send.svg'); }
+.admin-login-page .al-mask--lock-reset { --al-icon: url('/assets/images/icons/icon-lock-reset.svg'); }
+.admin-login-page .al-mask--doc-check  { --al-icon: url('/assets/images/icons/icon-file-text.svg'); }
+
+/* Sign In: user icon inside a gradient ring (cyan -> purple, like Figma) */
+.admin-login-page .al-hero-icon--ring {
+    padding: 22px;
+    border: 5px solid transparent;
+    border-radius: 50%;
+    background:
+        linear-gradient(#ffffff, #ffffff) padding-box,
+        linear-gradient(135deg, #00D0FF 0%, #A855F7 100%) border-box;
+}
+
+.admin-login-page .al-hero-icon--ring .al-mask {
+    background: linear-gradient(135deg, #00D0FF 0%, #A855F7 100%);
+}
+
+/* --- Fields: white with a gray outline (Figma), not the learner beige --- */
+.admin-login-page .input-group {
+    margin-bottom: 20px;
+}
+
+.admin-login-page .input-group label {
+    font-size: 16px;
+    font-weight: 400;
+    color: #000000;
+    margin-bottom: 6px;
+}
+
+.admin-login-page .input-group input {
+    height: 50px;
+    background-color: #ffffff;
+    border: 1px solid #6b7280;
+    border-radius: 10px;
+    font-size: 16px;
+    color: #111111;
+}
+
+.admin-login-page .input-group input::placeholder {
+    color: #6b7280;
+}
+
+/* The eye is a real <button> here (keyboard-friendly) */
+.admin-login-page .toggle-password-visibility {
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+}
+
+.admin-login-page .toggle-password-visibility:focus-visible {
+    outline: 2px solid #1D6FDC;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.admin-login-page .forgot-link {
+    font-size: 16px;
+    font-weight: 400;
+    margin: -6px 0 36px;
+}
+
+/* --- Buttons: centered gradient pill that fits its label --- */
+.admin-login-page .al-btn-row {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.admin-login-page .btn-login.al-btn {
+    width: auto;
+    min-width: 186px;
+    padding: 14px 56px;
+    border-radius: 12px;
+    font-size: 22px;
+    font-weight: 600;
+    background: linear-gradient(90deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%);
+}
+
+.admin-login-page .btn-login.al-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.admin-login-page .btn-login.al-btn:focus-visible {
+    outline: 2px solid #1D6FDC;
+    outline-offset: 3px;
+}
+
+/* --- "Back to log in" under a divider --- */
+.admin-login-page .al-footer-back {
+    width: 100%;
+    margin-top: 36px;
+    padding-top: 22px;
+    border-top: 1.5px solid #bdbdb0;
+    display: flex;
+    justify-content: center;
+}
+
+.admin-login-page .back-to-login-link {
+    font-size: 16px;
+    font-weight: 400;
+    color: #111111;
+    gap: 8px;
+}
+
+.admin-login-page .al-chevron {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-left: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+}
+
+/* --- Verify-code step --- */
+.admin-login-page .otp-container {
+    gap: 12px;
+}
+
+.admin-login-page .otp-input {
+    width: 60px;
+    height: 76px;
+    border: 1px solid #6b7280;
+    border-radius: 12px;
+    font-size: 26px;
+}
+
+.admin-login-page .timer-text {
+    font-size: 17px;
+    color: #111111;
+}
+
+.admin-login-page .resend-link {
+    font-size: 18px;
+}
+
+/* Error line under the code boxes / a button row */
+.admin-login-page .al-error {
+    width: 100%;
+    margin: -10px 0 16px;
+    text-align: center;
+}
+
+/* --- Success screens --- */
+.admin-login-page .signin-success-icon {
+    width: 128px;
+    height: 128px;
+}
+
+/* --- Smaller screens --- */
+@media (max-width: 1100px) {
+    .admin-login-page .al-headline {
+        font-size: 56px;
+    }
+
+    .admin-login-page .al-card {
+        padding: 44px 40px;
+    }
+}
+
+@media (max-width: 900px) {
+    .admin-login-page .al-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-login-page .al-headline {
+        font-size: 44px;
+        line-height: 1.25;
+    }
+
+    .admin-login-page .al-card {
+        min-height: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-login-page .al-card {
+        padding: 32px 20px;
+    }
+
+    .admin-login-page .otp-input {
+        width: 42px;
+        height: 56px;
+    }
+}

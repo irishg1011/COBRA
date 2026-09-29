@@ -7,16 +7,10 @@
  *      <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
  *
  * WHY THIS EXISTS
- * The Admin side is served by Flask on a different origin/port than the
- * Learner-facing frontend (e.g. Flask on :5000 vs. the frontend on :5500).
- * sessionStorage does NOT carry across origins, so the "isAuthenticated"
- * flag set by script.js on the frontend when an Admin logs in is invisible
- * here. Without a guard of its own, pressing Back on an admin page falls
- * straight through to whatever the browser's normal history has - which is
- * usually the Login page, and if THAT page's "already logged in, skip
- * straight to a dashboard" check isn't role-aware, it can bounce the admin
- * onto the Learner dashboard instead. This file gives the admin side the
- * same kind of Back-button trap the Learner Dashboard already has.
+ * Gives the admin pages the same Back-button trap the Learner Dashboard
+ * has, so Back never drops an admin onto the login page while still
+ * signed in. (feat/admin-login-page: admins now sign in at /admin/login,
+ * served by the same Flask app on :5000 - no more Live Server / :5500.)
  *
  * PER-PAGE BACK-BUTTON MODE
  * Add data-auth-guard-mode="refresh" to a page's <body> tag to make the
@@ -29,25 +23,17 @@
  * Account & Security), where Back should ask "Are you sure you want to
  * log out?" instead.
  *
- * IMPORTANT CAVEAT
- * Same caveat as the Learner-side guard: there is currently no real
- * server-side session/cookie check on the admin_bp routes. Reaching this
- * page through Flask is treated as sufficient proof of a valid admin
- * session for the purposes of this client-side flag. This is enough to
- * fix the Back-button UX bug, but it is NOT a substitute for real
- * server-side auth - anyone who can guess/type the URL directly can still
- * load these pages. Add a real Flask session/JWT check on admin_bp if you
- * need actual access control.
+ * NOTE
+ * The real access control is server-side: every admin_bp route checks
+ * session["admin_id"] (admin_routes.py _require_admin_session) and sends
+ * signed-out / archived admins to /admin/login. The sessionStorage flag
+ * here only drives the Back-button behavior.
  */
 (function () {
     "use strict";
 
-    // ------------------------------------------------------------
-    // CONFIG - update this to match wherever your frontend (Login page)
-    // is actually served from. In this project that's currently the
-    // Live Server / static frontend, NOT the Flask backend.
-    // ------------------------------------------------------------
-    const LOGIN_PAGE_URL = "http://127.0.0.1:5500/templates/login.html";
+    // feat/admin-login-page: the admin's own login page (same origin).
+    const LOGIN_PAGE_URL = "/admin/login";
     const AUTH_FLAG_KEY = "isAdminAuthenticated";
 
     const GUARD_MODE = (document.body && document.body.dataset.authGuardMode) || "confirm-logout";

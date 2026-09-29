@@ -18,7 +18,7 @@
 (function () {
     "use strict";
 
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
 
     // Folder this script was served from - Multiple Choice loads arena3d.js
     // (and three.module.js) from the same folder, only when it opens.

@@ -17,7 +17,6 @@ juggling needed for same-origin fetch() calls.
 import os
 from flask import Flask, jsonify, request, send_from_directory, render_template, session
 from api import generate_otp, send_email
-from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -25,14 +24,14 @@ from datetime import datetime
 import time
 import re
 from login_logs import log_login_attempt  # NEW: reusable login attempt logger
-from password_reset_logs import log_password_reset  # NEW: reusable password-reset activity logger
 from admin_routes import admin_bp  # NEW: import admin blueprint
 from learner_routes import learner_bp  # NEW: import learner blueprint|
 from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (own blueprint)
 from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
-from account_status import refresh_inactive_accounts, is_account_inactive  # NEW: shared, configurable Active/Inactive logic
-from session_tracker import create_session, end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
-from lockout_logs import log_lockout_event  # NEW: distinct-per-day lockout event logging
+from session_tracker import end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
+from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /admin/login
+    authenticate, send_reset_code, verify_reset_code, reset_password, otp_storage,
+)
 from validators import PASSWORD_REGEX, calculate_age, MIN_SIGNUP_AGE, MAX_SIGNUP_AGE  # NEW: shared validation rules (also reused by admin_routes.py's Create Administrator flow)
 from id_generator import generate_prefixed_acc_id  # NEW: shared account-ID generator (also reused by admin_routes.py)
 
@@ -51,12 +50,9 @@ app = Flask(__name__, template_folder=TEMPLATES_DIR, static_folder=STATIC_DIR)
 # secret is fine for local dev only.
 app.secret_key = os.environ.get("COBRABYTE_SECRET_KEY", "dev-only-change-me")
 
-# NOTE: Now that the landing page and login page are served by this same
-# Flask app (same origin), CORS is no longer required for the frontend's
-# own fetch() calls. This is left in place only in case something external
-# (e.g. a separate tool) still needs it - safe to remove later if unused.
-FRONTEND_ORIGINS = ["http://127.0.0.1:5500", "http://localhost:5500"]
-CORS(app, supports_credentials=True, origins=FRONTEND_ORIGINS)
+# feat/admin-login-page: CORS removed. Everything (pages + API) is served
+# by this one Flask app on :5000, so every fetch() is same-origin and the
+# session cookie is always sent. Nothing uses Live Server (:5500) anymore.
 
 # Register the admin blueprint (only once, now that app.py's duplicate
 # registration no longer exists)
@@ -77,23 +73,15 @@ DB_USER = "root"
 DB_PASSWORD = ""
 DB_NAME = "cobra_db"
 
-ACCOUNT_TABLE = "account_tbl" 
-# feat/archive-accounts: shown on Login and Forgot Password for an
-# archived (soft-deleted, is_deleted = 1) account. Returned with 403 so
-# the login page shows it WITHOUT the "No account yet? Sign up" hint
-# (that hint only appears on 401 / 404).
-ARCHIVED_ACCOUNT_MESSAGE = "This account has been archived. Please contact an administrator."
+ACCOUNT_TABLE = "account_tbl"
+# ARCHIVED_ACCOUNT_MESSAGE moved to auth_core.py with the rest of the login rules.
 PROFILE_TABLE = "profile_tbl"
 GENDER_TABLE = "gender_tbl"
 DEFAULT_U_TYPE = 2  # 2 = Learner
 # MIN_SIGNUP_AGE / MAX_SIGNUP_AGE now live in validators.py (imported
 # above) so this file and admin_routes.py can never drift out of sync.
 
-# ------------------------------------------------------------
-# ROLE / USERTYPE CONFIG (matches usertype_tbl: 1 = Admin, 2 = Learner)
-# ------------------------------------------------------------
-ADMIN_U_TYPE = 1
-LEARNER_U_TYPE = 2
+# Role constants (1 = Admin, 2 = Learner) live in auth_core.py.
 
 # ------------------------------------------------------------
 # ACCOUNT INACTIVITY CONFIG
@@ -112,8 +100,8 @@ LEARNER_U_TYPE = 2
 LEARNER_ID_PREFIX = "LR"
 LEARNER_ID_SEQ_DIGITS = 4  # 0001, 0002, ... 9999 per day
 
-# Temporary in-memory OTP storage with timestamp expiration: { "key": {"otp": "123456", "expires_at": 1234567890.0} }
-otp_storage = {}
+# otp_storage (in-memory sign-up / reset codes) now lives in auth_core.py and
+# is imported above, so the admin reset flow shares the same store.
 
 # PASSWORD_REGEX now lives in validators.py (imported above) - shared
 # with admin_routes.py's Create Administrator flow instead of being
@@ -356,348 +344,51 @@ def signup():
 
 
 # ============================================================
-# ROUTE: LOGIN (WITH AUTO-RESET & LOCKOUT PROTECTION)
+# ROUTE: LEARNER LOGIN
 # ============================================================
 @app.route("/login", methods=["POST"])
 def login():
+    """
+    Learner door. All the rules (sweep, 5-try lockout, logs, archived
+    message) live in auth_core.authenticate() - shared with /admin/login.
+    An admin account gets 403 + admin_login_url here, never a session.
+    """
     data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip().lower()
-    password = (data.get("password") or "").strip()
-
-    if not username or not password:
-        return jsonify({"success": False, "message": "Please enter both username and password."}), 400
-
-    connection = get_db_connection()
-    if connection is None:
-        return jsonify({"success": False, "message": "Could not connect to database."}), 500
-
-    # ------------------------------------------------------------
-    # ACCOUNT INACTIVITY SWEEP (table-wide, not just this account)
-    # ------------------------------------------------------------
-    # Runs before we even look up the account being logged into, so every
-    # login attempt doubles as an opportunity to catch ANY account whose
-    # last_login has exceeded the configurable ACCOUNT_INACTIVITY_MINUTES
-    # threshold (see account_status.py) and flip it to 'Inactive'. This
-    # is best-effort/non-fatal by design - see refresh_inactive_accounts()'s
-    # own docstring for why it swallows its own errors.
-    refresh_inactive_accounts(connection)
-
-    try:
-        cursor = connection.cursor(dictionary=True)
-        
-        # Fetch account details
-        cursor.execute(
-            f"SELECT acc_id, password, status, last_login, failed_attempts, lockout_until, is_deleted, u_type FROM {ACCOUNT_TABLE} WHERE username = %s",
-            (username,)
-        )
-        account = cursor.fetchone()
-
-        if not account:
-            cursor.close()
-            # NEW: log failed attempt for unknown username (acc_id=None)
-            log_login_attempt(acc_id=None, ip_address=request.remote_addr, attempt_status="Failed")
-            return jsonify({"success": False, "message": "Invalid username or password."}), 401
-
-        # feat/archive-accounts: archived accounts get their own message
-        # (logged against the real acc_id so it shows in the account's
-        # Security tab / Login Logs).
-        if account.get("is_deleted"):
-            cursor.close()
-            log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
-            return jsonify({"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}), 403
-
-        # ------------------------------------------------------------
-        # ACCOUNT INACTIVITY CHECK
-        # ------------------------------------------------------------
-        # The actual "has this exceeded the configurable inactivity
-        # threshold?" comparison already ran table-wide (not just for
-        # this one account) via refresh_inactive_accounts() right after
-        # the connection was opened above - see the call before the
-        # SELECT. If that sweep just flipped THIS account to 'Inactive',
-        # reflect that in the in-memory `account` dict too, since it was
-        # fetched before the sweep ran.
-        if is_account_inactive(account.get("last_login")):
-            account["status"] = "Inactive"
-
-        lockout_until = account.get("lockout_until")
-        
-        # Automatically reset attempts and clear lockout if 1-minute timeout has passed
-        if lockout_until and datetime.now() >= lockout_until:
-            cursor.execute(
-                f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL WHERE acc_id = %s",
-                (account["acc_id"],)
-            )
-            connection.commit()
-            account["failed_attempts"] = 0
-            account["lockout_until"] = None
-            lockout_until = None
-
-        # Check if account is currently locked out
-        if lockout_until and datetime.now() < lockout_until:
-            cursor.close()
-            remaining_seconds = int((lockout_until - datetime.now()).total_seconds())
-            # NEW: log failed attempt caused by active lockout
-            log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
-            return jsonify({
-                "success": False, 
-                "message": f"Too many failed attempts. Please try again in 1 minute.",
-                "remaining_seconds": max(1, remaining_seconds)
-            }), 423 # HTTP 423 Locked
-
-        # Verify Password Hash
-        if not check_password_hash(account["password"], password):
-            failed_attempts = account.get("failed_attempts", 0) + 1
-            
-            if failed_attempts >= 5:
-                # Lock account for 1 minute
-                cursor.execute(
-                    f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = %s, lockout_until = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE acc_id = %s",
-                    (failed_attempts, account["acc_id"])
-                )
-                connection.commit()
-                cursor.close()
-                # NEW: one lockout EVENT record - this is what "Locked Out
-                # Due to Fails" counts (DISTINCT acc_id, scoped to today),
-                # never account_tbl's current lockout_until state.
-                log_lockout_event(acc_id=account["acc_id"])
-                # NEW: log failed attempt that triggered the lockout
-                log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
-                return jsonify({
-                    "success": False, 
-                    "message": "Too many failed attempts. Please try again in 1 minute.",
-                    "remaining_seconds": 60
-                }), 423
-            else:
-                # Increment failed attempts and return remaining count out of 5
-                cursor.execute(
-                    f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = %s WHERE acc_id = %s",
-                    (failed_attempts, account["acc_id"])
-                )
-                connection.commit()
-                cursor.close()
-                attempts_remaining = 5 - failed_attempts
-                # NEW: log failed attempt (wrong password)
-                log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Failed")
-                return jsonify({
-                    "success": False, 
-                    "message": f"Incorrect password. {attempts_remaining} attempt(s) remaining."
-                }), 401
-
-        # Successful login: reset failed attempts/lockout, update last_login,
-        # and reactivate status. This UPDATE is the ONLY place in the app
-        # that ever sets status back to 'Active' - refresh_inactive_accounts()
-        # (account_status.py) only ever moves accounts TOWARD 'Inactive', so
-        # there's no risk of the two racing/undoing each other. This is what
-        # implements "Inactive account logs in again -> status = Active".
-        cursor.execute(
-            f"UPDATE {ACCOUNT_TABLE} SET failed_attempts = 0, lockout_until = NULL, last_login = NOW(), status = 'Active' WHERE acc_id = %s",
-            (account["acc_id"],)
-        )
-        connection.commit()
-        cursor.close()
-
-        # NEW: log successful login
-        log_login_attempt(acc_id=account["acc_id"], ip_address=request.remote_addr, attempt_status="Success")
-
-        # ------------------------------------------------------------
-        # ROLE-BASED REDIRECT (u_type: 1 = Admin, 2 = Learner)
-        # ------------------------------------------------------------
-        is_admin = account.get("u_type") == ADMIN_U_TYPE
-        role = "Admin" if is_admin else "Learner"
-        redirect_url = "/admin/dashboard" if is_admin else "dashboard.html"
-
-        # NEW (Task #12): Admin pages are authenticated via a real
-        # server-side session, not just the frontend's sessionStorage
-        # flag. Store only the acc_id here - admin_routes.py looks this
-        # up fresh from the database on every request rather than
-        # trusting any name/role passed in from the client.
+    payload, status, login_info = authenticate(
+        data.get("username"), data.get("password"), "learner", request.remote_addr
+    )
+    if login_info:
         session.clear()
+        if login_info["session_token"]:
+            session["session_token"] = login_info["session_token"]
+    return jsonify(payload), status
 
-        # NEW: open a real active_sessions_tbl row for THIS login - for
-        # both Admin and Learner accounts. This (not login_logs_tbl
-        # history) is what the "Active Sessions" metric counts: the row
-        # is removed on logout (see admin_logout()/learner_logout()
-        # below) or swept automatically after SESSION_TIMEOUT_MINUTES of
-        # inactivity (see session_tracker.sweep_expired_sessions()). A
-        # None return (DB hiccup) must never block the login itself.
-        session_token = create_session(account["acc_id"])
-        if session_token:
-            session["session_token"] = session_token
-
-        if is_admin:
-            session["admin_id"] = account["acc_id"]
-
-        return jsonify({
-            "success": True,
-            "message": "Login successful. Redirecting...",
-            "acc_id": account["acc_id"],
-            "u_type": account["u_type"],
-            "role": role,
-            "redirect": redirect_url
-        }), 200
-
-    except Error as e:
-        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
-    finally:
-        if connection.is_connected():
-            connection.close()
 
 # ============================================================
-# ROUTE: SEND FORGOT PASSWORD OTP
+# ROUTES: LEARNER FORGOT PASSWORD (send code -> verify -> reset)
+# Learner accounts only - admins reset from /admin/login.
 # ============================================================
 @app.route("/forgot-password/send-otp", methods=["POST"])
 def forgot_password_send_otp():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
+    payload, status = send_reset_code(data.get("email"), "learner")
+    return jsonify(payload), status
 
-    if not email:
-        return jsonify({"success": False, "message": "Please enter your email address."}), 400
 
-    connection = get_db_connection()
-    if connection is None:
-        return jsonify({"success": False, "message": "Could not connect to database."}), 500
-
-    try:
-        cursor = connection.cursor()
-        cursor.execute(f"SELECT acc_id, is_deleted FROM {ACCOUNT_TABLE} WHERE email = %s", (email,))
-        account = cursor.fetchone()
-        cursor.close()
-
-        if not account:
-            return jsonify({"success": False, "message": "No account found with this email address."}), 404
-
-        # feat/archive-accounts: archived -> clear message, no reset code,
-        # and no "Sign up with this email" hint (that one is 404-only).
-        if account[1]:
-            return jsonify({"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}), 403
-
-        # Generate OTP and store in memory with expiration timestamp
-        otp_code = generate_otp()
-        otp_storage[f"forgot_{email}"] = {
-            "otp": otp_code,
-            "expires_at": time.time() + 60
-        }
-
-        # Send email using api.py
-        sent = send_email(
-            to_email=email,
-            subject="CobraByte - Password Reset Code",
-            body_text=f"Your 6-digit password reset code is: {otp_code}\nThis code expires in 1 minute."
-        )
-
-        if sent:
-            return jsonify({"success": True, "message": "Reset code sent to your email."}), 200
-        return jsonify({"success": False, "message": "Failed to send email. Please try again."}), 500
-
-    except Error as e:
-        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
-    finally:
-        if connection.is_connected():
-            connection.close()
-
-# ============================================================
-# ROUTE: VERIFY FORGOT PASSWORD OTP
-# ============================================================
 @app.route("/forgot-password/verify-otp", methods=["POST"])
 def forgot_password_verify_otp():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
-    user_otp = (data.get("otp") or "").strip()
-
-    if not email or not user_otp:
-        return jsonify({"success": False, "message": "Email and OTP code are required."}), 400
-
-    stored_record = otp_storage.get(f"forgot_{email}")
-    if not stored_record:
-        return jsonify({"success": False, "message": "No verification code found. Please request a new code."}), 400
-
-    if time.time() > stored_record["expires_at"]:
-        otp_storage.pop(f"forgot_{email}", None)
-        return jsonify({"success": False, "message": "Verification code has expired. Please click 'Resend code'."}), 400
-
-    if stored_record["otp"] != user_otp:
-        return jsonify({"success": False, "message": "Invalid verification code."}), 400
-
-    return jsonify({"success": True, "message": "OTP verified successfully."}), 200
+    payload, status = verify_reset_code(data.get("email"), data.get("otp"), "learner")
+    return jsonify(payload), status
 
 
-# ============================================================
-# ROUTE: RESET PASSWORD (UPDATE IN MYSQL & CLEAR LOCKOUT)
-# ============================================================
 @app.route("/forgot-password/reset-password", methods=["POST"])
 def forgot_password_reset():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
-    new_password = (data.get("newPassword") or "").strip()
-    confirm_password = (data.get("confirmPassword") or "").strip()
-
-    if not email or not new_password or not confirm_password:
-        return jsonify({"success": False, "message": "All fields are required."}), 400
-
-    if new_password != confirm_password:
-        return jsonify({"success": False, "message": "Passwords do not match."}), 400
-
-    # Backend Regex Password Validation Check for Reset Flow
-    if not PASSWORD_REGEX.match(new_password):
-        return jsonify({
-            "success": False, 
-            "message": "Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character."
-        }), 400
-
-    connection = get_db_connection()
-    if connection is None:
-        return jsonify({"success": False, "message": "Could not connect to database."}), 500
-
-    try:
-        cursor = connection.cursor(dictionary=True) # Ginawang dictionary=True para makuha sa key name
-        
-        # 1. Kunin muna ang kasalukuyang password hash ng user (acc_id also
-        #    pulled here so the reset event below can be attributed to the
-        #    right account without a second lookup).
-        cursor.execute(f"SELECT acc_id, password FROM {ACCOUNT_TABLE} WHERE email = %s AND is_deleted = 0", (email,))
-        account = cursor.fetchone()
-
-        if not account:
-            cursor.close()
-            return jsonify({"success": False, "message": "Account not found."}), 404
-
-        # 2. DAGDAG CHECK: I-verify kung ang bagong password ay pareho sa lumang password
-        if check_password_hash(account["password"], new_password):
-            cursor.close()
-            return jsonify({
-                "success": False, 
-                "message": "Your new password cannot be the same as your old password."
-            }), 400
-
-        # 3. Hash the new password before updating
-        hashed_password = generate_password_hash(new_password)
-
-        # Update password and automatically clear failed attempts / lockout state
-        cursor.execute(
-            f"UPDATE {ACCOUNT_TABLE} SET password = %s, failed_attempts = 0, lockout_until = NULL WHERE email = %s AND is_deleted = 0",
-            (hashed_password, email)
-        )
-        connection.commit()
-
-        cursor.close()
-
-        # Clean up stored OTP after successful reset
-        otp_storage.pop(f"forgot_{email}", None)
-
-        # NEW: log this reset so Admin > Login Logs' "Password Resets
-        # Today" metric card can count it. Best-effort/non-fatal (see
-        # password_reset_logs.py) - a logging hiccup here must never
-        # undo a password reset that already succeeded.
-        log_password_reset(acc_id=account["acc_id"])
-
-        return jsonify({"success": True, "message": "Password updated successfully."}), 200
-
-    except Error as e:
-        connection.rollback()
-        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
-    finally:
-        if connection.is_connected():
-            connection.close()
+    payload, status = reset_password(
+        data.get("email"), data.get("newPassword"), data.get("confirmPassword"), "learner"
+    )
+    return jsonify(payload), status
 
 
 # ============================================================

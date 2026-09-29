@@ -91,6 +91,7 @@ from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW -
 from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
+from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
 from account_management import (  # feat/archive-accounts: Account Details modal + soft-delete archive/restore
     get_account_detail, archive_account, restore_account, get_archived_accounts,
     get_archive_block_reason, is_account_archived,
@@ -111,12 +112,23 @@ admin_bp = Blueprint(
     static_url_path='/admin/assets'    # Creates a direct route for them
 )
 
-# Login page is served by the frontend (Live Server), the same URL already
-# used by admin-auth-guard.js and admin-script.js - NOT the backend's own
-# "/" route, which serves a different purpose and isn't guaranteed to
-# resolve to login.html depending on where the Flask process is launched
-# from.
-LOGIN_REDIRECT_URL = "http://127.0.0.1:5500/templates/login.html"
+# feat/admin-login-page: admins have their own login page, served by this
+# same Flask app (/admin/login) - no more Live Server (:5500) URL. Relative,
+# so it works on 127.0.0.1:5000 and localhost:5000 alike and the session
+# cookie always stays on the same origin.
+LOGIN_REDIRECT_URL = "/admin/login"
+
+# Routes a signed-out admin must still reach (the login page itself, its
+# reset flow, and the tab-close beacon). Everything else needs a session.
+PUBLIC_ADMIN_ENDPOINTS = {
+    'admin_bp.static',
+    'admin_bp.admin_login_page',
+    'admin_bp.admin_login_submit',
+    'admin_bp.admin_forgot_send_otp',
+    'admin_bp.admin_forgot_verify_otp',
+    'admin_bp.admin_forgot_reset',
+    'admin_bp.admin_session_end_beacon',
+}
 
 # ------------------------------------------------------------
 # Task: Create Administrator - table/prefix/u_type config
@@ -200,7 +212,7 @@ def _require_admin_session():
     requires a valid admin_id in the server-side session, or the request
     is redirected to the login page instead of rendering anything.
     """
-    if request.endpoint == 'admin_bp.static':
+    if request.endpoint in PUBLIC_ADMIN_ENDPOINTS:
         return
     if not session.get("admin_id"):
         return redirect(LOGIN_REDIRECT_URL)
@@ -384,6 +396,60 @@ def inject_current_admin():
         # validators.TITLE_LIMITS, e.g. maxlength="{{ title_limits.module }}"
         "title_limits": TITLE_LIMITS,
     }
+
+
+# ============================================================
+# feat/admin-login-page: ADMIN LOGIN + FORGOT PASSWORD
+# Thin wrappers - every rule lives in auth_core.py, shared with the
+# learner login. Only admin accounts get in here; a learner account
+# gets the same generic message as an unknown username.
+# ============================================================
+@admin_bp.route('/login', methods=['GET'])
+def admin_login_page():
+    """Admin sign-in page. An admin who is already signed in goes straight to the dashboard."""
+    admin_id = session.get("admin_id")
+    if admin_id and not is_account_archived(admin_id):
+        return redirect(url_for('admin_bp.admin_dashboard'))
+    return render_template('admin-login.html')
+
+
+@admin_bp.route('/login', methods=['POST'])
+def admin_login_submit():
+    data = request.get_json(silent=True) or {}
+    payload, status, login_info = authenticate(
+        data.get("username"), data.get("password"), "admin", request.remote_addr
+    )
+    if login_info:
+        # Only the acc_id is stored - every admin request re-checks it
+        # against the database (_require_admin_session / get_current_admin).
+        session.clear()
+        if login_info["session_token"]:
+            session["session_token"] = login_info["session_token"]
+        session["admin_id"] = login_info["acc_id"]
+    return jsonify(payload), status
+
+
+@admin_bp.route('/forgot-password/send-otp', methods=['POST'])
+def admin_forgot_send_otp():
+    data = request.get_json(silent=True) or {}
+    payload, status = send_reset_code(data.get("email"), "admin")
+    return jsonify(payload), status
+
+
+@admin_bp.route('/forgot-password/verify-otp', methods=['POST'])
+def admin_forgot_verify_otp():
+    data = request.get_json(silent=True) or {}
+    payload, status = verify_reset_code(data.get("email"), data.get("otp"), "admin")
+    return jsonify(payload), status
+
+
+@admin_bp.route('/forgot-password/reset-password', methods=['POST'])
+def admin_forgot_reset():
+    data = request.get_json(silent=True) or {}
+    payload, status = reset_password(
+        data.get("email"), data.get("newPassword"), data.get("confirmPassword"), "admin"
+    )
+    return jsonify(payload), status
 
 
 @admin_bp.route('/logout')
