@@ -144,6 +144,16 @@
         history.pushState({ cobrabyteAuthGuard: true }, "", location.href);
     }
 
+    // A click on a placeholder link (href="#") is an in-page fragment
+    // navigation: the browser pushes a history entry and fires popstate,
+    // which the trap below would mistake for the Back button and ask
+    // "Are you sure you want to log out?". Cancel only the navigation -
+    // any click handler the link has still runs.
+    document.addEventListener("click", function (event) {
+        const link = event.target.closest && event.target.closest('a[href="#"]');
+        if (link) event.preventDefault();
+    });
+
     window.addEventListener("popstate", function (event) {
 
         if (!isAuthenticated()) {

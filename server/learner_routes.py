@@ -37,6 +37,10 @@ from learner_exercise import (
 from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
+from module_performance import (  # Module 85% gate
+    module_performance, get_resource_retake_info, start_activity_retake,
+)
+from activity_retakes import ensure_retake_schema
 from learner_progress_unlocks import has_unlock, write_unlock, get_unlocked_at  # NEW - Task #13: permanent category unlock check; get_unlocked_at added for Task #16's catch-up badge
 
 learner_bp = Blueprint('learner_bp', __name__)
@@ -284,6 +288,8 @@ def learning_map_data():
     try:
         cursor = connection.cursor(dictionary=True)
 
+        ensure_retake_schema(connection)   # Module 85% gate reads answers.retake_id
+
         # Task #15: Publishing page's Edit Order writes display_order -
         # this is the first place the learner side actually reads it.
         # COALESCE falls back to cat_id for any row that somehow still
@@ -372,6 +378,13 @@ def learning_map_data():
                 status = "in_progress"
             else:
                 status = "not_started"
+
+            # Module 85% gate: every item done is not enough - a module
+            # only counts as completed once it has PASSED (lesson average
+            # >= 85%). Until then it stays in progress, which also keeps
+            # the next chapter locked.
+            if status == "completed" and not module_performance(cursor, acc_id, module_id)["passed"]:
+                status = "in_progress"
 
             module_status_by_id[module_id] = status
 
@@ -483,6 +496,7 @@ def lessons_data():
         # reached this category at all yet (badge logic below simply
         # never fires in that case, since nothing is browsable yet).
         category_unlocked_at = get_unlocked_at(connection, acc_id, "category", cat_id)
+        ensure_retake_schema(connection)   # Module 85% gate reads answers.retake_id
 
         cursor.execute(
             "SELECT module_id, module_name, description, created_at FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 "
@@ -494,9 +508,11 @@ def lessons_data():
         modules_out = []
         overall_completed = 0
         overall_total = 0
+        previous_module_passed = True
 
-        for module in raw_modules:
+        for module_index, module in enumerate(raw_modules):
             module_id = module["module_id"]
+            module_touched = False
 
             cursor.execute(
                 "SELECT resource_id, resource_title, created_at FROM learning_resources_tbl WHERE module_id = %s "
@@ -522,6 +538,7 @@ def lessons_data():
                 # "reached," so it can never be re-locked by a later
                 # reorder either.
                 has_ever_touched = progress_row is not None
+                module_touched = module_touched or has_ever_touched
                 resource_watched = bool(progress_row and progress_row["status"] == "completed")
 
                 # Only Published activities count - Draft / Ready to Publish /
@@ -612,6 +629,25 @@ def lessons_data():
                 # locking behind it.
                 previous_reached = is_complete or has_ever_touched
 
+            # Module 85% gate: the first module of a chapter is always open;
+            # every other one opens once the module before it PASSED (all
+            # lessons done + lesson average >= 85%). A permanent unlock row,
+            # or any lesson already started in this module (learners who got
+            # here before the gate existed), keeps it open for good.
+            perf = module_performance(cursor, acc_id, module_id)
+            already_unlocked = has_unlock(connection, acc_id, "module", module_id)
+            module_locked = not (module_index == 0 or previous_module_passed
+                                 or already_unlocked or module_touched)
+            if not module_locked and not already_unlocked:
+                write_unlock(connection, acc_id, "module", module_id)
+            for lesson in lessons_out:
+                lesson_perf = perf["lessons"].get(lesson["resource_id"]) or {}
+                lesson["performance_percent"] = lesson_perf.get("percent")
+                lesson["missed"] = lesson_perf.get("missed", 0)
+                if module_locked:
+                    lesson["status"] = "locked"
+            previous_module_passed = perf["passed"]
+
             lessons_completed_in_module = sum(1 for l in lessons_out if l["status"] == "completed")
 
             is_new_module = bool(
@@ -626,7 +662,15 @@ def lessons_data():
                 "lessons_completed": lessons_completed_in_module,
                 "lessons_total": len(lessons_out),
                 "lessons": lessons_out,
-                "is_new": is_new_module
+                "is_new": is_new_module,
+                # Module 85% gate
+                "locked": module_locked,
+                "performance_percent": perf["percent"],
+                "all_done": perf["all_done"],
+                "passed": perf["passed"],
+                "needs_retake": perf["needs_retake"],
+                "pass_percent": perf["pass_percent"],
+                "missed_total": sum(l["missed"] for l in lessons_out),
             })
 
         overall_percent = round((overall_completed / overall_total) * 100) if overall_total > 0 else 0
@@ -933,10 +977,43 @@ def lesson_activities_data():
             if connection.is_connected():
                 connection.close()
 
+    # Module 85% gate: per-activity retake info (missed items, open round).
+    retake_info = get_resource_retake_info(acc_id, resource_id) or {}
+    retake_by_la = retake_info.get("activities") or {}
     for activity in activities:
         activity["completed"] = activity["la_id"] in completed_ids
+        info = retake_by_la.get(activity["la_id"])
+        activity["retake"] = {
+            "allowed": bool(retake_info.get("module_needs_retake")),
+            "missed": info["missed"],
+            "open": info["open"],
+            "round": info["round"],
+        } if info else None
 
-    return jsonify({"success": True, "activities": activities}), 200
+    return jsonify({
+        "success": True,
+        "activities": activities,
+        "module_needs_retake": bool(retake_info.get("module_needs_retake")),
+        "module_percent": retake_info.get("module_percent"),
+    }), 200
+
+
+# ============================================================
+# ROUTE: START (OR CONTINUE) A RETAKE ROUND FOR ONE ACTIVITY
+# Module 85% gate - only the items still missed are replayed; the game's
+# own endpoints (mcq/*, fib-*, flashcard-*) then run in retake mode.
+# ============================================================
+@learner_bp.route("/api/lesson-activities/retake/start", methods=["POST"])
+def lesson_activities_retake_start():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    result, error_message = start_activity_retake(acc_id, data.get("la_id"))
+    if result is None:
+        return jsonify({"success": False, "message": error_message or "Could not start the retake."}), 400
+    return jsonify({"success": True, **result}), 200
 
 
 # ============================================================
@@ -988,7 +1065,8 @@ def lesson_activities_check_answer():
 #   POST /mcq/play       start the ONE play, or resume the same paused play
 #   POST /mcq/answer     grade an eaten pellet (every attempt is recorded)
 #   POST /mcq/lose-life  wall hit / self-bite (not an answer)
-#   POST /mcq/skip       skip the current question after a wrong answer
+#   POST /mcq/skip       skip the current question (after a wrong answer: free;
+#                        from the preview with from_preview=true: -1 life)
 # ============================================================
 def _mcq_response(payload, error_message):
     if payload is None:
@@ -1048,7 +1126,9 @@ def lesson_activities_mcq_skip():
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
     data = request.get_json(silent=True) or {}
-    result, error_message = skip_mcq_question(acc_id, data.get("la_id"), data.get("q_id"))
+    result, error_message = skip_mcq_question(
+        acc_id, data.get("la_id"), data.get("q_id"), data.get("from_preview") is True
+    )
     failed = _mcq_response(result, error_message)
     if failed:
         return failed

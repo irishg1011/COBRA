@@ -767,3 +767,9 @@
 }
 
 .mcq-arena-reveal-text { color: var(--arena-text); }
+
+/* Module 85% gate: centered Continue / Back to Lessons under a retake message */
+.activity-next-btn-centered {
+    display: block;
+    margin: 12px auto 0;
+}

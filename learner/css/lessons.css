@@ -356,3 +356,118 @@
         justify-content: center;
     }
 }
+
+/* ---------- Module 85% gate: module score panel + retake ---------- */
+.module-gate {
+    margin: -6px 0 18px 54px;
+    padding: 14px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.module-gate.is-retake {
+    border-color: #fcd34d;
+    background: #fffbeb;
+}
+
+.module-gate.is-locked {
+    background: #f8fafc;
+}
+
+.module-gate-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.module-gate-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 700;
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.module-gate-pill svg {
+    width: 14px;
+    height: 14px;
+}
+
+.module-gate-pill.is-passed {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.module-gate-pill.is-retake {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.module-gate-pill.is-locked {
+    background: #e2e8f0;
+    color: #64748b;
+}
+
+.module-gate-track {
+    position: relative;
+    height: 8px;
+    margin: 14px 0 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+}
+
+.module-gate-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: #16a34a;
+}
+
+.module-gate-fill.is-retake {
+    background: #d97706;
+}
+
+.module-gate-marker {
+    position: absolute;
+    top: -4px;
+    width: 2px;
+    height: 16px;
+    margin-left: -1px;
+    background: #0f172a;
+    border-radius: 1px;
+}
+
+.module-gate-note {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.module-gate.is-retake .module-gate-note {
+    color: #92400e;
+}
+
+.lesson-badge.status-retake {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.lesson-action-btn.action-retake {
+    background: #d97706;
+    color: #ffffff;
+}
+
+.lesson-action-btn.action-retake:hover {
+    background: #b45309;
+}
+
+@media (max-width: 700px) {
+    .module-gate {
+        margin-left: 0;
+    }
+}

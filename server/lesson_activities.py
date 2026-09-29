@@ -23,6 +23,9 @@ etc.).
 from datetime import timedelta
 from mysql.connector import Error
 from cobradb import get_db_connection
+from activity_retakes import (  # Module 85% gate: retake rounds
+    ensure_retake_schema, open_retake, retake_progress, complete_retake, retake_payload,
+)
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
@@ -525,6 +528,8 @@ def ensure_activity_game_schema(connection):
     BEFORE they write anything on `connection`.
     """
     global _game_schema_ensured
+    # Module 85% gate: activity_retakes_tbl + answers.retake_id (own once-flag).
+    ensure_retake_schema(connection)
     if _game_schema_ensured:
         return True
     try:
@@ -807,7 +812,7 @@ def _open_mcq(cursor, acc_id, la_id):
     else:
         index = 0
 
-    return {
+    ctx = {
         "acc_id": acc_id,
         "la_id": la_id,
         "q_ids": q_ids,
@@ -815,7 +820,40 @@ def _open_mcq(cursor, acc_id, la_id):
         "session": session_row,
         "index": index,
         "completed": completed,
+        "retake": None,
     }
+    retake = open_retake(cursor, acc_id, la_id)
+    if retake:
+        _enter_mcq_retake(cursor, ctx, retake)
+    return ctx
+
+
+def _enter_mcq_retake(cursor, ctx, retake):
+    """
+    Retake mode (Module 85% gate): an in-progress retake round exists, so
+    this play covers ONLY that round's questions. Position comes from the
+    answers already given in the round; the round has no session row -
+    its "session" lives in memory: in_progress while there are lives,
+    paused at 0 (same rules as a normal play). The normal play's session
+    and its first-attempt score are never touched.
+    """
+    q_ids = [q for q in retake["item_ids"] if q in ctx["q_ids"]]
+    done, _ = retake_progress(cursor, ctx["acc_id"], MCQ_TYPE_NAME, retake)
+    ctx["q_ids"] = q_ids
+    ctx["index"] = next((i for i, q in enumerate(q_ids) if q not in done), len(q_ids))
+    ctx["completed"] = False
+    ctx["retake"] = retake
+    ctx["session"] = {
+        "session_id": None,
+        "current_q_id": q_ids[ctx["index"]] if ctx["index"] < len(q_ids) else None,
+        "score": 0,
+        "status": "in_progress" if _total_lives(ctx["pool"]) > 0 else "paused",
+    }
+
+
+def _retake_id(ctx):
+    """retake_id to stamp on an answer row (None for the normal play)."""
+    return ctx["retake"]["retake_id"] if ctx.get("retake") else None
 
 
 def _mcq_state(cursor, ctx):
@@ -832,7 +870,12 @@ def _mcq_state(cursor, ctx):
         "total": len(q_ids),
         "score": _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]),
         "completed": ctx["completed"],
+        "retake": None,
     })
+    retake = ctx.get("retake")
+    if retake:
+        _, fixed = retake_progress(cursor, ctx["acc_id"], MCQ_TYPE_NAME, retake)
+        state["retake"] = retake_payload(retake, len(q_ids), len(fixed & set(q_ids)), ctx["completed"])
     return state
 
 
@@ -842,6 +885,14 @@ def _complete_mcq(cursor, ctx):
     learner_activity_progress_tbl row -> completed with the
     first-attempt score. No answer rows are touched.
     """
+    if ctx.get("retake"):
+        # Retake round finished: only the round closes - the activity's
+        # progress row and first-attempt score stay as they were.
+        complete_retake(cursor, ctx["retake"]["retake_id"])
+        ctx["session"]["status"] = "completed"
+        ctx["completed"] = True
+        ctx["index"] = len(ctx["q_ids"])
+        return
     acc_id, la_id = ctx["acc_id"], ctx["la_id"]
     score = _first_attempt_score(cursor, acc_id, la_id)
     session_row = ctx["session"]
@@ -885,6 +936,9 @@ def _pause_if_out_of_lives(cursor, ctx):
     session_row = ctx["session"]
     if (session_row and session_row["status"] == "in_progress"
             and _total_lives(ctx["pool"]) <= 0 and not ctx["completed"]):
+        if ctx.get("retake"):
+            session_row["status"] = "paused"   # retake rounds pause in memory only
+            return
         cursor.execute(
             f"UPDATE {MCQ_SESSIONS_TABLE} SET status = 'paused', paused_at = NOW() WHERE session_id = %s",
             (session_row["session_id"],)
@@ -901,8 +955,10 @@ def _settle_position(cursor, ctx):
     session_row = ctx["session"]
     if not session_row or ctx["completed"]:
         return
-    if ctx["q_ids"] and ctx["index"] >= len(ctx["q_ids"]):
+    if ctx["index"] >= len(ctx["q_ids"]) and (ctx["q_ids"] or ctx.get("retake")):
         _complete_mcq(cursor, ctx)
+        return
+    if ctx.get("retake"):
         return
     if ctx["q_ids"]:
         wanted = ctx["q_ids"][ctx["index"]]
@@ -986,12 +1042,13 @@ def play_mcq_activity(acc_id, la_id):
 
         if session_row and session_row["status"] == "paused":
             if lives > 0:
-                cursor.execute(
-                    f"""UPDATE {MCQ_SESSIONS_TABLE}
-                        SET status = 'in_progress', resumed_at = NOW()
-                        WHERE session_id = %s""",
-                    (session_row["session_id"],)
-                )
+                if not ctx.get("retake"):
+                    cursor.execute(
+                        f"""UPDATE {MCQ_SESSIONS_TABLE}
+                            SET status = 'in_progress', resumed_at = NOW()
+                            WHERE session_id = %s""",
+                        (session_row["session_id"],)
+                    )
                 session_row["status"] = "in_progress"
         elif not session_row and lives > 0:
             index = _first_unsolved_index(cursor, ctx["acc_id"], ctx["q_ids"])
@@ -1075,22 +1132,23 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
         cursor.execute(
             f"""INSERT INTO {MCQ_ANSWERS_TABLE}
                 (acc_id, q_id, option_id, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+                 recommendation_id, feedback_given, answered_at, retake_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)""",
             (ctx["acc_id"], q_id, option_id, attempt_number,
              "correct" if is_correct else "incorrect",
              "recommendation" if rec_id else "self",
-             rec_id, feedback)
+             rec_id, feedback, _retake_id(ctx))
         )
 
         if is_correct:
             _advance_mcq(cursor, ctx)
         else:
             _take_life(pool)
-            cursor.execute(
-                f"UPDATE {MCQ_SESSIONS_TABLE} SET score = %s WHERE session_id = %s",
-                (_first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]), session_row["session_id"])
-            )
+            if not ctx.get("retake"):
+                cursor.execute(
+                    f"UPDATE {MCQ_SESSIONS_TABLE} SET score = %s WHERE session_id = %s",
+                    (_first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]), session_row["session_id"])
+                )
             _pause_if_out_of_lives(cursor, ctx)
 
         payload = {
@@ -1121,6 +1179,9 @@ def _advance_mcq(cursor, ctx):
     if ctx["index"] >= len(q_ids):
         _complete_mcq(cursor, ctx)
         return
+    if ctx.get("retake"):
+        session_row["current_q_id"] = q_ids[ctx["index"]]
+        return
     next_q = q_ids[ctx["index"]]
     cursor.execute(
         f"""UPDATE {MCQ_SESSIONS_TABLE}
@@ -1131,13 +1192,19 @@ def _advance_mcq(cursor, ctx):
     session_row["current_q_id"] = next_q
 
 
-def skip_mcq_question(acc_id, la_id, q_id):
+def skip_mcq_question(acc_id, la_id, q_id, from_preview=False):
     """
-    Skip the current question - only offered after a wrong answer on it.
-    Appends a status 'skipped' row (option_id NULL, no life, no score) and
-    moves to the next question; skipping the last one completes the play.
+    Skip the current question. Appends a status 'skipped' row
+    (option_id NULL, no score) and moves to the next question; skipping
+    the last one completes the play.
+      - after a wrong answer (from_preview=False): costs no life (the
+        wrong answer already did); needs a wrong answer on it first
+      - from the question preview (from_preview=True): costs 1 life and
+        needs no earlier answer; 0 lives afterwards pauses the play on
+        the next question
     payload["skipped"] is False when it wasn't allowed (no running play,
-    0 lives, a different question, or no wrong answer on it yet).
+    0 lives, a different question, or - after-wrong skip only - no wrong
+    answer on it yet).
     """
     q_id = _to_int(q_id)
     if not q_id:
@@ -1149,7 +1216,7 @@ def skip_mcq_question(acc_id, la_id, q_id):
         q_ids = ctx["q_ids"]
         allowed = (not ctx["completed"] and session_row and session_row["status"] == "in_progress"
                    and _total_lives(ctx["pool"]) > 0 and index < len(q_ids) and q_ids[index] == q_id)
-        if allowed:
+        if allowed and not from_preview:
             cursor.execute(
                 f"""SELECT COUNT(*) AS wrong FROM {MCQ_ANSWERS_TABLE}
                     WHERE acc_id = %s AND q_id = %s AND status = 'incorrect'""",
@@ -1167,11 +1234,15 @@ def skip_mcq_question(acc_id, la_id, q_id):
         cursor.execute(
             f"""INSERT INTO {MCQ_ANSWERS_TABLE}
                 (acc_id, q_id, option_id, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at)
-                VALUES (%s, %s, NULL, %s, 'skipped', 'self', NULL, NULL, NOW())""",
-            (ctx["acc_id"], q_id, attempt_number)
+                 recommendation_id, feedback_given, answered_at, retake_id)
+                VALUES (%s, %s, NULL, %s, 'skipped', 'self', NULL, NULL, NOW(), %s)""",
+            (ctx["acc_id"], q_id, attempt_number, _retake_id(ctx))
         )
+        if from_preview:
+            _take_life(ctx["pool"])
         _advance_mcq(cursor, ctx)
+        if from_preview:
+            _pause_if_out_of_lives(cursor, ctx)
         return {"skipped": True, "state": _mcq_state(cursor, ctx)}, None
     return _run_mcq(acc_id, la_id, action, "skip MCQ question")
 

@@ -614,7 +614,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // activity (see activity.completed in lesson-activities.js) -
         // it just never got the chance to run before this fix.
         if (typeof window.cobraByteInitLessonActivities === 'function') {
-            window.cobraByteInitLessonActivities(resourceId, activitiesContainer, onActivitiesDone);
+            // ?retake=1 (Lessons page "Retake N missed"): Module 85% gate
+            // retake - only the missed items are replayed.
+            window.cobraByteInitLessonActivities(resourceId, activitiesContainer, onActivitiesDone, {
+                retake: urlParams.get('retake') === '1'
+            });
         }
     }
 

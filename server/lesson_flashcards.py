@@ -46,6 +46,9 @@ from lesson_activities import (
     total_lives,
     lives_payload,
 )
+from activity_retakes import (  # Module 85% gate: retake rounds
+    FLASHCARD_TYPE, open_retake, retake_progress, complete_retake, retake_payload,
+)
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
@@ -239,7 +242,7 @@ def _open(cursor, acc_id, la_id):
     else:
         index = next((i for i, cid in enumerate(card_ids) if cid not in solved), len(card_ids))
 
-    return {
+    ctx = {
         "acc_id": acc_id,
         "la_id": la_id,
         "cards": cards,
@@ -249,7 +252,42 @@ def _open(cursor, acc_id, la_id):
         "session": session_row,
         "index": index,
         "completed": completed,
+        "retake": None,
     }
+    retake = open_retake(cursor, acc_id, la_id)
+    if retake:
+        _enter_retake(cursor, ctx, retake)
+    return ctx
+
+
+def _enter_retake(cursor, ctx, retake):
+    """
+    Retake mode (Module 85% gate): an in-progress retake round exists, so
+    this play covers ONLY that round's cards. "Solved" = moved past in this
+    round; the round's "session" lives in memory (in_progress with lives,
+    paused at 0). The normal play's session and first-try score are
+    never touched.
+    """
+    by_id = {c["flashcard_id"]: c for c in ctx["cards"]}
+    card_ids = [cid for cid in retake["item_ids"] if cid in by_id]
+    done, _ = retake_progress(cursor, ctx["acc_id"], FLASHCARD_TYPE, retake)
+    ctx["cards"] = [by_id[cid] for cid in card_ids]
+    ctx["card_ids"] = card_ids
+    ctx["solved"] = {cid for cid in card_ids if cid in done}
+    ctx["index"] = next((i for i, cid in enumerate(card_ids) if cid not in ctx["solved"]), len(card_ids))
+    ctx["completed"] = False
+    ctx["retake"] = retake
+    ctx["session"] = {
+        "session_id": None,
+        "current_flashcard_id": card_ids[ctx["index"]] if ctx["index"] < len(card_ids) else None,
+        "score": 0,
+        "status": "in_progress" if total_lives(ctx["pool"]) > 0 else "paused",
+    }
+
+
+def _retake_id(ctx):
+    """retake_id to stamp on an answer row (None for the normal play)."""
+    return ctx["retake"]["retake_id"] if ctx.get("retake") else None
 
 
 def _state(cursor, ctx):
@@ -266,12 +304,24 @@ def _state(cursor, ctx):
         "solved_count": len(ctx["solved"]),
         "first_try_correct": _first_try_score(cursor, ctx["acc_id"], card_ids),
         "completed": ctx["completed"],
+        "retake": None,
     })
+    retake = ctx.get("retake")
+    if retake:
+        _, fixed = retake_progress(cursor, ctx["acc_id"], FLASHCARD_TYPE, retake)
+        state["retake"] = retake_payload(retake, len(card_ids), len(fixed & set(card_ids)), ctx["completed"])
     return state
 
 
 def _complete(cursor, ctx):
     """Session -> completed; learner_activity_progress_tbl -> completed + first-try score."""
+    if ctx.get("retake"):
+        # Retake round finished: only the round closes.
+        complete_retake(cursor, ctx["retake"]["retake_id"])
+        ctx["session"]["status"] = "completed"
+        ctx["completed"] = True
+        ctx["index"] = len(ctx["card_ids"])
+        return
     acc_id, la_id = ctx["acc_id"], ctx["la_id"]
     score = _first_try_score(cursor, acc_id, ctx["card_ids"])
     session_row = ctx["session"]
@@ -312,6 +362,9 @@ def _pause_if_out_of_lives(cursor, ctx):
     session_row = ctx["session"]
     if (session_row and session_row["status"] == "in_progress"
             and total_lives(ctx["pool"]) <= 0 and not ctx["completed"]):
+        if ctx.get("retake"):
+            session_row["status"] = "paused"   # retake rounds pause in memory only
+            return
         cursor.execute(
             f"UPDATE {FLASHCARD_SESSIONS_TABLE} SET status = 'paused', paused_at = NOW() WHERE session_id = %s",
             (session_row["session_id"],)
@@ -326,11 +379,13 @@ def _settle_position(cursor, ctx):
     if not session_row or ctx["completed"]:
         return
     card_ids = ctx["card_ids"]
-    if card_ids and all(cid in ctx["solved"] for cid in card_ids):
+    if (card_ids or ctx.get("retake")) and all(cid in ctx["solved"] for cid in card_ids):
         _complete(cursor, ctx)
         return
     if card_ids and ctx["index"] >= len(card_ids):
         ctx["index"] = next(i for i, cid in enumerate(card_ids) if cid not in ctx["solved"])
+    if ctx.get("retake"):
+        return
     if card_ids:
         wanted = card_ids[ctx["index"]]
         if session_row["current_flashcard_id"] != wanted:
@@ -392,6 +447,9 @@ def _advance(cursor, ctx, flashcard_id):
         return
     ctx["index"] = next((i for i in remaining if i > index), remaining[0])
     next_id = card_ids[ctx["index"]]
+    if ctx.get("retake"):
+        session_row["current_flashcard_id"] = next_id
+        return
     cursor.execute(
         f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
             SET current_flashcard_id = %s, score = %s WHERE session_id = %s""",
@@ -430,11 +488,12 @@ def start_flashcard_play(acc_id, la_id):
             return _state(cursor, ctx), None
         if session_row and session_row["status"] == "paused":
             if lives > 0:
-                cursor.execute(
-                    f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
-                        SET status = 'in_progress', resumed_at = NOW() WHERE session_id = %s""",
-                    (session_row["session_id"],)
-                )
+                if not ctx.get("retake"):
+                    cursor.execute(
+                        f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
+                            SET status = 'in_progress', resumed_at = NOW() WHERE session_id = %s""",
+                        (session_row["session_id"],)
+                    )
                 session_row["status"] = "in_progress"
         elif not session_row and lives > 0:
             index = min(ctx["index"], len(ctx["card_ids"]) - 1)
@@ -504,10 +563,10 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
         cursor.execute(
             f"""INSERT INTO {FLASHCARD_ANSWERS_TABLE}
                 (acc_id, flashcard_id, answer_given, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+                 recommendation_id, feedback_given, answered_at, retake_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)""",
             (ctx["acc_id"], flashcard_id, answer[:ANSWER_MAX_LEN], attempt_number, status,
-             "recommendation" if rec_id else "self", rec_id, feedback)
+             "recommendation" if rec_id else "self", rec_id, feedback, _retake_id(ctx))
         )
 
         passed = status in ("correct", "close")
@@ -531,13 +590,18 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
     return _run(acc_id, la_id, action, "grade flashcard answer")
 
 
-def skip_flashcard(acc_id, la_id, flashcard_id):
+def skip_flashcard(acc_id, la_id, flashcard_id, from_preview=False):
     """
-    Skip the current card - only offered after a wrong answer on it.
-    Appends a status 'skipped' row (answer_given '', no life, no score)
-    and moves to the next card; skipping the last one completes the play.
+    Skip the current card. Appends a status 'skipped' row (answer_given
+    '', no score) and moves to the next card; skipping the last one
+    completes the play.
+      - after a wrong answer (from_preview=False): costs no life; needs a
+        wrong answer on it first
+      - from the card preview (from_preview=True): costs 1 life and needs
+        no earlier answer; 0 lives afterwards pauses the play
     payload["skipped"] is False when it wasn't allowed (no running play,
-    0 lives, a different card, or no wrong answer on it yet).
+    0 lives, a different card, or - after-wrong skip only - no wrong
+    answer on it yet).
     """
     flashcard_id = _to_int(flashcard_id)
     if not flashcard_id:
@@ -550,7 +614,7 @@ def skip_flashcard(acc_id, la_id, flashcard_id):
         allowed = (not ctx["completed"] and session_row and session_row["status"] == "in_progress"
                    and total_lives(ctx["pool"]) > 0 and index < len(card_ids)
                    and card_ids[index] == flashcard_id)
-        if allowed:
+        if allowed and not from_preview:
             cursor.execute(
                 f"""SELECT COUNT(*) AS wrong FROM {FLASHCARD_ANSWERS_TABLE}
                     WHERE acc_id = %s AND flashcard_id = %s AND status = 'incorrect'""",
@@ -568,10 +632,14 @@ def skip_flashcard(acc_id, la_id, flashcard_id):
         cursor.execute(
             f"""INSERT INTO {FLASHCARD_ANSWERS_TABLE}
                 (acc_id, flashcard_id, answer_given, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at)
-                VALUES (%s, %s, '', %s, 'skipped', 'self', NULL, NULL, NOW())""",
-            (ctx["acc_id"], flashcard_id, attempt_number)
+                 recommendation_id, feedback_given, answered_at, retake_id)
+                VALUES (%s, %s, '', %s, 'skipped', 'self', NULL, NULL, NOW(), %s)""",
+            (ctx["acc_id"], flashcard_id, attempt_number, _retake_id(ctx))
         )
+        if from_preview:
+            take_life(ctx["pool"])
         _advance(cursor, ctx, flashcard_id)
+        if from_preview:
+            _pause_if_out_of_lives(cursor, ctx)
         return {"skipped": True, "state": _state(cursor, ctx)}, None
     return _run(acc_id, la_id, action, "skip flashcard")

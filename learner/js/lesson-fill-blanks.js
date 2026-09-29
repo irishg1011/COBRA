@@ -300,9 +300,10 @@
 
         function showReady(restored) {
             setMode("ready");
-            const title = restored ? `Your lives are back (${fibLivesCount(server)})`
+            let title = restored ? `Your lives are back (${fibLivesCount(server)})`
                 : (server && server.solved_count > 0) ? "Pick up where you left off"
                 : "Forge the missing code";
+            if (server && server.retake) title = `Retake round ${Number(server.retake.round)} · ${title}`;
             showOverlay(`
                 <div class="fib-overlay-card">
                     <i class="fa-solid ${restored ? "fa-heart" : "fa-code"} fib-overlay-icon"></i>
@@ -310,16 +311,19 @@
                     <p>Each puzzle hides part of a Python line. Fill the blank and Cobra strikes SyntaxBug. A wrong answer lets the bug bite back and costs a life, then you try again.</p>
                     <div class="fib-keys"><kbd>1–9 pick a tile</kbd><kbd>Backspace clear</kbd><kbd>Enter check</kbd></div>
                     <div class="fib-overlay-actions">
+                        <button type="button" class="fib-ghost-btn" data-f="startSkipBtn" aria-label="Skip this puzzle, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
                         <button type="button" class="fib-primary-btn" data-f="startBtn">${(server && server.solved_count > 0) || restored ? "Resume" : "Start activity"}</button>
                     </div>
                 </div>
             `);
-            ui.overlay.querySelector('[data-f="startBtn"]').addEventListener("click", () => {
+            const startFromReady = () => {
                 hideOverlay();
                 if (stage3d) stage3d.playIntro();   // cobra slithers in (on open and on resume)
                 setMode("playing");
                 if (slotInput) slotInput.focus({ preventScroll: true });
-            });
+            };
+            ui.overlay.querySelector('[data-f="startBtn"]').addEventListener("click", startFromReady);
+            ui.overlay.querySelector('[data-f="startSkipBtn"]').addEventListener("click", () => skipItem(true));
         }
 
         function enterCooldown() {
@@ -346,16 +350,19 @@
             setMode("done");
             if (stage3d) stage3d.skipIntro();
             const firstTry = server ? server.first_try_correct : 0;
+            const rt = server && server.retake;   // Module 85% gate: finished a retake round
             showOverlay(`
                 <div class="fib-overlay-card">
                     <i class="fa-solid fa-trophy fib-overlay-icon"></i>
-                    <h4>SyntaxBug defeated</h4>
+                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : "SyntaxBug defeated"}</h4>
                     <div class="fib-results">
-                        <div><b>${firstTry}/${total}</b><span>First try</span></div>
+                        <div><b>${rt ? `${Number(rt.fixed)}/${Number(rt.total)}` : `${firstTry}/${total}`}</b><span>${rt ? "Fixed" : "First try"}</span></div>
                         <div><b>${bestStreak}</b><span>Best streak</span></div>
                         <div><b>${score}</b><span>Score</span></div>
                     </div>
-                    <p class="fib-saved-note">Saved to your progress: ${firstTry} correct on the first try</p>
+                    <p class="fib-saved-note">${rt
+                        ? `${Number(rt.fixed)} of ${Number(rt.total)} missed puzzles fixed on the first try. Your module score is updated on the Lessons page.`
+                        : `Saved to your progress: ${firstTry} correct on the first try`}</p>
                     <div class="fib-overlay-actions">
                         <button type="button" class="fib-primary-btn" data-f="continueBtn">Continue</button>
                     </div>
@@ -674,10 +681,12 @@
             }
         }
 
-        // Skip the current puzzle (only offered after a wrong answer): no
-        // life, no score - the server logs it as 'skipped'.
-        async function skipItem() {
-            if (disposed || mode !== "playing") return;
+        // Skip the current puzzle: no score - the server logs it as 'skipped'.
+        //   - after a wrong answer (feedback Skip): no life
+        //   - from the intro card (fromPreview, puzzle never tried): -1 life
+        async function skipItem(fromPreview) {
+            fromPreview = fromPreview === true;   // the feedback button passes a click event
+            if (disposed || mode !== (fromPreview ? "ready" : "playing")) return;
             setMode("busy");
             let data = null;
             try {
@@ -685,7 +694,7 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
-                    body: JSON.stringify({ la_id: laId, fib_id: currentItem().fib_id })
+                    body: JSON.stringify({ la_id: laId, fib_id: currentItem().fib_id, from_preview: fromPreview })
                 });
                 data = await readJson(response, "fib-skip");
                 if (!response.ok || !data.success) throw new Error(data.message || `Request failed (HTTP ${response.status}).`);
@@ -701,6 +710,14 @@
             }
             streak = 0;
             hideFeedback();
+            if (fromPreview) {
+                // Leave the intro card; SyntaxBug bites (-1 life) for the skip.
+                hideOverlay();
+                if (stage3d) stage3d.playIntro();
+                bump(ui.livesStat);
+                bt.heroHP = server.total_lives;
+                foeStrike();
+            }
             // The skipped puzzle leaves SyntaxBug's HP bar like a solved one.
             bt.foeHP = Math.max(0, total - server.solved_count);
             drawBars();
@@ -716,6 +733,13 @@
                 return;
             }
             qIndex = Math.min(server.current_index, total - 1);
+            if (fromPreview && server.total_lives <= 0) {
+                // That skip used the last life: next puzzle waits behind the cooldown.
+                setMode("busy");
+                loadItem();
+                setTimeout(() => { if (!disposed) enterCooldown(); }, FIB_ANIM.foebite);
+                return;
+            }
             setMode("playing");
             loadItem();
         }

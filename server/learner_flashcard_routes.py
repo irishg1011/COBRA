@@ -77,7 +77,9 @@ def flashcard_skip():
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
     data = request.get_json(silent=True) or {}
-    result, error_message = skip_flashcard(acc_id, data.get("la_id"), data.get("flashcard_id"))
+    result, error_message = skip_flashcard(
+        acc_id, data.get("la_id"), data.get("flashcard_id"), data.get("from_preview") is True
+    )
     if result is None:
         return _fail(error_message)
     return jsonify({"success": True, **result}), 200

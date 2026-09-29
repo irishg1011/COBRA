@@ -44,6 +44,9 @@ from lesson_activities import (
     total_lives,
     lives_payload,
 )
+from activity_retakes import (  # Module 85% gate: retake rounds
+    FIB_TYPE, open_retake, retake_progress, complete_retake, retake_payload,
+)
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
@@ -269,7 +272,7 @@ def _save_completion(cursor, acc_id, la_id, score):
 # ============================================================
 # STATE
 # ============================================================
-def _state(pool, index, total, first_try, solved_count, completed):
+def _state(pool, index, total, first_try, solved_count, completed, retake=None):
     """The only battle state the browser ever receives (lives via lives_payload())."""
     state = lives_payload(pool)
     state.update({
@@ -278,8 +281,27 @@ def _state(pool, index, total, first_try, solved_count, completed):
         "solved_count": solved_count,
         "first_try_correct": first_try,
         "completed": completed,
+        "retake": retake,   # None outside a retake round (see activity_retakes.retake_payload)
     })
     return state
+
+
+def _retake_info(cursor, acc_id, play, completed):
+    """Retake round payload for _state() - None for the normal play."""
+    retake = play.get("retake")
+    if not retake:
+        return None
+    _, fixed = retake_progress(cursor, acc_id, FIB_TYPE, retake)
+    ids = play["fib_ids"]
+    return retake_payload(retake, len(ids), len(fixed & set(ids)), completed)
+
+
+def _finish(cursor, acc_id, la_id, play, first_try):
+    """Last item done: a retake round just closes; a normal play saves its completion."""
+    if play.get("retake"):
+        complete_retake(cursor, play["retake"]["retake_id"])
+    else:
+        _save_completion(cursor, acc_id, la_id, first_try)
 
 
 def _open(cursor, acc_id, la_id):
@@ -300,7 +322,7 @@ def _open(cursor, acc_id, la_id):
     already_completed = _progress_completed(cursor, acc_id, la_id)
 
     pool = load_lives_pool(cursor, acc_id, activity_type_id)
-    return {
+    play = {
         "items": items,
         "fib_ids": fib_ids,
         "solved": solved,
@@ -308,7 +330,27 @@ def _open(cursor, acc_id, la_id):
         "index": index,
         "already_completed": already_completed,
         "pool": pool,
+        "retake": None,
     }
+
+    # Retake mode (Module 85% gate): an in-progress retake round exists,
+    # so this play covers ONLY that round's items. "Solved" = moved past
+    # in this round; first_try stays the activity's first-attempt count.
+    retake = open_retake(cursor, acc_id, la_id)
+    if retake:
+        by_id = {r["fib_id"]: r for r in items}
+        ids = [fid for fid in retake["item_ids"] if fid in by_id]
+        done, _ = retake_progress(cursor, acc_id, FIB_TYPE, retake)
+        round_solved = {fid for fid in ids if fid in done}
+        play.update({
+            "items": [by_id[fid] for fid in ids],
+            "fib_ids": ids,
+            "solved": round_solved,
+            "index": next((i for i, fid in enumerate(ids) if fid not in round_solved), len(ids)),
+            "already_completed": False,
+            "retake": retake,
+        })
+    return play
 
 
 def get_fib_play(acc_id, la_id):
@@ -339,9 +381,15 @@ def get_fib_play(acc_id, la_id):
             return None, f"Activity {la_id} is not a published Fill in the Blanks activity.", 404
 
         total = len(play["fib_ids"])
-        completed = play["already_completed"] or (total > 0 and play["index"] >= total)
-        if completed and not play["already_completed"]:
-            _save_completion(cursor, acc_id, la_id, play["first_try"])
+        if play["retake"]:
+            completed = play["index"] >= total
+            if completed:
+                _finish(cursor, acc_id, la_id, play, play["first_try"])
+        else:
+            completed = play["already_completed"] or (total > 0 and play["index"] >= total)
+            if completed and not play["already_completed"]:
+                _save_completion(cursor, acc_id, la_id, play["first_try"])
+        retake_info = _retake_info(cursor, acc_id, play, completed)
         save_lives_pool(cursor, play["pool"])
 
         connection.commit()
@@ -349,7 +397,7 @@ def get_fib_play(acc_id, la_id):
         return {
             "items": [_learner_item(r) for r in play["items"]],
             "state": _state(play["pool"], min(play["index"], total), total,
-                            play["first_try"], len(play["solved"]), completed),
+                            play["first_try"], len(play["solved"]), completed, retake_info),
         }, None, 200
     except Error as e:
         connection.rollback()
@@ -405,10 +453,11 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
         completed = play["already_completed"] or index >= total
 
         if completed or total_lives(pool) <= 0 or fib_ids[index] != fib_id:
+            retake_info = _retake_info(cursor, acc_id, play, completed)
             save_lives_pool(cursor, pool)
             connection.commit()
             cursor.close()
-            state = _state(pool, min(index, total), total, first_try, solved_count, completed)
+            state = _state(pool, min(index, total), total, first_try, solved_count, completed, retake_info)
             return {"graded": False, "state": state}, None
 
         item = play["items"][index]
@@ -433,10 +482,11 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
         cursor.execute(
             f"""INSERT INTO {FIB_ANSWERS_TABLE}
                 (acc_id, fib_id, answer_given, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at)
-                VALUES (%s, %s, %s, %s, %s, 'self', NULL, %s, NOW())""",
+                 recommendation_id, feedback_given, answered_at, retake_id)
+                VALUES (%s, %s, %s, %s, %s, 'self', NULL, %s, NOW(), %s)""",
             (acc_id, fib_id, answer[:255], attempt_number,
-             "correct" if is_correct else "incorrect", feedback)
+             "correct" if is_correct else "incorrect", feedback,
+             play["retake"]["retake_id"] if play["retake"] else None)
         )
 
         if is_correct:
@@ -446,10 +496,11 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
             index += 1
             completed = index >= total
             if completed:
-                _save_completion(cursor, acc_id, la_id, first_try)
+                _finish(cursor, acc_id, la_id, play, first_try)
         else:
             take_life(pool)
 
+        retake_info = _retake_info(cursor, acc_id, play, completed)
         save_lives_pool(cursor, pool)
         connection.commit()
         cursor.close()
@@ -460,7 +511,7 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
             "is_close": is_close,
             "first_try": is_correct and attempt_number == 1,
             "feedback": feedback,
-            "state": _state(pool, min(index, total), total, first_try, solved_count, completed),
+            "state": _state(pool, min(index, total), total, first_try, solved_count, completed, retake_info),
         }
         if not is_correct:
             payload["correct_answer"] = (item.get("correct_answer") or "").strip()
@@ -474,14 +525,18 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
             connection.close()
 
 
-def skip_fib_item(acc_id, la_id, fib_id):
+def skip_fib_item(acc_id, la_id, fib_id, from_preview=False):
     """
-    Skip the current item - only offered after a wrong answer on it.
-    Appends a status 'skipped' row (answer_given '', no life, no score);
-    the next unsolved item becomes current, and skipping the last one
-    saves the completion (score = first-attempt correct count).
+    Skip the current item. Appends a status 'skipped' row (answer_given
+    '', no score); the next unsolved item becomes current, and skipping
+    the last one saves the completion (score = first-attempt correct count).
+      - after a wrong answer (from_preview=False): costs no life; needs a
+        wrong answer on it first
+      - from the intro card (from_preview=True): costs 1 life and needs
+        no earlier answer
     payload["skipped"] is False when it wasn't allowed (0 lives,
-    completed, a different item, or no wrong answer on it yet).
+    completed, a different item, or - after-wrong skip only - no wrong
+    answer on it yet).
     """
     la_id, fib_id = _to_int(la_id), _to_int(fib_id)
     if not la_id or not fib_id:
@@ -508,7 +563,7 @@ def skip_fib_item(acc_id, la_id, fib_id):
         completed = play["already_completed"] or index >= total
 
         allowed = not completed and total_lives(pool) > 0 and fib_ids[index] == fib_id
-        if allowed:
+        if allowed and not from_preview:
             cursor.execute(
                 f"""SELECT COUNT(*) AS wrong FROM {FIB_ANSWERS_TABLE}
                     WHERE acc_id = %s AND fib_id = %s AND status = 'incorrect'""",
@@ -525,23 +580,27 @@ def skip_fib_item(acc_id, la_id, fib_id):
             cursor.execute(
                 f"""INSERT INTO {FIB_ANSWERS_TABLE}
                     (acc_id, fib_id, answer_given, attempt_number, status, source,
-                     recommendation_id, feedback_given, answered_at)
-                    VALUES (%s, %s, '', %s, 'skipped', 'self', NULL, NULL, NOW())""",
-                (acc_id, fib_id, attempt_number)
+                     recommendation_id, feedback_given, answered_at, retake_id)
+                    VALUES (%s, %s, '', %s, 'skipped', 'self', NULL, NULL, NOW(), %s)""",
+                (acc_id, fib_id, attempt_number,
+                 play["retake"]["retake_id"] if play["retake"] else None)
             )
+            if from_preview:
+                take_life(pool)
             solved = set(play["solved"]) | {fib_id}
             solved_count = len(solved)
             index = next((i for i, fid in enumerate(fib_ids) if fid not in solved), total)
             completed = index >= total
             if completed:
-                _save_completion(cursor, acc_id, la_id, first_try)
+                _finish(cursor, acc_id, la_id, play, first_try)
 
+        retake_info = _retake_info(cursor, acc_id, play, completed)
         save_lives_pool(cursor, pool)
         connection.commit()
         cursor.close()
         return {
             "skipped": bool(allowed),
-            "state": _state(pool, min(index, total), total, first_try, solved_count, completed),
+            "state": _state(pool, min(index, total), total, first_try, solved_count, completed, retake_info),
         }, None
     except Error as e:
         connection.rollback()

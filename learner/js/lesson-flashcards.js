@@ -279,16 +279,18 @@
                     <p>Type what's on the back of this card. Get it right and Cobra flings the card at NullScorpion; get it wrong and the scorpion stings back (−1 life).</p>
                     <div class="fc-keys"><kbd>Enter = throw answer</kbd></div>
                     <div class="fc-overlay-actions">
+                        <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
                         <button type="button" class="fc-primary-btn" data-c="pvBtn"><i class="fa-solid fa-play"></i> <span data-c="pvBtnText"></span></button>
                     </div>
                 </div>
             `);
-            overlayNode("pvEyebrow").textContent = copy.eyebrow;
+            overlayNode("pvEyebrow").textContent = (server && server.retake)
+                ? `Retake round ${server.retake.round} · ${copy.eyebrow}`
+                : copy.eyebrow;
             overlayNode("pvMeta").textContent = `Card ${qIndex + 1} of ${total}`;
             overlayNode("pvFront").textContent = currentCard().front_text;
             overlayNode("pvBtnText").textContent = copy.btn;
-            const btn = overlayNode("pvBtn");
-            btn.addEventListener("click", () => {
+            const startFromPreview = () => {
                 if (kind === "next") {
                     hideOverlay();
                     setMode("playing");
@@ -296,7 +298,10 @@
                     return;
                 }
                 beginPlay();
-            });
+            };
+            const btn = overlayNode("pvBtn");
+            btn.addEventListener("click", startFromPreview);
+            overlayNode("pvSkipBtn").addEventListener("click", () => skipFromPreview(kind));
             btn.focus({ preventScroll: true });
         }
 
@@ -401,16 +406,19 @@
             setMode("done");
             if (stage3d) stage3d.skipIntro();
             const firstTry = server ? server.first_try_correct : 0;
+            const rt = server && server.retake;   // Module 85% gate: finished a retake round
             showOverlay(`
                 <div class="fc-overlay-card">
                     <i class="fa-solid fa-trophy fc-overlay-icon"></i>
-                    <h4>NullScorpion defeated</h4>
+                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : "NullScorpion defeated"}</h4>
                     <div class="fc-results">
-                        <div><b>${firstTry}/${total}</b><span>First try</span></div>
+                        <div><b>${rt ? `${Number(rt.fixed)}/${Number(rt.total)}` : `${firstTry}/${total}`}</b><span>${rt ? "Fixed" : "First try"}</span></div>
                         <div><b>${bestStreak}</b><span>Best streak</span></div>
                         <div><b>${score}</b><span>Score</span></div>
                     </div>
-                    <p class="fc-subnote">Saved to your progress: ${firstTry} of ${total} cards right on the first try.</p>
+                    <p class="fc-subnote">${rt
+                        ? `${Number(rt.fixed)} of ${Number(rt.total)} missed cards fixed on the first try. Your module score is updated on the Lessons page.`
+                        : `Saved to your progress: ${firstTry} of ${total} cards right on the first try.`}</p>
                     <div class="fc-overlay-actions">
                         <button type="button" class="fc-primary-btn" data-c="continueBtn">Continue</button>
                     </div>
@@ -497,22 +505,22 @@
             else showPreview("start");
         }
 
-        // Start the ONE play, or continue/resume that same play.
-        async function beginPlay() {
-            if (disposed || mode === "busy") return;
-            setMode("busy");
+        // Starts the ONE play on the server, or continues/resumes that same
+        // play. true = in progress on the current card; false = it can't
+        // run (completed, out of lives, error) and the right screen is shown.
+        async function openPlay() {
             let data = null;
             try {
                 data = await postJson("flashcard-start", { la_id: laId });
             } catch (err) {
                 if (!disposed) showError(err.message);
-                return;
+                return false;
             }
-            if (disposed) return;
+            if (disposed) return false;
             applyState(data.state);
             if (server.completed || server.session_status !== "in_progress") {
                 resyncFromState();
-                return;
+                return false;
             }
             fx.heroDown = false;
             fx.heroHP = server.total_lives;
@@ -522,6 +530,14 @@
                 qIndex = Math.min(server.current_index, total - 1);
                 loadCard();
             }
+            return true;
+        }
+
+        // Start the ONE play, or continue/resume that same play.
+        async function beginPlay() {
+            if (disposed || mode === "busy") return;
+            setMode("busy");
+            if (!(await openPlay())) return;
             hideOverlay();
             if (stage3d) stage3d.playIntro();   // cobra slithers in (on open and on resume)
             setMode("playing");
@@ -585,10 +601,24 @@
         async function skipCard() {
             if (disposed || mode !== "tryagain") return;
             setMode("busy");
+            await sendSkip(false);
+        }
+
+        // Skip from the card preview (the card was never played): costs 1
+        // life (NullScorpion stings), no score - logged as 'skipped'.
+        // Start/continue/resume previews open the play first.
+        async function skipFromPreview(kind) {
+            if (disposed || mode !== "ready") return;
+            setMode("busy");
+            if (kind !== "next" && !(await openPlay())) return;
+            await sendSkip(true, kind !== "next");
+        }
+
+        async function sendSkip(fromPreview, needsIntro) {
             const card = currentCard();
             let data = null;
             try {
-                data = await postJson("flashcard-skip", { la_id: laId, flashcard_id: card.flashcard_id });
+                data = await postJson("flashcard-skip", { la_id: laId, flashcard_id: card.flashcard_id, from_preview: fromPreview });
             } catch (err) {
                 if (!disposed) showError(err.message);
                 return;
@@ -602,19 +632,33 @@
             hideOverlay();
             streak = 0;
             updateHUD();
-            if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, revealedAnswer || "?");
-            fx.glow = "";
-            winAnim(true);
-            setTimeout(() => {
+            const flyOff = () => {
                 if (disposed) return;
-                if (server.completed) {
-                    setTimeout(() => { if (!disposed) finish(); }, fx.anim ? FC_ANIM.death : 0);
-                    return;
-                }
-                qIndex = Math.min(server.current_index, total - 1);
-                loadCard();
-                showPreview("next");
-            }, FC_ANIM.win + 60);
+                if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, revealedAnswer || "?");
+                fx.glow = "";
+                winAnim(true);
+                setTimeout(() => {
+                    if (disposed) return;
+                    if (server.completed) {
+                        setTimeout(() => { if (!disposed) finish(); }, fx.anim ? FC_ANIM.death : 0);
+                        return;
+                    }
+                    qIndex = Math.min(server.current_index, total - 1);
+                    loadCard();
+                    if (server.total_lives <= 0) enterCooldown();
+                    else showPreview("next");
+                }, FC_ANIM.win + 60);
+            };
+            if (!fromPreview) {
+                flyOff();
+                return;
+            }
+            // Preview skip: the scorpion stings first (-1 life), then the card flies off.
+            if (needsIntro && stage3d) stage3d.playIntro();
+            bump(ui.livesStat);
+            fx.glow = "bad";
+            stingAnim();
+            setTimeout(flyOff, FC_ANIM.sting);
         }
 
         function advance() {

@@ -60,7 +60,9 @@ def fib_skip():
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
     data = request.get_json(silent=True) or {}
-    result, error_message = skip_fib_item(acc_id, data.get("la_id"), data.get("fib_id"))
+    result, error_message = skip_fib_item(
+        acc_id, data.get("la_id"), data.get("fib_id"), data.get("from_preview") is True
+    )
     if result is None:
         return jsonify({"success": False, "message": error_message or "Could not skip this item."}), 400
     return jsonify({"success": True, **result}), 200

@@ -402,7 +402,8 @@
         }
 
         function updateHUD() {
-            ui.score.textContent = server ? server.score : 0;
+            // In a retake round the Score stat counts items fixed this round.
+            ui.score.textContent = server ? (server.retake ? server.retake.fixed : server.score) : 0;
             ui.progress.textContent = `${Math.min(qIndex + 1, total)}/${total}`;
             ui.streak.textContent = streak;
             ui.lives.innerHTML = heartsHtml(server);
@@ -470,11 +471,14 @@
                     <p class="mcq-arena-subnote">Steer the cobra into the pellet with the right letter.</p>
                     ${fallback ? "" : '<div class="mcq-arena-keys"><kbd>W A S D</kbd><kbd>Arrow keys</kbd><kbd>Space = pause</kbd><kbd>Enter = start</kbd></div>'}
                     <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-ghost-btn" data-ui="previewSkipBtn" aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
                         <button type="button" class="mcq-arena-primary-btn" data-ui="previewBtn"><i class="fa-solid fa-play"></i> <span data-ui="previewBtnText"></span></button>
                     </div>
                 </div>
             `);
-            overlayNode("previewEyebrow").textContent = copy.eyebrow;
+            overlayNode("previewEyebrow").textContent = (server && server.retake)
+                ? `Retake round ${server.retake.round} · ${copy.eyebrow}`
+                : copy.eyebrow;
             overlayNode("previewMeta").textContent = `Question ${qIndex + 1} of ${total}`;
             overlayNode("previewQuestion").textContent = q.question_text;
             overlayNode("previewBtnText").textContent = copy.btn;
@@ -491,7 +495,7 @@
                 row.appendChild(text);
                 list.appendChild(row);
             });
-            overlayNode("previewBtn").addEventListener("click", () => {
+            const startFromPreview = () => {
                 if (kind !== "next") {
                     beginPlay();
                     return;
@@ -502,7 +506,9 @@
                     return;
                 }
                 resumePlay();
-            });
+            };
+            overlayNode("previewBtn").addEventListener("click", startFromPreview);
+            overlayNode("previewSkipBtn").addEventListener("click", () => skipFromPreview(kind));
         }
 
         function pause() {
@@ -603,6 +609,42 @@
             advance();
         }
 
+        // Skip from the question preview (the question was never played):
+        // costs 1 life, no score - the server logs it as 'skipped' and
+        // moves on. Start/continue/resume previews open the play first.
+        async function skipFromPreview(kind) {
+            if (disposed || mode !== "ready") return;
+            setMode("busy");
+            if (kind !== "next" && !(await openPlay())) return;
+            let data = null;
+            try {
+                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id, from_preview: true });
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (!data.skipped) {
+                resyncFromState();
+                return;
+            }
+            streak = 0;
+            bump(ui.livesStat);
+            updateHUD();
+            if (server.completed) {
+                finish();
+                return;
+            }
+            goToServerQuestion();
+            if (server.total_lives <= 0) {
+                showOutOfLives();
+                return;
+            }
+            showQuestionPreview("next");
+            flash(`Question skipped · -1 life · ${server.total_lives} ${server.total_lives === 1 ? "life" : "lives"} left.`, false);
+        }
+
         function showOutOfLives() {
             setMode("outoflives");
             showOverlay(`
@@ -658,16 +700,19 @@
         function finish() {
             setMode("done");
             const score = server ? server.score : 0;
+            const rt = server && server.retake;   // Module 85% gate: finished a retake round
             showOverlay(`
                 <div class="mcq-arena-overlay-card">
                     <i class="fa-solid fa-trophy mcq-arena-overlay-icon"></i>
-                    <h4>Activity complete</h4>
+                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : "Activity complete"}</h4>
                     <div class="mcq-arena-results">
-                        <div><b>${score}/${total}</b><span>Score</span></div>
+                        <div><b>${rt ? `${Number(rt.fixed)}/${Number(rt.total)}` : `${score}/${total}`}</b><span>${rt ? "Fixed" : "Score"}</span></div>
                         <div><b>${bestStreak}</b><span>Best streak</span></div>
                         <div><b>${total}</b><span>Questions</span></div>
                     </div>
-                    <p class="mcq-arena-subnote">Saved to your progress: ${score}/${total} answered right on the first try.</p>
+                    <p class="mcq-arena-subnote">${rt
+                        ? `${Number(rt.fixed)} of ${Number(rt.total)} missed questions fixed on the first try. Your module score is updated on the Lessons page.`
+                        : `Saved to your progress: ${score}/${total} answered right on the first try.`}</p>
                     <div class="mcq-arena-overlay-actions">
                         <button type="button" class="mcq-arena-primary-btn" data-ui="continueBtn">Continue</button>
                     </div>
@@ -799,24 +844,33 @@
             else showQuestionPreview("start");
         }
 
-        // Start the ONE play, or continue/resume that same play.
-        async function beginPlay() {
-            if (disposed || mode === "busy") return;
-            setMode("busy");
+        // Starts the ONE play on the server, or continues/resumes that same
+        // play. true = the play is in progress on the current question;
+        // false = it can't run (completed, out of lives, error) and the
+        // right screen is already shown.
+        async function openPlay() {
             let data = null;
             try {
                 data = await mcqRequest("play", activity.la_id);
             } catch (err) {
                 if (!disposed) showError(err.message);
-                return;
+                return false;
             }
-            if (disposed) return;
+            if (disposed) return false;
             applyState(data.state);
             if (server.completed || server.session_status !== "in_progress") {
                 resyncFromState();
-                return;
+                return false;
             }
             goToServerQuestion();
+            return true;
+        }
+
+        // Start the ONE play, or continue/resume that same play.
+        async function beginPlay() {
+            if (disposed || mode === "busy") return;
+            setMode("busy");
+            if (!(await openPlay())) return;
             if (fallback) {
                 hideOverlay();
                 setMode("playing");
@@ -1050,6 +1104,7 @@
                 if (steer(name)) e.preventDefault();
                 return;
             }
+            if (e.code === "Enter" && target && target.tagName === "BUTTON") return; // let the focused button handle it
             if (e.code === "Enter" && mode === "ready") {
                 const startBtn = overlayNode("previewBtn");
                 if (startBtn) {
@@ -1181,7 +1236,83 @@
         boot();
     }
 
-    function renderActivity(activity, container, onActivityDone) {
+    // ---------------- Module 85% gate: retake rounds ----------------
+    // A module under 85% replays only the items the learner missed. The
+    // server keeps the round (activity_retakes_tbl); the games' own
+    // endpoints switch to retake mode on their own once a round is open.
+    async function startRetake(laId) {
+        const response = await fetch(`${API_BASE_URL}/api/lesson-activities/retake/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ la_id: laId })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || "Could not start the retake.");
+        return data;
+    }
+
+    // Retake this activity now? Always when a round is already open;
+    // otherwise only on the retake page, when the module needs it and
+    // this activity still has missed items.
+    function wantsRetake(activity, opts) {
+        const rt = activity.retake;
+        if (!activity.completed || !rt) return false;
+        return rt.open || (!!opts.retake && rt.allowed && rt.missed > 0);
+    }
+
+    function showActivityMessage(container, message, onActivityDone) {
+        container.innerHTML = "";
+        const box = el("div", "activity-summary");
+        const p = el("p");
+        p.textContent = message;
+        box.appendChild(p);
+        container.appendChild(box);
+        const continueBtn = el("button", "activity-next-btn activity-next-btn-centered", "Continue");
+        continueBtn.type = "button";
+        continueBtn.addEventListener("click", () => onActivityDone());
+        container.appendChild(continueBtn);
+    }
+
+    async function renderRetake(activity, container, onActivityDone) {
+        container.innerHTML = "";
+        const loading = el("div", "activity-summary");
+        loading.textContent = "Loading your retake...";
+        container.appendChild(loading);
+        let data = null;
+        try {
+            data = await startRetake(activity.la_id);
+        } catch (err) {
+            showActivityMessage(container, err.message, onActivityDone);
+            return;
+        }
+        if (!data.started) {
+            showActivityMessage(container, data.message || "Nothing to retake here.", onActivityDone);
+            return;
+        }
+        const ids = (data.retake && data.retake.item_ids) || [];
+        const retakeActivity = Object.assign({}, activity, { completed: false });
+        if (activity.activity_type === "Multiple Choice") {
+            // The arena indexes questions by the server's position, which
+            // in a retake is a position in the round's own question list.
+            retakeActivity.items = ids
+                .map((id) => (activity.items || []).find((q) => q.q_id === id))
+                .filter(Boolean);
+        }
+        container.innerHTML = "";
+        renderGame(retakeActivity, container, onActivityDone);
+    }
+
+    function renderActivity(activity, container, onActivityDone, opts) {
+        opts = opts || {};
+        if (wantsRetake(activity, opts)) {
+            renderRetake(activity, container, onActivityDone);
+            return;
+        }
+        if (activity.completed && opts.retake) {
+            onActivityDone();   // retake page: nothing missed in this activity
+            return;
+        }
         if (activity.completed) {
             container.innerHTML = "";
             const already = el("div", "activity-summary");
@@ -1196,7 +1327,10 @@
             container.appendChild(continueBtn);
             return;
         }
+        renderGame(activity, container, onActivityDone);
+    }
 
+    function renderGame(activity, container, onActivityDone) {
         if (activity.activity_type === "Multiple Choice") {
             renderMCQ(activity, container, onActivityDone);
         } else if (activity.activity_type === "Fill in the Blanks") {
@@ -1222,7 +1356,10 @@
         }
     }
 
-    async function initLessonActivities(resourceId, rootContainer, onAllDone) {
+    // opts.retake (lesson-content?retake=1): Module 85% gate retake page -
+    // only activities with missed items are replayed.
+    async function initLessonActivities(resourceId, rootContainer, onAllDone, opts) {
+        opts = opts || {};
         let activities = [];
         try {
             activities = await fetchActivities(resourceId);
@@ -1240,7 +1377,11 @@
         rootContainer.innerHTML = "";
 
         const gate = el("div", "activities-gate");
-        gate.innerHTML = `
+        gate.innerHTML = opts.retake ? `
+            <h3><i class="fa-solid fa-rotate-right"></i> Retake</h3>
+            <p>Replay only the items you missed. Get them right on the first try to raise your module score to 85%.</p>
+            <button type="button" class="activities-proceed-btn">Start retake</button>
+        ` : `
             <h3><i class="fa-solid fa-list-check"></i> Activities</h3>
             <p>Complete the activities below to finish this lesson.</p>
             <button type="button" class="activities-proceed-btn">Proceed to Activities</button>
@@ -1259,6 +1400,21 @@
 
         function runNext(index) {
             if (index >= activities.length) {
+                if (opts.retake) {
+                    // Retake page: the lesson is already complete - just send
+                    // the learner back to see their new module score.
+                    activityHost.innerHTML = `
+                        <div class="activity-summary">
+                            <p><i class="fa-solid fa-circle-check"></i> Retake finished. Your module score is updated on the Lessons page.</p>
+                            <button type="button" class="activity-next-btn activity-next-btn-centered" data-retake-back>Back to Lessons</button>
+                        </div>`;
+                    activityHost.querySelector("[data-retake-back]").addEventListener("click", () => {
+                        const link = document.getElementById("backToLessonsLink");
+                        window.location.href = (link && link.getAttribute("href") && link.getAttribute("href") !== "#")
+                            ? link.href : "/learning-map";
+                    });
+                    return;
+                }
                 activityHost.innerHTML = `<div class="activity-summary"><p><i class="fa-solid fa-circle-check"></i> All activities completed!</p></div>`;
                 onAllDone();
                 return;
@@ -1267,7 +1423,7 @@
             const section = el("div", "activity-section");
             activityHost.innerHTML = "";
             activityHost.appendChild(section);
-            renderActivity(activity, section, () => runNext(index + 1));
+            renderActivity(activity, section, () => runNext(index + 1), opts);
         }
     }
 
