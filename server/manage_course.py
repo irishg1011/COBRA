@@ -380,7 +380,18 @@ def create_category(category_name, changed_by=None):
             cursor.close()
             return False, "A category with this name already exists.", None
 
-        cursor.execute(f"INSERT INTO {CATEGORY_TABLE} (category_name, is_archived) VALUES (%s, 0)", (name,))
+        # feat/publishing-tree: a new chapter starts as Draft on purpose.
+        # Before, cat_stats_id was left NULL - shown as Draft, but the
+        # one-time backfill in ensure_category_stats_id_column() turned
+        # every NULL into Published on the next server restart.
+        cursor.execute(
+            f"SELECT cat_stats_id FROM {CATEGORY_STATS_TABLE} WHERE cat_stats_name = 'Draft' LIMIT 1"
+        )
+        draft_row = cursor.fetchone()
+        cursor.execute(
+            f"INSERT INTO {CATEGORY_TABLE} (category_name, is_archived, cat_stats_id) VALUES (%s, 0, %s)",
+            (name, draft_row[0] if draft_row else None)
+        )
         new_id = cursor.lastrowid
         log_title_change(cursor, "category", new_id, None, name, changed_by)
         connection.commit()
@@ -412,6 +423,8 @@ def update_category(cat_id, category_name, changed_by=None):
     try:
         ensure_category_is_archived_column(connection)
         ensure_title_history(connection)
+        from publishing_actions import ensure_publishing_columns  # adds category_tbl.updated_at (DDL - before any write)
+        ensure_publishing_columns(connection)
         cursor = connection.cursor()
         cursor.execute(
             f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE LOWER(category_name) = LOWER(%s) AND cat_id != %s AND is_archived = 0",
@@ -423,7 +436,9 @@ def update_category(cat_id, category_name, changed_by=None):
 
         cursor.execute(f"SELECT category_name FROM {CATEGORY_TABLE} WHERE cat_id = %s", (cat_id,))
         old_row = cursor.fetchone()
-        cursor.execute(f"UPDATE {CATEGORY_TABLE} SET category_name = %s WHERE cat_id = %s", (name, cat_id))
+        # feat/publishing-tree: updated_at lets the Publishing page show a
+        # renamed live chapter as "Edited".
+        cursor.execute(f"UPDATE {CATEGORY_TABLE} SET category_name = %s, updated_at = NOW() WHERE cat_id = %s", (name, cat_id))
         if old_row:
             log_title_change(cursor, "category", cat_id, old_row[0], name, changed_by)
         connection.commit()
@@ -717,8 +732,6 @@ def create_module(module_name, description, cat_id, module_stats_id, changed_by=
         return False, "Description is required.", None
     if not cat_id:
         return False, "Category is required.", None
-    if not module_stats_id:
-        return False, "Status is required.", None
 
     connection = get_db_connection()
     if connection is None:
@@ -728,6 +741,18 @@ def create_module(module_name, description, cat_id, module_stats_id, changed_by=
         ensure_module_stats(connection)
         ensure_title_history(connection)
         cursor = connection.cursor()
+
+        # feat/publishing-tree: no status sent (the Publishing page's
+        # "+ Module") -> new modules start as Draft.
+        if not module_stats_id:
+            cursor.execute(
+                f"SELECT module_stats_id FROM {MODULE_STATS_TABLE} WHERE module_stats_name = 'Draft' LIMIT 1"
+            )
+            draft_row = cursor.fetchone()
+            if not draft_row:
+                cursor.close()
+                return False, "Could not resolve the Draft status.", None
+            module_stats_id = draft_row[0]
 
         # Task #29: prevent duplicate modules WITHIN THE SAME CATEGORY.
         # Uniqueness rule = module_name + cat_id (case-insensitive,

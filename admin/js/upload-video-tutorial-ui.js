@@ -28,6 +28,11 @@
  *   - Reloading a previously saved video tutorial (via ?video_id=) so
  *     every field, the cascading dropdowns, and the video preview all
  *     come back exactly as they were left.
+ *   - feat/publishing-tree: Save never changes the status; the main
+ *     button is "Mark Ready" (save + Ready to Publish) - videos go live
+ *     from the Publishing page. Opened from the Publishing page, every
+ *     save returns there. Move to Draft / Unpublish are handled by
+ *     admin-editor-status.js.
  */
 (function () {
     "use strict";
@@ -603,9 +608,7 @@
             const originalHtml = button ? button.innerHTML : "";
             if (button) {
                 button.disabled = true;
-                button.innerHTML = isPublish
-                    ? '<i class="fa-solid fa-spinner fa-spin"></i> Publishing...'
-                    : '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
 
             try {
@@ -617,23 +620,33 @@
                 });
                 const result = await response.json();
 
+                // feat/publishing-tree: keep the id even when only the
+                // "mark ready" step failed - the video itself was saved,
+                // so the next save must update it, not create a second one.
+                if (videoTutorialIdInput && result.video_tutorial_id) {
+                    videoTutorialIdInput.value = result.video_tutorial_id;
+                }
+
                 if (!result.success) {
                     showPopupAlert(result.message || "Could not save this video tutorial.", "error");
                     return;
-                }
-
-                if (videoTutorialIdInput && result.video_tutorial_id) {
-                    videoTutorialIdInput.value = result.video_tutorial_id;
                 }
                 if (currentVideoId && existingVideoIdInput) {
                     existingVideoIdInput.value = currentVideoId;
                 }
 
+                const backUrl = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("") : "";
                 if (isPublish) {
-                    showSuccessToast(result.message || "Video tutorial published successfully.");
+                    showSuccessToast(result.message || "Video tutorial saved and marked as Ready to Publish.");
                     setTimeout(() => {
-                        window.location.href = "/admin/learning-resources";
+                        window.location.href = window.cobraEditorReturnUrlForTab
+                            ? window.cobraEditorReturnUrlForTab("/admin/learning-resources", "ready")
+                            : "/admin/learning-resources";
                     }, TOAST_DURATION_MS);
+                } else if (backUrl) {
+                    // feat/publishing-tree: opened from the Publishing page -> go back there.
+                    showSuccessToast(result.message || "Video tutorial saved successfully.");
+                    setTimeout(() => { window.location.href = backUrl; }, TOAST_DURATION_MS);
                 } else {
                     // Task #10: Save Draft must NOT navigate away - the
                     // admin stays on this page (mirroring upload-resource-
@@ -655,10 +668,13 @@
         if (saveDraftBtn) {
             saveDraftBtn.addEventListener("click", () => {
                 if (!validateVideoForm(false)) return;
+                const isPublished = saveDraftBtn.dataset.status === "Published";
                 showConfirmModal(
-                    "Are you sure you want to save this draft?",
+                    isPublished
+                        ? "Save your changes? This video is live, so learners will see them right away."
+                        : "Save your changes to this video tutorial?",
                     () => submitVideoTutorial("/admin/upload-video-tutorial/save-draft", false, saveDraftBtn),
-                    "Save Draft?"
+                    "Save Changes?"
                 );
             });
         }
@@ -667,9 +683,9 @@
             publishBtn.addEventListener("click", () => {
                 if (!validateVideoForm(true)) return;
                 showConfirmModal(
-                    "Are you sure you want to publish this video tutorial?",
+                    "Save this video and mark it Ready to Publish? It goes live when it's published on the Publishing page.",
                     () => submitVideoTutorial("/admin/upload-video-tutorial/publish", true, publishBtn),
-                    "Publish Video Tutorial?"
+                    "Mark Ready?"
                 );
             });
         }

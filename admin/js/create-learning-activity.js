@@ -874,6 +874,10 @@ function addNewQuestionCard(prefilledData = null) {
     const card = document.createElement('div');
     card.className = 'question-card';
     card.dataset.questionIndex = qIndex;
+    // feat/publishing-tree: remember the saved question's id so a save
+    // updates it in place (learners' answers point at it). Duplicated
+    // and new cards have none -> saved as new questions.
+    if (prefilledData && prefilledData.q_id) card.dataset.itemId = prefilledData.q_id;
     
     let questionTextVal = prefilledData ? prefilledData.text : '';
 
@@ -895,8 +899,9 @@ function addNewQuestionCard(prefilledData = null) {
         const optFeedback = opt.feedback || '';
         const isChecked = optIdx === correctOptionIdx ? 'checked' : '';
 
+        const optionIdAttr = opt.option_id ? ` data-option-id="${escapeAttr(String(opt.option_id))}"` : '';
         optionsRowsHtml += `
-            <div class="answer-row">
+            <div class="answer-row"${optionIdAttr}>
                 <div class="option-badge">${letter}</div>
                 <input type="text" name="questions[${qIndex}][options][${optIdx}][text]" class="form-control" placeholder="Answer option" value="${escapeAttr(optText)}" required>
                 <div class="text-center">
@@ -1227,6 +1232,7 @@ function addNewFillBlankCard(prefilledData = null) {
     const card = document.createElement('div');
     card.className = 'fill-blank-card';
     card.dataset.index = index;
+    if (prefilledData && prefilledData.fib_id) card.dataset.itemId = prefilledData.fib_id; // feat/publishing-tree
 
     let textVal = prefilledData ? (prefilledData.text || prefilledData.content || '') : '';
     let answerVal = prefilledData ? (prefilledData.answer || prefilledData.correct_answer || '') : '';
@@ -1374,6 +1380,7 @@ function addNewFlashcardCard(prefilledData = null) {
     const card = document.createElement('div');
     card.className = 'flashcard-card';
     card.dataset.index = index;
+    if (prefilledData && prefilledData.flashcard_id) card.dataset.itemId = prefilledData.flashcard_id; // feat/publishing-tree
 
     let frontVal = prefilledData ? (prefilledData.front || prefilledData.front_text || '') : '';
     let backVal = prefilledData ? (prefilledData.back || prefilledData.back_text || '') : '';

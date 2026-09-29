@@ -4236,3 +4236,16 @@ textarea.form-control-custom {
 .category-actions .js-title-history {
     cursor: pointer;
 }
+
+
+/* ==========================================================================
+   feat/publishing-tree: LOCKED PARENT FIELDS
+   An editor opened from the Publishing page's "+" button has its
+   Chapter / Module / Lesson (and activity type) already chosen. They stay
+   real form fields (so they still submit) but can't be changed.
+   ========================================================================== */
+.select-locked {
+    pointer-events: none;
+    background-color: #f3f4f6 !important;
+    color: #4b5563;
+}

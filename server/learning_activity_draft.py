@@ -64,7 +64,7 @@ from learning_activities import (
 )
 from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
 from activity_points import calculate_activity_points_from_lists  # Task #55/#56: never trust client-supplied points
-from learning_activity_content import save_activity_content, get_activity_content  # Task #56: Section 2 persistence
+from learning_activity_content import save_activity_content, get_activity_content, ContentInUseError  # Task #56: Section 2 persistence; ContentInUseError: feat/publishing-tree
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 
 
@@ -346,14 +346,18 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
                 cursor.close()
                 return False, "This draft no longer exists. Please refresh and try again.", None, 0
 
+            # feat/publishing-tree: saving NEVER changes the status - a
+            # Published activity stays live (shown as "Edited" on the
+            # Publishing page), a Ready one stays Ready. Only the status
+            # buttons change it (publishing_actions.py).
             cursor.execute(
                 f"""UPDATE {LEARNING_ACTIVITIES_TABLE}
                     SET activity_title = %s, cat_id = %s, module_id = %s,
                         resource_id = %s, activity_type_id = %s, points = %s,
-                        la_stats_id = %s, updated_at = NOW()
+                        updated_at = NOW()
                     WHERE la_id = %s""",
                 (title, cat_id, module_id, resource_id, activity_type_id,
-                 points_val, draft_status_id, existing_id)
+                 points_val, existing_id)
             )
             log_title_change(cursor, "activity", existing_id, old_row[0], title, uploaded_by)
             cursor.close()
@@ -365,7 +369,7 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
                 questions=questions, fill_blanks=fill_blanks, flashcards=flashcards
             )
             connection.commit()
-            return True, "Draft saved successfully.", existing_id, points_val
+            return True, "Activity saved successfully.", existing_id, points_val
 
         cursor.execute(
             f"""INSERT INTO {LEARNING_ACTIVITIES_TABLE}
@@ -386,6 +390,11 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
         connection.commit()
         return True, "Draft saved successfully.", new_id, points_val
 
+    except ContentInUseError as e:
+        # feat/publishing-tree: a question/item learners already answered
+        # can't be removed - nothing is saved, the admin gets the reason.
+        connection.rollback()
+        return False, str(e), None, 0
     except Error as e:
         connection.rollback()
         print(f"learning_activity_draft: failed to save activity draft: {e}")

@@ -1,203 +1,511 @@
 /**
- * admin-publishing.js - Task #publishing-page-frontend &
- * Task #publishing-reorder-frontend
+ * admin-publishing.js - Publishing page
  * --------------------------------------------------------------------
- * Renders the Publishing page's tree (Category > Module > Lesson >
- * Activities/Exercises) from the JSON already embedded in the page by
- * admin_routes.py's publishing() route, filtered by the active tab,
- * with a status badge next to each name, an inline Publish/Unpublish
- * button wired to the real per-type publish/unpublish endpoints, and
- * a name-click popover offering Edit / Preview.
+ * Renders the course tree  Chapter > Module > Lesson > Video / Activity /
+ * Exercise  from the JSON admin_routes.py embeds in the page.
  *
- * Also adds "Edit Order" mode: drag handle + up/down arrows on
- * categories, modules and lessons (never activities/exercises - those
- * aren't reorderable), Save Changes persisting via
- * /admin/publishing/reorder, and Cancel reverting to a snapshot taken
- * the moment edit mode was entered.
+ * feat/publishing-tree:
+ *   - Tree guide lines (like a file explorer) instead of colored bars.
+ *   - Three tabs: Draft / Ready to Publish / Published. A parent that is
+ *     only shown because something inside it matches the tab is dimmed.
+ *   - One status button set, the same for every item type, all through
+ *     POST /admin/publishing/<kind>/<id>/<action> (publishing_actions.py):
+ *         Draft tab      Mark ready  (+ Mark all ready when Drafts are inside)
+ *         Ready tab      Publish (publishes everything Ready inside too), Move to Draft
+ *         Published tab  Update (only when edited after publishing), Unpublish
+ *   - "+" on chapters / modules / lessons opens the right editor with the
+ *     parent already chosen and locked; "+ Chapter" / "+ Module" and the
+ *     chapter / module Edit open modals right on this page.
+ *   - Click a name: Edit / Preview / Name history.
  *
- * Reuses the SAME #confirmActionModal shell every other admin page
- * relies on - no separate confirm flow introduced here.
+ * Edit Order mode (drag handle + arrows, Save / Cancel) is unchanged.
+ * Reuses the shared #confirmActionModal - no native alert()/confirm().
  */
 (function () {
     "use strict";
+
+    const KIND = { cat: "category", mod: "module", res: "lesson", vid: "video", act: "activity", ex: "exercise" };
+    const LABEL = { cat: "chapter", mod: "module", res: "lesson", vid: "video", act: "activity", ex: "exercise" };
+    const TAG = {
+        cat: ["CH", "publishing-tag-ch"], mod: ["M", "publishing-tag-mod"], res: ["L", "publishing-tag-les"],
+        vid: ["V", "publishing-tag-vid"], act: ["A", "publishing-tag-leaf"], ex: ["E", "publishing-tag-leaf"],
+    };
+    const TAB_STATUS = { draft: "Draft", ready: "Ready to Publish", published: "Published" };
+    const EMPTY_TEXT = {
+        draft: "Nothing in Draft.",
+        ready: "Nothing waiting to be published.",
+        published: "Nothing published yet.",
+    };
+    const ACTIVITY_TYPES = ["Multiple Choice", "Fill in the Blanks", "Flashcards"];
+
+    function typeOf(nodeId) { return nodeId.split("-")[0]; }
+    function numId(nodeId) { return nodeId.split("-")[1]; }
+
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+    }
 
     document.addEventListener("DOMContentLoaded", () => {
         const root = document.getElementById("publishingTreeRoot");
         if (!root) return;
 
-        const tabReady = document.getElementById("pubTabReady");
-        const tabPublished = document.getElementById("pubTabPublished");
-        const readyCountEl = document.getElementById("pubReadyCount");
-        const publishedCountEl = document.getElementById("pubPublishedCount");
+        const tabButtons = Array.from(document.querySelectorAll(".js-pub-tab"));
+        const countEls = {
+            draft: document.getElementById("pubDraftCount"),
+            ready: document.getElementById("pubReadyCount"),
+            published: document.getElementById("pubPublishedCount"),
+        };
         const orderActionsEl = document.getElementById("pubOrderActions");
         const editBannerEl = document.getElementById("pubEditBanner");
         const hintEl = document.getElementById("pubHint");
-
-        // Task #22: Preview button lives OUTSIDE #pubOrderActions on purpose -
-        // setOrderActionsHtml() below does orderActionsEl.innerHTML = ... on
-        // every Edit Order toggle, which would silently wipe this button out
-        // if it were nested inside that same container.
         const previewBtn = document.getElementById("pubPreviewBtn");
+        const addChapterBtn = document.getElementById("pubAddChapterBtn");
+
+        // Preview button lives OUTSIDE #pubOrderActions on purpose - that
+        // container's innerHTML is replaced on every Edit Order toggle.
         if (previewBtn) {
             previewBtn.addEventListener("click", () => {
-                if (window.CobraBytePublishingPreview) {
-                    window.CobraBytePublishingPreview.open();
-                }
+                if (window.CobraBytePublishingPreview) window.CobraBytePublishingPreview.open();
             });
         }
 
         let tree = [];
-        try {
-            tree = JSON.parse(root.dataset.tree || "[]");
-        } catch (e) {
-            tree = [];
-        }
+        try { tree = JSON.parse(root.dataset.tree || "[]"); } catch (e) { tree = []; }
 
-        let activeTab = "ready";
-        let expanded = {};   // id -> bool, default expanded
-        let openPopover = null;
+        let activeTab = TAB_STATUS[root.dataset.initialTab] ? root.dataset.initialTab : "ready";
+        const collapsed = {};          // id -> true when collapsed (default open)
+        let openMenu = null;           // { id, kind: "name" | "plus" }
         let editOrder = false;
         let snapshot = null;
         let draggedId = null;
+        let parentOf = {};             // node id -> parent node (built by indexTree)
 
         // ------------------------------------------------------------
-        // Shared confirm/info modal
+        // Shared confirm / info modal
         // ------------------------------------------------------------
-        const confirmActionModal = document.getElementById("confirmActionModal");
-        const confirmActionTitle = document.getElementById("confirmActionTitle");
-        const confirmActionText = document.getElementById("confirmActionText");
-        const confirmActionCancelBtn = document.getElementById("confirmActionCancelBtn");
-        const confirmActionConfirmBtn = document.getElementById("confirmActionConfirmBtn");
-        let pendingConfirmAction = null;
+        const confirmModal = document.getElementById("confirmActionModal");
+        const confirmTitle = document.getElementById("confirmActionTitle");
+        const confirmText = document.getElementById("confirmActionText");
+        const confirmCancelBtn = document.getElementById("confirmActionCancelBtn");
+        const confirmOkBtn = document.getElementById("confirmActionConfirmBtn");
+        let pendingConfirm = null;
 
-        function showAlertModal(message, title = "Notice") {
-            if (!confirmActionModal) { alert(message); return; }
-            pendingConfirmAction = null;
-            if (confirmActionTitle) confirmActionTitle.textContent = title;
-            if (confirmActionText) confirmActionText.textContent = message;
-            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "none";
-            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "OK";
-            confirmActionModal.classList.remove("modal-hidden");
-            confirmActionModal.style.display = "flex";
-        }
-
-        function showConfirmModal(message, onConfirm, title) {
-            if (!confirmActionModal) {
+        function openConfirm(message, title, okLabel, withCancel, onConfirm) {
+            if (!confirmModal) {
+                if (!withCancel) { alert(message); return; }
                 if (window.confirm(message)) onConfirm();
                 return;
             }
-            pendingConfirmAction = onConfirm;
-            if (confirmActionTitle) confirmActionTitle.textContent = title || "Confirm Action";
-            if (confirmActionText) confirmActionText.textContent = message;
-            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
-            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "Confirm";
-            confirmActionModal.classList.remove("modal-hidden");
-            confirmActionModal.style.display = "flex";
+            pendingConfirm = onConfirm || null;
+            if (confirmTitle) confirmTitle.textContent = title;
+            if (confirmText) confirmText.textContent = message;
+            if (confirmCancelBtn) confirmCancelBtn.style.display = withCancel ? "" : "none";
+            if (confirmOkBtn) confirmOkBtn.textContent = okLabel;
+            confirmModal.classList.remove("modal-hidden");
+            confirmModal.style.display = "flex";
         }
+        function showAlertModal(message, title = "Notice") { openConfirm(message, title, "OK", false, null); }
+        function showConfirmModal(message, onConfirm, title) { openConfirm(message, title || "Confirm Action", "Confirm", true, onConfirm); }
 
         function closeConfirmModal() {
-            if (confirmActionModal) {
-                confirmActionModal.classList.add("modal-hidden");
-                confirmActionModal.style.display = "none";
+            if (confirmModal) {
+                confirmModal.classList.add("modal-hidden");
+                confirmModal.style.display = "none";
             }
-            if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
-            if (confirmActionConfirmBtn) confirmActionConfirmBtn.textContent = "Confirm";
-            pendingConfirmAction = null;
+            if (confirmCancelBtn) confirmCancelBtn.style.display = "";
+            if (confirmOkBtn) confirmOkBtn.textContent = "Confirm";
+            pendingConfirm = null;
         }
-
-        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener("click", closeConfirmModal);
-        if (confirmActionModal) {
-            confirmActionModal.addEventListener("click", (e) => {
-                if (e.target === confirmActionModal) closeConfirmModal();
-            });
-        }
-        if (confirmActionConfirmBtn) {
-            confirmActionConfirmBtn.addEventListener("click", () => {
-                const action = pendingConfirmAction;
+        if (confirmCancelBtn) confirmCancelBtn.addEventListener("click", closeConfirmModal);
+        if (confirmModal) confirmModal.addEventListener("click", (e) => { if (e.target === confirmModal) closeConfirmModal(); });
+        if (confirmOkBtn) {
+            confirmOkBtn.addEventListener("click", () => {
+                const action = pendingConfirm;
                 closeConfirmModal();
                 if (typeof action === "function") action();
             });
         }
 
-        function escapeHtml(str) {
-            const div = document.createElement("div");
-            div.textContent = str == null ? "" : String(str);
-            return div.innerHTML;
-        }
-
-        // ------------------------------------------------------------
-        // Per-type endpoint / edit-page / preview config
-        // ------------------------------------------------------------
-        function typeOf(nodeId) { return nodeId.split("-")[0]; }
-        function numId(nodeId) { return nodeId.split("-")[1]; }
-
-        function endpointsFor(type, id) {
-            const n = numId(id);
-            switch (type) {
-                case "cat": return {
-                    publish: `/admin/manage-course/categories/${n}/publish`,
-                    unpublish: `/admin/publishing/categories/${n}/unpublish`,
-                };
-                case "mod": return {
-                    publish: `/admin/manage-course/modules/${n}/publish`,
-                    unpublish: `/admin/publishing/modules/${n}/unpublish`,
-                };
-                case "res": return {
-                    publish: `/admin/learning-resources/${n}/publish`,
-                    unpublish: `/admin/publishing/resources/${n}/unpublish`,
-                };
-                case "act": return {
-                    publish: `/admin/learning-activities/${n}/publish`,
-                    unpublish: `/admin/publishing/activities/${n}/unpublish`,
-                };
-                case "ex": return {
-                    publish: `/admin/coding-exercises/${n}/publish`,
-                    unpublish: `/admin/publishing/exercises/${n}/unpublish`,
-                };
+        let toastTimer = null;
+        function showToast(message) {
+            let toast = document.getElementById("changesSavedToast");
+            if (!toast) {
+                toast = document.createElement("div");
+                toast.id = "changesSavedToast";
+                toast.className = "changes-saved-toast";
+                document.body.appendChild(toast);
             }
-            return {};
+            toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${escapeHtml(message)}</span>`;
+            toast.classList.add("show");
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove("show"), 2500);
         }
 
-        function editUrlFor(type, id) {
-            const n = numId(id);
-            switch (type) {
-                case "cat":
-                case "mod": return "/admin/manage-course";
-                case "res": return `/admin/upload-resource?resource_id=${n}`;
-                case "act": return `/admin/create-learning-activity?activity_id=${n}`;
-                case "ex": return `/admin/coding-exercises/create?exercise_id=${n}`;
+        // ------------------------------------------------------------
+        // Tree helpers
+        // ------------------------------------------------------------
+        function kidsOf(node) {
+            if (typeOf(node.id) === "res") {
+                return [].concat(node.videos || [], node.activities || [], node.exercises || []);
+            }
+            return node.children || [];
+        }
+
+        function indexTree() {
+            parentOf = {};
+            (function walk(nodes, parent) {
+                nodes.forEach((n) => {
+                    parentOf[n.id] = parent;
+                    walk(kidsOf(n), n);
+                });
+            })(tree, null);
+        }
+
+        function findNode(id, nodes) {
+            nodes = nodes || tree;
+            for (const n of nodes) {
+                if (n.id === id) return n;
+                const found = findNode(id, kidsOf(n));
+                if (found) return found;
+            }
+            return null;
+        }
+
+        function ancestorId(node, prefix) {
+            let cur = node;
+            while (cur) {
+                if (typeOf(cur.id) === prefix) return numId(cur.id);
+                cur = parentOf[cur.id];
+            }
+            return "";
+        }
+
+        function hasStatusInside(node, status) {
+            return kidsOf(node).some((k) => k.status === status || hasStatusInside(k, status));
+        }
+
+        function countInside(node, status) {
+            return kidsOf(node).reduce((sum, k) => sum + (k.status === status ? 1 : 0) + countInside(k, status), 0);
+        }
+
+        // Items that Publish would take live with this node (Ready, reachable
+        // through Ready/Published parents) - mirrors publishing_actions.publish().
+        function countPublishable(node) {
+            return kidsOf(node).reduce((sum, k) => {
+                if (k.status === "Ready to Publish") return sum + 1 + countPublishable(k);
+                if (k.status === "Published") return sum + countPublishable(k);
+                return sum;
+            }, 0);
+        }
+
+        function matchesTab(node) {
+            if (editOrder) {
+                // Edit Order shows Ready + Published together, never Draft, no leaves.
+                if (["vid", "act", "ex"].includes(typeOf(node.id))) return false;
+                if (node.status && node.status !== "Draft") return true;
+                return kidsOf(node).some(matchesTab);
+            }
+            const wanted = TAB_STATUS[activeTab];
+            return node.status === wanted || kidsOf(node).some(matchesTab);
+        }
+
+        function updateCounts() {
+            const totals = { draft: 0, ready: 0, published: 0 };
+            (function walk(nodes) {
+                nodes.forEach((n) => {
+                    if (n.status === "Draft") totals.draft++;
+                    else if (n.status === "Ready to Publish") totals.ready++;
+                    else if (n.status === "Published") totals.published++;
+                    walk(kidsOf(n));
+                });
+            })(tree);
+            Object.keys(countEls).forEach((k) => { if (countEls[k]) countEls[k].textContent = totals[k]; });
+        }
+
+        // ------------------------------------------------------------
+        // URLs: editors and "+" links (opened with the parent locked)
+        // ------------------------------------------------------------
+        function returnParams(tab) {
+            return `return=publishing&tab=${encodeURIComponent(tab || activeTab)}`;
+        }
+
+        function editUrlFor(node) {
+            const n = numId(node.id);
+            switch (typeOf(node.id)) {
+                case "res": return `/admin/upload-resource?resource_id=${n}&${returnParams()}`;
+                case "vid": return `/admin/upload-video-tutorial?video_id=${n}&${returnParams()}`;
+                case "act": return `/admin/create-learning-activity?activity_id=${n}&${returnParams()}`;
+                case "ex": return `/admin/coding-exercises/create?exercise_id=${n}&${returnParams()}`;
+            }
+            return null;
+        }
+
+        function addUrl(parent, what, activityType) {
+            const cat = ancestorId(parent, "cat");
+            const mod = ancestorId(parent, "mod");
+            const res = ancestorId(parent, "res");
+            const base = `cat_id=${cat}&module_id=${mod}&lock=1&${returnParams("draft")}`;
+            switch (what) {
+                case "lesson": return `/admin/upload-resource?${base}`;
+                case "video": return `/admin/upload-video-tutorial?${base}&resource_id=${res}`;
+                case "activity": return `/admin/create-learning-activity?${base}&resource_id=${res}&type=${encodeURIComponent(activityType)}`;
+                case "exercise": return `/admin/coding-exercises/create?${base}&resource_id=${res}`;
             }
             return "#";
         }
 
-        async function showPreview(type, id, parentResourceId) {
-            const n = numId(id);
-            if (type === "res") {
-                try {
-                    const resp = await fetch(`/admin/learning-resources/preview-content?resource_id=${n}`, { credentials: "include" });
-                    const result = await resp.json();
-                    if (!result.success) { showAlertModal("Could not load a preview for this lesson.", "Preview"); return; }
-                    openPreviewOverlay(result.title || "Preview", result.content_html || "<em>No content yet.</em>");
-                } catch (e) {
-                    showAlertModal("Could not reach the server.", "Error");
-                }
-                return;
-            }
-            if (type === "act" && parentResourceId) {
-                try {
-                    const resp = await fetch(`/admin/learning-activities/preview?resource_id=${numId(parentResourceId)}`, { credentials: "include" });
-                    const result = await resp.json();
-                    const match = (result.activities || []).find((a) => String(a.activity_id) === n);
-                    if (!match) { showAlertModal("Could not load a preview for this activity.", "Preview"); return; }
-                    openPreviewOverlay(`${match.activity_type}: ${match.activity_title}`, `<p>Status: ${escapeHtml(match.status)}</p><p>${match.items.length} item(s).</p>`);
-                } catch (e) {
-                    showAlertModal("Could not reach the server.", "Error");
-                }
-                return;
-            }
-            showAlertModal("No preview is available for this item yet.", "Preview");
+        function historyTrigger(node) {
+            const t = typeOf(node.id);
+            const n = numId(node.id);
+            const parentLesson = parentOf[node.id] ? numId(parentOf[node.id].id) : "";
+            const map = {
+                cat: ["category", n], mod: ["module", n], res: ["lesson", n], ex: ["exercise", n],
+                vid: ["lesson", parentLesson], act: ["activities", parentLesson],
+            };
+            return map[t];
         }
 
+        // ------------------------------------------------------------
+        // Rendering
+        // ------------------------------------------------------------
+        function badgeHtml(node) {
+            const s = node.status || "Draft";
+            const cls = s === "Published" ? "badge-active" : s === "Ready to Publish" ? "badge-ready" : "badge-draft";
+            let html = `<span class="badge ${cls}">${escapeHtml(s)}</span>`;
+            if (node.edited && s === "Published") html += `<span class="badge badge-edited" title="Changed after it was published - already live">Edited</span>`;
+            return html;
+        }
+
+        function btn(action, node, label, cls, extra = "") {
+            return `<button type="button" class="btn publishing-action-btn ${cls} js-pub-action" data-action="${action}" data-id="${node.id}" ${extra}>${label}</button>`;
+        }
+
+        function note(text) {
+            return `<span class="publishing-note">${escapeHtml(text)}</span>`;
+        }
+
+        function actionsHtml(node) {
+            if (editOrder) return orderCtrlsHtml(node.id);
+            const wanted = TAB_STATUS[activeTab];
+            if (node.status !== wanted) return "";
+
+            const parent = parentOf[node.id];
+            const parentLabel = parent ? LABEL[typeOf(parent.id)] : "";
+
+            if (activeTab === "draft") {
+                if (parent && parent.status === "Draft") return note(`Mark its ${parentLabel} ready first`);
+                let html = "";
+                if (hasStatusInside(node, "Draft")) html += btn("mark-all-ready", node, "Mark all ready", "btn-pub-ghost");
+                return html + btn("mark-ready", node, "Mark ready", "btn-ready-custom");
+            }
+
+            if (activeTab === "ready") {
+                if (parent && parent.status === "Ready to Publish") return note(`Goes live with its ${parentLabel}`);
+                if (parent && parent.status !== "Published") return note(`Its ${parentLabel} is still ${parent.status}`);
+                const inside = countPublishable(node);
+                const label = inside ? `Publish + ${inside} inside` : "Publish";
+                return btn("move-to-draft", node, "Move to Draft", "btn-pub-ghost") +
+                    btn("publish", node, label, "btn-success-custom");
+            }
+
+            let html = "";
+            if (node.edited) html += btn("confirm-update", node, "Update", "btn-pub-update");
+            return html + btn("unpublish", node, "Unpublish", "btn-unpublish-custom");
+        }
+
+        function nameMenuHtml(node) {
+            const t = typeOf(node.id);
+            const items = [];
+            items.push(`<button type="button" class="resource-edit-menu-item js-pub-edit" data-id="${node.id}"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`);
+            if (t === "res" || t === "act") {
+                items.push(`<button type="button" class="resource-edit-menu-item js-pub-preview" data-id="${node.id}"><i class="fa-regular fa-eye"></i> Preview</button>`);
+            }
+            const hist = historyTrigger(node);
+            if (hist && hist[1]) {
+                items.push(`<button type="button" class="resource-edit-menu-item js-title-history" data-scope="${hist[0]}" data-id="${hist[1]}"><i class="fa-solid fa-clock-rotate-left"></i> Name history</button>`);
+            }
+            return `<div class="resource-edit-menu publishing-popover" role="menu">${items.join("")}</div>`;
+        }
+
+        function plusMenuHtml(node) {
+            const t = typeOf(node.id);
+            const item = (attrs, icon, label, disabled) =>
+                `<button type="button" class="resource-edit-menu-item js-pub-add" ${attrs} ${disabled ? "disabled" : ""}>` +
+                `<i class="fa-solid ${icon}"></i> ${escapeHtml(label)}${disabled ? ' <span class="publishing-menu-note">(added)</span>' : ""}</button>`;
+
+            if (t === "cat") return `<div class="resource-edit-menu publishing-popover publishing-plus-menu">${item(`data-what="module" data-id="${node.id}"`, "fa-layer-group", "Module", false)}</div>`;
+            if (t === "mod") return `<div class="resource-edit-menu publishing-popover publishing-plus-menu">${item(`data-what="lesson" data-id="${node.id}"`, "fa-book-open", "Lesson", false)}</div>`;
+
+            // Lesson: one of each type (videos, 3 activity types, coding exercise)
+            const takenTypes = (node.activities || []).map((a) => a.activity_type);
+            const rows = [
+                item(`data-what="video" data-id="${node.id}"`, "fa-video", "Video tutorial", (node.videos || []).length > 0),
+                ...ACTIVITY_TYPES.map((type) => item(
+                    `data-what="activity" data-type="${escapeHtml(type)}" data-id="${node.id}"`,
+                    type === "Flashcards" ? "fa-clone" : type === "Fill in the Blanks" ? "fa-i-cursor" : "fa-list-check",
+                    type, takenTypes.includes(type))),
+                item(`data-what="exercise" data-id="${node.id}"`, "fa-code", "Coding exercise", (node.exercises || []).length > 0),
+            ];
+            return `<div class="resource-edit-menu publishing-popover publishing-plus-menu">${rows.join("")}</div>`;
+        }
+
+        function orderCtrlsHtml(id) {
+            const found = findParentArray(id);
+            if (!found) return "";
+            const atTop = found.idx === 0;
+            const atBottom = found.idx === found.arr.length - 1;
+            return `
+                <div class="publishing-order-ctrls">
+                    <button type="button" class="publishing-arrow-btn js-pub-move" data-id="${id}" data-dir="-1" ${atTop ? "disabled" : ""} aria-label="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+                    <button type="button" class="publishing-arrow-btn js-pub-move" data-id="${id}" data-dir="1" ${atBottom ? "disabled" : ""} aria-label="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+                    <span class="publishing-grip" draggable="true" data-id="${id}" aria-label="Drag to reorder"><i class="fa-solid fa-grip-vertical"></i></span>
+                </div>`;
+        }
+
+        // guides: one boolean per ancestor level below the top ("a later
+        // sibling is still coming here" -> draw a vertical line). isLast:
+        // this row's own connector is an elbow instead of a tee.
+        function rowHtml(node, guides, isLast, visibleKids) {
+            const t = typeOf(node.id);
+            const [tagText, tagClass] = TAG[t];
+            const isContext = !editOrder && node.status !== TAB_STATUS[activeTab];
+            const open = !collapsed[node.id];
+
+            let guideHtml = "";
+            if (guides !== null) {
+                guideHtml = guides.map((line) => `<span class="pub-g${line ? " pub-g-line" : ""}"></span>`).join("") +
+                    `<span class="pub-g ${isLast ? "pub-g-elbow" : "pub-g-tee"}"></span>`;
+            }
+
+            const toggle = visibleKids.length
+                ? `<button type="button" class="publishing-toggle-btn js-pub-toggle" data-id="${node.id}" aria-label="${open ? "Collapse" : "Expand"}" aria-expanded="${open}"><i class="fa-solid fa-chevron-${open ? "down" : "right"}"></i></button>`
+                : `<span class="publishing-toggle-spacer"></span>`;
+
+            const nameMenuOpen = !!(openMenu && openMenu.id === node.id && openMenu.kind === "name");
+            const plusMenuOpen = !!(openMenu && openMenu.id === node.id && openMenu.kind === "plus");
+
+            const nameHtml = editOrder
+                ? `<span class="publishing-name-static">${escapeHtml(node.name)}</span>`
+                : `<button type="button" class="publishing-name-btn js-pub-name" data-id="${node.id}" aria-haspopup="menu" aria-expanded="${nameMenuOpen}">${escapeHtml(node.name)}</button>${nameMenuOpen ? nameMenuHtml(node) : ""}`;
+
+            const canAdd = !editOrder && ["cat", "mod", "res"].includes(t);
+            const plusHtml = canAdd
+                ? `<div class="publishing-plus-wrap"><button type="button" class="publishing-plus-btn js-pub-plus" data-id="${node.id}" aria-label="Add inside ${escapeHtml(node.name)}" aria-haspopup="menu" aria-expanded="${plusMenuOpen}" title="Add inside"><i class="fa-solid fa-plus"></i></button>${plusMenuOpen ? plusMenuHtml(node) : ""}</div>`
+                : "";
+
+            const dragAttr = editOrder ? `data-draggable-row="${node.id}"` : "";
+            return `
+                <div class="publishing-row publishing-row-${t}${isContext ? " is-context" : ""}" ${dragAttr}>
+                    <span class="pub-guides">${guideHtml}</span>
+                    ${toggle}
+                    <span class="publishing-tag ${tagClass}">${tagText}</span>
+                    <div class="publishing-name-wrap">${nameHtml}</div>
+                    ${badgeHtml(node)}
+                    <div class="publishing-spacer"></div>
+                    <div class="publishing-row-actions">${actionsHtml(node)}${plusHtml}</div>
+                </div>`;
+        }
+
+        function renderTree() {
+            indexTree();
+            const out = [];
+            (function walk(nodes, guides) {
+                const visible = nodes.filter(matchesTab);
+                visible.forEach((node, i) => {
+                    const isLast = i === visible.length - 1;
+                    const kids = kidsOf(node).filter(matchesTab);
+                    out.push(rowHtml(node, guides, isLast, kids));
+                    if (!collapsed[node.id] && kids.length) {
+                        walk(kidsOf(node), guides === null ? [] : guides.concat(!isLast));
+                    }
+                });
+            })(tree, null);
+
+            root.innerHTML = out.length
+                ? out.join("")
+                : `<p class="text-muted publishing-empty">${editOrder ? "Nothing to reorder yet." : EMPTY_TEXT[activeTab]}</p>`;
+            if (editOrder) wireDragHandles();
+        }
+
+        async function refreshTree() {
+            try {
+                const resp = await fetch("/admin/publishing/data", { credentials: "same-origin" });
+                const result = await resp.json();
+                if (result.success) {
+                    tree = result.tree || [];
+                    updateCounts();
+                    renderTree();
+                }
+            } catch (e) {
+                // keep the current tree rather than blanking the page
+            }
+        }
+
+        // ------------------------------------------------------------
+        // Status actions (one route for every item type)
+        // ------------------------------------------------------------
+        function confirmTextFor(action, node) {
+            const name = `"${node.name}"`;
+            const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+            switch (action) {
+                case "mark-ready":
+                    return [`Mark ${name} Ready to Publish?`, "Mark Ready?"];
+                case "mark-all-ready": {
+                    const n = countInside(node, "Draft");
+                    return [`Mark ${name} and the ${plural(n, "Draft item")} inside it Ready to Publish?`, "Mark All Ready?"];
+                }
+                case "publish": {
+                    const n = countPublishable(node);
+                    return [n
+                        ? `Publish ${name} and the ${plural(n, "Ready item")} inside it? Learners will see ${n === 1 ? "both" : "them all"} right away.`
+                        : `Publish ${name}? Learners will see it right away.`, "Publish?"];
+                }
+                case "unpublish": {
+                    const n = countInside(node, "Published");
+                    return [n
+                        ? `Unpublish ${name}? It and the ${plural(n, "published item")} inside it move back to Ready to Publish, and learners won't see them. Learner progress is kept.`
+                        : `Unpublish ${name}? It moves back to Ready to Publish and learners won't see it. Learner progress is kept.`, "Unpublish?"];
+                }
+                case "move-to-draft": {
+                    const n = countInside(node, "Ready to Publish");
+                    return [n
+                        ? `Move ${name} back to Draft? The ${plural(n, "Ready item")} inside it move back to Draft too.`
+                        : `Move ${name} back to Draft?`, "Move to Draft?"];
+                }
+                case "confirm-update":
+                    return [`Confirm the changes to ${name}? They're already live - this only clears the "Edited" mark.`, "Confirm Update?"];
+            }
+            return ["Are you sure?", "Confirm"];
+        }
+
+        function runAction(action, node, button) {
+            const [message, title] = confirmTextFor(action, node);
+            showConfirmModal(message, async () => {
+                if (button) button.disabled = true;
+                try {
+                    const resp = await fetch(`/admin/publishing/${KIND[typeOf(node.id)]}/${numId(node.id)}/${action}`, {
+                        method: "POST", credentials: "same-origin",
+                    });
+                    const result = await resp.json().catch(() => ({ success: false }));
+                    if (!result.success) {
+                        showAlertModal(result.message || "Could not update this item.", "Not Changed");
+                        if (button) button.disabled = false;
+                        return;
+                    }
+                    showToast(result.message || "Saved.");
+                    await refreshTree();
+                } catch (err) {
+                    showAlertModal("Could not reach the server. Please try again.", "Error");
+                    if (button) button.disabled = false;
+                }
+            }, title);
+        }
+
+        // ------------------------------------------------------------
+        // Preview (lesson content / activity summary)
+        // ------------------------------------------------------------
         function openPreviewOverlay(title, contentHtml) {
             let overlay = document.getElementById("pubPreviewOverlay");
             if (overlay) overlay.remove();
@@ -208,70 +516,180 @@
                 <div class="content-preview-card">
                     <div class="content-preview-header">
                         <strong>${escapeHtml(title)}</strong>
-                        <button type="button" id="pubPreviewCloseBtn" class="modal-close-btn modal-close-inline" aria-label="Close">&times;</button>
+                        <button type="button" class="modal-close-btn modal-close-inline js-preview-close" aria-label="Close">&times;</button>
                     </div>
-                    <div class="content-preview-body">${contentHtml}</div>
+                    <div class="content-preview-body lesson-content-body">${contentHtml}</div>
                 </div>`;
             document.body.appendChild(overlay);
-            function close() { overlay.remove(); }
-            overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-            overlay.querySelector("#pubPreviewCloseBtn").addEventListener("click", close);
+            const close = () => overlay.remove();
+            overlay.addEventListener("click", (e) => { if (e.target === overlay || e.target.closest(".js-preview-close")) close(); });
         }
 
-        function doEdit(type, id) {
-            const url = editUrlFor(type, id);
-            showConfirmModal(
-                "You'll be taken to the editor for this item. Any unsaved changes here will be kept.",
-                () => { window.location.href = url; },
-                "Edit this item?"
-            );
+        async function showPreview(node) {
+            const t = typeOf(node.id);
+            try {
+                if (t === "res") {
+                    const resp = await fetch(`/admin/learning-resources/preview-content?resource_id=${numId(node.id)}`, { credentials: "same-origin" });
+                    const result = await resp.json();
+                    if (!result.success) { showAlertModal("Could not load a preview for this lesson.", "Preview"); return; }
+                    openPreviewOverlay(result.title || "Preview", result.content_html || "<em>No content yet.</em>");
+                    return;
+                }
+                if (t === "act") {
+                    const lesson = parentOf[node.id];
+                    const resp = await fetch(`/admin/learning-activities/preview?resource_id=${numId(lesson.id)}`, { credentials: "same-origin" });
+                    const result = await resp.json();
+                    const match = (result.activities || []).find((a) => String(a.activity_id) === numId(node.id));
+                    if (!match) { showAlertModal("Could not load a preview for this activity.", "Preview"); return; }
+                    openPreviewOverlay(`${match.activity_type}: ${match.activity_title}`,
+                        `<p>Status: ${escapeHtml(match.status)}</p><p>${match.items.length} item(s).</p>`);
+                }
+            } catch (e) {
+                showAlertModal("Could not reach the server.", "Error");
+            }
         }
 
         // ------------------------------------------------------------
-        // Counting + tab filtering (a parent shows if it or any
-        // descendant matches the active tab). In Edit Order mode
-        // everything shows, regardless of tab.
+        // Modals on this page: + Chapter, + Module, Edit chapter / module
         // ------------------------------------------------------------
-        function collectLeafStatuses(nodes, out) {
-            (nodes || []).forEach((n) => {
-                out.push(n.status);
-                if (n.children) collectLeafStatuses(n.children, out);
-                if (n.activities) n.activities.forEach((a) => out.push(a.status));
-                if (n.exercises) n.exercises.forEach((e) => out.push(e.status));
+        const $ = (id) => document.getElementById(id);
+
+        function openModal(modal) {
+            if (!modal) return;
+            modal.classList.remove("modal-hidden");
+            modal.style.display = "flex";
+            if (typeof window.cobraByteRefreshCharCounters === "function") window.cobraByteRefreshCharCounters();
+        }
+        function closeModal(modal) {
+            if (!modal) return;
+            modal.classList.add("modal-hidden");
+            modal.style.display = "none";
+            const form = modal.querySelector("form");
+            if (form) form.reset();
+        }
+        function wireClose(modal, ...buttonIds) {
+            if (!modal) return;
+            buttonIds.forEach((id) => { const b = $(id); if (b) b.addEventListener("click", () => closeModal(modal)); });
+            modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(modal); });
+        }
+
+        async function fetchCategories() {
+            try {
+                const resp = await fetch("/admin/manage-course/categories", { credentials: "same-origin" });
+                const result = await resp.json();
+                return result.success ? result.categories : [];
+            } catch (e) { return []; }
+        }
+
+        async function fillCategorySelect(select, selectedId, lock) {
+            if (!select) return;
+            const categories = await fetchCategories();
+            select.innerHTML = `<option value="" disabled>Select Category</option>` +
+                categories.map((c) => `<option value="${c.cat_id}">${escapeHtml(c.category_name)}</option>`).join("");
+            select.value = selectedId ? String(selectedId) : "";
+            select.classList.toggle("select-locked", !!lock);
+            if (lock) { select.setAttribute("tabindex", "-1"); select.setAttribute("aria-disabled", "true"); }
+            else { select.removeAttribute("tabindex"); select.removeAttribute("aria-disabled"); }
+        }
+
+        async function postForm(url, fields) {
+            const resp = await fetch(url, { method: "POST", credentials: "same-origin", body: new URLSearchParams(fields) });
+            return resp.json().catch(() => ({ success: false, message: "Unexpected server response." }));
+        }
+
+        function wireSubmit(form, modal, handler) {
+            if (!form) return;
+            let busy = false;
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                if (busy) return;
+                busy = true;
+                try {
+                    const result = await handler();
+                    if (!result) return;
+                    if (!result.success) { showAlertModal(result.message || "Could not save.", "Not Saved"); return; }
+                    closeModal(modal);
+                    showToast(result.message || "Saved.");
+                    await refreshTree();
+                } catch (err) {
+                    showAlertModal("Could not reach the server. Please try again.", "Error");
+                } finally {
+                    busy = false;
+                }
             });
         }
 
-        function updateCounts() {
-            const all = [];
-            collectLeafStatuses(tree, all);
-            const readyCount = all.filter((s) => s === "Ready to Publish").length;
-            const publishedCount = all.filter((s) => s === "Published").length;
-            if (readyCountEl) readyCountEl.textContent = readyCount;
-            if (publishedCountEl) publishedCountEl.textContent = publishedCount;
-        }
+        // + Chapter
+        const createCategoryModal = $("createCategoryModal");
+        wireClose(createCategoryModal, "closeCreateCategoryModalBtn", "cancelCreateCategoryBtn");
+        if (addChapterBtn) addChapterBtn.addEventListener("click", () => { openModal(createCategoryModal); const i = $("newCategoryName"); if (i) i.focus(); });
+        wireSubmit($("createCategoryForm"), createCategoryModal, async () => {
+            const name = ($("newCategoryName").value || "").trim();
+            if (!name) { showAlertModal("Chapter name is required.", "Missing Information"); return null; }
+            return postForm("/admin/manage-course/categories/create", { category_name: name });
+        });
 
-        function matchesTab(node) {
-            if (editOrder) {
-                // Task: Edit Order shows Ready to Publish + Published
-                // combined, Draft excluded - never the whole tree.
-                if (node.status && node.status !== "Draft") return true;
-                if (node.children && node.children.some(matchesTab)) return true;
-                if (node.activities && node.activities.some((a) => a.status !== "Draft")) return true;
-                if (node.exercises && node.exercises.some((e) => e.status !== "Draft")) return true;
-                return false;
-            }
-            const wanted = activeTab === "ready" ? "Ready to Publish" : "Published";
-            if (node.status === wanted) return true;
-            if (node.children && node.children.some(matchesTab)) return true;
-            if (node.activities && node.activities.some((a) => a.status === wanted)) return true;
-            if (node.exercises && node.exercises.some((e) => e.status === wanted)) return true;
-            return false;
+        // + Module (chapter locked)
+        const createModuleModal = $("createModuleModal");
+        wireClose(createModuleModal, "closeCreateModuleModalBtn", "cancelCreateModuleBtn");
+        async function openCreateModule(catId) {
+            await fillCategorySelect($("newModuleCategory"), catId, true);
+            openModal(createModuleModal);
+            const i = $("newModuleName"); if (i) i.focus();
+        }
+        wireSubmit($("createModuleForm"), createModuleModal, async () => {
+            const name = ($("newModuleName").value || "").trim();
+            const desc = ($("newModuleDesc").value || "").trim();
+            const catId = $("newModuleCategory").value;
+            if (!name || !desc || !catId) { showAlertModal("Module name, description, and chapter are all required.", "Missing Information"); return null; }
+            // No module_stats_id: the server starts new modules as Draft.
+            return postForm("/admin/manage-course/modules/create", { module_name: name, description: desc, cat_id: catId });
+        });
+
+        // Edit chapter
+        const editCategoryModal = $("editCategoryModal");
+        wireClose(editCategoryModal, "closeEditCategoryModal", "cancelEditCategoryBtn");
+        function openEditCategory(node) {
+            $("editCategoryId").value = numId(node.id);
+            $("editCategoryName").value = node.name;
+            openModal(editCategoryModal);
+            $("editCategoryName").focus();
+        }
+        wireSubmit($("editCategoryForm"), editCategoryModal, async () => {
+            const name = ($("editCategoryName").value || "").trim();
+            if (!name) { showAlertModal("Chapter name is required.", "Missing Information"); return null; }
+            return postForm(`/admin/manage-course/categories/${$("editCategoryId").value}/update`, { category_name: name });
+        });
+
+        // Edit module
+        const editModuleModal = $("editModuleModal");
+        wireClose(editModuleModal, "closeEditModuleModal");
+        async function openEditModule(node) {
+            $("editModuleId").value = numId(node.id);
+            $("editModuleName").value = node.name;
+            $("editModuleDesc").value = node.description || "";
+            await fillCategorySelect($("editModuleCategory"), ancestorId(node, "cat"), false);
+            openModal(editModuleModal);
+            $("editModuleName").focus();
+        }
+        wireSubmit($("editModuleForm"), editModuleModal, async () => {
+            const name = ($("editModuleName").value || "").trim();
+            const desc = ($("editModuleDesc").value || "").trim();
+            const catId = $("editModuleCategory").value;
+            if (!name || !desc || !catId) { showAlertModal("Module name, description, and chapter are all required.", "Missing Information"); return null; }
+            return postForm(`/admin/manage-course/modules/${$("editModuleId").value}/update`, { module_name: name, description: desc, cat_id: catId });
+        });
+
+        function doEdit(node) {
+            const t = typeOf(node.id);
+            if (t === "cat") { openEditCategory(node); return; }
+            if (t === "mod") { openEditModule(node); return; }
+            const url = editUrlFor(node);
+            if (url) window.location.href = url;
         }
 
         // ------------------------------------------------------------
-        // Parent-array lookup for reordering - a category lives in
-        // `tree` itself; a module lives in its category's `children`;
-        // a lesson lives in its module's `children`.
+        // Edit Order mode (unchanged behavior)
         // ------------------------------------------------------------
         function findParentArray(id) {
             const idxTop = tree.findIndex((n) => n.id === id);
@@ -293,205 +711,18 @@
             const { arr, idx } = found;
             const newIdx = idx + dir;
             if (newIdx < 0 || newIdx >= arr.length) return;
-            const tmp = arr[idx];
-            arr[idx] = arr[newIdx];
-            arr[newIdx] = tmp;
+            [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
             renderTree();
         }
 
-        // ------------------------------------------------------------
-        // Rendering
-        // ------------------------------------------------------------
-        function badgeHtml(status) {
-            if (status === "Published") return `<span class="badge badge-active">${escapeHtml(status)}</span>`;
-            if (status === "Ready to Publish") return `<span class="badge badge-ready">${escapeHtml(status)}</span>`;
-            return `<span class="badge badge-draft">${escapeHtml(status || "Draft")}</span>`;
+        function setToolbarDisabled(disabled) {
+            tabButtons.forEach((b) => { b.disabled = disabled; });
+            if (previewBtn) previewBtn.disabled = disabled;
+            if (addChapterBtn) addChapterBtn.disabled = disabled;
+            if (editBannerEl) editBannerEl.classList.toggle("show", disabled);
+            if (hintEl) hintEl.classList.toggle("hide", disabled);
         }
 
-        function actionButtonHtml(type, id, status) {
-            if (editOrder) return "";
-            if (status === "Ready to Publish") {
-                return `<button type="button" class="btn btn-success-custom publishing-action-btn js-pub-action" data-action="publish" data-type="${type}" data-id="${id}">Publish</button>`;
-            }
-            if (status === "Published") {
-                return `<button type="button" class="btn btn-unpublish-custom publishing-action-btn js-pub-action" data-action="unpublish" data-type="${type}" data-id="${id}">Unpublish</button>`;
-            }
-            return "";
-        }
-
-        function popoverHtml(type, id, parentResourceId) {
-            return `<div class="resource-edit-menu publishing-popover">
-                <button type="button" class="resource-edit-menu-item js-pub-edit" data-type="${type}" data-id="${id}"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
-                <button type="button" class="resource-edit-menu-item js-pub-preview" data-type="${type}" data-id="${id}" data-parent="${parentResourceId || ''}"><i class="fa-regular fa-eye"></i> Preview</button>
-            </div>`;
-        }
-
-        function orderCtrlsHtml(id) {
-            const found = findParentArray(id);
-            const atTop = found ? found.idx === 0 : true;
-            const atBottom = found ? found.idx === found.arr.length - 1 : true;
-            return `
-                <div class="publishing-order-ctrls">
-                    <button type="button" class="publishing-arrow-btn js-pub-move" data-id="${id}" data-dir="-1" ${atTop ? "disabled" : ""} aria-label="Move up">
-                        <i class="fa-solid fa-arrow-up"></i>
-                    </button>
-                    <button type="button" class="publishing-arrow-btn js-pub-move" data-id="${id}" data-dir="1" ${atBottom ? "disabled" : ""} aria-label="Move down">
-                        <i class="fa-solid fa-arrow-down"></i>
-                    </button>
-                    <span class="publishing-grip" draggable="true" data-id="${id}" aria-label="Drag to reorder">
-                        <i class="fa-solid fa-grip-vertical"></i>
-                    </span>
-                </div>`;
-        }
-
-        function renderRow(node, depth, tagClass, tagLabel) {
-            const isOpen = expanded[node.id] !== false;
-            const hasKids = node.children && node.children.length > 0;
-            const chevron = hasKids
-                ? `<button type="button" class="publishing-toggle-btn js-pub-toggle" data-id="${node.id}"><i class="fa-solid fa-chevron-${isOpen ? 'down' : 'right'}"></i></button>`
-                : `<span class="publishing-toggle-spacer"></span>`;
-            const popOpen = openPopover === node.id;
-
-            const nameHtml = editOrder
-                ? `<span class="publishing-name-static">${escapeHtml(node.name)}</span>`
-                : `<button type="button" class="publishing-name-btn js-pub-name" data-id="${node.id}">${escapeHtml(node.name)}</button>
-                   ${popOpen ? popoverHtml(typeOf(node.id), node.id) : ""}`;
-
-            const dragAttrs = editOrder
-                ? `data-draggable-row="${node.id}"`
-                : "";
-
-            return `
-                <div class="publishing-row publishing-row-depth-${depth}" ${dragAttrs}>
-                    ${chevron}
-                    <span class="publishing-tag ${tagClass}">${tagLabel}</span>
-                    <div class="publishing-name-wrap">
-                        ${nameHtml}
-                    </div>
-                    ${badgeHtml(node.status)}
-                    <div class="publishing-spacer"></div>
-                    ${editOrder ? orderCtrlsHtml(node.id) : actionButtonHtml(typeOf(node.id), node.id, node.status)}
-                </div>`;
-        }
-
-        function renderLeafRow(leaf, depth, tagLabel, parentResourceId) {
-            const popOpen = openPopover === leaf.id;
-            const type = typeOf(leaf.id);
-            return `
-                <div class="publishing-row publishing-row-leaf publishing-row-depth-${depth}">
-                    <span class="publishing-toggle-spacer"></span>
-                    <span class="publishing-tag publishing-tag-leaf">${tagLabel}</span>
-                    <div class="publishing-name-wrap">
-                        <button type="button" class="publishing-name-btn leaf js-pub-name" data-id="${leaf.id}" data-parent="${parentResourceId}">${escapeHtml(leaf.name)}</button>
-                        ${popOpen ? popoverHtml(type, leaf.id, parentResourceId) : ""}
-                    </div>
-                    ${badgeHtml(leaf.status)}
-                    <div class="publishing-spacer"></div>
-                    ${actionButtonHtml(type, leaf.id, leaf.status)}
-                </div>`;
-        }
-
-        function renderTree() {
-            const visible = tree.filter(matchesTab);
-            if (visible.length === 0) {
-                root.innerHTML = `<p class="text-muted publishing-empty">${activeTab === "ready" ? "Nothing waiting to be published." : "Nothing published yet."}</p>`;
-                return;
-            }
-
-            const out = [];
-            visible.forEach((cat) => {
-                out.push(renderRow(cat, 0, "publishing-tag-ch", "CH"));
-                if (expanded[cat.id] === false) return;
-                (cat.children || []).filter(matchesTab).forEach((mod) => {
-                    out.push(renderRow(mod, 1, "publishing-tag-mod", "M"));
-                    if (expanded[mod.id] === false) return;
-                    (mod.children || []).filter(matchesTab).forEach((lesson) => {
-                        out.push(renderRow(lesson, 2, "publishing-tag-les", "L"));
-                        if (expanded[lesson.id] === false) return;
-                        if (editOrder) return; // leaves aren't reorderable/shown in Edit Order mode
-                        const wanted = activeTab === "ready" ? "Ready to Publish" : "Published";
-                        (lesson.activities || []).filter((a) => a.status === wanted).forEach((a) => {
-                            out.push(renderLeafRow(a, 3, "A", lesson.id));
-                        });
-                        (lesson.exercises || []).filter((e) => e.status === wanted).forEach((e) => {
-                            out.push(renderLeafRow(e, 3, "E", lesson.id));
-                        });
-                    });
-                });
-            });
-
-            root.innerHTML = out.join("");
-
-            if (editOrder) wireDragHandles();
-        }
-
-        function findNode(id, nodes) {
-            nodes = nodes || tree;
-            for (const n of nodes) {
-                if (n.id === id) return n;
-                if (n.children) {
-                    const f = findNode(id, n.children);
-                    if (f) return f;
-                }
-                if (n.activities) {
-                    const a = n.activities.find((x) => x.id === id);
-                    if (a) return a;
-                }
-                if (n.exercises) {
-                    const e = n.exercises.find((x) => x.id === id);
-                    if (e) return e;
-                }
-            }
-            return null;
-        }
-
-                function findParentNode(id) {
-            for (const cat of tree) {
-                if ((cat.children || []).some((m) => m.id === id)) return cat;
-                for (const mod of (cat.children || [])) {
-                    if ((mod.children || []).some((l) => l.id === id)) return mod;
-                    for (const les of (mod.children || [])) {
-                        if ((les.activities || []).some((a) => a.id === id)) return les;
-                        if ((les.exercises || []).some((e) => e.id === id)) return les;
-                    }
-                }
-            }
-            return null;
-        }
-
-        function countPublishedDescendants(node) {
-            let count = 0;
-            (node.children || []).forEach((child) => {
-                if (child.status === "Published") count++;
-                count += countPublishedDescendants(child);
-            });
-            (node.activities || []).forEach((a) => { if (a.status === "Published") count++; });
-            (node.exercises || []).forEach((e) => { if (e.status === "Published") count++; });
-            return count;
-        }
-
-        // ------------------------------------------------------------
-        // Refresh the whole tree from the server (after any publish/
-        // unpublish action) - simplest correct way to reflect a status
-        // change without hand-patching the in-memory tree.
-        // ------------------------------------------------------------
-        async function refreshTree() {
-            try {
-                const resp = await fetch("/admin/publishing/data", { credentials: "include" });
-                const result = await resp.json();
-                if (result.success) {
-                    tree = result.tree || [];
-                    updateCounts();
-                    renderTree();
-                }
-            } catch (e) {
-                // leave the stale tree in place rather than blanking the page
-            }
-        }
-
-        // ------------------------------------------------------------
-        // Edit Order mode
-        // ------------------------------------------------------------
         function setOrderActionsHtml() {
             if (!orderActionsEl) return;
             if (editOrder) {
@@ -509,12 +740,8 @@
         function startEditOrder() {
             editOrder = true;
             snapshot = JSON.stringify(tree);
-            openPopover = null;
-            if (tabReady) tabReady.disabled = true;
-            if (tabPublished) tabPublished.disabled = true;
-            if (previewBtn) previewBtn.disabled = true;
-            if (editBannerEl) editBannerEl.classList.add("show");
-            if (hintEl) hintEl.classList.add("hide");
+            openMenu = null;
+            setToolbarDisabled(true);
             setOrderActionsHtml();
             renderTree();
         }
@@ -523,11 +750,7 @@
             tree = JSON.parse(snapshot);
             editOrder = false;
             snapshot = null;
-            if (tabReady) tabReady.disabled = false;
-            if (tabPublished) tabPublished.disabled = false;
-            if (previewBtn) previewBtn.disabled = false;
-            if (editBannerEl) editBannerEl.classList.remove("show");
-            if (hintEl) hintEl.classList.remove("hide");
+            setToolbarDisabled(false);
             setOrderActionsHtml();
             updateCounts();
             renderTree();
@@ -536,7 +759,7 @@
         async function postReorder(type, parentId, orderedIds) {
             const resp = await fetch("/admin/publishing/reorder", {
                 method: "POST",
-                credentials: "include",
+                credentials: "same-origin",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ type, parent_id: parentId, ordered_ids: orderedIds }),
             });
@@ -547,8 +770,7 @@
             const saveBtn = document.getElementById("pubSaveOrderBtn");
             if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving..."; }
 
-            const requests = [];
-            requests.push(postReorder("category", null, tree.map((c) => numId(c.id))));
+            const requests = [postReorder("category", null, tree.map((c) => numId(c.id)))];
             tree.forEach((cat) => {
                 if ((cat.children || []).length) {
                     requests.push(postReorder("module", numId(cat.id), cat.children.map((m) => numId(m.id))));
@@ -565,24 +787,13 @@
 
             editOrder = false;
             snapshot = null;
-            if (tabReady) tabReady.disabled = false;
-            if (tabPublished) tabPublished.disabled = false;
-            if (previewBtn) previewBtn.disabled = false;
-            if (editBannerEl) editBannerEl.classList.remove("show");
-            if (hintEl) hintEl.classList.remove("hide");
+            setToolbarDisabled(false);
             setOrderActionsHtml();
-
-            if (failed.length > 0) {
-                showAlertModal("Some of the new order could not be saved. Please try again.", "Order Not Fully Saved");
-            }
-
+            if (failed.length) showAlertModal("Some of the new order could not be saved. Please try again.", "Order Not Fully Saved");
             await refreshTree();
         }
 
-        // ------------------------------------------------------------
-        // Drag and drop - only among the same parent array, exactly
-        // like the up/down arrows.
-        // ------------------------------------------------------------
+        // Drag and drop - only within the same parent, like the arrows.
         function wireDragHandles() {
             root.querySelectorAll(".publishing-grip").forEach((grip) => {
                 grip.addEventListener("dragstart", (e) => {
@@ -606,9 +817,7 @@
                     root.querySelectorAll(".publishing-row.drag-over").forEach((r) => r.classList.remove("drag-over"));
                     row.classList.add("drag-over");
                 });
-                row.addEventListener("dragleave", () => {
-                    row.classList.remove("drag-over");
-                });
+                row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
                 row.addEventListener("drop", (e) => {
                     e.preventDefault();
                     row.classList.remove("drag-over");
@@ -636,112 +845,113 @@
         root.addEventListener("click", (e) => {
             const toggle = e.target.closest(".js-pub-toggle");
             if (toggle) {
-                const id = toggle.dataset.id;
-                expanded[id] = expanded[id] === false ? true : false;
+                collapsed[toggle.dataset.id] = !collapsed[toggle.dataset.id];
                 renderTree();
                 return;
             }
 
             const moveBtn = e.target.closest(".js-pub-move");
-            if (moveBtn) {
-                moveSibling(moveBtn.dataset.id, parseInt(moveBtn.dataset.dir, 10));
-                return;
-            }
+            if (moveBtn) { moveSibling(moveBtn.dataset.id, parseInt(moveBtn.dataset.dir, 10)); return; }
 
             const nameBtn = e.target.closest(".js-pub-name");
             if (nameBtn) {
                 e.stopPropagation();
                 const id = nameBtn.dataset.id;
-                openPopover = openPopover === id ? null : id;
+                openMenu = openMenu && openMenu.id === id && openMenu.kind === "name" ? null : { id, kind: "name" };
+                renderTree();
+                return;
+            }
+
+            const plusBtn = e.target.closest(".js-pub-plus");
+            if (plusBtn) {
+                e.stopPropagation();
+                const id = plusBtn.dataset.id;
+                openMenu = openMenu && openMenu.id === id && openMenu.kind === "plus" ? null : { id, kind: "plus" };
                 renderTree();
                 return;
             }
 
             const editBtn = e.target.closest(".js-pub-edit");
             if (editBtn) {
-                openPopover = null;
-                doEdit(editBtn.dataset.type, editBtn.dataset.id);
+                const node = findNode(editBtn.dataset.id);
+                openMenu = null;
                 renderTree();
+                if (node) doEdit(node);
                 return;
             }
 
-            const previewBtn = e.target.closest(".js-pub-preview");
-            if (previewBtn) {
-                openPopover = null;
-                showPreview(previewBtn.dataset.type, previewBtn.dataset.id, previewBtn.dataset.parent);
+            const previewItem = e.target.closest(".js-pub-preview");
+            if (previewItem) {
+                const node = findNode(previewItem.dataset.id);
+                openMenu = null;
                 renderTree();
+                if (node) showPreview(node);
+                return;
+            }
+
+            if (e.target.closest(".js-title-history")) {
+                // admin-title-history.js opens the modal (document-level listener).
+                openMenu = null;
+                setTimeout(renderTree, 0);
+                return;
+            }
+
+            const addItem = e.target.closest(".js-pub-add");
+            if (addItem) {
+                if (addItem.disabled) return;
+                const parent = findNode(addItem.dataset.id);
+                openMenu = null;
+                renderTree();
+                if (!parent) return;
+                if (addItem.dataset.what === "module") { openCreateModule(numId(parent.id)); return; }
+                window.location.href = addUrl(parent, addItem.dataset.what, addItem.dataset.type);
                 return;
             }
 
             const actionBtn = e.target.closest(".js-pub-action");
             if (actionBtn) {
-                const type = actionBtn.dataset.type;
-                const id = actionBtn.dataset.id;
-                const action = actionBtn.dataset.action;
-                const node = findNode(id);
-                const label = node ? node.name : "this item";
-                const endpoints = endpointsFor(type, id);
-                const url = action === "publish" ? endpoints.publish : endpoints.unpublish;
-
-                if (action === "publish") {
-                    const parent = findParentNode(id);
-                    if (parent && parent.status !== "Published") {
-                        showAlertModal(
-                            `Cannot publish "${label}" - its parent "${parent.name}" is still ${parent.status}. Publish the parent first.`,
-                            "Cannot Publish"
-                        );
-                        return;
-                    }
-                }
-
-                let confirmMsg;
-                if (action === "publish") {
-                    confirmMsg = `Are you sure you want to publish "${label}"? It will become visible to learners.`;
-                } else {
-                    const descCount = node ? countPublishedDescendants(node) : 0;
-                    confirmMsg = descCount > 0
-                        ? `Are you sure you want to unpublish "${label}"? It will be moved to Ready to Publish, and ${descCount} other published item(s) under it will move to Ready to Publish too.`
-                        : `Are you sure you want to unpublish "${label}"? It will be moved back to Ready to Publish and hidden from learners.`;
-                }
-
-                showConfirmModal(confirmMsg, async () => {
-                    try {
-                        const resp = await fetch(url, { method: "POST", credentials: "include" });
-                        const result = await resp.json();
-                        if (!result.success) {
-                            showAlertModal(result.message || "Could not update this item's status.", "Error");
-                            return;
-                        }
-                        await refreshTree();
-                    } catch (err) {
-                        showAlertModal("Could not reach the server. Please try again.", "Error");
-                    }
-                }, action === "publish" ? "Publish?" : "Unpublish?");
-                return;
+                const node = findNode(actionBtn.dataset.id);
+                if (node) runAction(actionBtn.dataset.action, node, actionBtn);
             }
         });
 
+        // Close an open menu on an outside click or Escape.
         document.addEventListener("click", (e) => {
-            if (!e.target.closest(".js-pub-name") && !e.target.closest(".resource-edit-menu") && openPopover) {
-                openPopover = null;
-                renderTree();
-            }
+            if (!openMenu) return;
+            if (e.target.closest(".publishing-popover") || e.target.closest(".js-pub-name") || e.target.closest(".js-pub-plus")) return;
+            openMenu = null;
+            renderTree();
+        });
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && openMenu) { openMenu = null; renderTree(); }
         });
 
+        // Name history "Revert to this" -> show the new name.
+        document.addEventListener("cobra:title-changed", refreshTree);
+
+        // ------------------------------------------------------------
+        // Tabs
+        // ------------------------------------------------------------
         function setTab(tab) {
-            if (editOrder) return;
+            if (editOrder || !TAB_STATUS[tab]) return;
             activeTab = tab;
-            openPopover = null;
-            if (tabReady) tabReady.classList.toggle("active", tab === "ready");
-            if (tabPublished) tabPublished.classList.toggle("active", tab === "published");
+            openMenu = null;
+            tabButtons.forEach((b) => {
+                const on = b.dataset.tab === tab;
+                b.classList.toggle("active", on);
+                b.setAttribute("aria-selected", String(on));
+            });
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set("tab", tab);
+                window.history.replaceState(null, "", url.toString());
+            } catch (e) { /* older browsers: tab still switches */ }
             renderTree();
         }
-
-        if (tabReady) tabReady.addEventListener("click", () => setTab("ready"));
-        if (tabPublished) tabPublished.addEventListener("click", () => setTab("published"));
+        tabButtons.forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
 
         setOrderActionsHtml();
         updateCounts();
-        renderTree();
+        setTab(activeTab);
     });
 })();

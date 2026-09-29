@@ -422,6 +422,15 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
 
         uploader = uploaded_by or data.get("uploaded_by") or None
 
+        # feat/publishing-tree: one video tutorial per lesson.
+        from publishing_actions import lesson_already_has
+        if lesson_already_has(cursor, "video", resource_id, exclude_id=video_tutorial_id):
+            cursor.close()
+            return False, None, (
+                "This lesson already has a video tutorial. Each lesson can have only one - "
+                "edit the existing video instead."
+            )
+
         if video_tutorial_id:
             cursor.execute(
                 f"SELECT video_title FROM {VIDEO_TUTORIALS_TABLE} WHERE video_tutorial_id = %s",
@@ -432,22 +441,24 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
                 cursor.close()
                 return False, None, "This video tutorial no longer exists. Please refresh and try again."
 
+            # feat/publishing-tree: saving NEVER changes the status - a
+            # Published video stays live (shown as "Edited" on the
+            # Publishing page). `status` only applies to a brand-new row.
             cursor.execute(
                 f"""
                 UPDATE {VIDEO_TUTORIALS_TABLE}
                 SET resource_id = %s, video_title = %s, description = %s,
-                    file_path = %s, file_size = NULL, video_stats_id = %s,
+                    file_path = %s, file_size = NULL,
                     updated_at = NOW()
                 WHERE video_tutorial_id = %s
                 """,
                 (resource_id, formatted_title, description, final_video_id,
-                 status_id, video_tutorial_id)
+                 video_tutorial_id)
             )
             log_title_change(cursor, "video", video_tutorial_id, old_row.get("video_title"), formatted_title, uploader)
             connection.commit()
             cursor.close()
-            action_msg = "published" if status_name == "Published" else "saved as draft"
-            return True, video_tutorial_id, f"Video tutorial {action_msg} successfully!"
+            return True, video_tutorial_id, "Video tutorial saved successfully."
 
         cursor.execute(
             f"""
@@ -463,8 +474,7 @@ def save_video_tutorial(data, status="Draft", uploaded_by=None):
         log_title_change(cursor, "video", new_id, None, formatted_title, uploader)
         connection.commit()
         cursor.close()
-        action_msg = "published" if status_name == "Published" else "saved as draft"
-        return True, new_id, f"Video tutorial {action_msg} successfully!"
+        return True, new_id, "Video tutorial saved successfully."
 
     except Error as e:
         connection.rollback()

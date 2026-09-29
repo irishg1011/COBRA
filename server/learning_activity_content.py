@@ -7,15 +7,38 @@ specific activity table schema mapped through `learning_activities_tbl`
 via foreign key `la_id`:
 
     1. MCQActivityController:
-       - mcq_questions_tbl (q_id, la_id, question_text)
+       - mcq_questions_tbl (q_id, la_id, question_text, sort_order)
        - mcq_options_tbl (option_id, q_id, option_letter, option_text, is_correct, feedback)
     2. FillBlanksActivityController:
        - fill_blanks_tbl (fib_id, la_id, content, correct_answer, correct_feedback, incorrect_feedback)
     3. FlashcardsActivityController:
        - flashcards_tbl (flashcard_id, la_id, front_text, back_text, correct_feedback, incorrect_feedback)
 
-An ActivityContentRouter dispatches insertions and retrievals to the
+An ActivityContentRouter dispatches saves and retrievals to the
 appropriate controller based on the selected activity type.
+
+feat/publishing-tree: SAVE IN PLACE (was: delete everything, re-insert)
+------------------------------------------------------------------------
+Learners' answers point at these rows by id:
+    mcq_learner_answers_tbl.q_id / .option_id
+    fib_learner_answers_tbl.fib_id
+    flashcard_learner_answers_tbl.flashcard_id
+so the old delete-and-re-insert failed with a foreign-key error the moment
+any learner had answered - editing a live activity was impossible.
+
+Now every question / option / item the editor sends back carries its own
+id (q_id / option_id / fib_id / flashcard_id, set by
+create-learning-activity.js when the activity is reopened):
+    - has an id  -> UPDATE that row (same id, learners' answers stay attached)
+    - no id      -> INSERT a new row
+    - existing row not sent back (the admin removed it):
+          nobody answered it -> DELETE
+          learners answered   -> ContentInUseError, nothing is saved
+If a request carries NO ids at all (old/no-JS form post), rows are matched
+by position instead, so a plain edit still keeps its ids.
+
+Fill in the Blanks / Flashcards have no sort column, so their order is
+creation order (fib_id / flashcard_id) - same order learners always got.
 """
 
 from mysql.connector import Error
@@ -26,6 +49,53 @@ MCQ_OPTIONS_TABLE = "mcq_options_tbl"
 FILL_BLANKS_TABLE = "fill_blanks_tbl"
 FLASHCARDS_TABLE = "flashcards_tbl"
 
+MCQ_ANSWERS_TABLE = "mcq_learner_answers_tbl"
+FIB_ANSWERS_TABLE = "fib_learner_answers_tbl"
+FLASHCARD_ANSWERS_TABLE = "flashcard_learner_answers_tbl"
+
+
+class ContentInUseError(Exception):
+    """A question/item learners already answered was removed - the save is refused."""
+
+
+def _int_or_none(value):
+    try:
+        return int(value) if value not in (None, "", "null") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _answered_ids(cursor, answers_table, column, ids):
+    """Subset of `ids` that have at least one learner answer."""
+    ids = [i for i in ids if i]
+    if not ids:
+        return set()
+    placeholders = ", ".join(["%s"] * len(ids))
+    cursor.execute(
+        f"SELECT DISTINCT {column} FROM {answers_table} WHERE {column} IN ({placeholders})",
+        tuple(ids)
+    )
+    return {row[0] for row in cursor.fetchall()}
+
+
+def _short(text, limit=40):
+    text = (text or "").strip()
+    return text if len(text) <= limit else text[:limit - 3] + "..."
+
+
+def _match_ids(incoming, existing_ids, id_key):
+    """
+    Returns one id (or None = new row) per incoming item. Uses the ids the
+    editor sent; when it sent none at all, falls back to position so a
+    plain re-save still updates rows in place.
+    """
+    existing = list(existing_ids)
+    sent = [_int_or_none(item.get(id_key)) for item in incoming]
+    if any(sent):
+        valid = set(existing)
+        return [i if i in valid else None for i in sent]
+    return [existing[pos] if pos < len(existing) else None for pos in range(len(incoming))]
+
 
 class MCQActivityController:
     """
@@ -34,57 +104,126 @@ class MCQActivityController:
     """
 
     @staticmethod
-    def clear(cursor, la_id):
+    def _existing_questions(cursor, la_id):
         cursor.execute(
-            f"""DELETE FROM {MCQ_OPTIONS_TABLE}
-                WHERE q_id IN (SELECT q_id FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s)""",
+            f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
             (la_id,)
         )
-        cursor.execute(f"DELETE FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s", (la_id,))
+        return cursor.fetchall()
 
     @staticmethod
-    def insert(cursor, la_id, questions):
+    def _existing_options(cursor, q_id):
+        cursor.execute(
+            f"SELECT option_id, option_text FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC, option_id ASC",
+            (q_id,)
+        )
+        return cursor.fetchall()
+
+    @staticmethod
+    def _delete_questions(cursor, rows):
+        """rows: [(q_id, text), ...] - refuses if any learner answered them."""
+        if not rows:
+            return
+        answered = _answered_ids(cursor, MCQ_ANSWERS_TABLE, "q_id", [r[0] for r in rows])
+        if answered:
+            text = next(r[1] for r in rows if r[0] in answered)
+            raise ContentInUseError(
+                f'Learners already answered the question "{_short(text)}", so it can\'t be removed. '
+                "Edit its text instead, or keep it."
+            )
+        for q_id, _text in rows:
+            cursor.execute(f"DELETE FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s", (q_id,))
+            cursor.execute(f"DELETE FROM {MCQ_QUESTIONS_TABLE} WHERE q_id = %s", (q_id,))
+
+    @staticmethod
+    def clear(cursor, la_id):
+        MCQActivityController._delete_questions(
+            cursor, MCQActivityController._existing_questions(cursor, la_id)
+        )
+
+    @staticmethod
+    def save(cursor, la_id, questions):
+        incoming = [q for q in (questions or []) if (q.get("text") or "").strip()]
+        existing = MCQActivityController._existing_questions(cursor, la_id)
+        matched = _match_ids(incoming, [r[0] for r in existing], "q_id")
+
+        kept = set()
         # sort_order = the question's position in the builder (0, 1, 2...),
         # which is the order Quiz learners get them in.
-        sort_order = 0
-        for q in (questions or []):
-            text = (q.get("text") or "").strip()
-            if not text:
-                continue
+        for sort_order, (q, q_id) in enumerate(zip(incoming, matched)):
+            text = format_display_name(q.get("text").strip())
+            if q_id:
+                cursor.execute(
+                    f"UPDATE {MCQ_QUESTIONS_TABLE} SET question_text = %s, sort_order = %s WHERE q_id = %s",
+                    (text, sort_order, q_id)
+                )
+            else:
+                cursor.execute(
+                    f"INSERT INTO {MCQ_QUESTIONS_TABLE} (la_id, question_text, sort_order) VALUES (%s, %s, %s)",
+                    (la_id, text, sort_order)
+                )
+                q_id = cursor.lastrowid
+            kept.add(q_id)
+            MCQActivityController._save_options(cursor, q_id, q)
 
-            normalized_text = format_display_name(text)
-            cursor.execute(
-                f"INSERT INTO {MCQ_QUESTIONS_TABLE} (la_id, question_text, sort_order) VALUES (%s, %s, %s)",
-                (la_id, normalized_text, sort_order)
-            )
-            sort_order += 1
-            q_id = cursor.lastrowid
+        MCQActivityController._delete_questions(
+            cursor, [(r[0], r[1]) for r in existing if r[0] not in kept]
+        )
 
-            try:
-                correct_index = int(q.get("correct_option"))
-            except (TypeError, ValueError):
-                correct_index = None
+    @staticmethod
+    def _save_options(cursor, q_id, question):
+        try:
+            correct_index = int(question.get("correct_option"))
+        except (TypeError, ValueError):
+            correct_index = None
 
-            for idx, opt in enumerate(q.get("options") or []):
-                opt_text = (opt.get("text") or "").strip()
-                if not opt_text:
-                    continue
-                normalized_opt_text = format_display_name(opt_text)
-                letter = chr(65 + idx)
-                is_correct = 1 if correct_index == idx else 0
-                raw_feedback = (opt.get("feedback") or "").strip()
-                feedback = format_display_name(raw_feedback) if raw_feedback else None
+        # Keep each option's position from the builder (so correct_option
+        # still points at the right one), dropping blank rows.
+        raw_options = question.get("options") or []
+        incoming = [(idx, opt) for idx, opt in enumerate(raw_options) if (opt.get("text") or "").strip()]
+        existing = MCQActivityController._existing_options(cursor, q_id)
+        matched = _match_ids([opt for _idx, opt in incoming], [r[0] for r in existing], "option_id")
+
+        kept = set()
+        for position, ((idx, opt), option_id) in enumerate(zip(incoming, matched)):
+            letter = chr(65 + position)
+            text = format_display_name(opt.get("text").strip())
+            is_correct = 1 if correct_index == idx else 0
+            raw_feedback = (opt.get("feedback") or "").strip()
+            feedback = format_display_name(raw_feedback) if raw_feedback else None
+            if option_id:
+                cursor.execute(
+                    f"""UPDATE {MCQ_OPTIONS_TABLE}
+                        SET option_letter = %s, option_text = %s, is_correct = %s, feedback = %s
+                        WHERE option_id = %s""",
+                    (letter, text, is_correct, feedback, option_id)
+                )
+            else:
                 cursor.execute(
                     f"""INSERT INTO {MCQ_OPTIONS_TABLE}
                         (q_id, option_letter, option_text, is_correct, feedback)
                         VALUES (%s, %s, %s, %s, %s)""",
-                    (q_id, letter, normalized_opt_text, is_correct, feedback)
+                    (q_id, letter, text, is_correct, feedback)
                 )
+                option_id = cursor.lastrowid
+            kept.add(option_id)
+
+        removed = [r for r in existing if r[0] not in kept]
+        if removed:
+            answered = _answered_ids(cursor, MCQ_ANSWERS_TABLE, "option_id", [r[0] for r in removed])
+            if answered:
+                text = next(r[1] for r in removed if r[0] in answered)
+                raise ContentInUseError(
+                    f'Learners already picked the answer option "{_short(text)}", so it can\'t be removed. '
+                    "Edit its text instead, or keep it."
+                )
+            for option_id, _text in removed:
+                cursor.execute(f"DELETE FROM {MCQ_OPTIONS_TABLE} WHERE option_id = %s", (option_id,))
 
     @staticmethod
     def fetch(cursor, la_id):
         cursor.execute(
-            f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY q_id ASC",
+            f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
             (la_id,)
         )
         question_rows = cursor.fetchall()
@@ -92,13 +231,14 @@ class MCQActivityController:
         questions = []
         for q in question_rows:
             cursor.execute(
-                f"""SELECT option_letter, option_text, is_correct, feedback
-                    FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC""",
+                f"""SELECT option_id, option_letter, option_text, is_correct, feedback
+                    FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC, option_id ASC""",
                 (q["q_id"],)
             )
             option_rows = cursor.fetchall()
             options = [
                 {
+                    "option_id": o["option_id"],
                     "text": o["option_text"],
                     "feedback": o.get("feedback") or "",
                 }
@@ -108,6 +248,7 @@ class MCQActivityController:
                 (i for i, o in enumerate(option_rows) if o["is_correct"]), None
             )
             questions.append({
+                "q_id": q["q_id"],
                 "text": q["question_text"],
                 "options": options,
                 "correct_option": correct_option,
@@ -115,34 +256,107 @@ class MCQActivityController:
         return questions
 
 
-class FillBlanksActivityController:
+class _SimpleItemController:
+    """
+    Shared in-place save for the two one-row-per-item tables
+    (Fill in the Blanks, Flashcards). Subclasses set the table/column names
+    and how to read one incoming item.
+    """
+    TABLE = ""
+    ID = ""
+    ANSWERS_TABLE = ""
+    LABEL = "item"
+    COLUMNS = ()          # data columns written on insert/update, in order
+
+    @classmethod
+    def _values(cls, item):
+        """Returns a tuple matching COLUMNS, or None to skip a blank item."""
+        raise NotImplementedError
+
+    @classmethod
+    def _existing(cls, cursor, la_id):
+        cursor.execute(
+            f"SELECT {cls.ID}, {cls.COLUMNS[0]} FROM {cls.TABLE} WHERE la_id = %s ORDER BY {cls.ID} ASC",
+            (la_id,)
+        )
+        return cursor.fetchall()
+
+    @classmethod
+    def _delete(cls, cursor, rows):
+        if not rows:
+            return
+        answered = _answered_ids(cursor, cls.ANSWERS_TABLE, cls.ID, [r[0] for r in rows])
+        if answered:
+            text = next(r[1] for r in rows if r[0] in answered)
+            raise ContentInUseError(
+                f'Learners already answered the {cls.LABEL} "{_short(text)}", so it can\'t be removed. '
+                "Edit it instead, or keep it."
+            )
+        for row_id, _text in rows:
+            cursor.execute(f"DELETE FROM {cls.TABLE} WHERE {cls.ID} = %s", (row_id,))
+
+    @classmethod
+    def clear(cls, cursor, la_id):
+        cls._delete(cursor, cls._existing(cursor, la_id))
+
+    @classmethod
+    def save(cls, cursor, la_id, items):
+        incoming = []
+        for item in (items or []):
+            values = cls._values(item)
+            if values is not None:
+                incoming.append((item, values))
+        existing = cls._existing(cursor, la_id)
+        matched = _match_ids([item for item, _v in incoming], [r[0] for r in existing], cls.ID)
+
+        kept = set()
+        set_clause = ", ".join(f"{col} = %s" for col in cls.COLUMNS)
+        insert_cols = ", ".join(("la_id",) + cls.COLUMNS)
+        insert_marks = ", ".join(["%s"] * (len(cls.COLUMNS) + 1))
+        for (_item, values), row_id in zip(incoming, matched):
+            if row_id:
+                cursor.execute(
+                    f"UPDATE {cls.TABLE} SET {set_clause} WHERE {cls.ID} = %s",
+                    values + (row_id,)
+                )
+            else:
+                cursor.execute(
+                    f"INSERT INTO {cls.TABLE} ({insert_cols}) VALUES ({insert_marks})",
+                    (la_id,) + values
+                )
+                row_id = cursor.lastrowid
+            kept.add(row_id)
+
+        cls._delete(cursor, [(r[0], r[1]) for r in existing if r[0] not in kept])
+
+
+def _fmt_optional(value):
+    value = (value or "").strip()
+    return format_display_name(value) if value else None
+
+
+class FillBlanksActivityController(_SimpleItemController):
     """
     Controller for Fill in the Blanks items (fill_blanks_tbl).
     """
+    TABLE = FILL_BLANKS_TABLE
+    ID = "fib_id"
+    ANSWERS_TABLE = FIB_ANSWERS_TABLE
+    LABEL = "item"
+    COLUMNS = ("content", "correct_answer", "correct_feedback", "incorrect_feedback")
 
-    @staticmethod
-    def clear(cursor, la_id):
-        cursor.execute(f"DELETE FROM {FILL_BLANKS_TABLE} WHERE la_id = %s", (la_id,))
-
-    @staticmethod
-    def insert(cursor, la_id, fill_blanks):
-        for fb in (fill_blanks or []):
-            content = (fb.get("content") or fb.get("text") or "").strip()
-            answer = (fb.get("correct_answer") or fb.get("answer") or "").strip()
-            if not content or not answer:
-                continue
-            normalized_content = format_display_name(content)
-            normalized_answer = format_display_name(answer)
-            raw_correct_fb = (fb.get("correct_feedback") or fb.get("correctFeedback") or "").strip()
-            raw_incorrect_fb = (fb.get("incorrect_feedback") or fb.get("incorrectFeedback") or "").strip()
-            correct_fb = format_display_name(raw_correct_fb) if raw_correct_fb else None
-            incorrect_fb = format_display_name(raw_incorrect_fb) if raw_incorrect_fb else None
-            cursor.execute(
-                f"""INSERT INTO {FILL_BLANKS_TABLE}
-                    (la_id, content, correct_answer, correct_feedback, incorrect_feedback)
-                    VALUES (%s, %s, %s, %s, %s)""",
-                (la_id, normalized_content, normalized_answer, correct_fb, incorrect_fb)
-            )
+    @classmethod
+    def _values(cls, fb):
+        content = (fb.get("content") or fb.get("text") or "").strip()
+        answer = (fb.get("correct_answer") or fb.get("answer") or "").strip()
+        if not content or not answer:
+            return None
+        return (
+            format_display_name(content),
+            format_display_name(answer),
+            _fmt_optional(fb.get("correct_feedback") or fb.get("correctFeedback")),
+            _fmt_optional(fb.get("incorrect_feedback") or fb.get("incorrectFeedback")),
+        )
 
     @staticmethod
     def fetch(cursor, la_id):
@@ -167,34 +381,28 @@ class FillBlanksActivityController:
         ]
 
 
-class FlashcardsActivityController:
+class FlashcardsActivityController(_SimpleItemController):
     """
     Controller for Flashcards items (flashcards_tbl).
     """
+    TABLE = FLASHCARDS_TABLE
+    ID = "flashcard_id"
+    ANSWERS_TABLE = FLASHCARD_ANSWERS_TABLE
+    LABEL = "flashcard"
+    COLUMNS = ("front_text", "back_text", "correct_feedback", "incorrect_feedback")
 
-    @staticmethod
-    def clear(cursor, la_id):
-        cursor.execute(f"DELETE FROM {FLASHCARDS_TABLE} WHERE la_id = %s", (la_id,))
-
-    @staticmethod
-    def insert(cursor, la_id, flashcards):
-        for fc in (flashcards or []):
-            front = (fc.get("front") or fc.get("front_text") or "").strip()
-            back = (fc.get("back") or fc.get("back_text") or "").strip()
-            if not front or not back:
-                continue
-            normalized_front = format_display_name(front)
-            normalized_back = format_display_name(back)
-            raw_correct_fb = (fc.get("correct_feedback") or fc.get("correctFeedback") or "").strip()
-            raw_incorrect_fb = (fc.get("incorrect_feedback") or fc.get("incorrectFeedback") or "").strip()
-            correct_fb = format_display_name(raw_correct_fb) if raw_correct_fb else None
-            incorrect_fb = format_display_name(raw_incorrect_fb) if raw_incorrect_fb else None
-            cursor.execute(
-                f"""INSERT INTO {FLASHCARDS_TABLE}
-                    (la_id, front_text, back_text, correct_feedback, incorrect_feedback)
-                    VALUES (%s, %s, %s, %s, %s)""",
-                (la_id, normalized_front, normalized_back, correct_fb, incorrect_fb)
-            )
+    @classmethod
+    def _values(cls, fc):
+        front = (fc.get("front") or fc.get("front_text") or "").strip()
+        back = (fc.get("back") or fc.get("back_text") or "").strip()
+        if not front or not back:
+            return None
+        return (
+            format_display_name(front),
+            format_display_name(back),
+            _fmt_optional(fc.get("correct_feedback") or fc.get("correctFeedback")),
+            _fmt_optional(fc.get("incorrect_feedback") or fc.get("incorrectFeedback")),
+        )
 
     @staticmethod
     def fetch(cursor, la_id):
@@ -221,7 +429,7 @@ class FlashcardsActivityController:
 
 class ActivityContentRouter:
     """
-    Router that coordinates insertion, retrieval, and clearing across
+    Router that coordinates saving, retrieval, and clearing across
     all activity content controllers.
     """
 
@@ -232,6 +440,8 @@ class ActivityContentRouter:
         "Quiz": MCQActivityController,  # same questions/options tables as MCQ
     }
 
+    ALL = (MCQActivityController, FillBlanksActivityController, FlashcardsActivityController)
+
     @classmethod
     def get_controller(cls, activity_type):
         name = (activity_type or "").strip()
@@ -239,41 +449,52 @@ class ActivityContentRouter:
 
     @classmethod
     def clear_all(cls, cursor, la_id):
-        MCQActivityController.clear(cursor, la_id)
-        FillBlanksActivityController.clear(cursor, la_id)
-        FlashcardsActivityController.clear(cursor, la_id)
+        for controller in cls.ALL:
+            controller.clear(cursor, la_id)
 
     @classmethod
     def route_insertion(cls, cursor, la_id, activity_type, questions=None,
                         fill_blanks=None, flashcards=None):
-        cls.clear_all(cursor, la_id)
+        """
+        Saves the selected type's items in place and removes content of
+        the OTHER types (left over after the activity type was changed).
+        Raises ContentInUseError if something learners answered would be
+        removed.
+        """
         controller = cls.get_controller(activity_type)
+        for other in cls.ALL:
+            if other is not controller:
+                other.clear(cursor, la_id)
         if controller is MCQActivityController:
-            controller.insert(cursor, la_id, questions)
+            controller.save(cursor, la_id, questions)
         elif controller is FillBlanksActivityController:
-            controller.insert(cursor, la_id, fill_blanks)
+            controller.save(cursor, la_id, fill_blanks)
         elif controller is FlashcardsActivityController:
-            controller.insert(cursor, la_id, flashcards)
+            controller.save(cursor, la_id, flashcards)
 
 
 def save_activity_content(connection, la_id, activity_type, questions=None,
                            fill_blanks=None, flashcards=None):
     """
-    Replaces la_id's Section 2 content with the submitted set, scoped to
-    `activity_type` using the dedicated controllers. Operates on the caller's
-    open connection for transaction atomicity.
+    Saves la_id's Section 2 content in place (see the module docstring),
+    scoped to `activity_type`. Operates on the caller's open connection
+    for transaction atomicity - the caller commits, or rolls back on
+    ContentInUseError / Error.
     """
     cursor = connection.cursor()
-    ActivityContentRouter.route_insertion(
-        cursor, la_id, activity_type,
-        questions=questions, fill_blanks=fill_blanks, flashcards=flashcards
-    )
-    cursor.close()
+    try:
+        ActivityContentRouter.route_insertion(
+            cursor, la_id, activity_type,
+            questions=questions, fill_blanks=fill_blanks, flashcards=flashcards
+        )
+    finally:
+        cursor.close()
 
 
 def get_activity_content(la_id):
     """
-    Reloads Section 2 content across all activity types for the given la_id.
+    Reloads Section 2 content across all activity types for the given la_id,
+    with every row's id so the editor can save them back in place.
     """
     empty = {"questions": [], "fill_blanks": [], "flashcards": []}
     if not la_id:
@@ -300,4 +521,4 @@ def get_activity_content(la_id):
         return empty
     finally:
         if connection.is_connected():
-            connection.close()
+            connection.close()

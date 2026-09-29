@@ -14,7 +14,9 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
-<body class="create-activity-page">
+{% set item_status = existing_activity.status if existing_activity else 'Draft' %}
+{% set lock = prefill and prefill.lock %}
+<body class="create-activity-page" data-return-url="{{ return_url or '' }}">
 
     <div class="admin-layout">
         {% include 'admin-sidebar.html' %}
@@ -27,7 +29,7 @@
                 <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <a href="{{ url_for('admin_bp.learning_activities') }}" class="btn-back-link">
+                        <a href="{{ return_url or url_for('admin_bp.learning_activities') }}" class="btn-back-link">
                             <i class="fa-solid fa-arrow-left"></i> Back
                         </a>
                         <h1>Create Learning Activity</h1>
@@ -47,19 +49,42 @@
                             <button type="button" class="btn-pill-light" id="previewActivityBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Activity
                             </button>
-                            <button type="button" class="btn-pill-light" id="saveDraftBtn">
-                                <i class="fa-regular fa-floppy-disk"></i> Save Draft
+                            <!-- feat/publishing-tree: Save never changes the status.
+                                 Draft -> Mark Ready, Ready -> Move to Draft,
+                                 Published -> Unpublish. Activities go live
+                                 from the Publishing page. -->
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-status="{{ item_status }}">
+                                <i class="fa-regular fa-floppy-disk"></i> Save
                             </button>
+                            {% if item_status == 'Published' %}
+                            <button type="button" class="btn-pill-danger js-editor-status-action"
+                                    data-kind="activity" data-id="{{ existing_activity.la_id }}" data-action="unpublish" data-tab="ready"
+                                    data-fallback="{{ url_for('admin_bp.learning_activities') }}"
+                                    data-title="Unpublish Activity?"
+                                    data-confirm="Unpublish this activity? Learners won't see it until it's published again. Their answers and progress are kept.">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish
+                            </button>
+                            {% elif item_status == 'Ready to Publish' %}
+                            <button type="button" class="btn-pill-light js-editor-status-action"
+                                    data-kind="activity" data-id="{{ existing_activity.la_id }}" data-action="move-to-draft" data-tab="draft"
+                                    data-fallback="{{ url_for('admin_bp.learning_activities') }}"
+                                    data-title="Move to Draft?"
+                                    data-confirm="Move this activity back to Draft?">
+                                <i class="fa-solid fa-rotate-left"></i> Move to Draft
+                            </button>
+                            {% else %}
                             <!--
                                 Task #104: uses form="createActivityForm" so this
                                 still submits the SAME <form id="createActivityForm">
-                                below despite living outside of it -
-                                create-learning-activity-draft-guard.js's submit
-                                validation/confirmation flow needs no changes.
+                                below despite living outside of it.
+                                feat/publishing-tree: now "Mark Ready" -
+                                create-learning-activity-draft-guard.js saves
+                                (keeping every question's id) and marks it ready.
                             -->
                             <button type="submit" form="createActivityForm" class="btn-pill-green" id="publishActivityBtn">
-                                <i class="fa-solid fa-paper-plane"></i> Publish Activity
+                                <i class="fa-solid fa-circle-check"></i> Mark Ready
                             </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -76,6 +101,9 @@
 
                 <form id="createActivityForm" action="{{ url_for('admin_bp.create_activity_submit') }}" method="POST" novalidate>
                     <input type="hidden" name="activity_id" id="activityIdInput" value="{{ existing_activity.la_id if existing_activity else '' }}">
+                    <!-- feat/publishing-tree: sends the admin back to the Publishing page (no-JS fallback) -->
+                    <input type="hidden" name="return_to" value="{{ 'publishing' if return_url else '' }}">
+                    <input type="hidden" name="tab" value="ready">
                     <!-- Section 1: Activity Information -->
                     <div class="card-box padded-card mb-24">
                         <div class="form-section-header">
@@ -99,10 +127,10 @@
                                     route) - value is the real cat_id, label is the
                                     real category_name. No hardcoded categories or IDs.
                                 -->
-                                <select id="courseSelect" name="course_id" class="custom-select form-control-select">
-                                    <option value="" disabled {{ 'selected' if not existing_activity }}>Select category</option>
+                                <select id="courseSelect" name="course_id" class="custom-select form-control-select{{ ' select-locked' if lock }}"{% if lock %} tabindex="-1" aria-disabled="true"{% endif %}>
+                                    <option value="" disabled {{ 'selected' if not existing_activity and not (prefill and prefill.cat_id) }}>Select category</option>
                                     {% for cat in categories %}
-                                    <option value="{{ cat.cat_id }}" {{ 'selected' if existing_activity and existing_activity.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
+                                    <option value="{{ cat.cat_id }}" {{ 'selected' if (existing_activity and existing_activity.cat_id == cat.cat_id) or (prefill and prefill.cat_id == cat.cat_id) }}>{{ cat.category_name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -116,7 +144,7 @@
                                     Category is picked, mirroring upload-resource.js's
                                     Category -> Module dependency (Task #41).
                                 -->
-                                <select id="moduleSelect" name="module_id" class="custom-select form-control-select" disabled data-preselect-module-id="{{ existing_activity.module_id if existing_activity else '' }}">
+                                <select id="moduleSelect" name="module_id" class="custom-select form-control-select{{ ' select-locked' if lock }}" disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-module-id="{{ existing_activity.module_id if existing_activity else (prefill.module_id if prefill and prefill.module_id else '') }}">
                                     <option value="" disabled selected>Select module</option>
                                 </select>
                             </div>
@@ -129,7 +157,7 @@
                                     Module's module_id), mapping each resource_id to its
                                     resource_title.
                                 -->
-                                <select id="lessonSelect" name="lesson_id" class="custom-select form-control-select" disabled data-preselect-resource-id="{{ existing_activity.resource_id if existing_activity else '' }}">
+                                <select id="lessonSelect" name="lesson_id" class="custom-select form-control-select{{ ' select-locked' if lock }}" disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-resource-id="{{ existing_activity.resource_id if existing_activity else (prefill.resource_id if prefill and prefill.resource_id else '') }}">
                                     <option value="" disabled selected>Select lesson</option>
                                 </select>
                             </div>
@@ -138,10 +166,12 @@
                         <div class="form-grid-3 mt-20">
                             <div class="form-group">
                                 <label class="form-label" for="activityType">Activity Type *</label>
-                                <select id="activityType" name="activity_type" class="custom-select form-control-select">
-                                    <option value="Multiple Choice" {{ 'selected' if not existing_activity or existing_activity.activity_type == 'Multiple Choice' }}>Multiple Choice</option>
-                                    <option value="Fill in the Blanks" {{ 'selected' if existing_activity and existing_activity.activity_type == 'Fill in the Blanks' }}>Fill in the Blanks</option>
-                                    <option value="Flashcards" {{ 'selected' if existing_activity and existing_activity.activity_type == 'Flashcards' }}>Flashcards</option>
+                                {% set chosen_type = existing_activity.activity_type if existing_activity else ((prefill.activity_type if prefill and prefill.activity_type) or 'Multiple Choice') %}
+                                {% set type_locked = prefill and prefill.lock and prefill.activity_type %}
+                                <select id="activityType" name="activity_type" class="custom-select form-control-select{{ ' select-locked' if type_locked }}"{% if type_locked %} tabindex="-1" aria-disabled="true"{% endif %}>
+                                    <option value="Multiple Choice" {{ 'selected' if chosen_type == 'Multiple Choice' }}>Multiple Choice</option>
+                                    <option value="Fill in the Blanks" {{ 'selected' if chosen_type == 'Fill in the Blanks' }}>Fill in the Blanks</option>
+                                    <option value="Flashcards" {{ 'selected' if chosen_type == 'Flashcards' }}>Flashcards</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -150,7 +180,7 @@
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="activityStatus">Status *</label>
-                                <input type="text" id="activityStatus" name="status" class="form-control" value="Draft" readonly>
+                                <input type="text" id="activityStatus" name="status" class="form-control" value="{{ item_status }}" readonly>
                             </div>
                         </div>
                     </div>
@@ -231,6 +261,7 @@
          are already populated (for a reopened draft) by the time the
          draft-guard's dirty-state tracking attaches. -->
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-dependencies.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-editor-status.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-draft-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-validations.js') }}"></script>
 </body>

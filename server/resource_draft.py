@@ -29,16 +29,11 @@ the SAME row and its lesson_content_tbl row in place - so clicking
 "Save Draft" repeatedly on the same lesson never creates duplicate
 rows.
 
-NEW: on an UPDATE (re-saving an existing resource as a draft),
-lr_stats_id is now ALSO forced back to "Draft" - not just left
-whatever it was - so reopening an already-Published resource and
-clicking Save Draft correctly reverts it to Draft, exactly like a
-brand-new resource always starts as Draft. This never fights with
-the real Publish flow: admin_routes.py's upload_resource() POST
-handler calls save_lesson_draft() first (forcing Draft), then
-immediately calls resource_publishing.publish_resource() right after,
-which flips it to Published in the very next step of the same
-request.
+feat/publishing-tree: an UPDATE never changes lr_stats_id any more.
+A new lesson starts as Draft; after that only the status buttons
+(publishing_actions.py) move it between Draft / Ready / Published.
+Saving a Published lesson keeps it live - the Publishing page marks it
+"Edited" so an admin can confirm the update.
 """
 
 from mysql.connector import Error
@@ -301,29 +296,19 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
                 cursor.close()
                 return False, "This resource no longer exists. Please refresh and try again.", None
 
-            if preserve_status:
-                cursor.execute(
-                    f"""UPDATE {LEARNING_RESOURCES_TABLE}
-                        SET resource_title = %s, cat_id = %s, module_id = %s,
-                            updated_at = NOW()
-                        WHERE resource_id = %s""",
-                    (normalized_name, cat_id, module_id, existing_id)
-                )
-                success_msg = "Resource saved successfully."
-            else:
-                draft_status_id = get_draft_status_id(connection)
-                if not draft_status_id:
-                    cursor.close()
-                    return False, "Could not resolve the Draft status.", None
-
-                cursor.execute(
-                    f"""UPDATE {LEARNING_RESOURCES_TABLE}
-                        SET resource_title = %s, cat_id = %s, module_id = %s,
-                            lr_stats_id = %s, updated_at = NOW()
-                        WHERE resource_id = %s""",
-                    (normalized_name, cat_id, module_id, draft_status_id, existing_id)
-                )
-                success_msg = "Draft saved successfully."
+            # feat/publishing-tree: saving NEVER changes the status. A Draft
+            # stays Draft, a Ready lesson stays Ready, a Published lesson
+            # stays live (the Publishing page shows it as "Edited"). Only
+            # the status buttons change status (publishing_actions.py).
+            # preserve_status is still accepted so old callers keep working.
+            cursor.execute(
+                f"""UPDATE {LEARNING_RESOURCES_TABLE}
+                    SET resource_title = %s, cat_id = %s, module_id = %s,
+                        updated_at = NOW()
+                    WHERE resource_id = %s""",
+                (normalized_name, cat_id, module_id, existing_id)
+            )
+            success_msg = "Lesson saved successfully."
 
             log_title_change(cursor, "lesson", existing_id, old_row[0], normalized_name, uploaded_by)
 

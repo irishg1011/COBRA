@@ -51,15 +51,20 @@
                 </div>
 
                 <div class="publishing-toolbar">
-                    <div class="publishing-tabs-row">
-                        <button type="button" id="pubTabReady" class="publishing-tab active" data-tab="ready">
+                    <!-- feat/publishing-tree: Draft tab added; admin-publishing.js sets the active tab -->
+                    <div class="publishing-tabs-row" role="tablist" aria-label="Publishing status">
+                        <button type="button" class="publishing-tab js-pub-tab" data-tab="draft" role="tab" aria-selected="false">
+                            Draft <span class="badge badge-count-draft" id="pubDraftCount">0</span>
+                        </button>
+                        <button type="button" class="publishing-tab js-pub-tab" data-tab="ready" role="tab" aria-selected="false">
                             Ready to Publish <span class="badge badge-draft" id="pubReadyCount">0</span>
                         </button>
-                        <button type="button" id="pubTabPublished" class="publishing-tab" data-tab="published">
+                        <button type="button" class="publishing-tab js-pub-tab" data-tab="published" role="tab" aria-selected="false">
                             Published <span class="badge badge-active" id="pubPublishedCount">0</span>
                         </button>
                     </div>
                     <div class="publishing-toolbar-buttons">
+                        <button type="button" id="pubAddChapterBtn" class="btn btn-editorder-custom"><i class="fa-solid fa-plus"></i> Chapter</button>
                         <button type="button" id="pubPreviewBtn" class="btn btn-editorder-custom">Preview</button>
                         <div class="publishing-order-actions" id="pubOrderActions">
                             <button type="button" id="pubEditOrderBtn" class="btn btn-editorder-custom">Edit Order</button>
@@ -72,7 +77,7 @@
                 </div>
 
                 <div class="publishing-card">
-                    <div id="publishingTreeRoot" data-tree='{{ tree_json | safe }}'>
+                    <div id="publishingTreeRoot" data-tree='{{ tree_json | safe }}' data-initial-tab="{{ initial_tab or 'ready' }}">
                         <p class="text-muted publishing-empty">Loading&hellip;</p>
                     </div>
                 </div>
@@ -82,22 +87,31 @@
                     <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-ch">CH</span> Chapter</span>
                     <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-mod">M</span> Module</span>
                     <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-les">L</span> Lesson</span>
+                    <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-vid">V</span> Video</span>
                     <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-leaf">A</span> Activity</span>
                     <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-leaf">E</span> Exercise</span>
                 </div>
 
-                <p class="text-muted publishing-hint" id="pubHint">Click a name to see Edit / Preview. Click the arrow to expand or collapse.</p>
+                <p class="text-muted publishing-hint" id="pubHint">Click a name to Edit, Preview, or see its name history. Use + to add something inside. Click the arrow to expand or collapse.</p>
 
             </div>
         </main>
     </div>
 
-    {% include 'confirm-action-modal.html' %}
     {% include 'publishing-preview-modal.html' %}
+    {# feat/publishing-tree: + Chapter, + Module and chapter/module Edit open these right here #}
+    {% include 'create-category-modal.html' %}
+    {% include 'create-module-modal.html' %}
+    {% include 'edit-category-modal.html' %}
+    {% include 'edit-module-modal.html' %}
+    {% include 'title-history-modal.html' %}
+    {# Last, so its messages always sit on top of the modals above #}
+    {% include 'confirm-action-modal.html' %}
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-title-history.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-publishing.js') }}"></script>
     <!-- Needed for the Exercise step's Run/Submit, same runtime the
          real learner side uses. -->

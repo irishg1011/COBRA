@@ -14,7 +14,9 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
-<body class="upload-page">
+{% set item_status = existing_resource.status if existing_resource else 'Draft' %}
+{% set lock = prefill and prefill.lock %}
+<body class="upload-page" data-return-url="{{ return_url or '' }}">
 
     <div class="admin-layout">
         <!-- Sidebar (Modularized) -->
@@ -31,7 +33,7 @@
                 <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <a href="{{ url_for('admin_bp.learning_resources') }}" class="btn-back-link">
+                        <a href="{{ return_url or url_for('admin_bp.learning_resources') }}" class="btn-back-link">
                             <i class="fa-solid fa-arrow-left"></i> Back
                         </a>
                         <h1>Manage Learning Resources</h1>
@@ -51,19 +53,33 @@
                             <button type="button" class="btn-pill-light">
                                 <i class="fa-regular fa-eye"></i> Preview Lesson
                             </button>
-                            {% if existing_resource and existing_resource.status == 'Published' %}
-                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="true">
+                            <!-- feat/publishing-tree: Save never changes the status.
+                                 The second button depends on the status:
+                                 Draft -> Mark Ready, Ready -> Move to Draft,
+                                 Published -> Unpublish. Going live happens on
+                                 the Publishing page. -->
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-status="{{ item_status }}">
                                 <i class="fa-regular fa-floppy-disk"></i> Save
                             </button>
-                            <button type="button" class="btn-pill-danger" id="unpublishResourceBtn" data-resource-id="{{ existing_resource.resource_id }}">
+                            {% if item_status == 'Published' %}
+                            <button type="button" class="btn-pill-danger js-editor-status-action"
+                                    data-kind="lesson" data-id="{{ existing_resource.resource_id }}" data-action="unpublish" data-tab="ready"
+                                    data-fallback="{{ url_for('admin_bp.learning_resources') }}"
+                                    data-title="Unpublish Lesson?"
+                                    data-confirm="Unpublish this lesson? Learners won't see it (or anything inside it) until it's published again. Their progress is kept.">
                                 <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish
                             </button>
-                            {% else %}
-                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="false">
-                                <i class="fa-regular fa-floppy-disk"></i> Save Draft
+                            {% elif item_status == 'Ready to Publish' %}
+                            <button type="button" class="btn-pill-light js-editor-status-action"
+                                    data-kind="lesson" data-id="{{ existing_resource.resource_id }}" data-action="move-to-draft" data-tab="draft"
+                                    data-fallback="{{ url_for('admin_bp.learning_resources') }}"
+                                    data-title="Move to Draft?"
+                                    data-confirm="Move this lesson back to Draft? Anything inside it that is Ready to Publish moves back to Draft too.">
+                                <i class="fa-solid fa-rotate-left"></i> Move to Draft
                             </button>
+                            {% else %}
                             <button type="submit" form="uploadModuleForm" class="btn-pill-green" id="publishResourceBtn">
-                                <i class="fa-solid fa-paper-plane"></i> Publish
+                                <i class="fa-solid fa-circle-check"></i> Mark Ready
                             </button>
                             {% endif %}
                         </div>
@@ -88,6 +104,9 @@
                 {% endwith %}
 
                 <form id="uploadModuleForm" method="POST" action="{{ url_for('admin_bp.upload_resource') }}">
+                    <!-- feat/publishing-tree: sends the admin back to the Publishing page (no-JS fallback) -->
+                    <input type="hidden" name="return_to" value="{{ 'publishing' if return_url else '' }}">
+                    <input type="hidden" name="tab" value="ready">
                     
                     <!-- Section Title Inside the Form Wrapper -->
                     <div class="editor-section-title">
@@ -110,10 +129,10 @@
                                 route) - value is the real cat_id, label is the real
                                 category_name. No hardcoded categories or IDs.
                             -->
-                            <select id="categorySelect" name="category_id" class="form-control" required>
-                                <option value="" disabled {{ 'selected' if not existing_resource }}>Select category...</option>
+                            <select id="categorySelect" name="category_id" class="form-control{{ ' select-locked' if lock }}" required{% if lock %} tabindex="-1" aria-disabled="true"{% endif %}>
+                                <option value="" disabled {{ 'selected' if not existing_resource and not (prefill and prefill.cat_id) }}>Select category...</option>
                                 {% for cat in categories %}
-                                <option value="{{ cat.cat_id }}" {{ 'selected' if existing_resource and existing_resource.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
+                                <option value="{{ cat.cat_id }}" {{ 'selected' if (existing_resource and existing_resource.cat_id == cat.cat_id) or (prefill and prefill.cat_id == cat.cat_id) }}>{{ cat.category_name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -125,7 +144,7 @@
                                 populates it live from modules_tbl (filtered by the selected
                                 Category's cat_id) once a valid Category is chosen.
                             -->
-                            <select id="moduleSelect" name="module_id" class="form-control" required disabled data-preselect-module-id="{{ existing_resource.module_id if existing_resource else '' }}">
+                            <select id="moduleSelect" name="module_id" class="form-control{{ ' select-locked' if lock }}" required disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-module-id="{{ existing_resource.module_id if existing_resource else (prefill.module_id if prefill and prefill.module_id else '') }}">
                                 <option value="" disabled selected>Select module...</option>
                             </select>
                         </div>
@@ -149,7 +168,7 @@
                                 when reopening a saved resource, rather than
                                 always assuming "Draft".
                             -->
-                            <input type="text" id="lessonStatusInput" class="form-control status-input-field" value="{{ existing_resource.status if existing_resource else 'Draft' }}" readonly>
+                            <input type="text" id="lessonStatusInput" class="form-control status-input-field" value="{{ item_status }}" readonly>
                         </div>
                     </div>
 
@@ -222,6 +241,7 @@
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/admin-editor-status.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource-draft-guard.js') }}"></script>
 </body>
 </html>

@@ -14,7 +14,9 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
-<body class="upload-page">
+{% set item_status = (existing_video.status if existing_video and existing_video.status else 'Draft') %}
+{% set lock = prefill and prefill.lock %}
+<body class="upload-page" data-return-url="{{ return_url or '' }}">
 
     <div class="admin-layout">
         <!-- Sidebar (Modularized) -->
@@ -31,7 +33,7 @@
                 <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <a href="{{ url_for('admin_bp.learning_resources') }}" class="btn-back-link">
+                        <a href="{{ return_url or url_for('admin_bp.learning_resources') }}" class="btn-back-link">
                             <i class="fa-solid fa-arrow-left"></i> Back
                         </a>
                         <h1>Manage Learning Resources</h1>
@@ -51,12 +53,34 @@
                             <button type="button" class="btn-pill-light" id="previewVideoBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Video
                             </button>
-                            <button type="button" class="btn-pill-light" id="saveVideoDraftBtn">
-                                <i class="fa-regular fa-floppy-disk"></i> Save Draft
+                            <!-- feat/publishing-tree: Save never changes the status.
+                                 Draft -> Mark Ready, Ready -> Move to Draft,
+                                 Published -> Unpublish. Videos go live from
+                                 the Publishing page. -->
+                            <button type="button" class="btn-pill-light" id="saveVideoDraftBtn" data-status="{{ item_status }}">
+                                <i class="fa-regular fa-floppy-disk"></i> Save
                             </button>
+                            {% if item_status == 'Published' %}
+                            <button type="button" class="btn-pill-danger js-editor-status-action"
+                                    data-kind="video" data-id="{{ existing_video.video_tutorial_id }}" data-action="unpublish" data-tab="ready"
+                                    data-fallback="{{ url_for('admin_bp.learning_resources') }}"
+                                    data-title="Unpublish Video?"
+                                    data-confirm="Unpublish this video tutorial? Learners won't see it until it's published again.">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish
+                            </button>
+                            {% elif item_status == 'Ready to Publish' %}
+                            <button type="button" class="btn-pill-light js-editor-status-action"
+                                    data-kind="video" data-id="{{ existing_video.video_tutorial_id }}" data-action="move-to-draft" data-tab="draft"
+                                    data-fallback="{{ url_for('admin_bp.learning_resources') }}"
+                                    data-title="Move to Draft?"
+                                    data-confirm="Move this video tutorial back to Draft?">
+                                <i class="fa-solid fa-rotate-left"></i> Move to Draft
+                            </button>
+                            {% else %}
                             <button type="button" class="btn-pill-green" id="publishVideoBtn">
-                                <i class="fa-solid fa-paper-plane"></i> Publish
+                                <i class="fa-solid fa-circle-check"></i> Mark Ready
                             </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -77,22 +101,22 @@
                 <div class="lesson-meta-grid video-meta-grid">
                     <div class="form-group">
                         <label for="videoCategorySelect">Category</label>
-                        <select id="videoCategorySelect" class="form-control">
-                            <option value="" disabled {{ 'selected' if not existing_video }}>Select category...</option>
+                        <select id="videoCategorySelect" class="form-control{{ ' select-locked' if lock }}"{% if lock %} tabindex="-1" aria-disabled="true"{% endif %}>
+                            <option value="" disabled {{ 'selected' if not existing_video and not (prefill and prefill.cat_id) }}>Select category...</option>
                             {% for cat in categories %}
-                            <option value="{{ cat.cat_id }}" {{ 'selected' if existing_video and existing_video.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
+                            <option value="{{ cat.cat_id }}" {{ 'selected' if (existing_video and existing_video.cat_id == cat.cat_id) or (prefill and prefill.cat_id == cat.cat_id) }}>{{ cat.category_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="videoModuleSelect">Module</label>
-                        <select id="videoModuleSelect" class="form-control" disabled data-preselect-module-id="{{ existing_video.module_id if existing_video else '' }}">
+                        <select id="videoModuleSelect" class="form-control{{ ' select-locked' if lock }}" disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-module-id="{{ existing_video.module_id if existing_video else (prefill.module_id if prefill and prefill.module_id else '') }}">
                             <option value="" disabled selected>Select module...</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="videoLessonSelect">Lesson</label>
-                        <select id="videoLessonSelect" class="form-control" disabled data-preselect-resource-id="{{ existing_video.resource_id if existing_video else '' }}">
+                        <select id="videoLessonSelect" class="form-control{{ ' select-locked' if lock }}" disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-resource-id="{{ existing_video.resource_id if existing_video else (prefill.resource_id if prefill and prefill.resource_id else '') }}">
                             <option value="" disabled selected>Select lesson...</option>
                         </select>
                     </div>
@@ -175,6 +199,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-editor-status.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/upload-video-tutorial-ui.js') }}"></script>
 </body>
 </html>

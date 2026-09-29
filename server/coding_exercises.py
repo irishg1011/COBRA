@@ -544,19 +544,30 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
         # Fallback uploaded_by
         uploader = uploaded_by or data.get('uploaded_by') or 'Admin'
 
+        # feat/publishing-tree: one coding exercise per lesson.
+        from publishing_actions import lesson_already_has
+        if lesson_already_has(cursor, "exercise", resource_id, exclude_id=exercise_id):
+            cursor.close()
+            return False, None, (
+                "This lesson already has a coding exercise. Each lesson can have only one - "
+                "edit the existing exercise instead."
+            )
+
         if exercise_id:
             cursor.execute(
                 f"SELECT exercise_title FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
                 (exercise_id,)
             )
             old_row = cursor.fetchone()
+            # feat/publishing-tree: saving NEVER changes the status - a
+            # Published exercise stays live (shown as "Edited" on the
+            # Publishing page). `status` only applies to a brand-new row.
             update_sql = f"""
                 UPDATE {CODING_EXERCISES_TABLE}
                 SET
                     exercise_title = %s,
                     resource_id = %s,
                     points = %s,
-                    exercise_stats_id = %s,
                     instruction = %s,
                     situation = %s,
                     problem_question = %s,
@@ -567,7 +578,7 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
                 WHERE exercise_id = %s
             """
             cursor.execute(update_sql, (
-                formatted_title, resource_id, points, stats_id,
+                formatted_title, resource_id, points,
                 instruction, situation, problem_question, clue,
                 expected_answer, correct_feedback, exercise_id
             ))
@@ -614,8 +625,7 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
         connection.commit()
         cursor.close()
 
-        action_msg = "published" if status_name == "Published" else "saved as draft"
-        return True, exercise_id, f"Coding exercise {action_msg} successfully!"
+        return True, exercise_id, "Coding exercise saved successfully."
 
     except Error as e:
         connection.rollback()

@@ -80,6 +80,11 @@
     color: #0F7A3D;
 }
 
+.publishing-tab .badge-count-draft {
+    background: #E5E7EB;
+    color: #374151;
+}
+
 .publishing-toolbar-buttons,
 .publishing-order-actions {
     display: flex;
@@ -170,63 +175,186 @@
     text-align: center;
 }
 
+/* --- Tree rows (feat/publishing-tree) ---
+   One flat list of rows; the nesting is drawn with guide lines like a
+   file explorer: .pub-g spans (22px each) - a straight line where a
+   parent still has more children below, ├ (tee) for a child with more
+   siblings after it, └ (elbow) for the last child. Built by
+   admin-publishing.js. Rows have no margin so the lines join up. */
 .publishing-row {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-top: 1px solid #ffffff;
+    gap: 8px;
+    min-height: 38px;
+    padding: 0 10px;
     border-radius: 6px;
     font-size: 13px;
     color: var(--admin-text);
     transition: background 0.12s ease;
 }
 
-.publishing-row + .publishing-row {
-    margin-top: 2px;
+.publishing-row:hover {
+    background: #F3F4F6;
 }
 
-.publishing-row-leaf {
-    padding-top: 8px;
-    padding-bottom: 8px;
-}
-
-/* --- Level hierarchy: each level has its own left-border color, a light
-   tint, its own indent and its own tag (CH / M / L / A / E), so a
-   parent and its children are always easy to tell apart. The indent
-   used to be an inline style="padding-left: ..." set by the JS. --- */
-.publishing-row.publishing-row-depth-0 {
-    padding-left: 12px;
-    border-left: 4px solid #178A47;
-    background: #F1FAF4;
-    font-weight: 600;
+.publishing-row-cat {
     font-size: 14px;
+    font-weight: 600;
 }
 
-.publishing-row.publishing-row-depth-1 {
-    padding-left: 38px;
-    border-left: 4px solid #5B4FDB;
-    background: #F6F5FE;
+.publishing-row-mod {
     font-weight: 500;
 }
 
-.publishing-row.publishing-row-depth-2 {
-    padding-left: 64px;
-    border-left: 4px solid #C0356A;
-    background: #FDF4F8;
+/* Parent shown only because something inside matches the tab */
+.publishing-row.is-context .publishing-name-btn,
+.publishing-row.is-context .publishing-name-static {
+    color: var(--admin-muted);
 }
 
-.publishing-row.publishing-row-depth-3 {
-    padding-left: 90px;
-    border-left: 4px solid #B7791F;
-    background: #FDF9EE;
+.publishing-row.is-context .publishing-tag,
+.publishing-row.is-context .badge {
+    opacity: 0.6;
 }
 
-.publishing-row-depth-0:hover { background: #DDF4E6; }
-.publishing-row-depth-1:hover { background: #E8E5FC; }
-.publishing-row-depth-2:hover { background: #F9E1EB; }
-.publishing-row-depth-3:hover { background: #FAEFD2; }
+.pub-guides {
+    display: flex;
+    align-self: stretch;
+    flex: none;
+}
+
+.pub-g {
+    position: relative;
+    width: 22px;
+    flex: none;
+}
+
+.pub-g-line::before,
+.pub-g-tee::before,
+.pub-g-elbow::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    border-left: 1px solid #C7CCD4;
+}
+
+.pub-g-line::before,
+.pub-g-tee::before {
+    bottom: 0;
+}
+
+.pub-g-elbow::before {
+    height: 50%;
+}
+
+.pub-g-tee::after,
+.pub-g-elbow::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    width: 11px;
+    border-top: 1px solid #C7CCD4;
+}
+
+.publishing-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+}
+
+/* "Mark its chapter ready first" etc. */
+.publishing-note {
+    font-size: 11px;
+    font-style: italic;
+    color: var(--admin-muted);
+    white-space: nowrap;
+}
+
+/* + (add inside) */
+.publishing-plus-wrap {
+    position: relative;
+}
+
+.publishing-plus-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px dashed #9CA3AF;
+    border-radius: 6px;
+    background: #ffffff;
+    color: var(--admin-muted);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.publishing-plus-btn:hover {
+    border-color: #09B300;
+    color: #09B300;
+}
+
+.publishing-plus-btn:focus-visible,
+.publishing-name-btn:focus-visible,
+.publishing-toggle-btn:focus-visible,
+.publishing-action-btn:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+/* The + menu opens under the button, aligned to its right edge */
+.resource-edit-menu.publishing-popover.publishing-plus-menu {
+    left: auto;
+    right: 0;
+    top: 30px;
+    min-width: 210px;
+}
+
+.publishing-plus-menu .resource-edit-menu-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.publishing-plus-menu .resource-edit-menu-item:disabled:hover {
+    background: none;
+}
+
+.publishing-menu-note {
+    font-size: 11px;
+    color: #9CA3AF;
+}
+
+/* Secondary row buttons: Move to Draft / Mark all ready */
+.btn.btn-pub-ghost {
+    background: #ffffff;
+    border: 1px solid #9CA3AF;
+    color: var(--admin-text);
+    font-weight: 500;
+}
+
+.btn.btn-pub-ghost:hover {
+    background: #F3F4F6;
+}
+
+/* Update (Published + edited) */
+.btn.btn-pub-update {
+    background: #1D6FDC;
+    color: #ffffff;
+}
+
+.btn.btn-pub-update:hover {
+    background: #185FA5;
+}
+
+.publishing-action-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
 
 .publishing-spacer {
     flex: 1;
@@ -299,8 +427,14 @@
 }
 
 .publishing-row .badge-draft {
-    background: #FEF3C7;
-    color: #A16207;
+    background: #E5E7EB;
+    color: #374151;
+}
+
+/* Published, then changed - already live, waiting for Update */
+.publishing-row .badge-edited {
+    background: #DBEAFE;
+    color: #1D4ED8;
 }
 
 /* Publish / Unpublish - small pills that size to their label */
@@ -328,6 +462,7 @@
 .publishing-tag-mod  { width: 20px; height: 20px; background: #EDEBFD; color: #5B4FDB; font-size: 10px; }
 .publishing-tag-les  { width: 20px; height: 20px; background: #FDE7EE; color: #C0356A; font-size: 10px; }
 .publishing-tag-leaf { width: 18px; height: 18px; background: #FFF3D6; color: #9A6700; font-size: 9px; }
+.publishing-tag-vid  { width: 18px; height: 18px; background: #DBEAFE; color: #1D4ED8; font-size: 9px; }
 
 /* Legend */
 .publishing-legend {
@@ -352,6 +487,10 @@
     top: 26px;
     left: 0;
     z-index: 20;
+}
+
+.resource-edit-menu.publishing-popover .resource-edit-menu-item {
+    white-space: nowrap;
 }
 
 /* --- Edit Order mode: arrows + drag handle --- */
@@ -399,7 +538,7 @@
 }
 
 .publishing-row.drag-over {
-    border-top: 2px solid #09B300;
+    box-shadow: inset 0 2px 0 #09B300;
 }
 
 .publishing-row.dragging {

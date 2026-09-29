@@ -14,7 +14,9 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
-<body>
+{% set item_status = (existing_exercise.status if existing_exercise and existing_exercise.status else 'Draft') %}
+{% set lock = prefill and prefill.lock %}
+<body data-return-url="{{ return_url or '' }}">
 
     <div class="admin-layout">
         {% include 'admin-sidebar.html' %}
@@ -27,7 +29,7 @@
                 <!-- Back link, page title, greeting, live date/time & page actions -->
                 <div class="dashboard-top-bar">
                     <div class="welcome-section">
-                        <a href="{{ url_for('admin_bp.coding_exercises') }}" class="btn-back-link" id="backExerciseBtn">
+                        <a href="{{ return_url or url_for('admin_bp.coding_exercises') }}" class="btn-back-link" id="backExerciseBtn">
                             <i class="fa-solid fa-arrow-left"></i> Back
                         </a>
                         <h1>Create Coding Exercise</h1>
@@ -47,19 +49,32 @@
                             <button type="button" class="btn-pill-light" id="previewExerciseBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Exercise
                             </button>
-                            {% if existing_exercise and existing_exercise.status == 'Published' %}
-                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="true">
+                            <!-- feat/publishing-tree: Save never changes the status.
+                                 Draft -> Mark Ready, Ready -> Move to Draft,
+                                 Published -> Unpublish. Exercises go live
+                                 from the Publishing page. -->
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="{{ 'true' if item_status == 'Published' else 'false' }}" data-status="{{ item_status }}">
                                 <i class="fa-regular fa-floppy-disk"></i> Save
                             </button>
-                            <button type="button" class="btn-pill-danger" id="unpublishExerciseBtn" data-exercise-id="{{ existing_exercise.exercise_id }}">
-                                <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish Exercise
+                            {% if item_status == 'Published' %}
+                            <button type="button" class="btn-pill-danger js-editor-status-action"
+                                    data-kind="exercise" data-id="{{ existing_exercise.exercise_id }}" data-action="unpublish" data-tab="ready"
+                                    data-fallback="{{ url_for('admin_bp.coding_exercises') }}"
+                                    data-title="Unpublish Coding Exercise?"
+                                    data-confirm="Unpublish this coding exercise? Learners won't see it until it's published again. Their submissions are kept.">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish
+                            </button>
+                            {% elif item_status == 'Ready to Publish' %}
+                            <button type="button" class="btn-pill-light js-editor-status-action"
+                                    data-kind="exercise" data-id="{{ existing_exercise.exercise_id }}" data-action="move-to-draft" data-tab="draft"
+                                    data-fallback="{{ url_for('admin_bp.coding_exercises') }}"
+                                    data-title="Move to Draft?"
+                                    data-confirm="Move this coding exercise back to Draft?">
+                                <i class="fa-solid fa-rotate-left"></i> Move to Draft
                             </button>
                             {% else %}
-                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="false">
-                                <i class="fa-regular fa-floppy-disk"></i> Save Draft
-                            </button>
                             <button type="submit" form="createExerciseForm" class="btn-pill-green" id="publishExerciseBtn">
-                                <i class="fa-solid fa-paper-plane"></i> Publish Exercise
+                                <i class="fa-solid fa-circle-check"></i> Mark Ready
                             </button>
                             {% endif %}
                         </div>
@@ -68,6 +83,9 @@
 
                 <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST" novalidate>
                     <input type="hidden" name="exercise_id" id="exerciseIdInput" value="{{ existing_exercise.exercise_id if existing_exercise else '' }}">
+                    <!-- feat/publishing-tree: sends the admin back to the Publishing page after Save / Mark Ready -->
+                    <input type="hidden" name="return_to" value="{{ 'publishing' if return_url else '' }}">
+                    <input type="hidden" name="tab" value="ready">
                     
                     <!-- Section 1: Exercise Information -->
                     <div class="card-box padded-card mb-24">
@@ -88,22 +106,22 @@
                             <div class="form-grid-3 mb-20">
                                 <div>
                                     <label class="form-label" for="exerciseCategory">Category *</label>
-                                    <select id="exerciseCategory" name="category" class="form-control-select" required>
-                                        <option value="" disabled {{ 'selected' if not existing_exercise }}>Select category</option>
+                                    <select id="exerciseCategory" name="category" class="form-control-select{{ ' select-locked' if lock }}" required{% if lock %} tabindex="-1" aria-disabled="true"{% endif %}>
+                                        <option value="" disabled {{ 'selected' if not existing_exercise and not (prefill and prefill.cat_id) }}>Select category</option>
                                         {% for cat in categories %}
-                                        <option value="{{ cat.cat_id }}" {{ 'selected' if existing_exercise and existing_exercise.cat_id == cat.cat_id }}>{{ cat.category_name }}</option>
+                                        <option value="{{ cat.cat_id }}" {{ 'selected' if (existing_exercise and existing_exercise.cat_id == cat.cat_id) or (prefill and prefill.cat_id == cat.cat_id) }}>{{ cat.category_name }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
                                 <div>
                                     <label class="form-label" for="exerciseModule">Module *</label>
-                                    <select id="exerciseModule" name="module_id" class="form-control-select" required disabled data-preselect-module-id="{{ existing_exercise.module_id if existing_exercise else '' }}">
+                                    <select id="exerciseModule" name="module_id" class="form-control-select{{ ' select-locked' if lock }}" required disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-module-id="{{ existing_exercise.module_id if existing_exercise else (prefill.module_id if prefill and prefill.module_id else '') }}">
                                         <option value="" disabled selected>Select module</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="form-label" for="exerciseLesson">Lesson *</label>
-                                    <select id="exerciseLesson" name="resource_id" class="form-control-select" required disabled data-preselect-resource-id="{{ existing_exercise.resource_id if existing_exercise else '' }}">
+                                    <select id="exerciseLesson" name="resource_id" class="form-control-select{{ ' select-locked' if lock }}" required disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-resource-id="{{ existing_exercise.resource_id if existing_exercise else (prefill.resource_id if prefill and prefill.resource_id else '') }}">
                                         <option value="" disabled selected>Select lesson</option>
                                     </select>
                                 </div>
@@ -117,7 +135,7 @@
                                 </div>
                                 <div>
                                     <label class="form-label" for="exerciseStatus">Status *</label>
-                                    <input type="text" id="exerciseStatus" name="status" class="form-control" value="{{ existing_exercise.status if existing_exercise else 'Draft' }}" readonly required>
+                                    <input type="text" id="exerciseStatus" name="status" class="form-control" value="{{ item_status }}" readonly required>
                                 </div>
                             </div>
                         </div>
@@ -262,6 +280,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-editor-status.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-exercise.js') }}"></script>
 </body>
 </html>

@@ -21,7 +21,7 @@
             </svg>
         </div>
         <h3 class="modal-confirm-title">Leave without saving?</h3>
-        <p class="modal-confirm-text">You have unsaved changes to this activity. Save your work as a draft, or leave and lose your changes.</p>
+        <p class="modal-confirm-text">You have unsaved changes to this activity. Save your changes, or leave and lose them.</p>
         <!-- Shown only if Save Draft & Leave's save attempt fails (e.g.
              Activity Title/Category/Module/Lesson/Activity Type still
              empty) - keeps the admin inside this modal with a clear
@@ -38,7 +38,7 @@
                 Leave always lands there after a successful save.
             -->
             <button type="button" id="unsavedSaveAndLeaveBtn" class="modal-btn-save" data-redirect-url="{{ url_for('admin_bp.learning_activities') }}">
-                <i class="fa-regular fa-floppy-disk"></i> Save Draft &amp; Leave
+                <i class="fa-regular fa-floppy-disk"></i> Save &amp; Leave
             </button>
         </div>
     </div>

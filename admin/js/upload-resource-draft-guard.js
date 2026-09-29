@@ -10,6 +10,11 @@
  *   - Task #95: Success feedback uses the same floating toast as
  *     Manage Course (changes-saved-toast), auto-dismissed after 2s.
  *     Inline / flash success text is never shown in the form header.
+ *   - feat/publishing-tree: Save never changes the status. The main
+ *     button is "Mark Ready" (save + Ready to Publish); lessons go live
+ *     from the Publishing page. Opened from the Publishing page, every
+ *     save / status change returns there (admin-editor-status.js).
+ *     Move to Draft / Unpublish are handled by admin-editor-status.js.
  */
 (function () {
     "use strict";
@@ -284,16 +289,11 @@
             pendingNavigation = navigateAction;
             clearUnsavedSaveError();
 
-            const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
             if (unsavedModalDesc) {
-                unsavedModalDesc.textContent = isPublished
-                    ? "You have unsaved changes to this lesson. Save your changes, or leave and lose your changes."
-                    : "You have unsaved changes to this lesson. Save your work as a draft, or leave and lose your changes.";
+                unsavedModalDesc.textContent = "You have unsaved changes to this lesson. Save your changes, or leave and lose them.";
             }
             if (saveAndLeaveBtn) {
-                saveAndLeaveBtn.innerHTML = isPublished
-                    ? '<i class="fa-regular fa-floppy-disk"></i> Save &amp; Leave'
-                    : '<i class="fa-regular fa-floppy-disk"></i> Save Draft &amp; Leave';
+                saveAndLeaveBtn.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Save &amp; Leave';
             }
 
             if (unsavedModal) unsavedModal.style.display = "flex";
@@ -332,12 +332,7 @@
                 if (leaveBtn) leaveBtn.disabled = false;
 
                 if (!ok) {
-                    const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
-                    showUnsavedSaveError(
-                        isPublished
-                            ? "Could not save changes. Please check the required fields."
-                            : "Could not save this draft. Please check the required fields."
-                    );
+                    showUnsavedSaveError("Could not save your changes. Please check the required fields.");
                     return;
                 }
 
@@ -397,8 +392,6 @@
                 saveDraftBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
 
-            const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
-
             try {
                 if (typeof window.cobraByteSyncInteractiveBlocks === "function") {
                     window.cobraByteSyncInteractiveBlocks();
@@ -415,7 +408,7 @@
                         category_id: categorySelect.value,
                         module_id: moduleSelect.value,
                         module_content: hiddenContent ? hiddenContent.value : "",
-                        preserve_status: isPublished,
+                        preserve_status: true, // feat/publishing-tree: saving never changes the status
                     }),
                 });
                 const result = await response.json();
@@ -429,7 +422,7 @@
                     resourceIdInput.value = result.resource_id;
                 }
                 clearDirty();
-                showPopupAlert(result.message || (isPublished ? "Resource saved successfully." : "Draft saved successfully."), "success");
+                showPopupAlert(result.message || "Lesson saved successfully.", "success");
                 return true;
             } catch (err) {
                 showPopupAlert("Could not reach the server. Please try again.", "error");
@@ -447,16 +440,23 @@
                 e.preventDefault();
                 if (!validateResourceForm(false)) return;
 
-                const isPublished = saveDraftBtn.dataset.isPublished === "true";
+                const isPublished = saveDraftBtn.dataset.status === "Published";
                 const confirmMsg = isPublished
-                    ? "Are you sure you want to save changes to this resource?"
-                    : "Are you sure you want to save this draft?";
-                const confirmTitle = isPublished ? "Save Changes?" : "Save Draft?";
+                    ? "Save your changes? This lesson is live, so learners will see them right away."
+                    : "Save your changes to this lesson?";
 
                 showConfirmModal(
                     confirmMsg,
-                    () => { performSaveDraft(); },
-                    confirmTitle
+                    async () => {
+                        const ok = await performSaveDraft();
+                        // feat/publishing-tree: opened from the Publishing page -> go back there.
+                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("") : "";
+                        if (ok && back) {
+                            isSubmitting = true;
+                            setTimeout(() => { window.location.href = back; }, TOAST_DURATION_MS);
+                        }
+                    },
+                    "Save Changes?"
                 );
             });
         }
@@ -547,7 +547,7 @@
             const originalHtml = publishBtn ? publishBtn.innerHTML : "";
             if (publishBtn) {
                 publishBtn.disabled = true;
-                publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing...';
+                publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
 
             try {
@@ -574,7 +574,7 @@
                     if (resourceIdInput && result.resource_id) {
                         resourceIdInput.value = result.resource_id;
                     }
-                    showPopupAlert(result.message || "Could not publish this resource.", "error");
+                    showPopupAlert(result.message || "Could not mark this lesson ready.", "error");
                     return false;
                 }
 
@@ -583,9 +583,11 @@
                 }
                 clearDirty();
                 isSubmitting = true;
-                showSuccessToast(result.message || "Lesson published successfully.");
+                showSuccessToast(result.message || "Lesson saved and marked as Ready to Publish.");
                 setTimeout(() => {
-                    window.location.href = "/admin/learning-resources";
+                    window.location.href = window.cobraEditorReturnUrlForTab
+                        ? window.cobraEditorReturnUrlForTab("/admin/learning-resources", "ready")
+                        : "/admin/learning-resources";
                 }, TOAST_DURATION_MS);
                 return true;
             } catch (err) {
@@ -608,12 +610,12 @@
 
             if (!publishConfirmed) {
                 showConfirmModal(
-                    "Are you sure you want to publish this resource?",
+                    "Save this lesson and mark it Ready to Publish? It goes live when it's published on the Publishing page.",
                     () => {
                         publishConfirmed = true;
                         performPublish();
                     },
-                    "Publish Resource?"
+                    "Mark Ready?"
                 );
                 return;
             }

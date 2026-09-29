@@ -82,6 +82,7 @@ from archived_items import (  # NEW: fixes the pre-existing Archived Learning Re
     get_archived_exercises, restore_coding_exercise, permanently_delete_coding_exercise,  # NEW: same fix for Archived Coding Exercises modal
 )
 from publishing import get_publishing_tree, reorder_items
+from publishing_actions import run_action, mark_ready as mark_item_ready  # feat/publishing-tree: one set of status rules for every item type
 from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - read-only, no progress tables touched
     get_preview_learning_map, get_preview_lessons,
     get_preview_lesson_content, get_preview_activities,
@@ -756,6 +757,104 @@ def get_login_logs_metrics():
     it) - one connection, then:
 
         1 sweep          - refresh_inactive_accounts (keeps Active/
+                            Inactive current before counting)
+        1 aggregate query - get_account_status_counts
+                            (Active Sessions + Locked Out Due to Fails)
+        1 aggregate query - get_todays_login_metrics
+                            (Total Logins Today + Successful + Failed)
+        1 count query     - get_password_resets_today_count
+
+    Returns a dict whose keys line up 1:1 with what login-logs.html's
+    Jinja template - and the /admin/login-logs/metrics JSON endpoint
+    below, used for the page's live auto-refresh - both expect:
+
+        total_logins_today, successful_logins, failed_logins,
+        active_sessions, locked_out_fails, password_resets_today
+
+    Returns an all-zero dict (never raises) if the database is
+    unreachable, so the page/endpoint renders cleanly with 0s instead of
+    crashing or showing blank cards.
+    """
+    zero_metrics = {
+        "total_logins_today": 0,
+        "successful_logins": 0,
+        "failed_logins": 0,
+        "active_sessions": 0,
+        "locked_out_fails": 0,
+        "password_resets_today": 0,
+    }
+
+    connection = get_db_connection()
+    if connection is None:
+        return zero_metrics
+
+    try:
+        # Kept for other callers of get_account_status_counts (e.g. any
+        # future use of active_accounts/locked_accounts as-of-now), but
+        # "Active Sessions" and "Locked Out Due to Fails" below now come
+        # from real event tables (session_tracker / lockout_logs)
+        # instead of this account_tbl snapshot - see the docstring above
+        # for why account_tbl state can't answer either question
+        # correctly.
+        refresh_inactive_accounts(connection)
+        login_counts = get_todays_login_metrics(connection)
+        resets_today = get_password_resets_today_count(connection)
+
+        return {
+            "total_logins_today": login_counts["total_logins_today"],
+            "successful_logins": login_counts["successful_logins"],
+            "failed_logins": login_counts["failed_logins"],
+            # NEW: live COUNT(*) of open active_sessions_tbl rows -
+            # incremented at login, decremented at logout, and swept
+            # after SESSION_TIMEOUT_MINUTES of inactivity. Never derived
+            # from login/logout history.
+            "active_sessions": get_active_session_count(connection),
+            # NEW: COUNT(DISTINCT acc_id) of lockout_logs_tbl events
+            # today - counts each account once per day even if locked
+            # multiple times, and still counts accounts already
+            # unlocked again, per the task's requirements.
+            "locked_out_fails": get_lockouts_today_count(connection),
+            "password_resets_today": resets_today,
+        }
+    except Error as e:
+        print(f"admin_routes: database error while loading login logs metrics: {e}")
+        return zero_metrics
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_login_logs_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
+    """
+    Task #18: Pulls login attempt records from login_logs_tbl, joined
+    against account_tbl (email, u_type), usertype_tbl (role label), and
+    profile_tbl (display name) - ONE query, so there is no N+1 lookup per
+    row for the account/profile/role info the UI needs.
+
+    LEFT JOINs are used throughout because login_logs_tbl.acc_id can be
+    NULL (login_logs.log_login_attempt() logs a failed attempt with
+    acc_id=None whenever the typed username didn't match any account at
+    all) - an INNER JOIN would silently drop those rows instead of
+    showing them with a placeholder identity.
+
+    search_query (str | None): matches against the associated person's
+    first/last/full name, email, or acc_id (case-insensitive, prefix
+    match - same convention as get_accounts_overview's search).
+
+    role_filter (str | None): "Administrator" or "Learner", reusing the
+    exact same ROLE_FILTER_MAP as the accounts table for consistency.
+
+    status_filter (str | None): "Success" or "Failed" - the login
+    attempt's own outcome (login_logs_tbl.attempt_status), NOT the
+    account's Active/Inactive status.
+
+    sort_by (str | None): "attempted_at" (default, newest first) or
+    "name". Only ever selects one of the two hardcoded LOGIN_LOG_SORT_CLAUSES
+    entries - never built from raw input.
+
+    Returns a list of dicts (each with log_id, acc_id, ip_address,
+    full_name, email, role, status, attempted_at) ready for direct use
+    in Jinja (initial nts (keeps Active/
                             Inactive current before counting)
         1 aggregate query - get_account_status_counts
                             (Active Sessions + Locked Out Due to Fails)

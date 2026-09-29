@@ -9,6 +9,13 @@
  *   - Save Draft & Publish workflows with confirmation modals.
  *   - Success feedback uses floating toasts (changes-saved-toast),
  *     auto-dismissed after 2s.
+ *   - feat/publishing-tree: every question / option / item is sent back
+ *     with its database id (card data-item-id, option row
+ *     data-option-id - set by create-learning-activity.js) so the server
+ *     updates rows in place and learners' answers stay attached. Save
+ *     never changes the status; "Mark Ready" = save + Ready to Publish
+ *     (both over JSON, so the ids are kept). Move to Draft / Unpublish
+ *     are handled by admin-editor-status.js.
  */
 (function () {
     "use strict";
@@ -150,12 +157,13 @@
                     const radio = row.querySelector('input[type="radio"]');
                     if (radio && radio.checked) correctOption = idx;
                     options.push({
+                        option_id: row.dataset.optionId || null,
                         text: textInput ? textInput.value.trim() : "",
                         feedback: feedbackInput ? feedbackInput.value.trim() : "",
                     });
                 });
 
-                questions.push({ text: text, options: options, correct_option: correctOption });
+                questions.push({ q_id: card.dataset.itemId || null, text: text, options: options, correct_option: correctOption });
             });
             return questions;
         }
@@ -167,6 +175,7 @@
                 const textarea = card.querySelector("textarea");
                 const inputs = card.querySelectorAll('input[type="text"]');
                 items.push({
+                    fib_id: card.dataset.itemId || null,
                     content: textarea ? textarea.value.trim() : "",
                     correct_answer: inputs[0] ? inputs[0].value.trim() : "",
                     correct_feedback: inputs[1] ? inputs[1].value.trim() : "",
@@ -183,6 +192,7 @@
                 const textareas = card.querySelectorAll("textarea");
                 const inputs = card.querySelectorAll('input[type="text"]');
                 items.push({
+                    flashcard_id: card.dataset.itemId || null,
                     front: textareas[0] ? textareas[0].value.trim() : "",
                     back: textareas[1] ? textareas[1].value.trim() : "",
                     correct_feedback: inputs[0] ? inputs[0].value.trim() : "",
@@ -716,7 +726,7 @@
                     pointsInput.value = result.points;
                 }
                 clearDirty();
-                showSuccessToast(result.message || "Draft saved successfully.");
+                showSuccessToast(result.message || "Activity saved successfully.");
                 return true;
             } catch (err) {
                 showPopupAlert("Could not reach the server. Please try again.", "error");
@@ -735,10 +745,21 @@
                 e.preventDefault();
                 if (!validateActivityForm(false)) return;
 
+                const isPublished = saveDraftBtn.dataset.status === "Published";
                 showConfirmModal(
-                    "Are you sure you want to save this activity as a draft?",
-                    () => { performSaveDraft(); },
-                    "Save Draft?"
+                    isPublished
+                        ? "Save your changes? This activity is live, so learners will see them right away."
+                        : "Save your changes to this activity?",
+                    async () => {
+                        const ok = await performSaveDraft();
+                        // feat/publishing-tree: opened from the Publishing page -> go back there.
+                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("") : "";
+                        if (ok && back) {
+                            isSubmitting = true;
+                            setTimeout(() => { window.location.href = back; }, TOAST_DURATION_MS);
+                        }
+                    },
+                    "Save Changes?"
                 );
             });
         }
@@ -759,29 +780,58 @@
         // --------------------------------------------------------
         // Publish submit handling
         // --------------------------------------------------------
+        // feat/publishing-tree: "Mark Ready" = JSON save (keeps every
+        // question/item id) + POST .../mark-ready. The old multipart form
+        // post (create_activity_submit) is only a no-JavaScript fallback.
+        async function performMarkReady() {
+            const publishBtn = document.getElementById("publishActivityBtn");
+            const originalHtml = publishBtn ? publishBtn.innerHTML : "";
+            if (publishBtn) {
+                publishBtn.disabled = true;
+                publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            }
+            try {
+                const saved = await performSaveDraft();
+                if (!saved) return;
+                const activityId = activityIdInput ? activityIdInput.value : "";
+                const result = await window.cobraEditorStatusAction("activity", activityId, "mark-ready");
+                if (!result.success) {
+                    showPopupAlert(`Activity saved, but could not mark it ready: ${result.message || "unknown error"}`, "error");
+                    return;
+                }
+                isSubmitting = true;
+                clearDirty();
+                showSuccessToast("Activity saved and marked as Ready to Publish.");
+                setTimeout(() => {
+                    window.location.href = window.cobraEditorReturnUrlForTab("/admin/learning-activities", "ready");
+                }, TOAST_DURATION_MS);
+            } catch (err) {
+                showPopupAlert("Could not reach the server. Please try again.", "error");
+            } finally {
+                if (publishBtn && !isSubmitting) {
+                    publishBtn.disabled = false;
+                    publishBtn.innerHTML = originalHtml;
+                }
+            }
+        }
+
         form.addEventListener("submit", function (e) {
-            if (!validateActivityForm(true)) {
-                e.preventDefault();
+            e.preventDefault();
+            if (!validateActivityForm(true)) return;
+
+            // No shared helper (script missing) -> fall back to the plain form post.
+            if (typeof window.cobraEditorStatusAction !== "function") {
+                isSubmitting = true;
+                clearDirty();
+                form.submit();
                 return;
             }
 
-            if (!publishConfirmed) {
-                e.preventDefault();
-                showConfirmModal(
-                    "Are you sure you want to publish this activity?",
-                    () => {
-                        publishConfirmed = true;
-                        isSubmitting = true;
-                        clearDirty();
-                        form.submit();
-                    },
-                    "Publish Activity?"
-                );
-                return;
-            }
-
-            isSubmitting = true;
-            clearDirty();
+            showConfirmModal(
+                "Save this activity and mark it Ready to Publish? It goes live when it's published on the Publishing page.",
+                () => { performMarkReady(); },
+                "Mark Ready?"
+            );
         });
     });
 })();
