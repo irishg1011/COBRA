@@ -205,7 +205,7 @@ def get_resources_by_module(module_id):
               AND (lrs.lr_stats_name IS NULL OR lrs.lr_stats_name != 'Archived')
               AND COALESCE(m.is_archived, 0) = 0
               AND (c.cat_id IS NULL OR COALESCE(c.is_archived, 0) = 0)
-            ORDER BY lr.resource_title ASC
+            ORDER BY lr.created_at ASC, lr.resource_id ASC
             """,
             (module_id,)
         )

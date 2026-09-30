@@ -289,7 +289,10 @@ def get_categories(include_archived=False):
         ensure_category_is_archived_column(connection)
         cursor = connection.cursor(dictionary=True)
         where_clause = "" if include_archived else "WHERE COALESCE(is_archived, 0) = 0"
-        cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} {where_clause} ORDER BY category_name ASC")
+        # Creation order (first made shows first). category_tbl has no
+        # created_at, so cat_id stands in for creation order - same as
+        # ensure_display_order_columns() above.
+        cursor.execute(f"SELECT cat_id, category_name FROM {CATEGORY_TABLE} {where_clause} ORDER BY cat_id ASC")
         rows = cursor.fetchall()
         cursor.close()
         return rows
@@ -1951,7 +1954,7 @@ def get_modules_by_category(cat_id):
                   AND COALESCE(m.is_archived, 0) = 0
                   AND COALESCE(c.is_archived, 0) = 0
                   AND COALESCE(ms.module_stats_name, '') != 'Archived'
-                ORDER BY m.module_name ASC""",
+                ORDER BY m.created_at ASC, m.module_id ASC""",
             (cat_id,)
         )
         rows = cursor.fetchall()
