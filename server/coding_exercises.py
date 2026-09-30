@@ -35,7 +35,7 @@ CE_SORT_CLAUSES = {
     "title_asc": "ce.exercise_title ASC",
     "title_desc": "ce.exercise_title DESC",
 }
-DEFAULT_CE_SORT_KEY = "created_desc"
+DEFAULT_CE_SORT_KEY = "created_asc"  # Oldest First - first made shows first
 
 
 def ensure_exercise_is_archived_column(connection):

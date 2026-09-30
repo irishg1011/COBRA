@@ -1507,6 +1507,7 @@ def manage_course():
         search_query=search, status_filter=status, page=page,
         created_from=created_from, created_to=created_to,
         updated_from=updated_from, updated_to=updated_to,
+        sort_by=request.args.get('sort', ''),
     )
     if overview is None:
         overview = {"modules": [], "total": 0, "page": 1, "per_page": 8, "total_pages": 1}
@@ -1519,6 +1520,7 @@ def manage_course():
         total_pages=overview["total_pages"],
         statuses=get_module_stats_options(),
         categories=get_categories(),
+        sort=request.args.get('sort', ''),  # keeps the Sort dropdown's choice on reload
         # NEW: reflected back into the date inputs' `value` attributes so a
         # direct/refreshed load with a query string (e.g. a bookmarked or
         # shared filtered URL) shows the same filter state instead of
@@ -1567,6 +1569,7 @@ def manage_course_data():
         search_query=search, status_filter=status, page=page,
         created_from=created_from, created_to=created_to,
         updated_from=updated_from, updated_to=updated_to,
+        sort_by=request.args.get('sort', ''),
     )
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500

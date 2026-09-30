@@ -395,7 +395,7 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                       AND (vts.la_stats_name IS NULL OR vts.la_stats_name != 'Archived')
                     ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_status
             {base_query}
-            ORDER BY lr.created_at DESC
+            ORDER BY lr.created_at ASC, lr.resource_id ASC
             LIMIT %s OFFSET %s
             """,
             tuple(params) + (per_page, offset)

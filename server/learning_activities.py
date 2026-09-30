@@ -107,7 +107,7 @@ LA_SORT_CLAUSES = {
     "created_asc": "la.created_at ASC",
     "updated_desc": "la.updated_at DESC",
 }
-DEFAULT_LA_SORT_KEY = "created_desc"
+DEFAULT_LA_SORT_KEY = "created_asc"  # Oldest First - first made shows first
 
 def ensure_la_stats(connection):
     """
@@ -611,6 +611,9 @@ def get_learning_activities_grouped_overview(search_query=None, type_filter=None
         # created_at/updated_at (the raw datetimes, not the formatted
         # display strings, hence pulling from `grouped` again below).
         sort_key = (sort_by or "").strip().lower()
+        # No / unknown choice -> Oldest First (the default).
+        if sort_key not in ("created_desc", "updated_desc"):
+            sort_key = "created_asc"
 
         def sort_value(entry):
             g = grouped[entry["resource_id"]]

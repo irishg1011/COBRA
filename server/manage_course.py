@@ -1752,8 +1752,24 @@ def permanently_delete_module(module_id):
             connection.close()
 
 
+# ------------------------------------------------------------------
+# Manage Course Sort dropdown - same safe pattern as learning_activities.
+# LA_SORT_CLAUSES: the dropdown value only ever picks one of these fixed
+# ORDER BY clauses, never built from raw input. module_id is the
+# tiebreaker so two modules with the same created_at still keep their
+# creation order.
+# ------------------------------------------------------------------
+MODULE_SORT_CLAUSES = {
+    "created_asc": "m.created_at ASC, m.module_id ASC",
+    "created_desc": "m.created_at DESC, m.module_id DESC",
+    "updated_desc": "m.updated_at DESC, m.module_id DESC",
+}
+DEFAULT_MODULE_SORT_KEY = "created_asc"  # Oldest First - first made shows first
+
+
 def get_modules_overview(search_query=None, status_filter=None, page=1, per_page=8, archived=False,
-                          created_from=None, created_to=None, updated_from=None, updated_to=None):
+                          created_from=None, created_to=None, updated_from=None, updated_to=None,
+                          sort_by=None):
     """
     Pulls a page of modules_tbl, JOINed against category_tbl and
     module_stats_tbl so Category Name / Status Name are returned
@@ -1868,6 +1884,10 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
         page = min(page, total_pages)
         offset = (page - 1) * per_page
 
+        # Sort - only ever one of the fixed MODULE_SORT_CLAUSES entries.
+        sort_key = (sort_by or "").strip().lower()
+        order_clause = MODULE_SORT_CLAUSES.get(sort_key, MODULE_SORT_CLAUSES[DEFAULT_MODULE_SORT_KEY])
+
         cursor.execute(
             f"""
             SELECT
@@ -1876,7 +1896,7 @@ def get_modules_overview(search_query=None, status_filter=None, page=1, per_page
                 m.module_stats_id, COALESCE(ms.module_stats_name, 'Draft') AS status_name,
                 m.created_at, m.updated_at
             {base_query}
-            ORDER BY m.created_at DESC
+            ORDER BY {order_clause}
             LIMIT %s OFFSET %s
             """,
             tuple(params) + (per_page, offset)

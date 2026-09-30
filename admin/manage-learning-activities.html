@@ -72,8 +72,8 @@
                             </select>
 
                             <select class="custom-select" id="activitySortSelect">
-                                <option value="created_desc" {{ 'selected' if sort|default('created_desc') == 'created_desc' }}>Newest First</option>
-                                <option value="created_asc" {{ 'selected' if sort|default('') == 'created_asc' }}>Oldest First</option>
+                                <option value="created_asc" {{ 'selected' if sort|default('') in ('', 'created_asc') }}>Oldest First</option>
+                                <option value="created_desc" {{ 'selected' if sort|default('') == 'created_desc' }}>Newest First</option>
                                 <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Recently Updated</option>
                             </select>
 

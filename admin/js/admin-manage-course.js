@@ -165,6 +165,7 @@
         // Active Table DOM Elements
         const searchInput = document.getElementById("moduleSearchInput");
         const statusSelect = document.getElementById("moduleStatusSelect");
+        const sortSelect = document.getElementById("moduleSortSelect");
         const tableBody = document.getElementById("modulesTableBody");
         const showingCount = document.getElementById("modulesShowingCount");
         const pageLabel = document.getElementById("modulesPageLabel");
@@ -275,6 +276,7 @@
             const term = searchInput ? searchInput.value.trim() : "";
             if (term) params.set("q", term);
             if (statusSelect && statusSelect.value) params.set("status", statusSelect.value);
+            if (sortSelect && sortSelect.value) params.set("sort", sortSelect.value);
 
             const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
             if (created.from) params.set("created_from", created.from);
@@ -329,6 +331,7 @@
 
         if (searchInput) searchInput.addEventListener("input", () => scheduleLoad(true));
         if (statusSelect) statusSelect.addEventListener("change", () => scheduleLoad(true));
+        if (sortSelect) sortSelect.addEventListener("change", () => scheduleLoad(true));
         if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; loadModules(); } });
         if (nextBtn) nextBtn.addEventListener("click", () => { if (currentPage < totalPages) { currentPage++; loadModules(); } });
 
