@@ -752,8 +752,9 @@
                         : "Save your changes to this activity?",
                     async () => {
                         const ok = await performSaveDraft();
-                        // feat/publishing-tree: opened from the Publishing page -> go back there.
-                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("") : "";
+                        // After a successful save, go back to the list page - or to the
+                        // Publishing page when the editor was opened from there.
+                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("/admin/learning-activities") : "/admin/learning-activities";
                         if (ok && back) {
                             isSubmitting = true;
                             setTimeout(() => { window.location.href = back; }, TOAST_DURATION_MS);

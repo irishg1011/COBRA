@@ -962,8 +962,29 @@ function blockHasUserInput(wrapper) {
             if (!confirmed) return;
         }
 
+        // Remember where the block was, so the caret stays there after the
+        // delete. Otherwise the selection is lost (the trash button / the
+        // confirm dialog took it) and the next Console/Terminal block falls
+        // back to the very END of the lesson - far below what the admin is
+        // looking at, so it looked like nothing was added.
+        const parent = wrapper.parentNode;
+        const next = wrapper.nextSibling;
+
         intentionallyRemovedWrappers.add(wrapper);
         wrapper.remove();
+
+        const selection = window.getSelection();
+        const caret = document.createRange();
+        if (next && next.parentNode === parent) {
+            caret.setStartBefore(next);
+        } else {
+            caret.selectNodeContents(parent);
+            caret.collapse(false);
+        }
+        caret.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(caret);
+
         pushHistory();
     }
 
@@ -1004,7 +1025,13 @@ function blockHasUserInput(wrapper) {
                             intentionallyRemovedWrappers.delete(wrapper);
                             return;
                         }
-                        editor.appendChild(wrapper);
+                        // Put it back where it was (not at the end of the
+                        // lesson, where the admin would never see it).
+                        try {
+                            mutation.target.insertBefore(wrapper, mutation.nextSibling || null);
+                        } catch (err) {
+                            editor.appendChild(wrapper);
+                        }
                         restoredAny = true;
                     });
                 }
@@ -1159,7 +1186,16 @@ function blockHasUserInput(wrapper) {
     buttons.forEach((button) => {
         button.addEventListener("click", function (e) {
             e.preventDefault();
+            // editor.focus() can reset the caret to the top of the lesson
+            // when it was inside a Console / Output / Terminal box, so
+            // keep the admin's caret and put it back after focusing.
+            const sel = window.getSelection();
+            const savedRange = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
             editor.focus();
+            if (savedRange && editor.contains(savedRange.startContainer)) {
+                sel.removeAllRanges();
+                sel.addRange(savedRange);
+            }
 
             const action = this.getAttribute("data-action");
 
@@ -1336,6 +1372,37 @@ function blockHasUserInput(wrapper) {
             selection.addRange(range);
         }
 
+        // Blocks always go in at ROOT level, between the editor's own
+        // lines - never inside one. The caret can sit inside a text line,
+        // an empty line (the browser may even report the <br> itself as
+        // the container), or inside another block (its Console / Output /
+        // Terminal box or filename). Inserting there nested the new block
+        // in that element; inside a <br> or another block it can't render
+        // at all, so the button looked like it did nothing.
+        //   - caret in another block  -> insert right after that block
+        //   - caret on an empty line  -> the block replaces that line
+        //   - caret in a text line    -> insert right after that line
+        let top = range.startContainer;
+        while (top && top !== editor && top.parentNode !== editor) {
+            top = top.parentNode;
+        }
+        if (top && top !== editor) {
+            const isEmptyLine = !isInteractiveBlockWrapper(top) &&
+                top.nodeType === Node.ELEMENT_NODE &&
+                !top.querySelector(".editor-code-container, .editor-terminal-container") &&
+                top.textContent.replace(/\u00a0/g, " ").trim() === "";
+            range = document.createRange();
+            if (isEmptyLine) {
+                range.setStartBefore(top);
+                top.remove();
+            } else {
+                range.setStartAfter(top);
+            }
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
         return range;
     }
 
@@ -1412,6 +1479,8 @@ function blockHasUserInput(wrapper) {
         
         placeCaretAtStart(spacer);
         pushHistory();
+        // Always show the admin the block they just added, wherever it landed.
+        wrapper.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
     function insertTerminalBlockTemplate() {
@@ -1446,6 +1515,8 @@ function blockHasUserInput(wrapper) {
         
         placeCaretAtStart(spacer);
         pushHistory();
+        // Always show the admin the block they just added, wherever it landed.
+        wrapper.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
     // --- Task #45: interactive block value sync (save) & rehydration (load) ---

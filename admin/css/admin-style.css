@@ -2639,8 +2639,14 @@ textarea.form-control-custom {
 }
 
 .editor-code-mode-select,
-.editor-delete-block-btn,
 .editor-output-mode-select {
+    display: none !important;
+}
+
+/* The block's trash (delete) button is editing-only chrome: hidden in the
+   read-only lesson previews, but shown in the admin lesson editor. It used
+   to be hidden everywhere, so the editor had no way to delete a block. */
+.lesson-content-body .editor-delete-block-btn {
     display: none !important;
 }
 
@@ -2771,6 +2777,12 @@ textarea.form-control-custom {
     outline: none;
     white-space: pre-wrap;
     word-break: break-all;
+}
+
+/* Read-only only in the lesson previews - in the admin lesson editor the
+   terminal box must stay clickable so the admin can type in it (this rule
+   used to apply everywhere, which blocked typing). */
+.lesson-content-body .editor-terminal-box {
     pointer-events: none;
 }
 

@@ -449,8 +449,9 @@
                     confirmMsg,
                     async () => {
                         const ok = await performSaveDraft();
-                        // feat/publishing-tree: opened from the Publishing page -> go back there.
-                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("") : "";
+                        // After a successful save, go back to the list page - or to the
+                        // Publishing page when the editor was opened from there.
+                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("/admin/learning-resources") : "/admin/learning-resources";
                         if (ok && back) {
                             isSubmitting = true;
                             setTimeout(() => { window.location.href = back; }, TOAST_DURATION_MS);
