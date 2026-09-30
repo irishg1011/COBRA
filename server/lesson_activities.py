@@ -418,6 +418,92 @@ def record_activity_progress(acc_id, la_id, status, score=None):
             connection.close()
 
 
+def settle_lesson_activities(acc_id, resource_id):
+    """
+    Lesson-completion check used by /api/lesson-content/complete.
+
+    1. Any Published activity in this lesson that has NO items (0 MCQ
+       questions / FIB items / flashcards, or a type with no game) is
+       marked completed for this learner with score 0. The games skip
+       an empty activity straight away without saving anything, which
+       used to leave the lesson impossible to complete.
+    2. Returns the titles of the Published activities this learner
+       still hasn't completed ([] = all done), or None on a DB error.
+    """
+    if not resource_id:
+        return []
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""SELECT la.la_id, la.activity_title, atp.activity_type_name,
+                       (SELECT COUNT(*) FROM {MCQ_QUESTIONS_TABLE} q WHERE q.la_id = la.la_id) AS mcq_n,
+                       (SELECT COUNT(*) FROM {FILL_BLANKS_TABLE} f WHERE f.la_id = la.la_id) AS fib_n,
+                       (SELECT COUNT(*) FROM {FLASHCARDS_TABLE} c WHERE c.la_id = la.la_id) AS fc_n,
+                       EXISTS(SELECT 1 FROM {PROGRESS_TABLE} p
+                              WHERE p.acc_id = %s AND p.la_id = la.la_id
+                                AND p.status = 'completed') AS is_done
+                FROM {LEARNING_ACTIVITIES_TABLE} la
+                JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
+                LEFT JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
+                WHERE la.resource_id = %s AND las.la_stats_name = 'Published'
+                ORDER BY la.la_id ASC""",
+            (acc_id, resource_id)
+        )
+        rows = cursor.fetchall()
+
+        unfinished = []
+        for row in rows:
+            if row["is_done"]:
+                continue
+            type_name = row.get("activity_type_name") or ""
+            if type_name in ("Multiple Choice", "Quiz"):
+                item_total = row["mcq_n"]
+            elif type_name == "Fill in the Blanks":
+                item_total = row["fib_n"]
+            elif type_name == "Flashcards":
+                item_total = row["fc_n"]
+            else:
+                item_total = 0
+
+            if item_total > 0:
+                unfinished.append(row["activity_title"])
+                continue
+
+            # Empty activity - nothing to play, so it counts as done.
+            cursor.execute(
+                f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
+                (acc_id, row["la_id"])
+            )
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute(
+                    f"""UPDATE {PROGRESS_TABLE}
+                        SET status = 'completed', score = 0, completed_at = NOW()
+                        WHERE progress_id = %s""",
+                    (existing["progress_id"],)
+                )
+            else:
+                cursor.execute(
+                    f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
+                        VALUES (%s, %s, 'completed', 0, NOW())""",
+                    (acc_id, row["la_id"])
+                )
+
+        connection.commit()
+        cursor.close()
+        return unfinished
+    except Error as e:
+        connection.rollback()
+        print(f"lesson_activities: failed to settle lesson activities for resource_id={resource_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def get_activities_completion_summary(acc_id, resource_id):
     """
     Returns (total_activities, completed_activities) for every Published
@@ -803,7 +889,15 @@ def _open_mcq(cursor, acc_id, la_id):
             WHERE acc_id = %s AND la_id = %s AND status = 'completed' LIMIT 1""",
         (acc_id, la_id)
     )
-    completed = cursor.fetchone() is not None or bool(session_row and session_row["status"] == "completed")
+    progress_done = cursor.fetchone() is not None
+    completed = progress_done or bool(session_row and session_row["status"] == "completed")
+
+    # Repair: the play finished (session completed) but the activity's
+    # progress row isn't 'completed' - e.g. it was removed while testing.
+    # Without this the game shows "Activity complete" while the lesson
+    # refuses to finish, because lesson completion reads the progress row.
+    if completed and not progress_done:
+        _save_mcq_progress(cursor, acc_id, la_id, _first_attempt_score(cursor, acc_id, la_id))
 
     if session_row and session_row["current_q_id"] in q_ids:
         index = q_ids.index(session_row["current_q_id"])
@@ -877,6 +971,28 @@ def _mcq_state(cursor, ctx):
         _, fixed = retake_progress(cursor, ctx["acc_id"], MCQ_TYPE_NAME, retake)
         state["retake"] = retake_payload(retake, len(q_ids), len(fixed & set(q_ids)), ctx["completed"])
     return state
+
+
+def _save_mcq_progress(cursor, acc_id, la_id, score):
+    """learner_activity_progress_tbl row -> completed with this score."""
+    cursor.execute(
+        f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
+        (acc_id, la_id)
+    )
+    existing = cursor.fetchone()
+    if existing:
+        cursor.execute(
+            f"""UPDATE {PROGRESS_TABLE}
+                SET status = 'completed', score = %s, completed_at = NOW()
+                WHERE progress_id = %s""",
+            (score, existing["progress_id"])
+        )
+    else:
+        cursor.execute(
+            f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
+                VALUES (%s, %s, 'completed', %s, NOW())""",
+            (acc_id, la_id, score)
+        )
 
 
 def _complete_mcq(cursor, ctx):

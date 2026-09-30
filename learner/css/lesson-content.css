@@ -415,6 +415,23 @@
 
 .lesson-step-btn:hover { background: #15803d; }
 
+/* Summary: next module still locked (Module 85% gate) */
+.summary-gate-note {
+    margin-top: 20px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: 14px;
+}
+.summary-gate-note[hidden] { display: none; }
+
+/* Back to activities (lesson completion refused) - hidden until needed */
+#backToActivitiesBtn[hidden] { display: none; }
+
+.lesson-in-progress-label.is-blocked { color: #b91c1c; }
+
 .lesson-step-btn:disabled {
     opacity: 0;
     pointer-events: none;

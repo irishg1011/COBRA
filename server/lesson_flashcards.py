@@ -234,7 +234,33 @@ def _open(cursor, acc_id, la_id):
             WHERE acc_id = %s AND la_id = %s AND status = 'completed' LIMIT 1""",
         (acc_id, la_id)
     )
-    completed = cursor.fetchone() is not None or bool(session_row and session_row["status"] == "completed")
+    progress_done = cursor.fetchone() is not None
+    completed = progress_done or bool(session_row and session_row["status"] == "completed")
+
+    # Repair: the play finished (session completed) but the activity's
+    # progress row isn't 'completed' - e.g. it was removed while testing.
+    # Without this the game shows the victory screen while the lesson
+    # refuses to finish, because lesson completion reads the progress row.
+    if completed and not progress_done:
+        score = _first_try_score(cursor, acc_id, card_ids)
+        cursor.execute(
+            f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
+            (acc_id, la_id)
+        )
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                f"""UPDATE {PROGRESS_TABLE}
+                    SET status = 'completed', score = %s, completed_at = NOW()
+                    WHERE progress_id = %s""",
+                (score, existing["progress_id"])
+            )
+        else:
+            cursor.execute(
+                f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
+                    VALUES (%s, %s, 'completed', %s, NOW())""",
+                (acc_id, la_id, score)
+            )
 
     solved = _solved_ids(cursor, acc_id, card_ids)
     if session_row and session_row["current_flashcard_id"] in card_ids:

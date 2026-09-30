@@ -19,6 +19,7 @@ from lesson_activities import (
     check_flashcard_answer,
     record_activity_progress,
     get_activities_completion_summary,
+    settle_lesson_activities,
     get_activity_type_name,
     MCQ_TYPE_NAME,
     get_mcq_activity_state,
@@ -38,7 +39,7 @@ from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 from module_performance import (  # Module 85% gate
-    module_performance, get_resource_retake_info, start_activity_retake,
+    module_performance, module_locked_for_learner, get_resource_retake_info, start_activity_retake,
 )
 from activity_retakes import ensure_retake_schema
 from learner_progress_unlocks import has_unlock, write_unlock, get_unlocked_at  # NEW - Task #13: permanent category unlock check; get_unlocked_at added for Task #16's catch-up badge
@@ -629,17 +630,15 @@ def lessons_data():
                 # locking behind it.
                 previous_reached = is_complete or has_ever_touched
 
-            # Module 85% gate: the first module of a chapter is always open;
-            # every other one opens once the module before it PASSED (all
-            # lessons done + lesson average >= 85%). A permanent unlock row,
-            # or any lesson already started in this module (learners who got
-            # here before the gate existed), keeps it open for good.
+            # Module 85% gate - STRICT, LIVE: the first module of a chapter
+            # is always open; every other one is open only while the module
+            # before it is PASSING (all lessons done + lesson average >= 85%).
+            # Saved unlock rows and lessons already started here no longer
+            # keep a module open - if the previous module drops below 85%
+            # (e.g. an admin adds an activity), this one locks again until
+            # it's passed.
             perf = module_performance(cursor, acc_id, module_id)
-            already_unlocked = has_unlock(connection, acc_id, "module", module_id)
-            module_locked = not (module_index == 0 or previous_module_passed
-                                 or already_unlocked or module_touched)
-            if not module_locked and not already_unlocked:
-                write_unlock(connection, acc_id, "module", module_id)
+            module_locked = not (module_index == 0 or previous_module_passed)
             for lesson in lessons_out:
                 lesson_perf = perf["lessons"].get(lesson["resource_id"]) or {}
                 lesson["performance_percent"] = lesson_perf.get("percent")
@@ -728,7 +727,7 @@ def lesson_content_data():
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            """SELECT lr.resource_id, lr.resource_title, m.cat_id
+            """SELECT lr.resource_id, lr.resource_title, lr.module_id, m.cat_id
                FROM learning_resources_tbl lr
                JOIN modules_tbl m ON lr.module_id = m.module_id
                WHERE lr.resource_id = %s""",
@@ -738,6 +737,18 @@ def lesson_content_data():
         if not resource:
             cursor.close()
             return jsonify({"success": False, "message": "Lesson not found."}), 404
+
+        # Module 85% gate (strict, live): a lesson in a locked module can't
+        # be opened, not even by typing its URL.
+        ensure_retake_schema(connection)
+        if module_locked_for_learner(cursor, acc_id, resource["module_id"]):
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "locked": True,
+                "cat_id": resource["cat_id"],
+                "message": "This lesson is locked. Pass the previous module with 85% or higher to unlock it.",
+            }), 403
 
         cursor.execute(
             "SELECT content_body FROM lesson_content_tbl WHERE resource_id = %s",
@@ -1194,14 +1205,19 @@ def mark_lesson_complete():
         return jsonify({"success": False, "message": "resource_id is required."}), 400
 
     # Hard gate: a lesson can never be marked complete while any of its
-    # Published activities are still unfinished for this learner. A
-    # lesson with zero activities has nothing to gate on and passes
-    # through immediately (total == 0).
-    total, completed = get_activities_completion_summary(acc_id, resource_id)
-    if total > 0 and completed < total:
+    # Published activities are still unfinished for this learner. Empty
+    # activities (no items) are auto-completed first, so they can never
+    # block the lesson. A lesson with zero activities passes straight
+    # through. The unfinished titles go back to the page so the learner
+    # knows exactly what's left.
+    unfinished = settle_lesson_activities(acc_id, resource_id)
+    if unfinished is None:
+        return jsonify({"success": False, "message": "Could not check your activities. Please try again."}), 500
+    if unfinished:
         return jsonify({
             "success": False,
-            "message": "Please complete all activities before finishing this lesson."
+            "message": "Please complete all activities before finishing this lesson.",
+            "unfinished": unfinished,
         }), 400
 
     # Same hard gate for the exercise, if this lesson has one.
@@ -1269,7 +1285,7 @@ def lesson_summary_data():
     if summary is None:
         return jsonify({"success": False, "message": "Could not load lesson summary."}), 500
 
-    next_info = get_next_lesson_info(resource_id)
+    next_info = get_next_lesson_info(resource_id, acc_id)   # Module 85% gate aware
 
     return jsonify({
         "success": True,

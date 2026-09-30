@@ -24,6 +24,8 @@ project's existing convention.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from activity_retakes import ensure_retake_schema
+from module_performance import module_performance
 
 
 def get_lesson_performance_summary(acc_id, resource_id):
@@ -180,7 +182,7 @@ def get_lesson_performance_summary(acc_id, resource_id):
             connection.close()
 
 
-def get_next_lesson_info(resource_id):
+def get_next_lesson_info(resource_id, acc_id=None):
     """
     Figures out what "Continue" should lead to after this lesson's
     summary: the next lesson in the same module, else the first lesson
@@ -199,6 +201,10 @@ def get_next_lesson_info(resource_id):
         {"type": "lesson", "resource_id": int, "resource_title": str}
         {"type": "chapter", "resource_id": int, "resource_title": str, "cat_id": int, "category_name": str}
         {"type": "end"}
+        {"type": "module_gate", "module_percent": int, "pass_percent": int, "all_done": bool}
+            - Module 85% gate: the next lesson is in another module (or
+              chapter) but this learner's current module hasn't PASSED
+              yet, so there is no way forward until it does.
     or None on database error.
     """
     connection = get_db_connection()
@@ -225,13 +231,28 @@ def get_next_lesson_info(resource_id):
                         COALESCE(lr.display_order, 999999), lr.resource_id"""
         )
         course = cursor.fetchall()
-        cursor.close()
 
         position = next((i for i, row in enumerate(course) if row["resource_id"] == int(resource_id)), None)
         if position is None or position + 1 >= len(course):
+            cursor.close()
             return {"type": "end"}
 
         current, following = course[position], course[position + 1]
+
+        # Module 85% gate: leaving this module needs it PASSED first.
+        if acc_id and following["module_id"] != current["module_id"]:
+            ensure_retake_schema(connection)
+            perf = module_performance(cursor, acc_id, current["module_id"])
+            if not perf["passed"]:
+                cursor.close()
+                return {
+                    "type": "module_gate",
+                    "module_percent": perf["percent"],
+                    "pass_percent": perf["pass_percent"],
+                    "all_done": perf["all_done"],
+                }
+        cursor.close()
+
         if following["cat_id"] != current["cat_id"]:
             return {
                 "type": "chapter",

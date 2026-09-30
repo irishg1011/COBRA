@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const backToLessonsLink = document.getElementById('backToLessonsLink');
 
     const viewSummaryFromActivitiesBtn = document.getElementById('viewSummaryFromActivitiesBtn');
+    const backToActivitiesBtn = document.getElementById('backToActivitiesBtn');
+    const IN_PROGRESS_TEXT = 'Finish the activities above to complete this lesson.';
     const viewSummaryFromExerciseBtn = document.getElementById('viewSummaryFromExerciseBtn');
 
     const summaryStep = document.getElementById('summaryStep');
@@ -29,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const perfRingLabel = document.getElementById('perfRingLabel');
     const summaryList = document.getElementById('summaryList');
     const summaryContinueBtn = document.getElementById('summaryContinueBtn');
+    const summaryGateNote = document.getElementById('summaryGateNote');
 
     const exerciseStep = document.getElementById('exerciseStep');
     const exerciseTitle = document.getElementById('exerciseTitle');
@@ -571,6 +574,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             if (result.success) {
                 lessonData.is_completed = true;
+                if (backToActivitiesBtn) backToActivitiesBtn.hidden = true;
+                lessonInProgressStatus.classList.remove('is-blocked');
                 lessonInProgressStatus.style.display = 'none';
                 lessonCompleteStatus.style.display = 'inline-flex';
                 // Lessons without an exercise finish on the Activities
@@ -583,10 +588,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 console.error('Could not mark this lesson complete:', result.message);
+                showCompletionBlocked(result);
             }
         } catch (err) {
             console.error('Could not reach the server to complete this lesson.', err);
+            showCompletionBlocked({ message: 'Could not reach the server. Please try again.' });
         }
+    }
+
+    // The server refused to complete the lesson - never leave the learner
+    // on a dead end: say what's left and give a way back into it.
+    function showCompletionBlocked(result) {
+        if (lessonData.exercise) return;   // exercise lessons finish on the Exercise step
+        const titles = Array.isArray(result.unfinished) ? result.unfinished : [];
+        lessonCompleteRow.style.display = 'flex';
+        lessonCompleteStatus.style.display = 'none';
+        viewSummaryFromActivitiesBtn.style.display = 'none';
+        lessonInProgressStatus.style.display = 'inline-flex';
+        lessonInProgressStatus.classList.add('is-blocked');
+        lessonInProgressStatus.textContent = titles.length
+            ? `Not finished yet: ${titles.join(', ')}. Go back and finish ${titles.length > 1 ? 'them' : 'it'} to complete this lesson.`
+            : (result.message || 'This lesson could not be completed yet.');
+        if (backToActivitiesBtn) backToActivitiesBtn.hidden = false;
     }
 
     function startActivitiesStep() {
@@ -596,6 +619,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!lessonData.exercise) {
             lessonCompleteRow.style.display = 'flex';
+            lessonInProgressStatus.textContent = IN_PROGRESS_TEXT;
+            lessonInProgressStatus.classList.remove('is-blocked');
+            if (backToActivitiesBtn) backToActivitiesBtn.hidden = true;
             if (lessonData.is_completed) {
                 lessonCompleteStatus.style.display = 'inline-flex';
                 lessonInProgressStatus.style.display = 'none';
@@ -620,6 +646,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 retake: urlParams.get('retake') === '1'
             });
         }
+    }
+
+    if (backToActivitiesBtn) {
+        // Rebuilds the activities panel: done activities show "already
+        // completed" + Continue, so the learner lands on the unfinished one.
+        backToActivitiesBtn.addEventListener('click', () => startActivitiesStep());
     }
 
     if (viewSummaryFromActivitiesBtn) {
@@ -676,7 +708,18 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryList.innerHTML = rows.join('');
 
         const next = data.next;
-        if (!next || next.type === "end") {
+        if (next && next.type === "module_gate") {
+            // Module 85% gate: this module isn't passed yet, so no way forward.
+            if (summaryGateNote) {
+                summaryGateNote.textContent = next.all_done
+                    ? `Your module score is ${next.module_percent}%. You need ${next.pass_percent}% to unlock the next module - retake your missed items on the Lessons page.`
+                    : `Finish every lesson in this module with an average of ${next.pass_percent}% or higher to unlock the next module.`;
+                summaryGateNote.hidden = false;
+            }
+            summaryContinueBtn.textContent = "Back to Lessons";
+            summaryContinueBtn.disabled = false;
+            summaryContinueBtn.addEventListener('click', () => { window.location.href = backToLessonsLink.href; });
+        } else if (!next || next.type === "end") {
             summaryContinueBtn.textContent = "Back to Lessons";
             summaryContinueBtn.disabled = false;
             summaryContinueBtn.addEventListener('click', () => { window.location.href = backToLessonsLink.href; });
@@ -705,9 +748,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 credentials: 'include'
             });
 
-            if (!response.ok) throw new Error('Request failed');
+            const data = await response.json().catch(() => null);
 
-            const data = await response.json();
+            // Module 85% gate: this lesson's module is still locked.
+            if (response.status === 403 && data && data.locked) {
+                lessonLoading.style.display = 'none';
+                if (data.cat_id) backToLessonsLink.href = `/lessons?cat_id=${data.cat_id}`;
+                lessonError.textContent = data.message;
+                lessonError.style.display = 'block';
+                return;
+            }
+
+            if (!response.ok || !data) throw new Error('Request failed');
             if (!data.success) throw new Error('Unexpected response shape');
 
             lessonData = data;

@@ -200,6 +200,30 @@ def module_performance(cursor, acc_id, module_id):
     }
 
 
+def module_locked_for_learner(cursor, acc_id, module_id):
+    """
+    Strict, live Module 85% gate - the SAME rule the Lessons page uses:
+    the first module of a chapter is always open; any other module is
+    open only while the module right before it is PASSED. True = locked.
+    """
+    cursor.execute("SELECT cat_id FROM modules_tbl WHERE module_id = %s", (module_id,))
+    row = cursor.fetchone()
+    if not row:
+        return False
+    cursor.execute(
+        "SELECT module_id FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 "
+        "ORDER BY cat_id ASC, COALESCE(display_order, 999999) ASC, module_id ASC",
+        (row["cat_id"],)
+    )
+    ids = [r["module_id"] for r in cursor.fetchall()]
+    if module_id not in ids:
+        return False
+    index = ids.index(module_id)
+    if index == 0:
+        return False
+    return not module_performance(cursor, acc_id, ids[index - 1])["passed"]
+
+
 # ---------------- public entry points ----------------
 def get_resource_retake_info(acc_id, resource_id):
     """
