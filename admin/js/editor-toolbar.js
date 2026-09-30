@@ -1385,35 +1385,61 @@ function blockHasUserInput(wrapper) {
             selection.addRange(range);
         }
 
-        // Blocks always go in at ROOT level, between the editor's own
-        // lines - never inside one. The caret can sit inside a text line,
-        // an empty line (the browser may even report the <br> itself as
-        // the container), or inside another block (its Console / Output /
-        // Terminal box or filename). Inserting there nested the new block
-        // in that element; inside a <br> or another block it can't render
-        // at all, so the button looked like it did nothing.
-        //   - caret in another block  -> insert right after that block
-        //   - caret on an empty line  -> the block replaces that line
-        //   - caret in a text line    -> insert right after that line
-        let top = range.startContainer;
-        while (top && top !== editor && top.parentNode !== editor) {
-            top = top.parentNode;
-        }
-        if (top && top !== editor) {
-            const isEmptyLine = !isInteractiveBlockWrapper(top) &&
-                top.nodeType === Node.ELEMENT_NODE &&
-                !top.querySelector(".editor-code-container, .editor-terminal-container") &&
-                top.textContent.replace(/\u00a0/g, " ").trim() === "";
-            range = document.createRange();
-            if (isEmptyLine) {
-                range.setStartBefore(top);
-                top.remove();
-            } else {
-                range.setStartAfter(top);
-            }
-            range.collapse(true);
+        // Where the new block goes, based on the LINE the caret is on (the
+        // closest paragraph/line element - not the editor's top-level
+        // child, because pasted content often sits inside one big wrapper
+        // <div>, and "after the top-level child" then meant the very end).
+        //   - caret inside another block        -> right after that block
+        //   - caret on an empty line            -> the block replaces that line
+        //   - caret on a <br> gap inside a line  -> right at the caret
+        //   - caret on a line with text         -> right after that line
+        //   - caret in a list / table           -> right after the list / table
+        // Never inside a <br>, a text line or another block (those can't
+        // show it, so the button looked like it did nothing).
+        const LINE_TAGS = ["DIV", "P", "H1", "H2", "H3", "H4", "H5", "H6", "PRE", "LI", "TABLE"];
+        const placeAt = (setter) => {
+            const r = document.createRange();
+            setter(r);
+            r.collapse(true);
             selection.removeAllRanges();
-            selection.addRange(range);
+            selection.addRange(r);
+            return r;
+        };
+
+        let host = range.startContainer;
+        while (host && host !== editor && !isInteractiveBlockWrapper(host)) host = host.parentNode;
+
+        if (host && host !== editor) {
+            range = placeAt((r) => r.setStartAfter(host));
+        } else if (range.startContainer.nodeName === "BR") {
+            const br = range.startContainer;
+            range = placeAt((r) => r.setStartAfter(br));
+        } else {
+            let line = range.startContainer.nodeType === Node.ELEMENT_NODE
+                ? range.startContainer : range.startContainer.parentNode;
+            while (line && line !== editor && !LINE_TAGS.includes(line.tagName)) line = line.parentNode;
+
+            if (line && line !== editor) {
+                if (line.tagName === "LI") line = line.closest("ul, ol") || line;
+                const isEmptyLine = !line.querySelector(".editor-code-container, .editor-terminal-container") &&
+                    line.textContent.replace(/\u00a0/g, " ").trim() === "";
+                const offset = range.startOffset;
+                const atBrGap = range.startContainer === line && line.tagName !== "TABLE" &&
+                    ((line.childNodes[offset] && line.childNodes[offset].nodeName === "BR") ||
+                     (line.childNodes[offset - 1] && line.childNodes[offset - 1].nodeName === "BR"));
+
+                if (isEmptyLine) {
+                    const emptyLine = line;
+                    range = placeAt((r) => r.setStartBefore(emptyLine));
+                    emptyLine.remove();
+                } else if (atBrGap) {
+                    const r0 = range;
+                    range = placeAt((r) => r.setStart(r0.startContainer, r0.startOffset));
+                } else {
+                    const fullLine = line;
+                    range = placeAt((r) => r.setStartAfter(fullLine));
+                }
+            }
         }
 
         return range;
