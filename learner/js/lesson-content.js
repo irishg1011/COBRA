@@ -210,6 +210,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Short content that fits without scrolling has no "bottom" to
+    // reach, so it unlocks as soon as it's visible. A hidden panel
+    // measures 0x0, so only check while the content box is on screen.
+    function checkContentFits() {
+        if (contentUnlocked) return;
+        const el = lessonContentScroll;
+        if (!el || el.offsetParent === null || el.clientHeight === 0) return;
+        const scrollable = el.scrollHeight - el.clientHeight;
+        if (scrollable <= 4) {
+            unlockContentContinue();
+        }
+    }
+
+    window.addEventListener('resize', checkContentFits);
+
     contentContinueBtn.addEventListener('click', () => {
         if (contentContinueBtn.disabled) return;
         goToStep("activities");
@@ -220,6 +235,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showStep(key);
         if (key === "activities") {
             startActivitiesStep();
+        }
+        if (key === "content") {
+            // Wait one frame so the step is laid out before measuring.
+            requestAnimationFrame(checkContentFits);
         }
     }
 
@@ -918,6 +937,15 @@ document.addEventListener('DOMContentLoaded', () => {
             lessonResourceTitle.style.display = 'block';
             lessonContentBody.innerHTML = data.content_html || '';
             preparePageForLearner();
+
+            // Images can grow the content after first render, so
+            // re-measure once each one finishes loading.
+            lessonContentBody.querySelectorAll('img').forEach((img) => {
+                if (!img.complete) {
+                    img.addEventListener('load', checkContentFits);
+                    img.addEventListener('error', checkContentFits);
+                }
+            });
 
             if (data.cat_id) {
                 backToLessonsLink.href = `/lessons?cat_id=${data.cat_id}`;
