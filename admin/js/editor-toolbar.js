@@ -1044,6 +1044,19 @@ function blockHasUserInput(wrapper) {
     });
     blockRemovalGuard.observe(editor, { childList: true, subtree: true });
 
+    // Paste into a Console or Terminal box = plain text only. Pasting from
+    // a web page, Google Docs or Canva otherwise drops their whole styled
+    // HTML (spans, fonts, even other console blocks) into the code box -
+    // heavy for the browser, wrong for code, and it breaks Run.
+    editor.addEventListener("paste", function (e) {
+        const target = e.target && e.target.nodeType === Node.ELEMENT_NODE ? e.target : e.target && e.target.parentElement;
+        const codeBox = target ? target.closest(".editor-console-box, .editor-terminal-box") : null;
+        if (!codeBox) return;
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData("text/plain") || "";
+        document.execCommand("insertText", false, text);
+    });
+
     // Proactive guard: prevents the common case (caret sitting directly
     // next to a block) from ever deleting/merging into the block wrapper
     // in the first place, so there's no visible flicker before the
@@ -1433,7 +1446,7 @@ function blockHasUserInput(wrapper) {
                         <button type="button" class="console-action-btn run-btn" title="Run Code"><i class="fa-solid fa-play"></i> Run</button>
                     </div>
                     <p class="editor-code-desc">Provide example code for students.</p>
-                    <div class="editor-console-box" contenteditable="true" spellcheck="false" placeholder="e.g. print(&quot;Hello, World!&quot;)"></div>
+                    <div class="editor-console-box" contenteditable="true" spellcheck="false" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="e.g. print(&quot;Hello, World!&quot;)"></div>
                 </div>
             </div>
             <div class="editor-code-card output-card-pane">
@@ -1443,7 +1456,7 @@ function blockHasUserInput(wrapper) {
                         <div class="editor-code-title"><i class="fa-solid fa-terminal"></i> Expected Output</div>
                     </div>
                     <p class="editor-code-desc output-desc-text">Output is dynamically generated based on code execution.</p>
-                    <div class="editor-output-box" contenteditable="false" placeholder="Output will be automatically evaluated from code execution..."></div>
+                    <div class="editor-output-box" contenteditable="false" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Output will be automatically evaluated from code execution..."></div>
                 </div>
             </div>
         `;
@@ -1498,7 +1511,7 @@ function blockHasUserInput(wrapper) {
                     <button type="button" class="editor-delete-block-btn" title="Delete Block"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
                 <p class="editor-code-desc">Provide command line or REPL shell example for students.</p>
-                <div class="editor-terminal-box" contenteditable="true" spellcheck="false" placeholder="Type command prompt or shell example here..."></div>
+                <div class="editor-terminal-box" contenteditable="true" spellcheck="false" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Type command prompt or shell example here..."></div>
             </div>
         `;
 
@@ -1613,8 +1626,21 @@ function blockHasUserInput(wrapper) {
         modeSelect.addEventListener("change", applyMode);
     }
 
+    // Grammarly (and similar writing extensions) attach to every editable
+    // box and re-scan it on each change. On code boxes that can freeze the
+    // page ("Page Unresponsive") right after a paste. Code needs no grammar
+    // check, so tell them to skip these boxes - also on blocks saved before.
+    function markCodeBoxesNoGrammarly(wrapper) {
+        wrapper.querySelectorAll(".editor-console-box, .editor-output-box, .editor-terminal-box").forEach((box) => {
+            box.setAttribute("data-gramm", "false");
+            box.setAttribute("data-gramm_editor", "false");
+            box.setAttribute("data-enable-grammarly", "false");
+        });
+    }
+
     function wireCodeContainer(wrapper) {
         wireDeleteButton(wrapper);
+        markCodeBoxesNoGrammarly(wrapper);
         wireRunButton(wrapper);
         keepPlaceholderPermanent(wrapper.querySelector(".editor-console-box"));
         keepPlaceholderPermanent(wrapper.querySelector(".editor-output-box"));
@@ -1643,6 +1669,7 @@ function blockHasUserInput(wrapper) {
 
     function wireTerminalContainer(wrapper) {
         wireDeleteButton(wrapper);
+        markCodeBoxesNoGrammarly(wrapper);
     }
 
     function hydrateExistingInteractiveBlocks() {
