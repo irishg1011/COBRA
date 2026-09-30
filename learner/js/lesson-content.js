@@ -32,6 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryList = document.getElementById('summaryList');
     const summaryContinueBtn = document.getElementById('summaryContinueBtn');
     const summaryGateNote = document.getElementById('summaryGateNote');
+    const summaryReview = document.getElementById('summaryReview');
+    const summaryReviewNote = document.getElementById('summaryReviewNote');
+    const reviewLessonBtn = document.getElementById('reviewLessonBtn');
+    const reviewWeakSpotsBtn = document.getElementById('reviewWeakSpotsBtn');
+    const reviewWeakSpotsLabel = document.getElementById('reviewWeakSpotsLabel');
+    const reviewModuleWeakSpotsBtn = document.getElementById('reviewModuleWeakSpotsBtn');
+    const reviewModuleWeakSpotsLabel = document.getElementById('reviewModuleWeakSpotsLabel');
+    const weakSpotsPanel = document.getElementById('weakSpotsPanel');
 
     const exerciseStep = document.getElementById('exerciseStep');
     const exerciseTitle = document.getElementById('exerciseTitle');
@@ -419,16 +427,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function preparePageForLearner() {
-        lessonContentBody.querySelectorAll(".editor-code-filename").forEach((input) => {
+    // `root` defaults to the lesson content; the weak-spots panel reuses it
+    // for the lesson parts it shows (read-only boxes, working Run buttons).
+    function preparePageForLearner(root) {
+        root = root || lessonContentBody;
+        root.querySelectorAll(".editor-code-filename").forEach((input) => {
             input.setAttribute("disabled", "true");
         });
 
-        lessonContentBody.querySelectorAll(".editor-console-box").forEach((box) => {
+        root.querySelectorAll(".editor-console-box").forEach((box) => {
             box.setAttribute("contenteditable", "false");
         });
 
-        lessonContentBody.querySelectorAll(".editor-code-container").forEach((wrapper) => {
+        root.querySelectorAll(".editor-code-container").forEach((wrapper) => {
             wrapper.querySelectorAll(".editor-output-mode-select").forEach((el) => el.remove());
 
             const modeSelect = wrapper.querySelector(".editor-code-mode-select");
@@ -449,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             wireRunButton(wrapper);
         });
 
-        lessonContentBody.querySelectorAll(".editor-terminal-box").forEach((box) => {
+        root.querySelectorAll(".editor-terminal-box").forEach((box) => {
             box.setAttribute("contenteditable", "false");
         });
     }
@@ -732,7 +743,146 @@ document.addEventListener('DOMContentLoaded', () => {
             summaryContinueBtn.disabled = false;
             summaryContinueBtn.addEventListener('click', () => { window.location.href = `/lesson-content?resource_id=${next.resource_id}`; });
         }
+
+        renderReview(data.review);
     }
+
+    // ---------------- Summary: review lesson + weak spots ----------------
+    // Shown when this lesson is below the pass % (review the lesson / its
+    // weak spots), and on the LAST lesson of a module that needs a retake
+    // (weak spots across the whole module).
+    const weakSpotsCache = {};
+    let weakSpotsOpenScope = null;
+
+    function renderReview(review) {
+        if (!summaryReview || !review) return;
+        const lessonBelow = !!review.lesson_below;
+        const moduleBelow = !!review.module_below;
+        if (!lessonBelow && !moduleBelow) return;
+
+        summaryReview.hidden = false;
+        summaryReviewNote.textContent = lessonBelow
+            ? `This lesson is at ${review.lesson_percent}% - you need ${review.pass_percent}%. Review the lesson or go straight to the parts behind the questions you missed.`
+            : `Your module needs a retake. Review your weak spots across the module first.`;
+
+        reviewWeakSpotsBtn.hidden = !(lessonBelow && review.lesson_missed > 0);
+        reviewWeakSpotsLabel.textContent = `Review my weak spots (${review.lesson_missed})`;
+        reviewModuleWeakSpotsBtn.hidden = !(moduleBelow && review.module_missed > 0);
+        reviewModuleWeakSpotsLabel.textContent = `Review module weak spots (${review.module_missed})`;
+    }
+
+    async function toggleWeakSpots(scope) {
+        const btn = scope === "module" ? reviewModuleWeakSpotsBtn : reviewWeakSpotsBtn;
+        const otherBtn = scope === "module" ? reviewWeakSpotsBtn : reviewModuleWeakSpotsBtn;
+
+        if (weakSpotsOpenScope === scope) {            // second click closes it
+            weakSpotsPanel.hidden = true;
+            weakSpotsOpenScope = null;
+            btn.classList.remove('is-active');
+            return;
+        }
+        weakSpotsOpenScope = scope;
+        btn.classList.add('is-active');
+        otherBtn.classList.remove('is-active');
+        weakSpotsPanel.hidden = false;
+        weakSpotsPanel.innerHTML = '<p class="weak-spots-empty">Finding your weak spots...</p>';
+
+        try {
+            if (!weakSpotsCache[scope]) {
+                const response = await fetch(`${API_BASE_URL}/api/weak-spots?resource_id=${encodeURIComponent(resourceId)}&scope=${scope}`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || 'Request failed');
+                weakSpotsCache[scope] = data;
+            }
+            if (weakSpotsOpenScope === scope) renderWeakSpots(weakSpotsCache[scope], scope);
+        } catch (err) {
+            console.error('Error loading weak spots:', err);
+            weakSpotsPanel.innerHTML = '<p class="weak-spots-empty">Could not load your weak spots. Please try again.</p>';
+        }
+    }
+
+    function renderWeakSpots(data, scope) {
+        weakSpotsPanel.innerHTML = "";
+        const groups = data.groups || [];
+        if (!groups.length) {
+            weakSpotsPanel.innerHTML = '<p class="weak-spots-empty">No missed items left to review.</p>';
+            return;
+        }
+
+        const title = document.createElement('p');
+        title.className = 'weak-spots-title';
+        title.textContent = scope === "module" ? "Your weak spots in this module" : "Your weak spots in this lesson";
+        const sub = document.createElement('p');
+        sub.className = 'weak-spots-sub';
+        sub.textContent = `${data.missed_total} missed item${data.missed_total === 1 ? '' : 's'}, grouped under the part of the lesson that teaches them.`;
+        weakSpotsPanel.append(title, sub);
+
+        groups.forEach((group) => {
+            const card = document.createElement('div');
+            card.className = 'weak-spot-group';
+
+            const from = document.createElement('p');
+            from.className = 'weak-spot-from' + (group.is_current_lesson ? '' : ' is-earlier');
+            from.textContent = (group.is_current_lesson && scope !== "module")
+                ? `This lesson · ${group.items.length} missed`
+                : `From ${group.lesson_title} · ${group.items.length} missed`;
+
+            const heading = document.createElement('p');
+            heading.className = 'weak-spot-heading';
+            heading.textContent = group.heading;
+
+            // The lesson part itself (admin-authored lesson HTML), made read-only
+            // exactly like the Content step.
+            const content = document.createElement('div');
+            content.className = 'weak-spot-content lesson-content-body';
+            content.innerHTML = group.html || '';
+            content.querySelectorAll('[contenteditable="true"]').forEach((el) => el.setAttribute('contenteditable', 'false'));
+            preparePageForLearner(content);
+
+            const list = document.createElement('div');
+            list.className = 'weak-spot-items';
+            group.items.forEach((item) => {
+                const row = document.createElement('div');
+                row.className = 'weak-spot-item';
+
+                const label = document.createElement('span');
+                label.className = 'weak-spot-item-label';
+                label.textContent = item.label;
+                const prompt = document.createElement('span');
+                prompt.className = 'weak-spot-item-prompt';
+                prompt.textContent = item.prompt;
+
+                const answers = document.createElement('div');
+                answers.className = 'weak-spot-item-answers';
+                const yours = document.createElement('code');
+                yours.textContent = item.your_answer || '-';
+                const correct = document.createElement('code');
+                correct.textContent = item.correct;
+                answers.append('Your answer: ', yours, '  ·  Correct: ', correct);
+
+                row.append(label, prompt, answers);
+                list.appendChild(row);
+            });
+
+            card.append(from, heading, content, list);
+            weakSpotsPanel.appendChild(card);
+        });
+    }
+
+    if (reviewLessonBtn) {
+        reviewLessonBtn.addEventListener('click', () => {
+            const target = stepOrder.some((s) => s.key === "content") ? "content"
+                : (stepOrder[0] ? stepOrder[0].key : null);
+            if (target) {
+                goToStep(target);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+        });
+    }
+    if (reviewWeakSpotsBtn) reviewWeakSpotsBtn.addEventListener('click', () => toggleWeakSpots("lesson"));
+    if (reviewModuleWeakSpotsBtn) reviewModuleWeakSpotsBtn.addEventListener('click', () => toggleWeakSpots("module"));
 
     // ---------------- Initial load ----------------
     async function loadLesson() {

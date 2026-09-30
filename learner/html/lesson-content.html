@@ -163,6 +163,17 @@
 
             <p class="summary-gate-note" id="summaryGateNote" hidden></p>
 
+            <!-- Below the pass %: review the lesson / weak spots (this lesson, or the whole module) -->
+            <div class="summary-review" id="summaryReview" hidden>
+                <p class="summary-review-note" id="summaryReviewNote"></p>
+                <div class="summary-review-actions">
+                    <button type="button" class="review-btn" id="reviewLessonBtn"><i class="fa-solid fa-book-open"></i> Review lesson</button>
+                    <button type="button" class="review-btn review-btn-accent" id="reviewWeakSpotsBtn" hidden><i class="fa-solid fa-crosshairs"></i> <span id="reviewWeakSpotsLabel">Review my weak spots</span></button>
+                    <button type="button" class="review-btn review-btn-accent" id="reviewModuleWeakSpotsBtn" hidden><i class="fa-solid fa-layer-group"></i> <span id="reviewModuleWeakSpotsLabel">Review module weak spots</span></button>
+                </div>
+                <div class="weak-spots-panel" id="weakSpotsPanel" hidden></div>
+            </div>
+
             <div class="stage-footer">
                 <button class="lesson-step-btn" id="summaryContinueBtn" disabled>Loading...</button>
             </div>
