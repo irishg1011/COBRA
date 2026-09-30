@@ -7,9 +7,11 @@ PASSED:
      in every lesson done, plus the lesson's own completion rules), and
   2. the AVERAGE of the lessons' performance % is at least PASS_PERCENT.
 
-Lesson performance % = (passed game items + coding exercise points)
-                       / (all game items + coding exercise test cases)
-where an item is "passed" if its first attempt was correct OR its first
+Lesson performance % = AVERAGE of each gradeable activity's own %
+  - each game:            passed items / its items
+  - the coding exercise:  test cases passed / its test cases
+so every activity weighs the same, whatever its item count. An item is
+"passed" if its first attempt was correct OR its first
 answer in a retake round was correct (see activity_retakes.py). Lessons
 with nothing gradeable (no items, no test cases) are left out of the
 average. A module with no published lessons passes automatically, so an
@@ -136,7 +138,8 @@ def lesson_performance(cursor, acc_id, resource_id):
     {"percent": int | None, "missed": int, "activities": {la_id: {"type", "missed", "total"}}}
     percent is None when the lesson has nothing gradeable.
     """
-    points, total, missed_total = 0, 0, 0
+    missed_total = 0
+    activity_percents = []  # one fraction (0..1) per gradeable activity
     activities = {}
     for act in _published_activities(cursor, resource_id):
         activity_type = act.get("activity_type_name") or ""
@@ -144,16 +147,19 @@ def lesson_performance(cursor, acc_id, resource_id):
             continue
         missed, item_total = missed_item_ids(cursor, acc_id, activity_type, act["la_id"])
         activities[act["la_id"]] = {"type": activity_type, "missed": len(missed), "total": item_total}
-        points += item_total - len(missed)
-        total += item_total
         missed_total += len(missed)
+        if item_total > 0:
+            activity_percents.append((item_total - len(missed)) / item_total)
 
     ex_points, ex_total = _exercise_points(cursor, acc_id, resource_id)
-    points += ex_points
-    total += ex_total
+    if ex_total > 0:
+        activity_percents.append(ex_points / ex_total)
 
     return {
-        "percent": round((points / total) * 100) if total > 0 else None,
+        "percent": (
+            round((sum(activity_percents) / len(activity_percents)) * 100)
+            if activity_percents else None
+        ),
         "missed": missed_total,
         "activities": activities,
     }

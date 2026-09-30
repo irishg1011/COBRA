@@ -69,6 +69,10 @@ def get_lesson_performance_summary(acc_id, resource_id):
         activities_out = []
         graded_points = 0.0
         graded_total = 0
+        # Lesson performance % = AVERAGE of each gradeable activity's own %
+        # (each game + the coding exercise weigh the same, whatever their
+        # item/test-case count) - same rule as module_performance.py.
+        activity_percents = []
 
         for row in activity_rows:
             la_id = row["la_id"]
@@ -104,6 +108,7 @@ def get_lesson_performance_summary(acc_id, resource_id):
             if item_total > 0:
                 graded_points += score
                 graded_total += item_total
+                activity_percents.append((score or 0) / item_total)
 
         exercise_out = None
         cursor.execute(
@@ -150,8 +155,12 @@ def get_lesson_performance_summary(acc_id, resource_id):
             if test_total > 0:
                 graded_points += points_earned
                 graded_total += test_total
+                activity_percents.append((points_earned or 0) / test_total)
 
-        performance_percent = round((graded_points / graded_total) * 100) if graded_total > 0 else None
+        performance_percent = (
+            round((sum(activity_percents) / len(activity_percents)) * 100)
+            if activity_percents else None
+        )
 
         cursor.close()
         return {

@@ -19,6 +19,8 @@ BY LESSON VIEW - SCORE
       - exercise (latest published, non-archived): full credit once a
         learner_exercise_progress_tbl row exists, otherwise the latest
         attempt's test_cases_passed
+      - Score % = AVERAGE of each gradeable activity's own % (each game
+        and the exercise weigh the same, whatever their item count)
       - lessons with nothing graded -> score None (shown as "—")
 
 BY LESSON VIEW - COMPLETION
@@ -283,6 +285,7 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
     activities = []
     graded_points = 0.0
     graded_total = 0
+    activity_percents = []  # one fraction (0..1) per gradeable activity
     activities_done = 0
 
     for act in lesson["activities"]:
@@ -304,6 +307,7 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         if act["item_total"] > 0:
             graded_points += score
             graded_total += act["item_total"]
+            activity_percents.append(score / act["item_total"])
 
     exercise = None
     exercise_done = False
@@ -326,8 +330,12 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         if ex["test_total"] > 0:
             graded_points += points
             graded_total += ex["test_total"]
+            activity_percents.append(points / ex["test_total"])
 
-    score_pct = round((graded_points / graded_total) * 100) if graded_total > 0 else None
+    score_pct = (
+        round((sum(activity_percents) / len(activity_percents)) * 100)
+        if activity_percents else None
+    )
 
     video_watched = row.get("video_watched_at") is not None
     content_read = row.get("content_read_at") is not None
