@@ -1,0 +1,256 @@
+/* ==========================================================================
+   EDITOR PREVIEW MODAL (admin-editor-preview.js)
+   Used by Preview Lesson / Preview Activity / Preview Exercise.
+   The modal shell itself reuses admin-style.css's .modal-overlay and
+   .content-preview-card / -header / -body. Lesson content styling
+   comes from admin-style.css's .lesson-content-body rules.
+
+   Activity + Exercise rules below are copied from the learner-side
+   lesson-activities.css / lesson-content.css (same values), scoped to
+   .editor-preview-body so they never touch the editor page itself.
+   ========================================================================== */
+
+/* ---------- Shell ---------- */
+.editor-preview-card {
+    max-width: 860px;
+}
+
+.editor-preview-hidden {
+    display: none !important;
+}
+
+.editor-preview-full-width {
+    grid-column: 1 / -1;
+}
+
+.editor-preview-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    background: #fffbeb;
+    border-bottom: 1px solid #fcd34d;
+    color: #92400e;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.editor-preview-notice i {
+    color: #d97706;
+}
+
+.editor-preview-empty {
+    color: #94a3b8;
+    font-style: italic;
+    text-align: center;
+    padding: 24px 0;
+    margin: 0;
+}
+
+/* ---------- Shared learner label ---------- */
+.editor-preview-body .lesson-step-eyebrow {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #16a34a;
+    margin: 0 0 16px;
+}
+
+/* ---------- Activity (from lesson-activities.css) ---------- */
+.editor-preview-body .activity-host {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 28px;
+}
+
+.editor-preview-body .editor-preview-activity + .editor-preview-activity {
+    margin-top: 16px;
+}
+
+.editor-preview-body .activity-progress-label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #16a34a;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0 0 10px;
+}
+
+.editor-preview-body .activity-question-text {
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 20px;
+    white-space: pre-wrap;
+}
+
+.editor-preview-body .activity-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.editor-preview-body .activity-option-btn {
+    text-align: left;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    color: #334155;
+    font-size: 14.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: default;
+}
+
+.editor-preview-body .activity-fillblank-input {
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    font-size: 14.5px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.editor-preview-body .editor-preview-flashcard {
+    min-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    cursor: pointer;
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+}
+
+.editor-preview-body .activity-flashcard-hint {
+    text-align: center;
+    font-size: 13px;
+    color: #94a3b8;
+    margin: 0;
+}
+
+/* ---------- Exercise (from lesson-content.css) ---------- */
+.editor-preview-body .exercise-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 14px;
+}
+
+.editor-preview-body .exercise-prompt {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+}
+
+.editor-preview-body .exercise-prompt p {
+    font-size: 14.5px;
+    color: #334155;
+    margin: 0 0 10px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.editor-preview-body .exercise-prompt p:last-child {
+    margin-bottom: 0;
+}
+
+.editor-preview-body .exercise-clue {
+    color: #64748b !important;
+    font-style: italic;
+}
+
+.editor-preview-body .exercise-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+    .editor-preview-body .exercise-editor-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.editor-preview-body .exercise-pane {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.editor-preview-body .exercise-pane-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #111827;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.editor-preview-body .exercise-run-btn {
+    background: #06b6d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    font-weight: 700;
+    font-family: inherit;
+}
+
+.editor-preview-body .exercise-code-box,
+.editor-preview-body .exercise-output-box {
+    padding: 14px;
+    font-family: monospace;
+    font-size: 13.5px;
+    color: #374151;
+    min-height: 160px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+}
+
+.editor-preview-body .exercise-output-box {
+    color: #64748b;
+}
+
+.editor-preview-body .lesson-step-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.editor-preview-body .lesson-step-btn {
+    padding: 12px 26px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    font-family: inherit;
+    border: none;
+    background: #16a34a;
+    color: #ffffff;
+}
+
+/* Disabled look for the view-only Run / Submit buttons */
+.editor-preview-body .exercise-run-btn:disabled,
+.editor-preview-body .lesson-step-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}

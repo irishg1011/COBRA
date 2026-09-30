@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/module-editor.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/upload-pages.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/editor-preview.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +51,7 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="page-header-actions">
-                            <button type="button" class="btn-pill-light">
+                            <button type="button" class="btn-pill-light" id="previewLessonBtn">
                                 <i class="fa-regular fa-eye"></i> Preview Lesson
                             </button>
                             <!-- feat/publishing-tree: Save never changes the status.
@@ -243,5 +244,6 @@
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/admin-editor-status.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource-draft-guard.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/admin-editor-preview.js') }}"></script>
 </body>
 </html>

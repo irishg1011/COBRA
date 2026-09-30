@@ -477,6 +477,20 @@
             isDirty = false;
         }
 
+        // Preview Activity (admin-editor-preview.js) reads these - the SAME
+        // dirty flag, the SAME checks Save uses, and the SAME collectors
+        // Save uses to read the questions / sentences / flashcards.
+        window.cobraByteActivityEditor = {
+            isDirty: () => isDirty,
+            validate: () => validateActivityForm(false),
+            collect: () => ({
+                type: activityTypeSelect ? activityTypeSelect.value : "",
+                questions: collectMultipleChoiceQuestions(),
+                fillBlanks: collectFillBlanks(),
+                flashcards: collectFlashcards(),
+            }),
+        };
+
         // Native warning for tab close / refresh / typed URL navigation.
         window.addEventListener("beforeunload", (e) => {
             if (!isDirty || isSubmitting) return;

@@ -180,6 +180,13 @@
             isDirty = false;
         }
 
+        // Preview Lesson (admin-editor-preview.js) reads these - the SAME
+        // dirty flag the leave warning uses, and the SAME checks Save uses.
+        window.cobraByteLessonEditor = {
+            isDirty: () => isDirty,
+            validate: () => validateResourceForm(false),
+        };
+
         // Native warning for tab close / refresh
         window.addEventListener("beforeunload", (e) => {
             if (!isDirty || isSubmitting) return;
