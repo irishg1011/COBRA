@@ -146,11 +146,26 @@ function refreshQuestionFieldTrackers(scopeEl) {
  * delete/remove action buttons (removeOptionRow, removeQuestionCard,
  * removeFillBlankCard, removeFlashcardCard).
  */
+/**
+ * Answer fields are saved exactly as the admin typed them (no casing
+ * normalization), since learner answers are checked case-sensitively -
+ * e.g. "def", "print()", "print("Hello!")" must stay untouched.
+ *   - Fill in the Blanks: Correct Answer
+ *   - Flashcards: Back Card
+ */
+function isExactAnswerField(el) {
+    const name = el.getAttribute('name') || '';
+    return /^fill_blanks\[\d+\]\[correct_answer\]$/.test(name) ||
+           /^flashcards\[\d+\]\[back\]$/.test(name);
+}
+
 function handleActivityFieldInput(e) {
     const el = e.target;
     if (!isGuardedActivityField(el)) return;
 
-    applyActivityFieldCasing(el);
+    if (!isExactAnswerField(el)) {
+        applyActivityFieldCasing(el);
+    }
     updateAddButtonsState();
 }
 

@@ -353,7 +353,7 @@ class FillBlanksActivityController(_SimpleItemController):
             return None
         return (
             format_display_name(content),
-            format_display_name(answer),
+            answer,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fb.get("correct_feedback") or fb.get("correctFeedback")),
             _fmt_optional(fb.get("incorrect_feedback") or fb.get("incorrectFeedback")),
         )
@@ -399,7 +399,7 @@ class FlashcardsActivityController(_SimpleItemController):
             return None
         return (
             format_display_name(front),
-            format_display_name(back),
+            back,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fc.get("correct_feedback") or fc.get("correctFeedback")),
             _fmt_optional(fc.get("incorrect_feedback") or fc.get("incorrectFeedback")),
         )
