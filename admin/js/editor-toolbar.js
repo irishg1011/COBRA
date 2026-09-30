@@ -44,6 +44,14 @@ document.addEventListener("DOMContentLoaded", function () {
     
     if (!editor || !form) return;
 
+    // Lessons saved before paste cleaning existed may still hold Word /
+    // website junk (hidden tags, styles) - clean it once on load. Console
+    // and Terminal blocks are left exactly as they are. Runs before the
+    // blocks are wired up below. See editor-paste-cleaner.js.
+    if (window.cobraBytePasteCleaner) {
+        window.cobraBytePasteCleaner.cleanEditorContent(editor);
+    }
+
     editor.addEventListener("focus", function () {
         if (editor.innerHTML.trim() === "") {
             const div = document.createElement("div");
@@ -1048,13 +1056,42 @@ function blockHasUserInput(wrapper) {
     // a web page, Google Docs or Canva otherwise drops their whole styled
     // HTML (spans, fonts, even other console blocks) into the code box -
     // heavy for the browser, wrong for code, and it breaks Run.
+    // Paste into the normal lesson text = cleaned by editor-paste-cleaner.js:
+    // simple formatting (bold, italic, underline, strikethrough, headings,
+    // lists, quotes, alignment) is kept; Word / website junk (hidden tags,
+    // styles, hidden characters) is removed. That junk is what showed up
+    // as bars at the end of each line and made the editor lag.
     editor.addEventListener("paste", function (e) {
         const target = e.target && e.target.nodeType === Node.ELEMENT_NODE ? e.target : e.target && e.target.parentElement;
-        const codeBox = target ? target.closest(".editor-console-box, .editor-terminal-box") : null;
-        if (!codeBox) return;
+        if (!target) return;
+        const clipboard = e.clipboardData || window.clipboardData;
+        if (!clipboard) return;
+
+        const codeBox = target.closest(".editor-console-box, .editor-terminal-box");
+        if (codeBox) {
+            e.preventDefault();
+            const text = clipboard.getData("text/plain") || "";
+            document.execCommand("insertText", false, text);
+            return;
+        }
+
+        // A code block's filename box (a normal <input>) pastes by itself;
+        // any other part of a block isn't editable.
+        if (target.closest("input, textarea, select")) return;
+        if (isWithinInteractiveBlock(target)) return;
+
+        const cleaner = window.cobraBytePasteCleaner;
+        if (!cleaner) return; // cleaner script missing - browser default paste
+
         e.preventDefault();
-        const text = (e.clipboardData || window.clipboardData).getData("text/plain") || "";
-        document.execCommand("insertText", false, text);
+        const html = clipboard.getData("text/html");
+        const cleanHtml = html
+            ? cleaner.cleanPastedHtml(html)
+            : cleaner.textToHtml(clipboard.getData("text/plain") || "");
+        if (!cleanHtml) return;
+
+        pushHistory(); // so Undo takes the whole paste back in one step
+        document.execCommand("insertHTML", false, cleanHtml);
     });
 
     // Proactive guard: prevents the common case (caret sitting directly

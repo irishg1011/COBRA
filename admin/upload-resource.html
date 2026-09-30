@@ -240,6 +240,7 @@
      on the Flask server; editor-toolbar.js only calls into this after
      the admin explicitly clicks Run. -->
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/editor-paste-cleaner.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/admin-editor-status.js') }}"></script>
