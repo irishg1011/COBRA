@@ -52,8 +52,10 @@ def format_display_name(value):
     if not trimmed:
         return ""
 
-    lowered = trimmed.lower()
-    return lowered[0].upper() + lowered[1:]
+    # First character uppercased; everything after it is kept exactly
+    # as typed (no forced lowercase) - "python on Windows" ->
+    # "Python on Windows", "VS Code basics" stays "VS Code basics".
+    return trimmed[0].upper() + trimmed[1:]
 
 
 def format_sentence_case(value):
@@ -71,9 +73,9 @@ def format_sentence_case(value):
 
     Rules:
         - The first alphabetic character in the string is capitalized.
-        - Every alphabetic character after that is lowercased, UNTIL a
-          '.' is encountered, at which point the next alphabetic
-          character is capitalized again (restarting the same rule).
+        - Every other character is kept exactly as typed (no forced
+          lowercase), EXCEPT the first letter after each '.', which is
+          capitalized again.
         - Every non-alphabetic character (spaces, digits, commas,
           question marks, exclamation marks, parentheses, hyphens,
           multiple/extra spaces, etc.) is left completely untouched -
@@ -120,8 +122,7 @@ def format_sentence_case(value):
             if ch.isalpha():
                 chars[i] = ch.upper()
                 capitalize_next_alpha = False
-        elif ch.isalpha():
-            chars[i] = ch.lower()
+        # Every other letter is kept exactly as typed (no forced lowercase).
 
         if ch == ".":
             capitalize_next_alpha = True

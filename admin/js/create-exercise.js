@@ -378,8 +378,8 @@ document.addEventListener('DOMContentLoaded', function () {
 ==================================================================== */
 function formatSentenceCaseLive(value) {
     if (!value) return value;
-    const lower = value.toLowerCase();
-    return lower.charAt(0).toUpperCase() + lower.slice(1);
+    // Only the first letter becomes capital - the rest stays as typed.
+    return value.replace(/^(\s*)(\S)/, (m, space, ch) => space + ch.toUpperCase());
 }
 
 function setupFieldCasingNormalization(elementOrId) {

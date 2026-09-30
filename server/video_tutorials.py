@@ -191,14 +191,13 @@ def _get_status_id(connection, name):
 
 
 def format_video_title(title):
-    """Sentence-case formatting, matching lesson_validation.
-    format_lesson_title() / coding_exercises.format_exercise_title()'s
-    exact convention."""
+    """First letter uppercase, everything after it kept exactly as
+    typed - same rule as lesson_validation.format_lesson_title() /
+    coding_exercises.format_exercise_title()."""
     cleaned = (title or "").strip()
     if not cleaned:
         return ""
-    lower = cleaned.lower()
-    return lower[0].upper() + lower[1:]
+    return cleaned[0].upper() + cleaned[1:]
 
 
 def validate_video_title(title):

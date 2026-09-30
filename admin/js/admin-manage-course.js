@@ -32,9 +32,8 @@
                     chars[i] = ch.toUpperCase();
                     capitalizeNextAlpha = false;
                 }
-            } else if (isAlpha(ch)) {
-                chars[i] = ch.toLowerCase();
             }
+            // Every other letter is kept exactly as typed (no forced lowercase).
             if (ch === ".") capitalizeNextAlpha = true;
         }
         return chars.join("");

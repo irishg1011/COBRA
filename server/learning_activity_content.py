@@ -187,7 +187,7 @@ class MCQActivityController:
         kept = set()
         for position, ((idx, opt), option_id) in enumerate(zip(incoming, matched)):
             letter = chr(65 + position)
-            text = format_display_name(opt.get("text").strip())
+            text = opt.get("text").strip()  # answer option - saved exactly as typed
             is_correct = 1 if correct_index == idx else 0
             raw_feedback = (opt.get("feedback") or "").strip()
             feedback = format_display_name(raw_feedback) if raw_feedback else None
@@ -352,7 +352,7 @@ class FillBlanksActivityController(_SimpleItemController):
         if not content or not answer:
             return None
         return (
-            format_display_name(content),
+            content,  # FIB sentence - saved exactly as typed (only trimmed)
             answer,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fb.get("correct_feedback") or fb.get("correctFeedback")),
             _fmt_optional(fb.get("incorrect_feedback") or fb.get("incorrectFeedback")),
@@ -398,7 +398,7 @@ class FlashcardsActivityController(_SimpleItemController):
         if not front or not back:
             return None
         return (
-            format_display_name(front),
+            front,  # flashcard front - saved exactly as typed (only trimmed)
             back,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fc.get("correct_feedback") or fc.get("correctFeedback")),
             _fmt_optional(fc.get("incorrect_feedback") or fc.get("incorrectFeedback")),

@@ -40,13 +40,24 @@ from cobradb import get_db_connection
 from text_formatting import format_display_name
 
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
+LR_STATS_TABLE = "learning_resources_stats_tbl"
+ARCHIVED_STATUS_NAME = "Archived"
+
+LESSON_TITLE_TAKEN_MESSAGE = (
+    "A lesson with this name already exists. Lesson names must be "
+    "unique across all categories and modules."
+)
+LESSON_TITLE_ARCHIVED_MESSAGE = (
+    "This name is used by an archived lesson. Restore it from Archived, "
+    "or use a different name."
+)
 
 
 def format_lesson_title(value):
     """
-    Normalizes a lesson title to sentence case - first character
-    uppercase, every other character lowercase, internal spacing left
-    untouched. Thin wrapper around text_formatting.format_display_name()
+    Normalizes a lesson title - first character uppercase, everything
+    after it kept exactly as typed ("python on Windows" ->
+    "Python on Windows"). Thin wrapper around text_formatting.format_display_name()
     so both "sentence case" rules (Category/Module names, and now Lesson
     names) share exactly one implementation rather than a second,
     divergent copy of the same logic.
@@ -118,6 +129,63 @@ def is_lesson_title_taken(title, exclude_resource_id=None):
             connection.close()
 
 
+def get_lesson_title_conflict(title, exclude_resource_id=None):
+    """
+    Same global, case-insensitive check as is_lesson_title_taken(), but
+    also says WHAT kind of lesson owns the name, so the message can tell
+    the admin when the name belongs to an archived lesson.
+
+    Returns:
+        False       - the title is free to use.
+        "active"    - a non-archived lesson already uses it.
+        "archived"  - only an archived lesson uses it.
+        None        - the check could not be performed (fail safe).
+    """
+    name = format_lesson_title(title)
+    if not name:
+        return None
+
+    connection = get_db_connection()
+    if connection is None:
+        return None
+
+    try:
+        cursor = connection.cursor()
+        query = (
+            f"""SELECT lrs.lr_stats_name
+                FROM {LEARNING_RESOURCES_TABLE} lr
+                LEFT JOIN {LR_STATS_TABLE} lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE LOWER(lr.resource_title) = LOWER(%s)"""
+        )
+        params = [name]
+        if exclude_resource_id:
+            query += " AND lr.resource_id != %s"
+            params.append(exclude_resource_id)
+        # A non-archived match wins over an archived one.
+        query += " ORDER BY (lrs.lr_stats_name = %s) ASC LIMIT 1"
+        params.append(ARCHIVED_STATUS_NAME)
+
+        cursor.execute(query, tuple(params))
+        row = cursor.fetchone()
+        cursor.close()
+        if row is None:
+            return False
+        return "archived" if row[0] == ARCHIVED_STATUS_NAME else "active"
+    except Error as e:
+        print(f"lesson_validation: failed to check lesson title conflict: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def lesson_title_taken_message(conflict):
+    """The error message for a get_lesson_title_conflict() result."""
+    if conflict == "archived":
+        return LESSON_TITLE_ARCHIVED_MESSAGE
+    return LESSON_TITLE_TAKEN_MESSAGE
+
+
 def validate_lesson_title(title, exclude_resource_id=None):
     """
     Combined required + format + global-uniqueness check, mirroring the
@@ -143,13 +211,10 @@ def validate_lesson_title(title, exclude_resource_id=None):
     if not normalized:
         return False, "Lesson name is required."
 
-    taken = is_lesson_title_taken(normalized, exclude_resource_id=exclude_resource_id)
-    if taken is None:
+    conflict = get_lesson_title_conflict(normalized, exclude_resource_id=exclude_resource_id)
+    if conflict is None:
         return False, "Could not verify lesson name uniqueness. Please try again."
-    if taken:
-        return False, (
-            "A lesson with this name already exists. Lesson names must be "
-            "unique across all categories and modules."
-        )
+    if conflict:
+        return False, lesson_title_taken_message(conflict)  
 
     return True, normalized

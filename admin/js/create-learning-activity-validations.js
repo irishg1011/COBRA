@@ -40,10 +40,10 @@
         }
 
         // Live casing normalization
+        // Only the first letter becomes capital - the rest stays as typed.
         function formatActivityTitleLive(value) {
             if (!value) return value;
-            const lower = value.toLowerCase();
-            return lower.charAt(0).toUpperCase() + lower.slice(1);
+            return value.replace(/^(\s*)(\S)/, (m, space, ch) => space + ch.toUpperCase());
         }
 
         activityTitleInput.addEventListener("input", () => {

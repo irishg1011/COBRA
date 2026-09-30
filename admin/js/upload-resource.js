@@ -91,6 +91,7 @@
 
         let lastCheckedValue = "";
         let lastCheckAvailable = true;
+        let lastCheckMessage = "";
         let debounceTimer = null;
 
         function showLessonNameError(message) {
@@ -107,10 +108,11 @@
             }
         }
 
+        // Only the first letter becomes capital - everything else stays
+        // exactly as typed (same rule as the server's format_lesson_title()).
         function formatLessonNameLive(value) {
             if (!value) return value;
-            const lower = value.toLowerCase();
-            return lower.charAt(0).toUpperCase() + lower.slice(1);
+            return value.replace(/^(\s*)(\S)/, (m, space, ch) => space + ch.toUpperCase());
         }
 
         lessonNameInput.addEventListener("input", () => {
@@ -157,6 +159,7 @@
                 }
 
                 lastCheckAvailable = !!result.available;
+                lastCheckMessage = result.message || "";
 
                 if (!result.available) {
                     showLessonNameError(result.message || "A lesson with this name already exists.");
@@ -186,7 +189,7 @@
 
                 if (value === lastCheckedValue && !lastCheckAvailable) {
                     e.preventDefault();
-                    showLessonNameError("A lesson with this name already exists. Lesson names must be unique across all categories and modules.");
+                    showLessonNameError(lastCheckMessage || "A lesson with this name already exists. Lesson names must be unique across all categories and modules.");
                     lessonNameInput.focus();
                 }
             });

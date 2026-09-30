@@ -38,7 +38,7 @@ Saving a Published lesson keeps it live - the Publishing page marks it
 
 from mysql.connector import Error
 from cobradb import get_db_connection
-from lesson_validation import format_lesson_title, is_lesson_title_taken
+from lesson_validation import format_lesson_title, get_lesson_title_conflict, lesson_title_taken_message
 from validators import validate_title_length  # feat/title-char-limit
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 from resource_publishing import get_draft_status_id
@@ -267,14 +267,11 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
         # Task #42's exact global-uniqueness rule, just excluding this
         # resource's own row when re-saving an existing draft so a
         # lesson doesn't collide with itself.
-        taken = is_lesson_title_taken(normalized_name, exclude_resource_id=existing_id)
-        if taken is None:
+        conflict = get_lesson_title_conflict(normalized_name, exclude_resource_id=existing_id)
+        if conflict is None:
             return False, "Could not verify lesson name uniqueness. Please try again.", None
-        if taken:
-            return False, (
-                "A lesson with this name already exists. Lesson names must be "
-                "unique across all categories and modules."
-            ), None
+        if conflict:
+            return False, lesson_title_taken_message(conflict), None
 
         cursor = connection.cursor()
 

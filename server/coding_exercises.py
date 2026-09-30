@@ -87,14 +87,13 @@ def ensure_exercise_stats(connection):
 
 def format_exercise_title(title: str) -> str:
     """
-    Task #69: Sentence-case formatting for exercise titles -
-    first letter uppercase, rest lowercase.
+    Task #69: Exercise title formatting - first letter uppercase,
+    everything after it kept exactly as typed.
     """
     cleaned = (title or "").strip()
     if not cleaned:
         return ""
-    lower = cleaned.lower()
-    return lower[0].upper() + lower[1:]
+    return cleaned[0].upper() + cleaned[1:] 
 
 
 def is_exercise_title_taken(title: str, exclude_exercise_id=None):
