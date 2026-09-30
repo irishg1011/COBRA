@@ -223,9 +223,23 @@ def get_resources_by_module(module_id):
 # ================================================================
 # Task #37, #39, #40 & #43: LEARNING RESOURCES OVERVIEW (table data)
 # ================================================================
+# ------------------------------------------------------------------
+# Sort dropdown - same safe pattern as manage_course.MODULE_SORT_CLAUSES:
+# the dropdown value only ever picks one of these fixed ORDER BY
+# clauses, never built from raw input. resource_id is the tiebreaker.
+# ------------------------------------------------------------------
+LR_SORT_CLAUSES = {
+    "created_asc": "lr.created_at ASC, lr.resource_id ASC",
+    "created_desc": "lr.created_at DESC, lr.resource_id DESC",
+    "updated_desc": "lr.updated_at DESC, lr.resource_id DESC",
+}
+DEFAULT_LR_SORT_KEY = "created_asc"  # Oldest First - first made shows first
+
+
 def get_learning_resources_overview(search_query=None, type_filter=None, page=1, per_page=8,
                                      created_from=None, created_to=None,
-                                     updated_from=None, updated_to=None):
+                                     updated_from=None, updated_to=None,
+                                     sort_by=None):
     """
     Pulls a page of learning_resources_tbl, LEFT JOINed against
     category_tbl, resource_types_tbl, profile_tbl (uploader),
@@ -369,6 +383,10 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
         page = min(page, total_pages)
         offset = (page - 1) * per_page
 
+        # Sort - only ever one of the fixed LR_SORT_CLAUSES entries.
+        sort_key = (sort_by or "").strip().lower()
+        order_clause = LR_SORT_CLAUSES.get(sort_key, LR_SORT_CLAUSES[DEFAULT_LR_SORT_KEY])
+
         cursor.execute(
             f"""
             SELECT
@@ -395,7 +413,7 @@ def get_learning_resources_overview(search_query=None, type_filter=None, page=1,
                       AND (vts.la_stats_name IS NULL OR vts.la_stats_name != 'Archived')
                     ORDER BY vt.video_tutorial_id DESC LIMIT 1) AS video_status
             {base_query}
-            ORDER BY lr.created_at ASC, lr.resource_id ASC
+            ORDER BY {order_clause}
             LIMIT %s OFFSET %s
             """,
             tuple(params) + (per_page, offset)

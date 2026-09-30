@@ -2212,6 +2212,7 @@ def learning_resources():
     overview = get_learning_resources_overview(
         created_from=created_from, created_to=created_to,
         updated_from=updated_from, updated_to=updated_to,
+        sort_by=request.args.get('sort', ''),
     )
     if overview is None:
         # DB unreachable - render with an empty list rather than
@@ -2228,6 +2229,7 @@ def learning_resources():
         page=overview["page"],
         total_pages=overview["total_pages"],
         resource_types=get_resource_types(),
+        sort=request.args.get('sort', ''),  # keeps the Sort dropdown's choice on reload
         created_from=created_from or '',
         created_to=created_to or '',
         updated_from=updated_from or '',
@@ -2290,6 +2292,7 @@ def learning_resources_data():
         search_query=search, type_filter=type_filter, page=page,
         created_from=created_from, created_to=created_to,
         updated_from=updated_from, updated_to=updated_to,
+        sort_by=request.args.get('sort', ''),
     )
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500

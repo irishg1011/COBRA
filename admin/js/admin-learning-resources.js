@@ -43,6 +43,7 @@
     document.addEventListener("DOMContentLoaded", () => {
         const searchInput = document.getElementById("resourceSearchInput");
         const typeSelect = document.getElementById("resourceTypeSelect");
+        const sortSelect = document.getElementById("resourceSortSelect");
         const tableBody = document.getElementById("resourcesTableBody");
         const showingCount = document.getElementById("resourcesShowingCount");
         const pageLabel = document.getElementById("resourcesPageLabel");
@@ -636,6 +637,7 @@
             // what get_learning_resources_overview() treats as "no
             // type filter".
             if (typeSelect && typeSelect.value) params.set("type", typeSelect.value);
+            if (sortSelect && sortSelect.value) params.set("sort", sortSelect.value);
 
             // Task #40: only ever sent when the admin actually picked a
             // "from" value - see getEffectiveDateRange() above.
@@ -722,6 +724,7 @@
         // preserving whatever is currently in the search box and the
         // date filters.
         if (typeSelect) typeSelect.addEventListener("change", () => scheduleLoad(true));
+        if (sortSelect) sortSelect.addEventListener("change", () => scheduleLoad(true));
 
         // feat/module-title-history: a reverted name shows up right away.
         document.addEventListener("cobra:title-changed", () => loadResources());

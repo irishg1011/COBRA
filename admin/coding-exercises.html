@@ -71,6 +71,14 @@
                                 {% endfor %}
                             </select>
 
+                            <!-- Sort - admin-coding-exercises.js already reads #exerciseSortSelect.
+                                 Oldest First (first made shows first) is the default. -->
+                            <select class="custom-select" id="exerciseSortSelect">
+                                <option value="created_asc" {{ 'selected' if sort|default('') in ('', 'created_asc') }}>Oldest First</option>
+                                <option value="created_desc" {{ 'selected' if sort|default('') == 'created_desc' }}>Newest First</option>
+                                <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Recently Updated</option>
+                            </select>
+
                             <div class="date-filter-group" id="exerciseCreatedDateGroup">
                                 <span class="date-filter-label">Created At</span>
                                 <input type="date" class="custom-select" id="exerciseCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">

@@ -84,6 +84,13 @@
                                 {% endfor %}
                             </select>
 
+                            <!-- Sort - Oldest First (first made shows first) is the default -->
+                            <select class="custom-select" id="resourceSortSelect">
+                                <option value="created_asc" {{ 'selected' if sort|default('') in ('', 'created_asc') }}>Oldest First</option>
+                                <option value="created_desc" {{ 'selected' if sort|default('') == 'created_desc' }}>Newest First</option>
+                                <option value="updated_desc" {{ 'selected' if sort|default('') == 'updated_desc' }}>Recently Updated</option>
+                            </select>
+
                             <!--
                                 Task #40: Created At / Updated At date
                                 filters. Each is a single date picker by
