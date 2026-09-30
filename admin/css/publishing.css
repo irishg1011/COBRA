@@ -549,3 +549,128 @@
 .publishing-empty.publishing-load-error {
     color: #B91C1C;
 }
+
+/* ==========================================================================
+   feat/publishing-tree: checklists (Mark all ready / Publish... / "+" in
+   the Ready and Published tabs). Opens under the button, right-aligned.
+   ========================================================================== */
+.publishing-row-actions {
+    position: relative;
+}
+
+.publishing-toolbar-buttons .is-hidden {
+    display: none;
+}
+
+.resource-edit-menu.publishing-popover.publishing-plus-menu,
+.resource-edit-menu.publishing-popover.publishing-checklist {
+    left: auto;
+    right: 0;
+    top: 32px;
+}
+
+.resource-edit-menu.publishing-popover.publishing-checklist {
+    width: 340px;
+    padding: 12px;
+    background: #ffffff;
+    border: 1px solid #D1D5DB;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+    color: var(--admin-text);
+    font-weight: 400;
+}
+
+.publishing-check-title {
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.publishing-check-list {
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.publishing-check-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 4px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.publishing-check-item:hover {
+    background: #F3F4F6;
+}
+
+.publishing-check-item.is-disabled {
+    cursor: not-allowed;
+    color: #9CA3AF;
+}
+
+.publishing-check-item.is-disabled:hover {
+    background: none;
+}
+
+.publishing-check-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.publishing-check-note {
+    flex: none;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.publishing-check-note.is-blocked {
+    color: #B45309;
+}
+
+.publishing-check-empty {
+    padding: 8px 4px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.publishing-check-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #E5E7EB;
+}
+
+.publishing-check-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--admin-muted);
+    cursor: pointer;
+}
+
+.publishing-check-item input,
+.publishing-check-all input {
+    width: 15px;
+    height: 15px;
+    flex: none;
+}
+
+.publishing-check-item input:focus-visible,
+.publishing-check-all input:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+.publishing-check-footer .publishing-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

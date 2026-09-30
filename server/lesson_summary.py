@@ -176,9 +176,15 @@ def get_next_lesson_info(resource_id):
     Figures out what "Continue" should lead to after this lesson's
     summary: the next lesson in the same module, else the first lesson
     of the next module in the same chapter, else the first lesson of the
-    next chapter, else the end of the course. Ordering follows the same
-    ascending-ID convention already used everywhere else in this
-    codebase (learner_routes.py's own queries).
+    next chapter, else the end of the course.
+
+    feat/publishing-tree:
+      - only PUBLISHED lessons in PUBLISHED modules and chapters count
+        (the same things the Learning Map / Lessons page show), so
+        "Continue" never points at something a learner can't open;
+      - the order is the admin's Edit Order (display_order, then id) -
+        the same order the Learning Map uses. It used to go by id, so
+        after a reorder "next" could jump to the wrong lesson.
 
     Returns one of:
         {"type": "lesson", "resource_id": int, "resource_title": str}
@@ -192,81 +198,41 @@ def get_next_lesson_info(resource_id):
 
     try:
         cursor = connection.cursor(dictionary=True)
-
         cursor.execute(
-            "SELECT resource_id, module_id FROM learning_resources_tbl WHERE resource_id = %s",
-            (resource_id,)
+            """SELECT lr.resource_id, lr.resource_title, m.module_id, c.cat_id, c.category_name
+               FROM learning_resources_tbl lr
+               JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+               JOIN modules_tbl m ON lr.module_id = m.module_id
+               JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+               JOIN category_tbl c ON m.cat_id = c.cat_id
+               JOIN category_stats_tbl cs ON c.cat_stats_id = cs.cat_stats_id
+               WHERE lrs.lr_stats_name = 'Published'
+                 AND ms.module_stats_name = 'Published'
+                 AND cs.cat_stats_name = 'Published'
+                 AND COALESCE(m.is_archived, 0) = 0
+                 AND COALESCE(c.is_archived, 0) = 0
+               ORDER BY COALESCE(c.display_order, 999999), c.cat_id,
+                        COALESCE(m.display_order, 999999), m.module_id,
+                        COALESCE(lr.display_order, 999999), lr.resource_id"""
         )
-        current = cursor.fetchone()
-        if not current:
-            cursor.close()
-            return None
-        module_id = current["module_id"]
-
-        cursor.execute("SELECT cat_id FROM modules_tbl WHERE module_id = %s", (module_id,))
-        module_row = cursor.fetchone()
-        cat_id = module_row["cat_id"] if module_row else None
-
-        # 1. Next lesson in the SAME module
-        cursor.execute(
-            """SELECT resource_id, resource_title FROM learning_resources_tbl
-               WHERE module_id = %s AND resource_id > %s ORDER BY resource_id ASC LIMIT 1""",
-            (module_id, resource_id)
-        )
-        next_in_module = cursor.fetchone()
-        if next_in_module:
-            cursor.close()
-            return {"type": "lesson", "resource_id": next_in_module["resource_id"], "resource_title": next_in_module["resource_title"]}
-
-        # 2. First lesson of the NEXT module in the same chapter
-        cursor.execute(
-            """SELECT module_id FROM modules_tbl
-               WHERE cat_id = %s AND module_id > %s AND is_archived = 0
-               ORDER BY module_id ASC LIMIT 1""",
-            (cat_id, module_id)
-        )
-        next_module = cursor.fetchone()
-        if next_module:
-            cursor.execute(
-                "SELECT resource_id, resource_title FROM learning_resources_tbl WHERE module_id = %s ORDER BY resource_id ASC LIMIT 1",
-                (next_module["module_id"],)
-            )
-            first_resource = cursor.fetchone()
-            if first_resource:
-                cursor.close()
-                return {"type": "lesson", "resource_id": first_resource["resource_id"], "resource_title": first_resource["resource_title"]}
-
-        # 3. First lesson of the NEXT chapter
-        cursor.execute(
-            "SELECT cat_id, category_name FROM category_tbl WHERE cat_id > %s AND is_archived = 0 ORDER BY cat_id ASC LIMIT 1",
-            (cat_id,)
-        )
-        next_cat = cursor.fetchone()
-        if next_cat:
-            cursor.execute(
-                "SELECT module_id FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 ORDER BY module_id ASC LIMIT 1",
-                (next_cat["cat_id"],)
-            )
-            first_module = cursor.fetchone()
-            if first_module:
-                cursor.execute(
-                    "SELECT resource_id, resource_title FROM learning_resources_tbl WHERE module_id = %s ORDER BY resource_id ASC LIMIT 1",
-                    (first_module["module_id"],)
-                )
-                first_resource = cursor.fetchone()
-                if first_resource:
-                    cursor.close()
-                    return {
-                        "type": "chapter",
-                        "resource_id": first_resource["resource_id"],
-                        "resource_title": first_resource["resource_title"],
-                        "cat_id": next_cat["cat_id"],
-                        "category_name": next_cat["category_name"],
-                    }
-
+        course = cursor.fetchall()
         cursor.close()
-        return {"type": "end"}
-    except Error as e:
+
+        position = next((i for i, row in enumerate(course) if row["resource_id"] == int(resource_id)), None)
+        if position is None or position + 1 >= len(course):
+            return {"type": "end"}
+
+        current, following = course[position], course[position + 1]
+        if following["cat_id"] != current["cat_id"]:
+            return {
+                "type": "chapter",
+                "resource_id": following["resource_id"],
+                "resource_title": following["resource_title"],
+                "cat_id": following["cat_id"],
+                "category_name": following["category_name"],
+            }
+        return {"type": "lesson", "resource_id": following["resource_id"], "resource_title": following["resource_title"]}
+    except (Error, TypeError, ValueError) as e:
         print(f"lesson_summary: failed to compute next lesson for resource_id={resource_id}: {e}")
         return None
     finally:

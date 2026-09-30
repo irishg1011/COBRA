@@ -1,4 +1,6 @@
-<!-- admin/create-category-modal.html
+<!-- feat/publishing-tree: novalidate - empty fields get the red border + popup
+     (admin-publishing.js / admin-manage-course.js), not the browser bubble.
+     admin/create-category-modal.html
      Task #87: Standalone Create Category Modal - replaces the drawer-based
      category creation inside the categories modal. Opens directly from the
      "+ Category" header button or "+ Add Category" triggers. Includes a
@@ -15,7 +17,7 @@
             <p>Enter a name for the new category.</p>
         </div>
 
-        <form id="createCategoryForm">
+        <form id="createCategoryForm" novalidate>
             <div class="form-group">
                 <label for="newCategoryName">Category Name</label>
                 <input type="text" id="newCategoryName" placeholder="New Category Name" maxlength="{{ title_limits.category }}" required>

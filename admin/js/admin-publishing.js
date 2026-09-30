@@ -13,9 +13,18 @@
  *         Draft tab      Mark ready  (+ Mark all ready when Drafts are inside)
  *         Ready tab      Publish (publishes everything Ready inside too), Move to Draft
  *         Published tab  Update (only when edited after publishing), Unpublish
- *   - "+" on chapters / modules / lessons opens the right editor with the
- *     parent already chosen and locked; "+ Chapter" / "+ Module" and the
- *     chapter / module Edit open modals right on this page.
+ *   - "+" depends on the tab:
+ *         Draft      create something new inside (editor opens with the
+ *                    parent chosen and locked; + Module is a modal here)
+ *         Ready      checklist of the item's Draft children -> mark ready
+ *         Published  checklist of the item's Ready children -> publish
+ *     "Mark all ready" (Draft) and "Publish" on an item with Ready
+ *     children (Ready) open the same checklist, the item itself included.
+ *     Each checked child brings its own insides along. One transaction:
+ *     POST /admin/publishing/checklist.
+ *   - Empty chapters/modules (no lesson) can't be marked ready, and a
+ *     chapter/module can't go live unless a lesson inside goes live too.
+ *   - "+ Chapter" (Draft tab only) and chapter / module Edit are modals.
  *   - Click a name: Edit / Preview / Name history.
  *
  * Edit Order mode (drag handle + arrows, Save / Cancel) is unchanged.
@@ -200,6 +209,75 @@
             }, 0);
         }
 
+        // feat/publishing-tree: "empty" rules, mirrored from publishing_actions.py
+        // (the server checks them again - these only pick the right button/note).
+        function lessonsUnder(node, statuses) {
+            if (typeOf(node.id) === "res") return 1;
+            return kidsOf(node).reduce((sum, k) => {
+                if (typeOf(k.id) === "res") return sum + (!statuses || statuses.includes(k.status) ? 1 : 0);
+                return sum + (["cat", "mod"].includes(typeOf(k.id)) ? lessonsUnder(k, statuses) : 0);
+            }, 0);
+        }
+
+        // Would publishing this module/chapter leave a lesson live inside it?
+        function canGoLive(node) {
+            const t = typeOf(node.id);
+            if (t === "mod") return lessonsUnder(node, ["Ready to Publish", "Published"]) > 0;
+            if (t === "cat") {
+                return (node.children || []).some((m) =>
+                    ["Ready to Publish", "Published"].includes(m.status) &&
+                    lessonsUnder(m, ["Ready to Publish", "Published"]) > 0);
+            }
+            return true;
+        }
+
+        function emptyNote(node) {
+            const t = typeOf(node.id);
+            if (!["cat", "mod"].includes(t) || lessonsUnder(node) > 0) return null;
+            return t === "cat" ? "Add a module with a lesson first" : "Add a lesson first";
+        }
+
+        // Children a checklist can offer: Draft ones (mark modes) or Ready ones (publish modes).
+        const CHECKLIST_MODES = {
+            "mark-all":     { action: "mark-ready", childStatus: "Draft", includeParent: true },
+            "add-ready":    { action: "mark-ready", childStatus: "Draft", includeParent: false },
+            "publish-with": { action: "publish", childStatus: "Ready to Publish", includeParent: true },
+            "add-publish":  { action: "publish", childStatus: "Ready to Publish", includeParent: false },
+        };
+
+        function checklistChildren(node, mode) {
+            const cfg = CHECKLIST_MODES[mode];
+            return kidsOf(node).filter((k) => k.status === cfg.childStatus).map((k) => {
+                const t = typeOf(k.id);
+                let blocked = null;
+                let note = "";
+                if (cfg.action === "mark-ready") {
+                    if (["cat", "mod"].includes(t)) {
+                        const n = lessonsUnder(k);
+                        blocked = n ? null : "no lessons yet";
+                        note = n ? `${n} lesson${n === 1 ? "" : "s"} inside` : "";
+                    } else if (t === "res") {
+                        const n = countInside(k, "Draft");
+                        note = n ? `+ ${n} inside` : "";
+                    }
+                } else {
+                    if (t === "mod") {
+                        const n = lessonsUnder(k, ["Ready to Publish"]);
+                        blocked = canGoLive(k) ? null : "no ready lessons";
+                        note = n ? `${n} ready lesson${n === 1 ? "" : "s"}` : "";
+                    } else if (t === "res") {
+                        const n = countInside(k, "Ready to Publish");
+                        note = n ? `+ ${n} inside` : "";
+                    }
+                }
+                return { node: k, blocked, note };
+            });
+        }
+
+        function hasChecklistChoices(node, mode) {
+            return checklistChildren(node, mode).some((c) => !c.blocked);
+        }
+
         function matchesTab(node) {
             if (editOrder) {
                 // Edit Order shows Ready + Published together, never Draft, no leaves.
@@ -296,23 +374,141 @@
 
             if (activeTab === "draft") {
                 if (parent && parent.status === "Draft") return note(`Mark its ${parentLabel} ready first`);
+                const empty = emptyNote(node);
+                if (empty) return note(empty);
                 let html = "";
-                if (hasStatusInside(node, "Draft")) html += btn("mark-all-ready", node, "Mark all ready", "btn-pub-ghost");
+                if (hasChecklistChoices(node, "mark-all")) {
+                    html += btn("checklist", node, "Mark all ready...", "btn-pub-ghost", 'data-mode="mark-all"');
+                }
                 return html + btn("mark-ready", node, "Mark ready", "btn-ready-custom");
             }
 
             if (activeTab === "ready") {
+                // Checked first: an empty module never goes live, not even with its chapter.
+                if (!canGoLive(node)) {
+                    const move = parent && parent.status !== "Published" && parent.status !== "Ready to Publish"
+                        ? "" : btn("move-to-draft", node, "Move to Draft", "btn-pub-ghost");
+                    return move + note("No Ready to Publish lessons inside");
+                }
                 if (parent && parent.status === "Ready to Publish") return note(`Goes live with its ${parentLabel}`);
                 if (parent && parent.status !== "Published") return note(`Its ${parentLabel} is still ${parent.status}`);
-                const inside = countPublishable(node);
-                const label = inside ? `Publish + ${inside} inside` : "Publish";
-                return btn("move-to-draft", node, "Move to Draft", "btn-pub-ghost") +
-                    btn("publish", node, label, "btn-success-custom");
+                let html = btn("move-to-draft", node, "Move to Draft", "btn-pub-ghost");
+                if (hasChecklistChoices(node, "publish-with")) {
+                    return html + btn("checklist", node, "Publish...", "btn-success-custom", 'data-mode="publish-with"');
+                }
+                return html + btn("publish", node, "Publish", "btn-success-custom");
             }
 
             let html = "";
             if (node.edited) html += btn("confirm-update", node, "Update", "btn-pub-update");
             return html + btn("unpublish", node, "Unpublish", "btn-unpublish-custom");
+        }
+
+        // The checklist popover (Mark all ready / Publish... / "+" in Ready and Published tabs)
+        function checklistHtml(node, mode) {
+            const cfg = CHECKLIST_MODES[mode];
+            const rows = checklistChildren(node, mode);
+            const checked = openMenu.checked;
+            const titles = {
+                "mark-all": `Mark "${node.name}" ready, with:`,
+                "add-ready": "Mark ready from Draft",
+                "publish-with": `Publish "${node.name}", with:`,
+                "add-publish": "Publish from Ready to Publish",
+            };
+            const items = rows.length
+                ? rows.map((row) => {
+                    const t = typeOf(row.node.id);
+                    const disabled = !!row.blocked;
+                    const isChecked = !disabled && checked.has(row.node.id);
+                    const side = row.blocked
+                        ? `<small class="publishing-check-note is-blocked">${escapeHtml(row.blocked)}</small>`
+                        : (row.note ? `<small class="publishing-check-note">${escapeHtml(row.note)}</small>` : "");
+                    return `<label class="publishing-check-item${disabled ? " is-disabled" : ""}">
+                        <input type="checkbox" class="js-check-item" data-id="${row.node.id}" ${isChecked ? "checked" : ""} ${disabled ? "disabled" : ""}>
+                        <span class="publishing-tag ${TAG[t][1]}">${TAG[t][0]}</span>
+                        <span class="publishing-check-name">${escapeHtml(row.node.name)}</span>
+                        ${side}
+                    </label>`;
+                }).join("")
+                : `<p class="publishing-check-empty">${cfg.childStatus === "Draft" ? "Nothing in Draft here." : "Nothing Ready to Publish here."}</p>`;
+
+            const selectable = rows.filter((r) => !r.blocked).length;
+            const selectAll = selectable > 1
+                ? `<label class="publishing-check-all"><input type="checkbox" class="js-check-all" ${[...checked].length === selectable ? "checked" : ""}> Select all</label>`
+                : "<span></span>";
+            return `<div class="resource-edit-menu publishing-popover publishing-checklist" role="dialog" aria-label="${escapeHtml(titles[mode])}">
+                <p class="publishing-check-title">${escapeHtml(titles[mode])}</p>
+                <div class="publishing-check-list">${items}</div>
+                <div class="publishing-check-footer">
+                    ${selectAll}
+                    <button type="button" class="btn publishing-action-btn ${cfg.action === "publish" ? "btn-success-custom" : "btn-ready-custom"} js-check-confirm" data-id="${node.id}">${escapeHtml(checklistButtonLabel(mode, checked.size))}</button>
+                </div>
+            </div>`;
+        }
+
+        function checklistButtonLabel(mode, count) {
+            const cfg = CHECKLIST_MODES[mode];
+            const total = count + (cfg.includeParent ? 1 : 0);
+            return cfg.action === "publish" ? `Publish ${total}` : `Mark ${total} ready`;
+        }
+
+        function openChecklist(node, mode) {
+            const checked = new Set(checklistChildren(node, mode).filter((c) => !c.blocked).map((c) => c.node.id));
+            openMenu = { id: node.id, kind: "checklist", mode, checked };
+            renderTree();
+        }
+
+        function refreshChecklistFooter() {
+            if (!openMenu || openMenu.kind !== "checklist") return;
+            const btnEl = root.querySelector(".js-check-confirm");
+            if (btnEl) {
+                btnEl.textContent = checklistButtonLabel(openMenu.mode, openMenu.checked.size);
+                const cfg = CHECKLIST_MODES[openMenu.mode];
+                btnEl.disabled = !cfg.includeParent && openMenu.checked.size === 0;
+            }
+            const all = root.querySelector(".js-check-all");
+            if (all) {
+                const boxes = root.querySelectorAll(".js-check-item:not(:disabled)");
+                all.checked = boxes.length > 0 && [...boxes].every((b) => b.checked);
+            }
+        }
+
+        async function submitChecklist(node) {
+            const cfg = CHECKLIST_MODES[openMenu.mode];
+            const items = [...openMenu.checked].map((id) => ({ kind: KIND[typeOf(id)], id: numId(id) }));
+            const send = async () => {
+                try {
+                    const resp = await fetch("/admin/publishing/checklist", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action: cfg.action,
+                            parent: { kind: KIND[typeOf(node.id)], id: numId(node.id) },
+                            include_parent: cfg.includeParent,
+                            items,
+                        }),
+                    });
+                    const result = await resp.json().catch(() => ({ success: false }));
+                    if (!result.success) {
+                        showAlertModal(result.message || "Nothing was changed.", "Not Changed");
+                        return;
+                    }
+                    openMenu = null;
+                    showToast(result.message || "Done.");
+                    await refreshTree();
+                } catch (err) {
+                    showAlertModal("Could not reach the server. Please try again.", "Error");
+                }
+            };
+            if (cfg.action === "publish") {
+                const total = items.length + (cfg.includeParent ? 1 : 0);
+                showConfirmModal(
+                    `Publish ${total} item${total === 1 ? "" : "s"} (plus whatever is Ready to Publish inside them)? Learners will see them right away.`,
+                    send, "Publish?");
+            } else {
+                send();
+            }
         }
 
         function nameMenuHtml(node) {
@@ -390,9 +586,21 @@
                 ? `<span class="publishing-name-static">${escapeHtml(node.name)}</span>`
                 : `<button type="button" class="publishing-name-btn js-pub-name" data-id="${node.id}" aria-haspopup="menu" aria-expanded="${nameMenuOpen}">${escapeHtml(node.name)}</button>${nameMenuOpen ? nameMenuHtml(node) : ""}`;
 
-            const canAdd = !editOrder && ["cat", "mod", "res"].includes(t);
-            const plusHtml = canAdd
-                ? `<div class="publishing-plus-wrap"><button type="button" class="publishing-plus-btn js-pub-plus" data-id="${node.id}" aria-label="Add inside ${escapeHtml(node.name)}" aria-haspopup="menu" aria-expanded="${plusMenuOpen}" title="Add inside"><i class="fa-solid fa-plus"></i></button>${plusMenuOpen ? plusMenuHtml(node) : ""}</div>`
+            // "+" per tab: Draft = create new; Ready = pick Draft children to
+            // mark ready; Published = pick Ready children to publish. Only
+            // shown where there is something to add.
+            let plusMode = null;
+            if (!editOrder && ["cat", "mod", "res"].includes(t)) {
+                if (activeTab === "draft") plusMode = "create";
+                else if (activeTab === "ready" && ["Ready to Publish", "Published"].includes(node.status)
+                         && kidsOf(node).some((k) => k.status === "Draft")) plusMode = "add-ready";
+                else if (activeTab === "published" && node.status === "Published"
+                         && kidsOf(node).some((k) => k.status === "Ready to Publish")) plusMode = "add-publish";
+            }
+            const checklistOpen = !!(openMenu && openMenu.id === node.id && openMenu.kind === "checklist");
+            const plusTitle = plusMode === "create" ? "Add inside" : plusMode === "add-ready" ? "Mark Draft items inside ready" : "Publish Ready items inside";
+            const plusHtml = plusMode
+                ? `<button type="button" class="publishing-plus-btn js-pub-plus" data-id="${node.id}" data-mode="${plusMode}" aria-label="${escapeHtml(plusTitle)}: ${escapeHtml(node.name)}" aria-haspopup="menu" aria-expanded="${plusMenuOpen || checklistOpen}" title="${escapeHtml(plusTitle)}"><i class="fa-solid fa-plus"></i></button>${plusMenuOpen ? plusMenuHtml(node) : ""}`
                 : "";
 
             const dragAttr = editOrder ? `data-draggable-row="${node.id}"` : "";
@@ -404,7 +612,7 @@
                     <div class="publishing-name-wrap">${nameHtml}</div>
                     ${badgeHtml(node)}
                     <div class="publishing-spacer"></div>
-                    <div class="publishing-row-actions">${actionsHtml(node)}${plusHtml}</div>
+                    <div class="publishing-row-actions">${actionsHtml(node)}${plusHtml}${checklistOpen ? checklistHtml(node, openMenu.mode) : ""}</div>
                 </div>`;
         }
 
@@ -605,6 +813,34 @@
             return resp.json().catch(() => ({ success: false, message: "Unexpected server response." }));
         }
 
+        // Same look as the editors: red outline on the field + red popup.
+        let fieldPopupTimer = null;
+        function fieldError(field, message) {
+            if (field) {
+                field.classList.add("field-error");
+                field.addEventListener("input", () => field.classList.remove("field-error"), { once: true });
+                field.addEventListener("change", () => field.classList.remove("field-error"), { once: true });
+                field.focus();
+            }
+            let popup = document.getElementById("resourcePopupAlert");
+            if (!popup) {
+                popup = document.createElement("div");
+                popup.id = "resourcePopupAlert";
+                document.body.appendChild(popup);
+            }
+            popup.className = "resource-popup-alert error";
+            popup.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <span>${escapeHtml(message)}</span>`;
+            popup.classList.add("show");
+            if (fieldPopupTimer) clearTimeout(fieldPopupTimer);
+            fieldPopupTimer = setTimeout(() => popup.classList.remove("show"), 2500);
+            return null;
+        }
+
+        // First empty field in the list, or null.
+        function firstEmpty(pairs) {
+            return pairs.find(([el]) => el && !(el.value || "").trim()) || null;
+        }
+
         function wireSubmit(form, modal, handler) {
             if (!form) return;
             let busy = false;
@@ -633,7 +869,7 @@
         if (addChapterBtn) addChapterBtn.addEventListener("click", () => { openModal(createCategoryModal); const i = $("newCategoryName"); if (i) i.focus(); });
         wireSubmit($("createCategoryForm"), createCategoryModal, async () => {
             const name = ($("newCategoryName").value || "").trim();
-            if (!name) { showAlertModal("Chapter name is required.", "Missing Information"); return null; }
+            if (!name) return fieldError($("newCategoryName"), "Please enter a chapter name.");
             return postForm("/admin/manage-course/categories/create", { category_name: name });
         });
 
@@ -646,10 +882,15 @@
             const i = $("newModuleName"); if (i) i.focus();
         }
         wireSubmit($("createModuleForm"), createModuleModal, async () => {
-            const name = ($("newModuleName").value || "").trim();
-            const desc = ($("newModuleDesc").value || "").trim();
+            const missing = firstEmpty([
+                [$("newModuleName"), "Please enter a module name."],
+                [$("newModuleDesc"), "Please enter a description."],
+                [$("newModuleCategory"), "Please choose a chapter."],
+            ]);
+            if (missing) return fieldError(missing[0], missing[1]);
+            const name = $("newModuleName").value.trim();
+            const desc = $("newModuleDesc").value.trim();
             const catId = $("newModuleCategory").value;
-            if (!name || !desc || !catId) { showAlertModal("Module name, description, and chapter are all required.", "Missing Information"); return null; }
             // No module_stats_id: the server starts new modules as Draft.
             return postForm("/admin/manage-course/modules/create", { module_name: name, description: desc, cat_id: catId });
         });
@@ -665,7 +906,7 @@
         }
         wireSubmit($("editCategoryForm"), editCategoryModal, async () => {
             const name = ($("editCategoryName").value || "").trim();
-            if (!name) { showAlertModal("Chapter name is required.", "Missing Information"); return null; }
+            if (!name) return fieldError($("editCategoryName"), "Please enter a chapter name.");
             return postForm(`/admin/manage-course/categories/${$("editCategoryId").value}/update`, { category_name: name });
         });
 
@@ -681,10 +922,15 @@
             $("editModuleName").focus();
         }
         wireSubmit($("editModuleForm"), editModuleModal, async () => {
-            const name = ($("editModuleName").value || "").trim();
-            const desc = ($("editModuleDesc").value || "").trim();
+            const missing = firstEmpty([
+                [$("editModuleName"), "Please enter a module name."],
+                [$("editModuleDesc"), "Please enter a description."],
+                [$("editModuleCategory"), "Please choose a chapter."],
+            ]);
+            if (missing) return fieldError(missing[0], missing[1]);
+            const name = $("editModuleName").value.trim();
+            const desc = $("editModuleDesc").value.trim();
             const catId = $("editModuleCategory").value;
-            if (!name || !desc || !catId) { showAlertModal("Module name, description, and chapter are all required.", "Missing Information"); return null; }
             return postForm(`/admin/manage-course/modules/${$("editModuleId").value}/update`, { module_name: name, description: desc, cat_id: catId });
         });
 
@@ -874,8 +1120,26 @@
             if (plusBtn) {
                 e.stopPropagation();
                 const id = plusBtn.dataset.id;
-                openMenu = openMenu && openMenu.id === id && openMenu.kind === "plus" ? null : { id, kind: "plus" };
-                renderTree();
+                const mode = plusBtn.dataset.mode;
+                if (mode === "create") {
+                    openMenu = openMenu && openMenu.id === id && openMenu.kind === "plus" ? null : { id, kind: "plus" };
+                    renderTree();
+                } else if (openMenu && openMenu.id === id && openMenu.kind === "checklist" && openMenu.mode === mode) {
+                    openMenu = null;
+                    renderTree();
+                } else {
+                    const node = findNode(id);
+                    if (node) openChecklist(node, mode);
+                }
+                return;
+            }
+
+            if (e.target.closest(".js-check-item") || e.target.closest(".js-check-all")) return; // handled on "change"
+
+            const checkConfirm = e.target.closest(".js-check-confirm");
+            if (checkConfirm) {
+                const node = findNode(checkConfirm.dataset.id);
+                if (node && openMenu && openMenu.kind === "checklist") submitChecklist(node);
                 return;
             }
 
@@ -919,14 +1183,43 @@
             const actionBtn = e.target.closest(".js-pub-action");
             if (actionBtn) {
                 const node = findNode(actionBtn.dataset.id);
-                if (node) runAction(actionBtn.dataset.action, node, actionBtn);
+                if (!node) return;
+                if (actionBtn.dataset.action === "checklist") {
+                    e.stopPropagation();
+                    if (openMenu && openMenu.id === node.id && openMenu.kind === "checklist") { openMenu = null; renderTree(); }
+                    else openChecklist(node, actionBtn.dataset.mode);
+                    return;
+                }
+                runAction(actionBtn.dataset.action, node, actionBtn);
+            }
+        });
+
+        // Checklist checkboxes: update the selection without re-rendering the tree.
+        root.addEventListener("change", (e) => {
+            if (!openMenu || openMenu.kind !== "checklist") return;
+            const item = e.target.closest(".js-check-item");
+            if (item) {
+                if (item.checked) openMenu.checked.add(item.dataset.id);
+                else openMenu.checked.delete(item.dataset.id);
+                refreshChecklistFooter();
+                return;
+            }
+            const all = e.target.closest(".js-check-all");
+            if (all) {
+                root.querySelectorAll(".js-check-item:not(:disabled)").forEach((box) => {
+                    box.checked = all.checked;
+                    if (all.checked) openMenu.checked.add(box.dataset.id);
+                    else openMenu.checked.delete(box.dataset.id);
+                });
+                refreshChecklistFooter();
             }
         });
 
         // Close an open menu on an outside click or Escape.
         document.addEventListener("click", (e) => {
             if (!openMenu) return;
-            if (e.target.closest(".publishing-popover") || e.target.closest(".js-pub-name") || e.target.closest(".js-pub-plus")) return;
+            if (e.target.closest(".publishing-popover") || e.target.closest(".js-pub-name") || e.target.closest(".js-pub-plus")
+                || e.target.closest('.js-pub-action[data-action="checklist"]')) return;
             openMenu = null;
             renderTree();
         });
@@ -944,6 +1237,7 @@
             if (editOrder || !TAB_STATUS[tab]) return;
             activeTab = tab;
             openMenu = null;
+            if (addChapterBtn) addChapterBtn.classList.toggle("is-hidden", tab !== "draft"); // creates new -> Draft tab only
             tabButtons.forEach((b) => {
                 const on = b.dataset.tab === tab;
                 b.classList.toggle("active", on);

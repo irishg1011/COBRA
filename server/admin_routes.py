@@ -83,7 +83,7 @@ from archived_items import (  # NEW: fixes the pre-existing Archived Learning Re
 )
 from publishing import get_publishing_tree, reorder_items
 import publishing as publishing_tree_module  # feat/publishing-tree: last_tree_error
-from publishing_actions import run_action, mark_ready as mark_item_ready  # feat/publishing-tree: one set of status rules for every item type
+from publishing_actions import run_action, run_checklist, mark_ready as mark_item_ready  # feat/publishing-tree: one set of status rules for every item type
 from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - read-only, no progress tables touched
     get_preview_learning_map, get_preview_lessons,
     get_preview_lesson_content, get_preview_activities,
@@ -1989,6 +1989,28 @@ def publishing_item_action(kind, item_id, action):
     if kind not in PUBLISHING_KINDS:
         return jsonify({"success": False, "message": "Unknown item type."}), 400
     success, message, extra = run_action(kind, item_id, action)
+    return jsonify({"success": success, "message": message, **extra}), (200 if success else 400)
+
+
+@admin_bp.route('/publishing/checklist', methods=['POST'])
+def publishing_checklist_action():
+    """
+    feat/publishing-tree: the Publishing page's checklists, all in ONE
+    transaction (publishing_actions.run_checklist).
+
+    JSON body: { "action": "mark-ready" | "publish",
+                 "parent": {"kind": ..., "id": ...},
+                 "include_parent": bool,
+                 "items": [{"kind": ..., "id": ...}, ...] }
+    """
+    data = request.get_json(silent=True) or {}
+    parent = data.get("parent") or {}
+    if parent.get("kind") not in PUBLISHING_KINDS:
+        return jsonify({"success": False, "message": "Unknown item type."}), 400
+    success, message, extra = run_checklist(
+        data.get("action"), parent.get("kind"), parent.get("id"),
+        bool(data.get("include_parent")), data.get("items") or [],
+    )
     return jsonify({"success": success, "message": message, **extra}), (200 if success else 400)
 
 

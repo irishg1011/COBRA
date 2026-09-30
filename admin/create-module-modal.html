@@ -1,4 +1,6 @@
-<!-- admin/create-module-modal.html
+<!-- feat/publishing-tree: novalidate - empty fields get the red border + popup
+     (admin-publishing.js / admin-manage-course.js), not the browser bubble.
+     admin/create-module-modal.html
      Task #87: Standalone Create Module Modal - replaces the drawer-based
      module creation inside the categories modal. Opens directly from the
      "+ Module" header button or "+ Add Module" triggers. Includes a cancel
@@ -15,7 +17,7 @@
             <p>Fill in the details to create a new module.</p>
         </div>
 
-        <form id="createModuleForm">
+        <form id="createModuleForm" novalidate>
             <div class="form-group">
                 <label for="newModuleName">Module Name</label>
                 <input type="text" id="newModuleName" placeholder="Enter Module Name" maxlength="{{ title_limits.module }}" required>

@@ -1,4 +1,6 @@
-<!-- admin/edit-category-modal.html
+<!-- feat/publishing-tree: novalidate - empty fields get the red border + popup
+     (admin-publishing.js / admin-manage-course.js), not the browser bubble.
+     admin/edit-category-modal.html
      Task: "Fix the current Edit Category interaction" - replaces the
      old prompt()/alert()-based Category rename flow (previously in
      admin-manage-course.js's js-edit-category click handler, using
@@ -20,7 +22,7 @@
             <p>Update this category's name.</p>
         </div>
 
-        <form id="editCategoryForm">
+        <form id="editCategoryForm" novalidate>
             <input type="hidden" id="editCategoryId">
 
             <div class="form-group">

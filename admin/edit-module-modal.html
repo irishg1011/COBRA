@@ -1,4 +1,6 @@
-<!-- admin/edit-module-modal.html
+<!-- feat/publishing-tree: novalidate - empty fields get the red border + popup
+     (admin-publishing.js / admin-manage-course.js), not the browser bubble.
+     admin/edit-module-modal.html
      Task: "When you edit the module make it in modal not in alert" -
      replaces admin-manage-course.js's old chained prompt()/alert() edit
      flow with a proper modal, styled to match the existing Create
@@ -16,7 +18,7 @@
             <p>Update this module's details.</p>
         </div>
 
-        <form id="editModuleForm">
+        <form id="editModuleForm" novalidate>
             <input type="hidden" id="editModuleId">
 
             <div class="form-group">

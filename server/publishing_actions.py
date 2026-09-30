@@ -276,47 +276,182 @@ def _run(kind, item_id, work):
             connection.close()
 
 
+# ============================================================
+# "Empty" rules - learners must never get an empty chapter/module
+#   - a lesson always counts as content (its content is required on save)
+#   - a module needs at least 1 lesson, a chapter at least 1 module with
+#     at least 1 lesson
+#   - going live: a chapter/module needs at least 1 lesson that is live
+#     afterwards
+# ============================================================
+CONTAINERS = ("category", "module")
+
+
+def _lessons_under(cursor, kind, item_id, statuses=None):
+    """Non-archived lessons inside a chapter/module (optionally only these statuses)."""
+    status_sql = ""
+    params = [item_id]
+    if statuses:
+        status_sql = f"AND COALESCE(lrs.lr_stats_name, 'Draft') IN ({', '.join(['%s'] * len(statuses))})"
+        params.extend(statuses)
+    if kind == "module":
+        cursor.execute(
+            f"""SELECT COUNT(*) FROM learning_resources_tbl lr
+                LEFT JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE lr.module_id = %s AND COALESCE(lrs.lr_stats_name, '') != 'Archived' {status_sql}""",
+            tuple(params)
+        )
+    else:
+        cursor.execute(
+            f"""SELECT COUNT(*) FROM learning_resources_tbl lr
+                JOIN modules_tbl m ON lr.module_id = m.module_id
+                LEFT JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+                WHERE m.cat_id = %s AND COALESCE(m.is_archived, 0) = 0
+                  AND COALESCE(lrs.lr_stats_name, '') != 'Archived' {status_sql}""",
+            tuple(params)
+        )
+    return cursor.fetchone()[0]
+
+
+def _live_lessons_under(cursor, kind, item_id):
+    """Published lessons a learner can actually reach (through Published modules)."""
+    if kind == "module":
+        return _lessons_under(cursor, "module", item_id, [PUBLISHED])
+    cursor.execute(
+        """SELECT COUNT(*) FROM learning_resources_tbl lr
+           JOIN modules_tbl m ON lr.module_id = m.module_id
+           JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+           JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+           WHERE m.cat_id = %s AND COALESCE(m.is_archived, 0) = 0
+             AND ms.module_stats_name = %s AND lrs.lr_stats_name = %s""",
+        (item_id, PUBLISHED, PUBLISHED)
+    )
+    return cursor.fetchone()[0]
+
+
+def _empty_problem(cursor, kind, item_id):
+    """Message when a chapter/module has no lesson at all, else None."""
+    if kind not in CONTAINERS or _lessons_under(cursor, kind, item_id):
+        return None
+    return (f"This {NODES[kind]['label']} has no lessons yet. "
+            + ("Add a module with a lesson first." if kind == "category" else "Add a lesson first."))
+
+
+def _publishable_problem(cursor, kind, item_id):
+    """Message when publishing a module would leave it with nothing live, else None."""
+    if kind != "module":
+        return None
+    if _lessons_under(cursor, "module", item_id, [READY, PUBLISHED]):
+        return None
+    return "This module has no Ready to Publish lessons, so learners would see it empty."
+
+
+# ============================================================
+# Cursor-level actions (so a checklist can run several in ONE
+# transaction). Each returns (ok, message, counts).
+# ============================================================
+def _mark_ready_cur(cursor, kind, item_id, include_children):
+    status = _row(cursor, kind, item_id)
+    if status is None:
+        return False, f"This {NODES[kind]['label']} no longer exists.", {}
+    if status != DRAFT:
+        return False, f"Only a Draft {NODES[kind]['label']} can be marked ready (this one is {status}).", {}
+
+    parent = _parent(cursor, kind, item_id)
+    if parent and parent[2] not in (READY, PUBLISHED):
+        return False, f"Mark its {NODES[parent[0]]['label']} ready first.", {}
+
+    problem = _empty_problem(cursor, kind, item_id)
+    if problem:
+        return False, problem, {}
+    if kind == "video":
+        problem = _video_ready_problem(cursor, item_id)
+        if problem:
+            return False, problem, {}
+
+    _set_status(cursor, kind, item_id, READY)
+    counts = {"marked": 0, "skipped": 0}
+    if include_children:
+        def walk(k, i):
+            for ck, cid, cstatus in _children(cursor, k, i):
+                if cstatus == DRAFT:
+                    # Empty modules and videos without a link/description stay Draft.
+                    if _empty_problem(cursor, ck, cid) or (ck == "video" and _video_ready_problem(cursor, cid)):
+                        counts["skipped"] += 1
+                        continue
+                    _set_status(cursor, ck, cid, READY)
+                    counts["marked"] += 1
+                walk(ck, cid)
+        walk(kind, item_id)
+    return True, "", counts
+
+
+def _publish_cur(cursor, kind, item_id, cascade):
+    status = _row(cursor, kind, item_id)
+    if status is None:
+        return False, f"This {NODES[kind]['label']} no longer exists.", {}
+    if status != READY:
+        return False, f"Only a Ready to Publish {NODES[kind]['label']} can be published (this one is {status}).", {}
+
+    parent = _parent(cursor, kind, item_id)
+    if parent and parent[2] != PUBLISHED:
+        return False, f"Publish its {NODES[parent[0]]['label']} first.", {}
+
+    if kind == "video":
+        problem = _video_ready_problem(cursor, item_id)
+        if problem:
+            return False, problem, {}
+
+    _set_status(cursor, kind, item_id, PUBLISHED)
+    counts = {"published": 0, "skipped": 0}
+    if cascade:
+        def walk(k, i):
+            for ck, cid, cstatus in _children(cursor, k, i):
+                if cstatus == READY:
+                    if (ck == "video" and _video_ready_problem(cursor, cid)) or _publishable_problem(cursor, ck, cid):
+                        counts["skipped"] += 1
+                        continue
+                    _set_status(cursor, ck, cid, PUBLISHED)
+                    counts["published"] += 1
+                    walk(ck, cid)
+                elif cstatus == PUBLISHED:
+                    walk(ck, cid)
+        walk(kind, item_id)
+    return True, "", counts
+
+
+def _check_live(cursor, kind, item_id):
+    """After publishing: a chapter/module must end up with a live lesson."""
+    if kind in CONTAINERS and not _live_lessons_under(cursor, kind, item_id):
+        return (f"Nothing inside this {NODES[kind]['label']} would be live, so learners would see it empty. "
+                + ("Include at least one module with a Ready to Publish lesson." if kind == "category"
+                   else "Include at least one Ready to Publish lesson."))
+    return None
+
+
 def _plural(count, word):
     return f"{count} {word}{'' if count == 1 else 's'}"
 
 
+def _skipped_note(skipped, verb):
+    if not skipped:
+        return ""
+    return (f" {_plural(skipped, 'item')} stayed {verb} - empty modules, or videos "
+            "without a link or description.")
+
+
+# ============================================================
+# Single actions (one item) - each is one transaction
+# ============================================================
 def mark_ready(kind, item_id, include_children=False):
     def work(cursor):
-        status = _row(cursor, kind, item_id)
-        if status != DRAFT:
-            return False, f"Only a Draft {NODES[kind]['label']} can be marked ready (this one is {status}).", {}
-
-        parent = _parent(cursor, kind, item_id)
-        if parent and parent[2] not in (READY, PUBLISHED):
-            return False, f"Mark its {NODES[parent[0]]['label']} ready first.", {}
-
-        if kind == "video":
-            problem = _video_ready_problem(cursor, item_id)
-            if problem:
-                return False, problem, {}
-
-        _set_status(cursor, kind, item_id, READY)
-        marked, skipped = 0, 0
-
-        if include_children:
-            def walk(k, i):
-                nonlocal marked, skipped
-                for ck, cid, cstatus in _children(cursor, k, i):
-                    if cstatus == DRAFT:
-                        if ck == "video" and _video_ready_problem(cursor, cid):
-                            skipped += 1
-                            continue
-                        _set_status(cursor, ck, cid, READY)
-                        marked += 1
-                    walk(ck, cid)
-            walk(kind, item_id)
-
+        ok, msg, counts = _mark_ready_cur(cursor, kind, item_id, include_children)
+        if not ok:
+            return ok, msg, counts
         msg = "Marked as Ready to Publish."
-        if marked:
-            msg = f"Marked as Ready to Publish, with {_plural(marked, 'item')} inside."
-        if skipped:
-            msg += f" {_plural(skipped, 'video')} still need a link or description, so they stayed Draft."
-        return True, msg, {"marked": marked, "skipped": skipped}
+        if counts.get("marked"):
+            msg = f"Marked as Ready to Publish, with {_plural(counts['marked'], 'item')} inside."
+        return True, msg + _skipped_note(counts.get("skipped"), "Draft"), counts
     return _run(kind, item_id, work)
 
 
@@ -350,39 +485,16 @@ def move_to_draft(kind, item_id):
 
 def publish(kind, item_id):
     def work(cursor):
-        status = _row(cursor, kind, item_id)
-        if status != READY:
-            return False, f"Only a Ready to Publish {NODES[kind]['label']} can be published (this one is {status}).", {}
-
-        parent = _parent(cursor, kind, item_id)
-        if parent and parent[2] != PUBLISHED:
-            return False, f"Publish its {NODES[parent[0]]['label']} first.", {}
-
-        if kind == "video":
-            problem = _video_ready_problem(cursor, item_id)
-            if problem:
-                return False, problem, {}
-
-        _set_status(cursor, kind, item_id, PUBLISHED)
-
-        published = 0
-        def walk(k, i):
-            nonlocal published
-            for ck, cid, cstatus in _children(cursor, k, i):
-                if cstatus == READY:
-                    if ck == "video" and _video_ready_problem(cursor, cid):
-                        continue
-                    _set_status(cursor, ck, cid, PUBLISHED)
-                    published += 1
-                    walk(ck, cid)
-                elif cstatus == PUBLISHED:
-                    walk(ck, cid)
-        walk(kind, item_id)
-
+        ok, msg, counts = _publish_cur(cursor, kind, item_id, cascade=True)
+        if not ok:
+            return ok, msg, counts
+        problem = _check_live(cursor, kind, item_id)
+        if problem:
+            return False, problem, {}
         msg = "Published. Learners can see it now."
-        if published:
-            msg = f"Published, with {_plural(published, 'item')} inside. Learners can see them now."
-        return True, msg, {"published": published}
+        if counts.get("published"):
+            msg = f"Published, with {_plural(counts['published'], 'item')} inside. Learners can see them now."
+        return True, msg + _skipped_note(counts.get("skipped"), "Ready to Publish"), counts
     return _run(kind, item_id, work)
 
 
@@ -442,6 +554,83 @@ def run_action(kind, item_id, action):
     if not fn:
         return False, "Unknown action.", {}
     return fn(kind, item_id)
+
+
+# ============================================================
+# Checklist actions - several items in ONE transaction
+# ============================================================
+def run_checklist(action, parent_kind, parent_id, include_parent, items):
+    """
+    The Publishing page's checklists:
+      action "mark-ready":  optionally the parent (Draft tab "Mark all
+                            ready"), then each checked Draft child WITH its
+                            Draft insides.
+      action "publish":     optionally the parent (Ready tab "Publish"),
+                            then each checked Ready child WITH its Ready
+                            insides; the parent must end up with a live
+                            lesson.
+    items = [{"kind": ..., "id": ...}, ...] - each must be a direct child
+    of the parent, in the right status. Any failure rolls everything back.
+    """
+    if action not in ("mark-ready", "publish"):
+        return False, "Unknown action.", {}
+    if parent_kind not in NODES:
+        return False, "Unknown item type.", {}
+
+    def work(cursor):
+        wanted_status = DRAFT if action == "mark-ready" else READY
+        children = {(ck, cid): cstatus for ck, cid, cstatus in _children(cursor, parent_kind, int(parent_id))}
+        picked = []
+        for item in items or []:
+            try:
+                key = (item.get("kind"), int(item.get("id")))
+            except (TypeError, ValueError, AttributeError):
+                return False, "Invalid item in the list.", {}
+            if key not in children:
+                return False, "One of the checked items is no longer inside this item. Refresh and try again.", {}
+            if children[key] != wanted_status:
+                return False, "One of the checked items changed status. Refresh and try again.", {}
+            picked.append(key)
+
+        if not include_parent and not picked:
+            return False, "Check at least one item.", {}
+
+        total, skipped = 0, 0
+        if include_parent:
+            if action == "mark-ready":
+                ok, msg, _ = _mark_ready_cur(cursor, parent_kind, int(parent_id), include_children=False)
+            else:
+                ok, msg, _ = _publish_cur(cursor, parent_kind, int(parent_id), cascade=False)
+            if not ok:
+                return ok, msg, {}
+            total += 1
+
+        for ck, cid in picked:
+            if action == "mark-ready":
+                ok, msg, counts = _mark_ready_cur(cursor, ck, cid, include_children=True)
+                inside = counts.get("marked", 0)
+            else:
+                problem = _publishable_problem(cursor, ck, cid)
+                if problem:
+                    return False, problem, {}
+                ok, msg, counts = _publish_cur(cursor, ck, cid, cascade=True)
+                inside = counts.get("published", 0)
+            if not ok:
+                return False, msg, {}
+            total += 1 + inside
+            skipped += counts.get("skipped", 0)
+
+        if action == "publish":
+            problem = _check_live(cursor, parent_kind, int(parent_id))
+            if problem:
+                return False, problem, {}
+            msg = f"Published {_plural(total, 'item')}. Learners can see them now."
+            return True, msg + _skipped_note(skipped, "Ready to Publish"), {"published": total}
+
+        msg = f"Marked {_plural(total, 'item')} as Ready to Publish."
+        return True, msg + _skipped_note(skipped, "Draft"), {"marked": total}
+
+    return _run(parent_kind, parent_id, work)
 
 
 # ============================================================
