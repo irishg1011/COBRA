@@ -368,26 +368,107 @@ document.addEventListener('DOMContentLoaded', () => {
                 "    sys.stdout.write(_val + chr(10))\n" +
                 "    return _val\n" +
                 "builtins.input = _cobrabyte_input\n" +
-                "class _CobrabyteInputAwaiter(ast.NodeTransformer):\n" +
-                "    def visit_Call(self, node):\n" +
-                "        self.generic_visit(node)\n" +
-                "        if isinstance(node.func, ast.Name) and node.func.id == 'input':\n" +
-                "            return ast.copy_location(ast.Await(value=node), node)\n" +
+                "class _CobrabyteAsyncify:\n" +
+                "    # input() -> await input(). Any function that calls input() - directly\n" +
+                "    # or through other user functions/methods - becomes async, and every\n" +
+                "    # call to it is awaited, so input() works anywhere in the code.\n" +
+                "    def __init__(self, tree):\n" +
+                "        self.tree = tree\n" +
+                "        self.async_names = set()\n" +
+                "        self.method_names = set()\n" +
+                "    @staticmethod\n" +
+                "    def _own_calls(fn):\n" +
+                "        stack = list(fn.body)\n" +
+                "        while stack:\n" +
+                "            node = stack.pop()\n" +
+                "            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):\n" +
+                "                continue\n" +
+                "            if isinstance(node, ast.Call):\n" +
+                "                yield node\n" +
+                "            stack.extend(ast.iter_child_nodes(node))\n" +
+                "    def _call_name(self, call):\n" +
+                "        f = call.func\n" +
+                "        if isinstance(f, ast.Name):\n" +
+                "            return f.id\n" +
+                "        if isinstance(f, ast.Attribute) and f.attr in self.method_names:\n" +
+                "            return f.attr\n" +
+                "        return None\n" +
+                "    @staticmethod\n" +
+                "    def _can_be_async(fn):\n" +
+                "        if fn.name.startswith('__') and fn.name.endswith('__'):\n" +
+                "            return False\n" +
+                "        for node in ast.walk(fn):\n" +
+                "            if isinstance(node, (ast.Yield, ast.YieldFrom)):\n" +
+                "                return False\n" +
+                "        return True\n" +
+                "    def run(self):\n" +
+                "        self.method_names = {\n" +
+                "            item.name\n" +
+                "            for cls in ast.walk(self.tree) if isinstance(cls, ast.ClassDef)\n" +
+                "            for item in cls.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))\n" +
+                "        }\n" +
+                "        funcs = [n for n in ast.walk(self.tree) if isinstance(n, ast.FunctionDef) and self._can_be_async(n)]\n" +
+                "        changed = True\n" +
+                "        while changed:\n" +
+                "            changed = False\n" +
+                "            for fn in funcs:\n" +
+                "                if fn.name in self.async_names:\n" +
+                "                    continue\n" +
+                "                for call in self._own_calls(fn):\n" +
+                "                    name = self._call_name(call)\n" +
+                "                    if name == 'input' or name in self.async_names:\n" +
+                "                        self.async_names.add(fn.name)\n" +
+                "                        changed = True\n" +
+                "                        break\n" +
+                "        self._rewrite(self.tree, True)\n" +
+                "        ast.fix_missing_locations(self.tree)\n" +
+                "        return self.tree\n" +
+                "    def _rewrite(self, node, in_async):\n" +
+                "        for field, value in ast.iter_fields(node):\n" +
+                "            if isinstance(value, list):\n" +
+                "                setattr(node, field, [self._visit(v, in_async) if isinstance(v, ast.AST) else v for v in value])\n" +
+                "            elif isinstance(value, ast.AST):\n" +
+                "                setattr(node, field, self._visit(value, in_async))\n" +
+                "    def _visit(self, node, in_async):\n" +
+                "        if isinstance(node, ast.FunctionDef):\n" +
+                "            if node.name in self.async_names and self._can_be_async(node):\n" +
+                "                extra = {'type_params': node.type_params} if hasattr(node, 'type_params') else {}\n" +
+                "                new = ast.AsyncFunctionDef(name=node.name, args=node.args, body=node.body,\n" +
+                "                                           decorator_list=node.decorator_list, returns=node.returns,\n" +
+                "                                           type_comment=None, **extra)\n" +
+                "                ast.copy_location(new, node)\n" +
+                "                self._rewrite(new, True)\n" +
+                "                return new\n" +
+                "            self._rewrite(node, False)\n" +
+                "            return node\n" +
+                "        if isinstance(node, ast.AsyncFunctionDef):\n" +
+                "            self._rewrite(node, True)\n" +
+                "            return node\n" +
+                "        if isinstance(node, ast.Lambda):\n" +
+                "            self._rewrite(node, False)\n" +
+                "            return node\n" +
+                "        if isinstance(node, ast.ClassDef):\n" +
+                "            self._rewrite(node, in_async)\n" +
+                "            return node\n" +
+                "        self._rewrite(node, in_async)\n" +
+                "        if isinstance(node, ast.Call):\n" +
+                "            name = self._call_name(node)\n" +
+                "            if name == 'input' or name in self.async_names:\n" +
+                "                if in_async:\n" +
+                "                    return ast.copy_location(ast.Await(value=node), node)\n" +
+                "                if name == 'input':\n" +
+                "                    node.func = ast.copy_location(ast.Name(id='_cobrabyte_input_unsupported', ctx=ast.Load()), node.func)\n" +
                 "        return node\n" +
+                "def _cobrabyte_input_unsupported(*args, **kwargs):\n" +
+                "    raise RuntimeError(\"input() can't be used inside __init__, a lambda, or a generator here. Move it into a normal function.\")\n" +
                 "async def _cobrabyte_exec_async(source, mod_globals):\n" +
-                "    tree = ast.parse(source or '', mode='exec')\n" +
-                "    _CobrabyteInputAwaiter().visit(tree)\n" +
-                "    ast.fix_missing_locations(tree)\n" +
-                "    body = tree.body if tree.body else [ast.Pass()]\n" +
-                "    func = ast.AsyncFunctionDef(\n" +
-                "        name='_cobrabyte_block_main',\n" +
-                "        args=ast.arguments(posonlyargs=[], args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),\n" +
-                "        body=body, decorator_list=[], returns=None,\n" +
-                "    )\n" +
-                "    module_ast = ast.Module(body=[func], type_ignores=[])\n" +
-                "    ast.fix_missing_locations(module_ast)\n" +
-                "    exec(compile(module_ast, '<exec>', 'exec'), mod_globals)\n" +
-                "    await mod_globals['_cobrabyte_block_main']()\n" +
+                "    tree = ast.parse(source or '', filename='<exec>', mode='exec')\n" +
+                "    tree = _CobrabyteAsyncify(tree).run()\n" +
+                "    code = compile(tree, '<exec>', 'exec', flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)\n" +
+                "    mod_globals['_cobrabyte_input_unsupported'] = _cobrabyte_input_unsupported\n" +
+                "    result = eval(code, mod_globals)\n" +
+                "    if result is not None and hasattr(result, '__await__'):\n" +
+                "        await result\n" +
                 "try:\n" +
                 "    for _mf in _cobrabyte_module_files.to_py():\n" +
                 "        _mf_name = (_mf.get('filename') or '').strip()\n" +
