@@ -96,6 +96,7 @@
                                 <option value="">All Status</option>
                                 <option value="passed" {{ 'selected' if status_filter == 'passed' }}>Passed (80% and up)</option>
                                 <option value="below" {{ 'selected' if status_filter == 'below' }}>Below 80%</option>
+                                <option value="no_score" {{ 'selected' if status_filter == 'no_score' }}>No score yet</option>
                             </select>
 
                             <select class="custom-select" id="learnerChapterSelect">

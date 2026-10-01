@@ -30,8 +30,10 @@ BY LESSON VIEW - COMPLETION
 
 BY LESSON VIEW - FILTERS
     search (learner ID or name), status ('passed' = score >= 80,
-    'below' = score < 80), Started range, Completed range.
-    Metric cards follow search + dates, never the status filter.
+    'below' = score < 80, 'no_score' = no score yet), Started range,
+    Completed range. Metric cards follow search + dates, never the
+    status filter. Rows whose lesson is Archived, or whose module or
+    category is archived, are hidden from this view.
 
 BY LEARNER VIEW: see the section further down.
 """
@@ -42,7 +44,7 @@ from cobradb import get_db_connection
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = 80
-VALID_STATUS_FILTERS = {"passed", "below"}
+VALID_STATUS_FILTERS = {"passed", "below", "no_score"}
 
 
 # ------------------------------------------------------------------
@@ -91,12 +93,25 @@ def empty_learner_progress_overview():
 # 1. Progress rows (learner x lesson)
 # ------------------------------------------------------------------
 def _fetch_progress_rows(cursor, search_query=None, started_from=None, started_to=None,
-                         completed_from=None, completed_to=None, progress_id=None, acc_id=None):
+                         completed_from=None, completed_to=None, progress_id=None, acc_id=None,
+                         exclude_archived=False):
     clauses = [
         "ut.u_type = 'Learner'",
         "(a.is_deleted = 0 OR a.is_deleted IS NULL)",
     ]
     params = []
+
+    # By Lesson table only: hide rows whose lesson is Archived or whose
+    # module/category is archived. Other callers keep every row.
+    archived_joins = ""
+    if exclude_archived:
+        archived_joins = """
+        LEFT JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+        LEFT JOIN modules_tbl m ON lr.module_id = m.module_id
+        LEFT JOIN category_tbl c ON m.cat_id = c.cat_id"""
+        clauses.append("COALESCE(lrs.lr_stats_name, '') <> 'Archived'")
+        clauses.append("COALESCE(m.is_archived, 0) = 0")
+        clauses.append("COALESCE(c.is_archived, 0) = 0")
 
     if progress_id is not None:
         clauses.append("lrp.progress_id = %s")
@@ -143,7 +158,7 @@ def _fetch_progress_rows(cursor, search_query=None, started_from=None, started_t
         JOIN account_tbl a ON lrp.acc_id = a.acc_id
         JOIN usertype_tbl ut ON a.u_type = ut.ut_id
         LEFT JOIN profile_tbl p ON lrp.acc_id = p.acc_id
-        LEFT JOIN learning_resources_tbl lr ON lrp.resource_id = lr.resource_id
+        LEFT JOIN learning_resources_tbl lr ON lrp.resource_id = lr.resource_id{archived_joins}
         WHERE {' AND '.join(clauses)}
         ORDER BY lrp.started_at DESC, lrp.progress_id DESC
         """,
@@ -420,6 +435,7 @@ def get_learner_progress_overview(search_query=None, status_filter=None,
             cursor, search_query,
             _clean_date(started_from), _clean_date(started_to),
             _clean_date(completed_from), _clean_date(completed_to),
+            exclude_archived=True,
         )
         evaluated = _evaluate_rows(cursor, rows)
         cursor.close()
@@ -439,6 +455,8 @@ def get_learner_progress_overview(search_query=None, status_filter=None,
             evaluated = [r for r in evaluated if r["score"] is not None and r["score"] >= PASS_MARK]
         elif status == "below":
             evaluated = [r for r in evaluated if r["score"] is not None and r["score"] < PASS_MARK]
+        elif status == "no_score":
+            evaluated = [r for r in evaluated if r["score"] is None]
 
         total = len(evaluated)
         per_page = max(1, per_page)
@@ -797,6 +815,8 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
             summaries = [s for s in summaries if s["avg_score"] is not None and s["avg_score"] >= PASS_MARK]
         elif status == "below":
             summaries = [s for s in summaries if s["avg_score"] is not None and s["avg_score"] < PASS_MARK]
+        elif status == "no_score":
+            summaries = [s for s in summaries if s["avg_score"] is None]
 
         # Most recently active first, never-started learners last
         summaries.sort(key=lambda s: (

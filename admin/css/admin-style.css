@@ -1137,13 +1137,6 @@ html.sidebar-collapsed .admin-main-content {
     cursor: pointer;
 }
 
-/* Hidden until the "Range" checkbox is checked - JS toggles this via
-   inline style, but this class-based default prevents a flash of the
-   end-date input before admin-manage-course.js runs on page load. */
-.date-range-end {
-    display: none;
-}
-
 /* Table Styles */
 .data-table {
     width: 100%;

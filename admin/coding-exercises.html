@@ -66,8 +66,12 @@
                         <div class="toolbar-filters">
                             <select class="custom-select" id="exerciseStatsSelect">
                                 <option value="">All Statuses</option>
+                                {# Archived exercises only live in the archive modal -
+                                   the main table always excludes them. #}
                                 {% for stat in exercise_stats %}
+                                {% if stat.stats_name != 'Archived' %}
                                 <option value="{{ stat.stats_id }}" {{ 'selected' if stats_filter|default('')|string == stat.stats_id|string }}>{{ stat.stats_name }}</option>
+                                {% endif %}
                                 {% endfor %}
                             </select>
 
@@ -82,8 +86,7 @@
                             <div class="date-filter-group" id="exerciseCreatedDateGroup">
                                 <span class="date-filter-label">Created At</span>
                                 <input type="date" class="custom-select" id="exerciseCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
-                                <input type="date" class="custom-select date-range-end" id="exerciseCreatedToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
-                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                <label class="date-range-toggle" title="Show only items from today">
                                     <input type="checkbox" id="exerciseCreatedRangeToggle"> Today
                                 </label>
                                 <button type="button" class="icon-button-reset table-action-icon" id="clearExerciseCreatedDateBtn" title="Clear Created At filter">
@@ -94,8 +97,7 @@
                             <div class="date-filter-group" id="exerciseUpdatedDateGroup">
                                 <span class="date-filter-label">Updated At</span>
                                 <input type="date" class="custom-select" id="exerciseUpdatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
-                                <input type="date" class="custom-select date-range-end" id="exerciseUpdatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
-                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                <label class="date-range-toggle" title="Show only items from today">
                                     <input type="checkbox" id="exerciseUpdatedRangeToggle"> Today
                                 </label>
                                 <button type="button" class="icon-button-reset table-action-icon" id="clearExerciseUpdatedDateBtn" title="Clear Updated At filter">

@@ -80,8 +80,7 @@
                             <div class="date-filter-group" id="activityCreatedDateGroup">
                                 <span class="date-filter-label">Created At</span>
                                 <input type="date" class="custom-select" id="activityCreatedFromInput" title="Created At" value="{{ created_from|default('') }}">
-                                <input type="date" class="custom-select date-range-end" id="activityCreatedToInput" title="Created At (range end)" value="{{ created_to|default('') }}">
-                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                <label class="date-range-toggle" title="Show only items from today">
                                     <input type="checkbox" id="activityCreatedRangeToggle"> Today
                                 </label>
                                 <button type="button" class="icon-button-reset table-action-icon" id="clearActivityCreatedDateBtn" title="Clear Created At filter">
@@ -92,8 +91,7 @@
                             <div class="date-filter-group" id="activityUpdatedDateGroup">
                                 <span class="date-filter-label">Updated At</span>
                                 <input type="date" class="custom-select" id="activityUpdatedFromInput" title="Updated At" value="{{ updated_from|default('') }}">
-                                <input type="date" class="custom-select date-range-end" id="activityUpdatedToInput" title="Updated At (range end)" value="{{ updated_to|default('') }}">
-                                <label class="date-range-toggle" title="Filter by a date range instead of a single date">
+                                <label class="date-range-toggle" title="Show only items from today">
                                     <input type="checkbox" id="activityUpdatedRangeToggle"> Today
                                 </label>
                                 <button type="button" class="icon-button-reset table-action-icon" id="clearActivityUpdatedDateBtn" title="Clear Updated At filter">

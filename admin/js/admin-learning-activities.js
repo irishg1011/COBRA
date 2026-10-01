@@ -44,11 +44,9 @@
         if (!searchInput || !tableBody) return;
 
         const createdFromInput = document.getElementById("activityCreatedFromInput");
-        const createdToInput = document.getElementById("activityCreatedToInput");
         const createdRangeToggle = document.getElementById("activityCreatedRangeToggle");
         const clearCreatedDateBtn = document.getElementById("clearActivityCreatedDateBtn");
         const updatedFromInput = document.getElementById("activityUpdatedFromInput");
-        const updatedToInput = document.getElementById("activityUpdatedToInput");
         const updatedRangeToggle = document.getElementById("activityUpdatedRangeToggle");
         const clearUpdatedDateBtn = document.getElementById("clearActivityUpdatedDateBtn");
         const dateFilterError = document.getElementById("activityDateFilterError");
@@ -70,24 +68,51 @@
             dateFilterError.style.display = "none";
         }
 
-        function getEffectiveDateRange(fromInput, toInput, rangeToggle) {
+        function getEffectiveDateRange(fromInput) {
             const from = fromInput ? fromInput.value : "";
             if (!from) return { from: "", to: "" };
-            const isRange = !!(rangeToggle && rangeToggle.checked);
-            const to = (isRange && toInput) ? toInput.value : from;
-            return { from, to };
+            return { from, to: from };
+        }
+
+        // Today's LOCAL date as YYYY-MM-DD (never toISOString(), which
+        // is UTC and lands on yesterday before 8 AM in UTC+8).
+        function getTodayLocalDate() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, "0");
+            const d = String(now.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+        }
+
+        // "2026-10-01" -> "Oct 1, 2026"
+        function formatFilterDate(value) {
+            const [y, m, d] = value.split("-").map(Number);
+            return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+
+        function describeFilterDay(value) {
+            return value === getTodayLocalDate() ? "today" : `on ${formatFilterDate(value)}`;
+        }
+
+        function getEmptyMessage() {
+            const created = createdFromInput ? createdFromInput.value : "";
+            const updated = updatedFromInput ? updatedFromInput.value : "";
+            if (created && updated) return "No learning activities match these date filters.";
+            if (created) return `No learning activities created ${describeFilterDay(created)}.`;
+            if (updated) return `No learning activities updated ${describeFilterDay(updated)}.`;
+            return "No learning activities found.";
         }
 
         function validateDateRanges() {
             clearDateFilterError();
 
-            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            const created = getEffectiveDateRange(createdFromInput);
             if (created.from && created.to && created.from > created.to) {
                 showDateFilterError("Created At: end date must be on or after the start date.");
                 return false;
             }
 
-            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            const updated = getEffectiveDateRange(updatedFromInput);
             if (updated.from && updated.to && updated.from > updated.to) {
                 showDateFilterError("Updated At: end date must be on or after the start date.");
                 return false;
@@ -166,7 +191,7 @@
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="10" class="text-muted table-empty-message">
-                            No learning activities found.
+                            ${escapeHtml(getEmptyMessage())}
                         </td>
                     </tr>`;
                 if (showingCount) showingCount.textContent = "Showing 0 of 0 Activities";
@@ -215,11 +240,11 @@
             if (typeSelect && typeSelect.value) params.set("type", typeSelect.value);
             if (sortSelect && sortSelect.value) params.set("sort", sortSelect.value);
 
-            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            const created = getEffectiveDateRange(createdFromInput);
             if (created.from) params.set("created_from", created.from);
             if (created.to) params.set("created_to", created.to);
 
-            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            const updated = getEffectiveDateRange(updatedFromInput);
             if (updated.from) params.set("updated_from", updated.from);
             if (updated.to) params.set("updated_to", updated.to);
 
@@ -292,39 +317,35 @@
         if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; loadActivities(); } });
         if (nextBtn) nextBtn.addEventListener("click", () => { if (currentPage < totalPages) { currentPage++; loadActivities(); } });
 
-        [createdFromInput, createdToInput, updatedFromInput, updatedToInput].forEach((input) => {
+        [createdFromInput, updatedFromInput].forEach((input) => {
             if (!input) return;
             input.addEventListener("change", () => scheduleLoad(true));
         });
 
-        function initDateRangeToggle(fromInput, toInput, rangeToggle) {
-            if (!rangeToggle || !toInput) return;
+        // "Today" checkbox: a shortcut that fills/clears the date input.
+        // It stays ticked only while the picked date IS today.
+        function initTodayToggle(dateInput, todayToggle) {
+            if (!dateInput || !todayToggle) return;
 
-            const fromVal = fromInput ? fromInput.value : "";
-            if (toInput.value && toInput.value !== fromVal) {
-                rangeToggle.checked = true;
-            }
-
-            const sync = () => {
-                toInput.style.display = rangeToggle.checked ? "" : "none";
-                if (!rangeToggle.checked) toInput.value = "";
+            const syncFromInput = () => {
+                todayToggle.checked = !!dateInput.value && dateInput.value === getTodayLocalDate();
             };
-            sync();
+            syncFromInput();
 
-            rangeToggle.addEventListener("change", () => {
-                sync();
+            dateInput.addEventListener("change", syncFromInput);
+            todayToggle.addEventListener("change", () => {
+                dateInput.value = todayToggle.checked ? getTodayLocalDate() : "";
+                clearDateFilterError();
                 scheduleLoad(true);
             });
         }
-        initDateRangeToggle(createdFromInput, createdToInput, createdRangeToggle);
-        initDateRangeToggle(updatedFromInput, updatedToInput, updatedRangeToggle);
+        initTodayToggle(createdFromInput, createdRangeToggle);
+        initTodayToggle(updatedFromInput, updatedRangeToggle);
 
         if (clearCreatedDateBtn) {
             clearCreatedDateBtn.addEventListener("click", () => {
                 if (createdFromInput) createdFromInput.value = "";
-                if (createdToInput) createdToInput.value = "";
                 if (createdRangeToggle) createdRangeToggle.checked = false;
-                if (createdToInput) createdToInput.style.display = "none";
                 clearDateFilterError();
                 scheduleLoad(true);
             });
@@ -332,9 +353,7 @@
         if (clearUpdatedDateBtn) {
             clearUpdatedDateBtn.addEventListener("click", () => {
                 if (updatedFromInput) updatedFromInput.value = "";
-                if (updatedToInput) updatedToInput.value = "";
                 if (updatedRangeToggle) updatedRangeToggle.checked = false;
-                if (updatedToInput) updatedToInput.style.display = "none";
                 clearDateFilterError();
                 scheduleLoad(true);
             });

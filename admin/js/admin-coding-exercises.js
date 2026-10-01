@@ -25,11 +25,9 @@
         if (!tableBody) return;
 
         const createdFromInput = document.getElementById("exerciseCreatedFromInput");
-        const createdToInput = document.getElementById("exerciseCreatedToInput");
         const createdRangeToggle = document.getElementById("exerciseCreatedRangeToggle");
         const clearCreatedDateBtn = document.getElementById("clearExerciseCreatedDateBtn");
         const updatedFromInput = document.getElementById("exerciseUpdatedFromInput");
-        const updatedToInput = document.getElementById("exerciseUpdatedToInput");
         const updatedRangeToggle = document.getElementById("exerciseUpdatedRangeToggle");
         const clearUpdatedDateBtn = document.getElementById("clearExerciseUpdatedDateBtn");
         const dateFilterError = document.getElementById("exerciseDateFilterError");
@@ -51,24 +49,52 @@
             dateFilterError.style.display = "none";
         }
 
-        function getEffectiveDateRange(fromInput, toInput, rangeToggle) {
+        // A single picked date filters that one day (from = to).
+        function getEffectiveDateRange(fromInput) {
             const from = fromInput ? fromInput.value : "";
             if (!from) return { from: "", to: "" };
-            const isRange = !!(rangeToggle && rangeToggle.checked);
-            const to = (isRange && toInput) ? toInput.value : from;
-            return { from, to };
+            return { from, to: from };
+        }
+
+        // Today's LOCAL date as YYYY-MM-DD (never toISOString(), which
+        // is UTC and lands on yesterday before 8 AM in UTC+8).
+        function getTodayLocalDate() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, "0");
+            const d = String(now.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+        }
+
+        // "2026-10-01" -> "Oct 1, 2026"
+        function formatFilterDate(value) {
+            const [y, m, d] = value.split("-").map(Number);
+            return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+
+        function describeFilterDay(value) {
+            return value === getTodayLocalDate() ? "today" : `on ${formatFilterDate(value)}`;
+        }
+
+        function getEmptyMessage() {
+            const created = createdFromInput ? createdFromInput.value : "";
+            const updated = updatedFromInput ? updatedFromInput.value : "";
+            if (created && updated) return "No coding exercises match these date filters.";
+            if (created) return `No coding exercises created ${describeFilterDay(created)}.`;
+            if (updated) return `No coding exercises updated ${describeFilterDay(updated)}.`;
+            return "No coding exercises found.";
         }
 
         function validateDateRanges() {
             clearDateFilterError();
 
-            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            const created = getEffectiveDateRange(createdFromInput);
             if (created.from && created.to && created.from > created.to) {
                 showDateFilterError("Created At: end date must be on or after the start date.");
                 return false;
             }
 
-            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            const updated = getEffectiveDateRange(updatedFromInput);
             if (updated.from && updated.to && updated.from > updated.to) {
                 showDateFilterError("Updated At: end date must be on or after the start date.");
                 return false;
@@ -85,6 +111,7 @@
 
         function statusBadgeHtml(status) {
             if (status === "Published") return `<span class="badge badge-active">${escapeHtml(status)}</span>`;
+            if (status === "Ready to Publish") return `<span class="badge badge-ready">${escapeHtml(status)}</span>`;
             if (status === "Archived") return `<span class="badge badge-inactive">${escapeHtml(status)}</span>`;
             return `<span class="badge badge-draft">${escapeHtml(status || "Draft")}</span>`;
         }
@@ -94,7 +121,7 @@
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="10" class="text-muted table-empty-message">
-                            No coding exercises found.
+                            ${escapeHtml(getEmptyMessage())}
                         </td>
                     </tr>
                 `;
@@ -102,9 +129,12 @@
             }
 
             tableBody.innerHTML = exercises.map(ex => {
-                const isPublished = ex.status === "Published";
-                const btnLabel = isPublished ? "Unpublish" : "Publish";
-                const btnClass = isPublished ? "btn-unpublish-custom" : "btn-success-custom";
+                // Same three states as the server-rendered
+                // coding-exercises.html Publish Action column.
+                let btnLabel, btnClass;
+                if (ex.status === "Published") { btnLabel = "Unpublish"; btnClass = "btn-unpublish-custom"; }
+                else if (ex.status === "Ready to Publish") { btnLabel = "Move to Draft"; btnClass = "btn-movedraft-custom"; }
+                else { btnLabel = "Ready to Publish"; btnClass = "btn-ready-custom"; }
                 return `
                 <tr data-exercise-id="${escapeHtml(ex.exercise_id)}">
                     <td>
@@ -198,11 +228,11 @@
             if (sort) params.set("sort", sort);
             params.set("page", String(page));
 
-            const created = getEffectiveDateRange(createdFromInput, createdToInput, createdRangeToggle);
+            const created = getEffectiveDateRange(createdFromInput);
             if (created.from) params.set("created_from", created.from);
             if (created.to) params.set("created_to", created.to);
 
-            const updated = getEffectiveDateRange(updatedFromInput, updatedToInput, updatedRangeToggle);
+            const updated = getEffectiveDateRange(updatedFromInput);
             if (updated.from) params.set("updated_from", updated.from);
             if (updated.to) params.set("updated_to", updated.to);
 
@@ -240,41 +270,40 @@
             sortSelect.addEventListener("change", () => fetchExercises(1));
         }
 
-        function setupDateFilterEvents(fromInput, toInput, rangeToggle, clearBtn) {
+        // "Today" checkbox: a shortcut that fills/clears the date input.
+        // It stays ticked only while the picked date IS today.
+        function setupDateFilterEvents(fromInput, todayToggle, clearBtn) {
+            const syncTodayToggle = () => {
+                if (!todayToggle) return;
+                todayToggle.checked = !!(fromInput && fromInput.value) && fromInput.value === getTodayLocalDate();
+            };
+            syncTodayToggle();
+
             if (fromInput) {
                 fromInput.addEventListener("change", () => {
-                    if (toInput && (!rangeToggle || !rangeToggle.checked)) {
-                        toInput.value = fromInput.value;
-                    }
+                    syncTodayToggle();
                     fetchExercises(1);
                 });
             }
-            if (toInput) {
-                toInput.addEventListener("change", () => fetchExercises(1));
-            }
-            if (rangeToggle) {
-                rangeToggle.addEventListener("change", () => {
-                    if (rangeToggle.checked) {
-                        const today = new Date().toISOString().split("T")[0];
-                        if (fromInput) fromInput.value = today;
-                        if (toInput) toInput.value = today;
-                    }
+            if (todayToggle) {
+                todayToggle.addEventListener("change", () => {
+                    if (fromInput) fromInput.value = todayToggle.checked ? getTodayLocalDate() : "";
+                    clearDateFilterError();
                     fetchExercises(1);
                 });
             }
             if (clearBtn) {
                 clearBtn.addEventListener("click", () => {
                     if (fromInput) fromInput.value = "";
-                    if (toInput) toInput.value = "";
-                    if (rangeToggle) rangeToggle.checked = false;
+                    if (todayToggle) todayToggle.checked = false;
                     clearDateFilterError();
                     fetchExercises(1);
                 });
             }
         }
 
-        setupDateFilterEvents(createdFromInput, createdToInput, createdRangeToggle, clearCreatedDateBtn);
-        setupDateFilterEvents(updatedFromInput, updatedToInput, updatedRangeToggle, clearUpdatedDateBtn);
+        setupDateFilterEvents(createdFromInput, createdRangeToggle, clearCreatedDateBtn);
+        setupDateFilterEvents(updatedFromInput, updatedRangeToggle, clearUpdatedDateBtn);
 
         // feat/module-title-history: a reverted name shows up right away.
         document.addEventListener("cobra:title-changed", () => fetchExercises(currentPage));
