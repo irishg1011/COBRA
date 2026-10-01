@@ -1,0 +1,253 @@
+/* ==========================================================================
+   profile-menu.css - learner header controls, profile dropdown, logout modal
+   Used on every learner page (built by learner/js/learner.js).
+   ========================================================================== */
+
+/* --- Header right-side controls (bell + profile) --- */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.header-icon-btn,
+.profile-menu-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 999px;
+    font-size: 22px;
+    line-height: 1;
+    color: #003344;
+}
+
+.header-icon-btn:focus-visible,
+.profile-menu-btn:focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+}
+
+.profile-menu-btn[aria-expanded="true"] {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    transform: none;
+}
+
+/* --- Dropdown --- */
+.profile-menu {
+    position: relative;
+}
+
+.profile-menu-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 260px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+    padding: 8px;
+    z-index: 1500;
+    font-family: 'Inter', sans-serif;
+    animation: profileMenuIn 0.14s ease-out;
+}
+
+.profile-menu-panel[hidden] {
+    display: none;
+}
+
+@keyframes profileMenuIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-menu-panel { animation: none; }
+}
+
+/* Clickable name -> View Profile */
+.profile-menu-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #0f172a;
+}
+
+.profile-menu-identity:hover,
+.profile-menu-identity:focus-visible {
+    background: #ecfdf5;
+    outline: none;
+}
+
+.profile-menu-avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #22d3ee, #10b981);
+    color: #ffffff;
+    font-size: 17px;
+}
+
+.profile-menu-identity-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.profile-menu-name {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-menu-identity:hover .profile-menu-name {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.profile-menu-sub {
+    font-size: 12.5px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-menu-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 6px 4px;
+}
+
+.profile-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: none;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #1e293b;
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.profile-menu-item i {
+    width: 18px;
+    text-align: center;
+    font-size: 16px;
+    color: #475569;
+}
+
+.profile-menu-item:hover,
+.profile-menu-item:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+.profile-menu-logout,
+.profile-menu-logout i {
+    color: #dc2626;
+}
+
+.profile-menu-logout:hover,
+.profile-menu-logout:focus-visible {
+    background: #fef2f2;
+}
+
+/* --- Logout confirmation modal (moved out of each page's inline styles) --- */
+.logout-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.logout-modal-overlay[hidden] {
+    display: none;
+}
+
+.logout-modal-card {
+    background: #ffffff;
+    padding: 28px 24px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    font-family: 'Inter', sans-serif;
+}
+
+.logout-modal-icon {
+    margin-bottom: 16px;
+    color: #e02424;
+    font-size: 40px;
+}
+
+.logout-modal-card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #111827;
+}
+
+.logout-modal-card p {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.logout-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.logout-modal-cancel,
+.logout-modal-confirm {
+    padding: 10px 20px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.logout-modal-cancel {
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #374151;
+}
+
+.logout-modal-confirm {
+    border: none;
+    background: #e02424;
+    color: #ffffff;
+}
+
+.logout-modal-cancel:focus-visible,
+.logout-modal-confirm:focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+}

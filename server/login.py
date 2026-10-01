@@ -28,6 +28,7 @@ from admin_routes import admin_bp  # NEW: import admin blueprint
 from learner_routes import learner_bp  # NEW: import learner blueprint|
 from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (own blueprint)
 from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
+from learner_profile import learner_profile_bp  # Profile dropdown: View/Edit Profile, Change Password, badges
 from session_tracker import end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
 from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /admin/login
     authenticate, send_reset_code, verify_reset_code, reset_password, otp_storage,
@@ -65,6 +66,7 @@ app.register_blueprint(learner_bp)
 
 app.register_blueprint(learner_fib_bp)
 app.register_blueprint(learner_flashcard_bp)
+app.register_blueprint(learner_profile_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - My Profile</title>
+    <link rel="stylesheet" href="../static/style.css">
+    <link rel="stylesheet" href="../static/animations.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../learner/css/profile-menu.css">
+    <link rel="stylesheet" href="../learner/css/profile.css">
+</head>
+<body data-auth-guard-mode="refresh">
+
+    <!-- Logged In Header -->
+    <header>
+        <div class="logo-container">
+            <img src="../assets/images/logo-ad.png" alt="CobraByte Logo" class="logo-img">
+        </div>
+
+        <!-- Center Navigation -->
+        <nav class="dashboard-nav">
+            <a href="/dashboard" class="dashboard-nav-link">
+                <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i>
+                Dashboard
+            </a>
+            <a href="/learning-map" class="dashboard-nav-link">
+                <i class="fa-solid fa-book-open" aria-hidden="true"></i>
+                Lessons
+            </a>
+            <a href="/sandbox" class="dashboard-nav-link">
+                <i class="fa-solid fa-code" aria-hidden="true"></i>
+                Sandbox
+            </a>
+        </nav>
+
+        <!-- Right side header control panel elements -->
+        <div class="header-controls">
+            <button type="button" class="icon-btn header-icon-btn" aria-label="Notifications">
+                <i class="fa-solid fa-bell" aria-hidden="true"></i>
+            </button>
+
+            <!-- Profile dropdown (View Profile via name, Edit Profile, Change Password, Logout) - built by learner.js -->
+            <div class="profile-menu" data-profile-menu></div>
+        </div>
+    </header>
+
+    <!-- Profile Main Content -->
+    <main class="profile-page">
+        <p class="profile-status" id="profileLoading">Loading your profile...</p>
+        <p class="profile-status profile-status-error" id="profileError" hidden>Your profile could not be loaded. Refresh the page to try again.</p>
+
+        <div class="profile-content" id="profileContent" hidden>
+            <!-- Who + headline progress -->
+            <section class="profile-hero" aria-labelledby="profileName">
+                <div class="profile-hero-avatar" aria-hidden="true"><i class="fa-solid fa-user"></i></div>
+                <div class="profile-hero-main">
+                    <h1 class="profile-hero-name" id="profileName"></h1>
+                    <p class="profile-hero-username" id="profileUsername"></p>
+                    <div class="profile-hero-meta">
+                        <span><i class="fa-regular fa-clock" aria-hidden="true"></i> <span id="heroHours">0h</span> total</span>
+                        <span><i class="fa-solid fa-award" aria-hidden="true"></i> <span id="heroBadges">0/12</span> badges</span>
+                    </div>
+                </div>
+                <div class="profile-hero-figures">
+                    <div class="profile-figure">
+                        <span class="profile-figure-value" id="heroOverall">0%</span>
+                        <span class="profile-figure-label">Overall</span>
+                    </div>
+                    <div class="profile-figure">
+                        <span class="profile-figure-value" id="heroLessons">0/0</span>
+                        <span class="profile-figure-label">Lessons</span>
+                    </div>
+                </div>
+                <a href="/profile/edit" class="profile-hero-edit"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit Profile</a>
+            </section>
+
+            <!-- Tabs -->
+            <div class="profile-tabs">
+                <a href="/learning-map" class="profile-tab profile-tab-link">
+                    <i class="fa-solid fa-map" aria-hidden="true"></i> Learning Map
+                    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                </a>
+                <div class="profile-tablist" role="tablist" aria-label="Profile sections">
+                    <button type="button" class="profile-tab is-active" role="tab" id="tabAnalytics"
+                            aria-selected="true" aria-controls="panelAnalytics">
+                        <i class="fa-solid fa-chart-column" aria-hidden="true"></i> Learning Analytics
+                    </button>
+                    <button type="button" class="profile-tab" role="tab" id="tabBadges"
+                            aria-selected="false" aria-controls="panelBadges" tabindex="-1">
+                        <i class="fa-solid fa-award" aria-hidden="true"></i> Badges &amp; Achievements
+                    </button>
+                </div>
+            </div>
+
+            <!-- Learning Analytics -->
+            <div class="profile-panel profile-analytics" id="panelAnalytics" role="tabpanel" aria-labelledby="tabAnalytics">
+                <section class="profile-card profile-topics" aria-labelledby="topicsTitle">
+                    <h2 class="profile-card-title" id="topicsTitle">Topic Performance Breakdown</h2>
+                    <div class="topic-list" id="topicList"></div>
+                </section>
+
+                <div class="profile-side">
+                    <section class="profile-card" aria-labelledby="statsTitle">
+                        <h2 class="profile-card-title" id="statsTitle">Your Stats</h2>
+                        <dl class="stat-list">
+                            <div class="stat-row"><dt>Average Score</dt><dd id="statScore">-</dd></div>
+                            <div class="stat-row"><dt>Overall Progress</dt><dd id="statOverall">0%</dd></div>
+                            <div class="stat-row"><dt>Lessons Completed</dt><dd id="statLessons">0/0</dd></div>
+                            <div class="stat-row"><dt>Badges Earned</dt><dd id="statBadges">0/12</dd></div>
+                            <div class="stat-row"><dt>Total Hours</dt><dd id="statHours">0h</dd></div>
+                        </dl>
+                    </section>
+
+                    <section class="profile-card" aria-labelledby="areasTitle">
+                        <h2 class="profile-card-title" id="areasTitle">Areas to Improve</h2>
+                        <div class="area-list" id="areaList"></div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Badges & Achievements -->
+            <div class="profile-panel" id="panelBadges" role="tabpanel" aria-labelledby="tabBadges" hidden>
+                <section class="profile-card" aria-labelledby="badgesTitle">
+                    <div class="badges-head">
+                        <h2 class="profile-card-title" id="badgesTitle">Badges &amp; Achievements</h2>
+                        <p class="badges-count" id="badgesCount"></p>
+                    </div>
+                    <div class="badge-grid" id="badgeGrid"></div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- External Script References -->
+    <script src="../learner/js/learner.js"></script>
+    <script src="../learner/js/profile.js"></script>
+    <script src="../static/auth-guard.js"></script>
+    <script src="../static/page-transitions.js"></script>
+</body>
+</html>
