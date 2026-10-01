@@ -11,8 +11,13 @@
  *    carry their own inline-styled copy.
  *  - Learning-time heartbeat: once a minute while the tab is visible,
  *    for the profile's Total Hours and the "Dedicated" badge.
+ *  - Notifications bell: Facebook-style dropdown (All / Unread, New /
+ *    Earlier, unread dots, mark all as read, see previous) fed by
+ *    /api/notifications (notifications.py); unread count polled every minute.
+ *  - Dark mode toggle: a moon/sun button placed before the bell. It uses
+ *    window.cobraByteTheme from theme.js (loaded in the <head>).
  *
- * Styles: learner/css/profile-menu.css
+ * Styles: learner/css/profile-menu.css, learner/css/dark-mode.css
  */
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -101,6 +106,259 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lets Edit Profile refresh the dropdown name right after saving.
     window.cobraByteProfileMenu = { renderName };
+
+    // ===============================
+    // Notifications bell (Facebook-style dropdown)
+    // ===============================
+    // Data: /api/notifications (notifications.py). The unread count is
+    // polled every minute; the list loads when the panel opens.
+    const NOTIF_POLL_MS = 60 * 1000;
+    const NOTIF_TYPES = {
+        lives_refill:  { icon: 'fa-heart',            badge: 'fa-rotate',           tone: 'red' },
+        lives_out:     { icon: 'fa-heart-crack',      badge: 'fa-clock',            tone: 'rose' },
+        daily_bonus:   { icon: 'fa-gift',             badge: 'fa-plus',             tone: 'amber' },
+        badge:         { icon: 'fa-award',            badge: 'fa-star',             tone: 'gold' },
+        module_passed: { icon: 'fa-layer-group',      badge: 'fa-check',            tone: 'green' },
+        chapter_done:  { icon: 'fa-flag-checkered',   badge: 'fa-check',            tone: 'teal' },
+        retake:        { icon: 'fa-arrow-rotate-right', badge: 'fa-exclamation',    tone: 'orange' },
+        review:        { icon: 'fa-lightbulb',        badge: 'fa-book-open',        tone: 'orange' },
+        security:      { icon: 'fa-lock',             badge: 'fa-shield-halved',    tone: 'blue' },
+        snippet:       { icon: 'fa-code',             badge: 'fa-floppy-disk',      tone: 'indigo' },
+        profile:       { icon: 'fa-user-pen',         badge: 'fa-pen',              tone: 'sky' },
+        welcome:       { icon: 'fa-hand-sparkles',    badge: 'fa-star',             tone: 'teal' },
+    };
+
+    const bellBtn = document.querySelector('.header-controls [aria-label="Notifications"]');
+    if (bellBtn) {
+        const notifWrap = document.createElement('div');
+        notifWrap.className = 'notif-menu';
+        bellBtn.parentNode.insertBefore(notifWrap, bellBtn);
+        notifWrap.appendChild(bellBtn);
+        bellBtn.classList.add('notif-bell');
+        bellBtn.setAttribute('aria-haspopup', 'true');
+        bellBtn.setAttribute('aria-expanded', 'false');
+
+        const bellCount = document.createElement('span');
+        bellCount.className = 'notif-count';
+        bellCount.hidden = true;
+        bellBtn.appendChild(bellCount);
+
+        const panel = document.createElement('div');
+        panel.className = 'notif-panel';
+        panel.hidden = true;
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-label', 'Notifications');
+        panel.innerHTML = `
+            <div class="notif-head">
+                <h2>Notifications</h2>
+                <div class="notif-more">
+                    <button type="button" class="notif-more-btn" aria-label="More options" data-n="moreBtn">
+                        <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+                    </button>
+                    <div class="notif-more-menu" data-n="moreMenu" hidden>
+                        <button type="button" data-n="readAll"><i class="fa-solid fa-check" aria-hidden="true"></i> Mark all as read</button>
+                    </div>
+                </div>
+            </div>
+            <div class="notif-tabs" role="tablist">
+                <button type="button" class="notif-tab is-active" role="tab" aria-selected="true" data-filter="all">All</button>
+                <button type="button" class="notif-tab" role="tab" aria-selected="false" data-filter="unread">Unread</button>
+            </div>
+            <div class="notif-scroll" data-n="scroll">
+                <p class="notif-status" data-n="status">Loading...</p>
+                <div data-n="list"></div>
+                <button type="button" class="notif-older" data-n="older" hidden>See previous notifications</button>
+            </div>`;
+        notifWrap.appendChild(panel);
+
+        const q = (name) => panel.querySelector(`[data-n="${name}"]`);
+        const listEl = q('list');
+        const statusEl = q('status');
+        const olderBtn = q('older');
+        const moreMenu = q('moreMenu');
+        let filter = 'all';
+        let items = [];
+        let loading = false;
+
+        function setCount(n) {
+            const count = Number(n) || 0;
+            bellCount.hidden = count === 0;
+            bellCount.textContent = count > 9 ? '9+' : String(count);
+            bellBtn.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications');
+        }
+
+        // **bold** -> <strong>, everything else escaped
+        function rich(text) {
+            return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        }
+
+        function itemHtml(n) {
+            const t = NOTIF_TYPES[n.type] || { icon: 'fa-bell', badge: 'fa-circle-info', tone: 'teal' };
+            const tag = n.link ? 'a' : 'button';
+            const href = n.link ? ` href="${escapeHtml(n.link)}"` : ' type="button"';
+            return `
+                <${tag}${href} class="notif-item${n.is_read ? '' : ' is-unread'}" data-id="${n.id}">
+                    <span class="notif-avatar tone-${t.tone}" aria-hidden="true">
+                        <i class="fa-solid ${t.icon}"></i>
+                        <span class="notif-avatar-badge"><i class="fa-solid ${t.badge}"></i></span>
+                    </span>
+                    <span class="notif-body">
+                        <span class="notif-title">${rich(n.title)}</span>
+                        ${n.detail ? `<span class="notif-detail">${rich(n.detail)}</span>` : ''}
+                        <span class="notif-time" title="${escapeHtml(n.when)}">${escapeHtml(n.relative)} · ${escapeHtml(n.when)}</span>
+                    </span>
+                    <span class="notif-dot" aria-label="${n.is_read ? '' : 'Unread'}"></span>
+                </${tag}>`;
+        }
+
+        function render() {
+            const fresh = items.filter(n => n.is_today);
+            const earlier = items.filter(n => !n.is_today);
+            let html = '';
+            if (fresh.length) html += `<h3 class="notif-section">New</h3>${fresh.map(itemHtml).join('')}`;
+            if (earlier.length) html += `<h3 class="notif-section">Earlier</h3>${earlier.map(itemHtml).join('')}`;
+            listEl.innerHTML = html;
+            if (!items.length) {
+                statusEl.hidden = false;
+                statusEl.textContent = filter === 'unread'
+                    ? "You're all caught up - no unread notifications."
+                    : 'No notifications yet. Finish a lesson or earn a badge and it shows up here.';
+            } else {
+                statusEl.hidden = true;
+            }
+        }
+
+        async function load(more) {
+            if (loading) return;
+            loading = true;
+            if (!more) {
+                statusEl.hidden = false;
+                statusEl.textContent = 'Loading...';
+            }
+            olderBtn.disabled = true;
+            try {
+                const params = new URLSearchParams({ filter, limit: '12' });
+                if (more && items.length) params.set('before_id', items[items.length - 1].id);
+                const res = await fetch(`/api/notifications?${params}`, { credentials: 'include' });
+                const data = await res.json();
+                if (!data.success) throw new Error();
+                items = more ? items.concat(data.items) : data.items;
+                setCount(data.unread_count);
+                render();
+                olderBtn.hidden = !data.has_more;
+            } catch (e) {
+                if (!more) {
+                    listEl.innerHTML = '';
+                    statusEl.hidden = false;
+                    statusEl.textContent = 'Notifications could not be loaded. Try again in a moment.';
+                }
+            } finally {
+                olderBtn.disabled = false;
+                loading = false;
+            }
+        }
+
+        async function pollCount() {
+            if (document.visibilityState !== 'visible') return;
+            try {
+                const res = await fetch('/api/notifications/count', { credentials: 'include' });
+                const data = await res.json();
+                if (data.success) setCount(data.unread_count);
+            } catch (e) { /* keep the last count */ }
+        }
+
+        function openPanel() {
+            closeMenu(false);
+            panel.hidden = false;
+            bellBtn.setAttribute('aria-expanded', 'true');
+            load(false);
+        }
+
+        function closePanel(returnFocus) {
+            if (panel.hidden) return;
+            panel.hidden = true;
+            moreMenu.hidden = true;
+            bellBtn.setAttribute('aria-expanded', 'false');
+            if (returnFocus) bellBtn.focus();
+        }
+
+        bellBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (panel.hidden) openPanel(); else closePanel(false);
+        });
+        panel.addEventListener('click', (e) => e.stopPropagation());
+        document.addEventListener('click', () => closePanel(false));
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(true); });
+        if (menuBtn) menuBtn.addEventListener('click', () => closePanel(false));
+
+        panel.querySelectorAll('.notif-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                filter = tab.dataset.filter;
+                panel.querySelectorAll('.notif-tab').forEach(t => {
+                    const on = t === tab;
+                    t.classList.toggle('is-active', on);
+                    t.setAttribute('aria-selected', on ? 'true' : 'false');
+                });
+                load(false);
+            });
+        });
+
+        q('moreBtn').addEventListener('click', () => { moreMenu.hidden = !moreMenu.hidden; });
+        q('readAll').addEventListener('click', async () => {
+            moreMenu.hidden = true;
+            try {
+                await fetch('/api/notifications/read-all', { method: 'POST', credentials: 'include' });
+            } catch (e) { /* the next load shows the real state */ }
+            items.forEach(n => { n.is_read = true; });
+            if (filter === 'unread') items = [];
+            setCount(0);
+            render();
+        });
+
+        olderBtn.addEventListener('click', () => load(true));
+
+        // Clicking a notification marks it read, then follows its link.
+        listEl.addEventListener('click', (e) => {
+            const el = e.target.closest('.notif-item');
+            if (!el) return;
+            const n = items.find(x => String(x.id) === el.dataset.id);
+            if (!n || n.is_read) return;
+            n.is_read = true;
+            el.classList.remove('is-unread');
+            setCount(Math.max(0, (Number(bellCount.textContent) || 1) - 1));
+            fetch(`/api/notifications/${n.id}/read`, { method: 'POST', credentials: 'include', keepalive: true })
+                .then(res => res.json())
+                .then(data => { if (data && data.success) setCount(data.unread_count); })
+                .catch(() => { /* best-effort */ });
+        });
+
+        pollCount();
+        setInterval(pollCount, NOTIF_POLL_MS);
+        document.addEventListener('visibilitychange', pollCount);
+    }
+
+    // ===============================
+    // Dark mode toggle (moon = switch to dark, sun = switch to light)
+    // ===============================
+    const controls = document.querySelector('.header-controls');
+    if (controls && window.cobraByteTheme) {
+        const themeBtn = document.createElement('button');
+        themeBtn.type = 'button';
+        themeBtn.className = 'icon-btn header-icon-btn theme-toggle';
+        themeBtn.innerHTML = '<i aria-hidden="true"></i>';
+        controls.insertBefore(themeBtn, controls.firstChild);
+
+        const paintToggle = () => {
+            const dark = window.cobraByteTheme.get() === 'dark';
+            themeBtn.querySelector('i').className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+            themeBtn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+            themeBtn.title = dark ? 'Light mode' : 'Dark mode';
+        };
+        paintToggle();
+        themeBtn.addEventListener('click', () => window.cobraByteTheme.toggle());
+        document.addEventListener('cobrabyte:themechange', paintToggle);
+    }
 
     // ===============================
     // Logout modal (built once, shared)

@@ -39,6 +39,8 @@ from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from weak_spots import get_weak_spots, get_review_status  # weak-spot recommendations
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
+from notifications import notify_standalone  # header bell
+import time
 from module_performance import (  # Module 85% gate
     module_performance, module_locked_for_learner, get_resource_retake_info, start_activity_retake,
 )
@@ -159,6 +161,16 @@ def sandbox_save_code():
     success, snippet, message = save_snippet(acc_id, code, snippet_id=snippet_id)
     if not success:
         return jsonify({"success": False, "message": message}), 400
+
+    # header bell: "Saved <title> to your snippets"
+    lines = len((code or "").splitlines()) or 1
+    notify_standalone(
+        acc_id, "snippet",
+        f"{'Updated' if snippet_id else 'Saved'} **{snippet['title']}** in your snippets",
+        f"Coding Sandbox · {lines} line{'s' if lines != 1 else ''} of code.",
+        "/sandbox",
+        f"snippet:{snippet['snippet_id']}:{int(time.time())}",
+    )
 
     return jsonify({
         "success": True,

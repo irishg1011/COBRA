@@ -39,6 +39,7 @@ from learner_progress_monitor import _load_course_tree, _fetch_progress_rows, _e
 from module_performance import module_performance, PASS_PERCENT
 from learning_time import record_heartbeat, get_total_seconds
 from badges import award_and_list_badges
+from notifications import notify
 
 learner_profile_bp = Blueprint("learner_profile_bp", __name__)
 
@@ -175,7 +176,8 @@ def _count(cursor, sql, params):
     return int(list(row.values())[0] or 0) if row else 0
 
 
-def _build_overview(cursor, acc_id):
+def _build_overview(cursor, acc_id, collect=None):
+    """collect: optional list - gets {"chapter", "module", "perf"} per module (used by notifications.py)."""
     chapters, _ = _load_course_tree(cursor)
     rows = _fetch_progress_rows(cursor, acc_id=acc_id)
     evaluated = _evaluate_rows(cursor, rows)
@@ -196,6 +198,8 @@ def _build_overview(cursor, acc_id):
 
         for module in chapter["modules"]:
             perf = module_performance(cursor, acc_id, module["module_id"])
+            if collect is not None:
+                collect.append({"chapter": chapter, "module": module, "perf": perf})
             if module["lessons"] and perf["passed"]:
                 modules_passed += 1
 
@@ -450,6 +454,12 @@ def profile_update():
         first_name = capitalize_name(first_name)
         last_name = capitalize_name(last_name)
 
+        changed = []
+        if first_name != (current.get("firstname") or "") or last_name != (current.get("lastname") or ""):
+            changed.append("name")
+        if username != current["username"]:
+            changed.append("username")
+
         cursor.execute(
             "UPDATE account_tbl SET username = %s, email = %s WHERE acc_id = %s",
             (username, email, acc_id)
@@ -465,6 +475,16 @@ def profile_update():
                 "INSERT INTO profile_tbl (acc_id, firstname, lastname) VALUES (%s, %s, %s)",
                 (acc_id, first_name, last_name)
             )
+        if email_changed:
+            notify(cursor, acc_id, "security",
+                   "Your **email address** was changed",
+                   f"From now on we'll send codes to {_mask_email(email)}. If this wasn't you, change your password.",
+                   "/profile/edit")
+        if changed:
+            notify(cursor, acc_id, "profile",
+                   "Your **profile** was updated",
+                   "Changed: " + " and ".join(changed) + ".",
+                   "/profile")
         connection.commit()
 
         if email_changed:
@@ -531,7 +551,8 @@ def profile_password_reset():
     if not email:
         return _not_logged_in()
     data = request.get_json(silent=True) or {}
-    payload, status = reset_password(email, data.get("newPassword"), data.get("confirmPassword"), "learner")
+    payload, status = reset_password(email, data.get("newPassword"), data.get("confirmPassword"), "learner",
+                                     via="change")
     if not payload.get("success") and "Forgot password" in (payload.get("message") or ""):
         payload["message"] = "Your code expired. Please send a new code and try again."
     return jsonify(payload), status

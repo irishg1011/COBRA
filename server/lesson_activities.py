@@ -22,6 +22,7 @@ etc.).
 
 from datetime import timedelta
 from mysql.connector import Error
+from notifications import notify_lives_refilled, notify_out_of_lives  # header bell
 from cobradb import get_db_connection
 from activity_retakes import (  # Module 85% gate: retake rounds
     ensure_retake_schema, open_retake, retake_progress, complete_retake, retake_payload,
@@ -739,9 +740,14 @@ def _load_lives(cursor, acc_id, activity_type_id):
     elif regen_at is None:
         regen_at = now          # shouldn't happen, but never leave a pool without a timer
     elif (now - regen_at).total_seconds() >= LIFE_REFILL_SECONDS:
+        # header bell: "your lives are full again" at the real refill time
+        # (deduped, so loading the pool again never repeats it)
+        notify_lives_refilled(cursor, acc_id, activity_type_id, regen_at)
         lives, regen_at = MAX_LIVES, None
 
     return {
+        "acc_id": acc_id,
+        "activity_type_id": activity_type_id,
         "lives_id": row["lives_id"],
         "lives": lives,
         "bonus": bonus,
@@ -779,6 +785,9 @@ def _save_lives(cursor, pool):
             WHERE lives_id = %s""",
         (pool["lives"], pool["bonus"], pool["regen_at"], pool["daily_reset_at"], pool["lives_id"])
     )
+    # header bell: "you're out of lives - back at 4:58 PM" (once per empty pool)
+    if _total_lives(pool) == 0 and pool.get("acc_id"):
+        notify_out_of_lives(cursor, pool["acc_id"], pool.get("activity_type_id"), pool["regen_at"])
 
 
 def lives_payload(pool):

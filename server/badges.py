@@ -14,6 +14,7 @@ Tables (created lazily + seeded; same DDL as sql/profile_badges.sql):
 """
 
 from mysql.connector import Error
+from notifications import notify
 
 BADGES_TABLE = "badges_tbl"
 LEARNER_BADGES_TABLE = "learner_badges_tbl"
@@ -89,9 +90,11 @@ def ensure_badge_schema(cursor):
         )
 
 
-def award_and_list_badges(connection, acc_id, facts):
+def award_and_list_badges(connection, acc_id, facts, notify_as_read=False):
     """
     Saves every badge whose rule `facts` now meets (once - never removed),
+    adds a "You earned ..." notification for each NEW one (notify_as_read:
+    file it as already read - used for a learner's very first sync),
     then returns all badges in display order:
         [{code, name, description, icon, earned, earned_at}, ...]
     """
@@ -110,6 +113,11 @@ def award_and_list_badges(connection, acc_id, facts):
                     f"INSERT IGNORE INTO {LEARNER_BADGES_TABLE} (acc_id, badge_id, earned_at) VALUES (%s, %s, NOW())",
                     (acc_id, badge["badge_id"])
                 )
+                if cursor.rowcount == 1:
+                    notify(cursor, acc_id, "badge",
+                           f"You earned the **{badge['badge_name']}** badge",
+                           badge["description"], "/profile#badges",
+                           f"badge:{badge['badge_code']}", is_read=notify_as_read)
         connection.commit()
 
         cursor.execute(
