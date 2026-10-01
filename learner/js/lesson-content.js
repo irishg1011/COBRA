@@ -551,18 +551,62 @@ document.addEventListener('DOMContentLoaded', () => {
     // imports (by filename, transitively, each at most once) - never the
     // whole lesson. Output is streamed live through _cobrabyte_write.
     const CODE_BLOCK_RUN_PY =
-        "import sys, traceback, builtins, importlib, ast, types\n" +
+        "import sys, time, traceback, builtins, importlib, ast, types\n" +
         `_cobrabyte_modules_dir = ${JSON.stringify(LESSON_MODULES_DIR)}\n` +
         "if _cobrabyte_modules_dir not in sys.path:\n" +
         "    sys.path.insert(0, _cobrabyte_modules_dir)\n" +
         "importlib.invalidate_caches()\n" +
+        "# Safety limits, so a runaway program stops by itself instead of\n" +
+        "# freezing the page: at most 1,000 output lines, and 5 seconds of running\n" +
+        "# time (time spent waiting for an input() answer does not count).\n" +
+        "_COBRABYTE_MAX_LINES = 1000\n" +
+        "_COBRABYTE_MAX_SECONDS = 5\n" +
+        "class _CobrabyteLimit(BaseException):\n" +
+        "    # BaseException, so the program's own `except Exception` can't catch it.\n" +
+        "    pass\n" +
+        "class _CobrabyteGuard:\n" +
+        "    def __init__(self):\n" +
+        "        self.lines = 0\n" +
+        "        self.at_line_start = True\n" +
+        "        self.hit = None\n" +
+        "        self.used = 0.0\n" +
+        "        self.started = time.monotonic()\n" +
+        "    def pause(self):\n" +
+        "        self.used += time.monotonic() - self.started\n" +
+        "    def resume(self):\n" +
+        "        self.started = time.monotonic()\n" +
+        "    def check_time(self):\n" +
+        "        if self.hit is None and self.used + (time.monotonic() - self.started) > _COBRABYTE_MAX_SECONDS:\n" +
+        "            self.hit = 'Program stopped: it ran longer than ' + str(_COBRABYTE_MAX_SECONDS) + ' seconds.'\n" +
+        "        if self.hit is not None:\n" +
+        "            raise _CobrabyteLimit()\n" +
+        "    def report(self):\n" +
+        "        _cobrabyte_write(('' if self.at_line_start else chr(10)) + self.hit)\n" +
+        "_cobrabyte_guard = _CobrabyteGuard()\n" +
+        "class _CobrabyteLoopGuard(ast.NodeTransformer):\n" +
+        "    # Every loop body starts with a quick time check, so even a one-line\n" +
+        "    # `while True: pass` is stopped once the time limit is up.\n" +
+        "    def _guard(self, node):\n" +
+        "        self.generic_visit(node)\n" +
+        "        tick = ast.Expr(value=ast.Call(func=ast.Name(id='_cobrabyte_tick', ctx=ast.Load()), args=[], keywords=[]))\n" +
+        "        node.body.insert(0, ast.copy_location(tick, node))\n" +
+        "        return node\n" +
+        "    visit_For = visit_AsyncFor = visit_While = _guard\n" +
         "class _CobrabyteStream:\n" +
         "    # print() output goes straight to the clicked block's Output box.\n" +
         "    def __init__(self, write_fn):\n" +
         "        self._write_fn = write_fn\n" +
         "    def write(self, text):\n" +
         "        text = str(text)\n" +
+        "        guard = _cobrabyte_guard\n" +
+        "        if guard.hit is not None:\n" +
+        "            raise _CobrabyteLimit()\n" +
         "        if text:\n" +
+        "            if guard.lines >= _COBRABYTE_MAX_LINES:\n" +
+        "                guard.hit = 'Program stopped: too much output (limit ' + format(_COBRABYTE_MAX_LINES, ',') + ' lines).'\n" +
+        "                raise _CobrabyteLimit()\n" +
+        "            guard.lines += text.count(chr(10))\n" +
+        "            guard.at_line_start = text.endswith(chr(10))\n" +
         "            self._write_fn(text)\n" +
         "        return len(text)\n" +
         "    def flush(self):\n" +
@@ -574,9 +618,14 @@ document.addEventListener('DOMContentLoaded', () => {
         "sys.stdout = _CobrabyteStream(_cobrabyte_write)\n" +
         "sys.stderr = _CobrabyteStream(_cobrabyte_write)\n" +
         "async def _cobrabyte_input(prompt=''):\n" +
-        "    _val = await _cobrabyte_read_input(str(prompt) if prompt else '')\n" +
+        "    _cobrabyte_guard.pause()\n" +
+        "    try:\n" +
+        "        _val = await _cobrabyte_read_input(str(prompt) if prompt else '')\n" +
+        "    finally:\n" +
+        "        _cobrabyte_guard.resume()\n" +
         "    if not isinstance(_val, str):\n" +
         "        raise EOFError('Input was cancelled while testing.')\n" +
+        "    _cobrabyte_guard.at_line_start = True\n" +
         "    return _val\n" +
         "builtins.input = _cobrabyte_input\n" +
         "class _CobrabyteAsyncify:\n" +
@@ -675,8 +724,11 @@ document.addEventListener('DOMContentLoaded', () => {
         "async def _cobrabyte_exec_async(source, mod_globals):\n" +
         "    tree = ast.parse(source or '', filename='<exec>', mode='exec')\n" +
         "    tree = _CobrabyteAsyncify(tree).run()\n" +
+        "    tree = _CobrabyteLoopGuard().visit(tree)\n" +
+        "    ast.fix_missing_locations(tree)\n" +
         "    code = compile(tree, '<exec>', 'exec', flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)\n" +
         "    mod_globals['_cobrabyte_input_unsupported'] = _cobrabyte_input_unsupported\n" +
+        "    mod_globals['_cobrabyte_tick'] = _cobrabyte_guard.check_time\n" +
         "    result = eval(code, mod_globals)\n" +
         "    if result is not None and hasattr(result, '__await__'):\n" +
         "        await result\n" +
@@ -726,17 +778,22 @@ document.addEventListener('DOMContentLoaded', () => {
         "        await _cobrabyte_exec_async(source, mod.__dict__)\n" +
         "    except Exception:\n" +
         "        traceback.print_exc()\n" +
+        "_cobrabyte_guard.resume()\n" +
         "try:\n" +
         "    for _dep in _cobrabyte_imported_names(_cobrabyte_user_code):\n" +
         "        await _cobrabyte_load_module(_dep)\n" +
         "    await _cobrabyte_exec_async(_cobrabyte_user_code, {'__name__': '__main__'})\n" +
+        "except _CobrabyteLimit:\n" +
+        "    pass\n" +
         "except SystemExit:\n" +
         "    pass\n" +
         "except Exception:\n" +
         "    traceback.print_exc()\n" +
         "finally:\n" +
         "    builtins.input = _old_input\n" +
-        "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n";
+        "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
+        "    if _cobrabyte_guard.hit is not None:\n" +
+        "        _cobrabyte_guard.report()\n";
 
     // Writes text straight into the run's Output box, as it happens.
     function appendRunOutput(run, text) {
@@ -831,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function confirmEndlessLoopRun() {
         return showRunModal(
             "This loop might never stop",
-            "This loop has no way to end, so it can freeze the page. If that happens, just refresh. Run anyway?",
+            "This loop has no way to end. If it runs too long or prints too much, it will be stopped automatically. Run anyway?",
             "Run anyway",
             true
         );
