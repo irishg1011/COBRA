@@ -194,10 +194,15 @@ def ensure_display_order_columns(connection):
             f"display_order INT(10) NULL"
         )
 
+        # Fix: number unordered rows AFTER the highest existing position.
+        # Starting at 1 gave new chapters the same numbers as existing
+        # ones, so the Learning Map order "swapped" after every restart.
+        cursor.execute(f"SELECT COALESCE(MAX(display_order), 0) FROM {CATEGORY_TABLE}")
+        start = cursor.fetchone()[0] + 1
         cursor.execute(
             f"SELECT cat_id FROM {CATEGORY_TABLE} WHERE display_order IS NULL ORDER BY cat_id ASC"
         )
-        for position, (cat_id,) in enumerate(cursor.fetchall(), start=1):
+        for position, (cat_id,) in enumerate(cursor.fetchall(), start=start):
             cursor.execute(
                 f"UPDATE {CATEGORY_TABLE} SET display_order = %s WHERE cat_id = %s",
                 (position, cat_id)
@@ -206,12 +211,17 @@ def ensure_display_order_columns(connection):
         cursor.execute(f"SELECT cat_id FROM {CATEGORY_TABLE}")
         for (cat_id,) in cursor.fetchall():
             cursor.execute(
+                f"SELECT COALESCE(MAX(display_order), 0) FROM {MODULES_TABLE} WHERE cat_id = %s",
+                (cat_id,)
+            )
+            start = cursor.fetchone()[0] + 1
+            cursor.execute(
                 f"SELECT module_id FROM {MODULES_TABLE} "
                 f"WHERE cat_id = %s AND display_order IS NULL "
                 f"ORDER BY created_at ASC, module_id ASC",
                 (cat_id,)
             )
-            for position, (module_id,) in enumerate(cursor.fetchall(), start=1):
+            for position, (module_id,) in enumerate(cursor.fetchall(), start=start):
                 cursor.execute(
                     f"UPDATE {MODULES_TABLE} SET display_order = %s WHERE module_id = %s",
                     (position, module_id)
@@ -388,9 +398,13 @@ def create_category(category_name, changed_by=None):
             f"SELECT cat_stats_id FROM {CATEGORY_STATS_TABLE} WHERE cat_stats_name = 'Draft' LIMIT 1"
         )
         draft_row = cursor.fetchone()
+        # A new chapter always goes LAST (after every existing chapter,
+        # archived ones included), so creating one never reshuffles the map.
+        cursor.execute(f"SELECT COALESCE(MAX(display_order), 0) + 1 FROM {CATEGORY_TABLE}")
+        next_order = cursor.fetchone()[0]
         cursor.execute(
-            f"INSERT INTO {CATEGORY_TABLE} (category_name, is_archived, cat_stats_id) VALUES (%s, 0, %s)",
-            (name, draft_row[0] if draft_row else None)
+            f"INSERT INTO {CATEGORY_TABLE} (category_name, is_archived, cat_stats_id, display_order) VALUES (%s, 0, %s, %s)",
+            (name, draft_row[0] if draft_row else None, next_order)
         )
         new_id = cursor.lastrowid
         log_title_change(cursor, "category", new_id, None, name, changed_by)
@@ -770,11 +784,17 @@ def create_module(module_name, description, cat_id, module_stats_id, changed_by=
             cursor.close()
             return False, "This module already exists in the selected category.", None
 
+        # A new module always goes LAST inside its chapter.
+        cursor.execute(
+            f"SELECT COALESCE(MAX(display_order), 0) + 1 FROM {MODULES_TABLE} WHERE cat_id = %s",
+            (cat_id,)
+        )
+        next_order = cursor.fetchone()[0]
         cursor.execute(
             f"""INSERT INTO {MODULES_TABLE}
-                (module_name, description, cat_id, module_stats_id, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, NOW(), NOW())""",
-            (name, desc, cat_id, module_stats_id)
+                (module_name, description, cat_id, module_stats_id, created_at, updated_at, display_order)
+                VALUES (%s, %s, %s, %s, NOW(), NOW(), %s)""",
+            (name, desc, cat_id, module_stats_id, next_order)
         )
         new_id = cursor.lastrowid
         log_title_change(cursor, "module", new_id, None, name, changed_by)
