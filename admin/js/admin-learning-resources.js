@@ -296,7 +296,6 @@
         const PREVIEW_PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
         const PREVIEW_LESSON_MODULES_DIR = "/lesson_modules";
         let previewPyodideLoadPromise = null;
-        let previewActiveOutputBox = null;
 
         function getPreviewPyodideInstance() {
             if (!previewPyodideLoadPromise) {
@@ -307,41 +306,6 @@
             }
             return previewPyodideLoadPromise;
         }
-
-        // Inline input() prompt, appended directly into whichever output
-        // box is currently running - same interaction as the learner's
-        // own lesson page (and the Sandbox): the raw prompt text plus a
-        // live input field, no separate input box anywhere else.
-        function showPreviewTerminalInputPrompt(promptText) {
-            return new Promise((resolve) => {
-                const outputBox = previewActiveOutputBox;
-                if (!outputBox) { resolve(""); return; }
-
-                const promptSpan = document.createElement("span");
-                promptSpan.className = "editor-terminal-prompt-text";
-                promptSpan.textContent = promptText || "";
-
-                const input = document.createElement("input");
-                input.type = "text";
-                input.className = "editor-terminal-inline-input";
-                input.autocomplete = "off";
-                input.spellcheck = false;
-
-                outputBox.appendChild(promptSpan);
-                outputBox.appendChild(input);
-                outputBox.scrollTop = outputBox.scrollHeight;
-                input.focus();
-
-                input.addEventListener("keydown", function (e) {
-                    if (e.key === "Enter") {
-                        e.preventDefault();
-                        input.disabled = true;
-                        resolve(input.value);
-                    }
-                });
-            });
-        }
-        window.cobraByteContentPreviewInput = showPreviewTerminalInputPrompt;
 
         function syncPreviewModuleFilesToFS(pyodide, files) {
             try {
@@ -357,9 +321,11 @@
             });
         }
 
-        function getAllPreviewCodeBlockFiles(scopeEl) {
+        // `skipWrapper` (the clicked block) is left out when given.
+        function getAllPreviewCodeBlockFiles(scopeEl, skipWrapper) {
             const files = [];
             scopeEl.querySelectorAll(".editor-code-container").forEach((wrapper) => {
+                if (wrapper === skipWrapper) return;
                 const filenameInput = wrapper.querySelector(".editor-code-filename");
                 const consoleBox = wrapper.querySelector(".editor-console-box");
                 files.push({
@@ -370,169 +336,414 @@
             return files;
         }
 
-        async function runPreviewPythonCode(code, files, currentFilename) {
-            let pyodide;
-            try {
-                pyodide = await getPreviewPyodideInstance();
-            } catch (err) {
-                return "Could not load the Python runtime. Check your internet connection and try again.";
+        // Shared #confirmActionModal as a promise (true = confirm button).
+        // `withCancel` false = a plain notice with just the confirm button.
+        // Pulled in front of any open preview overlay while it is showing.
+        function showRunModal(title, message, confirmLabel, withCancel) {
+            const modal = document.getElementById("confirmActionModal");
+            if (!modal) return Promise.resolve(true);
+            const modalTitle = document.getElementById("confirmActionTitle");
+            const modalText = document.getElementById("confirmActionText");
+            const cancelBtn = document.getElementById("confirmActionCancelBtn");
+            const confirmBtn = document.getElementById("confirmActionConfirmBtn");
+            if (modalTitle) modalTitle.textContent = title;
+            if (modalText) modalText.textContent = message;
+            if (cancelBtn) cancelBtn.style.display = withCancel ? "" : "none";
+            if (confirmBtn) {
+                confirmBtn.textContent = confirmLabel;
+                confirmBtn.className = "modal-btn-save";
             }
+            modal.classList.add("modal-overlay-front");
+            modal.classList.remove("modal-hidden");
+            modal.style.display = "flex";
 
-            syncPreviewModuleFilesToFS(pyodide, files);
-            pyodide.globals.set("_cobrabyte_user_code", code || "");
-            pyodide.globals.set("_cobrabyte_module_files", files);
-            pyodide.globals.set("_cobrabyte_current_filename", currentFilename || "");
+            return new Promise((resolve) => {
+                function finish(result) {
+                    modal.classList.add("modal-hidden");
+                    modal.classList.remove("modal-overlay-front");
+                    modal.style.display = "none";
+                    if (cancelBtn) {
+                        cancelBtn.style.display = "";
+                        cancelBtn.removeEventListener("click", onCancel);
+                    }
+                    if (confirmBtn) {
+                        confirmBtn.textContent = "Confirm";
+                        confirmBtn.removeEventListener("click", onOk);
+                    }
+                    modal.removeEventListener("click", onOverlay);
+                    document.removeEventListener("keydown", onKey);
+                    resolve(result);
+                }
+                function onOk() { finish(true); }
+                function onCancel() { finish(false); }
+                function onOverlay(e) { if (e.target === modal) finish(false); }
+                function onKey(e) { if (e.key === "Escape") finish(false); }
+                if (confirmBtn) confirmBtn.addEventListener("click", onOk);
+                if (cancelBtn) cancelBtn.addEventListener("click", onCancel);
+                modal.addEventListener("click", onOverlay);
+                document.addEventListener("keydown", onKey);
+            });
+        }
+
+        // ------------------------------------------------------------
+        // Code block runner - ONE run at a time on this page. `currentRun`
+        // is the clicked block's Run button + Output box, any input() still
+        // waiting for an answer, and whether Stop was clicked.
+        // ------------------------------------------------------------
+        let currentRun = null;
+        let pyodideReady = false;
+
+        const RUN_BTN_STOP_HTML = '<i class="fa-solid fa-stop"></i> Stop';
+        const RUN_BTN_LOADING_HTML = '<i class="fa-solid fa-stop"></i> Loading Python...';
+
+        // Clicked block's code only runs other lesson blocks it actually
+        // imports (by filename, transitively, each at most once) - never the
+        // whole lesson. Output is streamed live through _cobrabyte_write.
+        const CODE_BLOCK_RUN_PY =
+            "import sys, traceback, builtins, importlib, ast, types\n" +
+            `_cobrabyte_modules_dir = ${JSON.stringify(PREVIEW_LESSON_MODULES_DIR)}\n` +
+            "if _cobrabyte_modules_dir not in sys.path:\n" +
+            "    sys.path.insert(0, _cobrabyte_modules_dir)\n" +
+            "importlib.invalidate_caches()\n" +
+            "class _CobrabyteStream:\n" +
+            "    # print() output goes straight to the clicked block's Output box.\n" +
+            "    def __init__(self, write_fn):\n" +
+            "        self._write_fn = write_fn\n" +
+            "    def write(self, text):\n" +
+            "        text = str(text)\n" +
+            "        if text:\n" +
+            "            self._write_fn(text)\n" +
+            "        return len(text)\n" +
+            "    def flush(self):\n" +
+            "        pass\n" +
+            "    def isatty(self):\n" +
+            "        return False\n" +
+            "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
+            "_old_input = builtins.input\n" +
+            "sys.stdout = _CobrabyteStream(_cobrabyte_write)\n" +
+            "sys.stderr = _CobrabyteStream(_cobrabyte_write)\n" +
+            "async def _cobrabyte_input(prompt=''):\n" +
+            "    _val = await _cobrabyte_read_input(str(prompt) if prompt else '')\n" +
+            "    if not isinstance(_val, str):\n" +
+            "        raise EOFError('Input was cancelled while testing.')\n" +
+            "    return _val\n" +
+            "builtins.input = _cobrabyte_input\n" +
+            "class _CobrabyteAsyncify:\n" +
+            "    # input() -> await input(). Any function that calls input() - directly\n" +
+            "    # or through other user functions/methods - becomes async, and every\n" +
+            "    # call to it is awaited, so input() works anywhere in the code.\n" +
+            "    def __init__(self, tree):\n" +
+            "        self.tree = tree\n" +
+            "        self.async_names = set()\n" +
+            "        self.method_names = set()\n" +
+            "    @staticmethod\n" +
+            "    def _own_calls(fn):\n" +
+            "        stack = list(fn.body)\n" +
+            "        while stack:\n" +
+            "            node = stack.pop()\n" +
+            "            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):\n" +
+            "                continue\n" +
+            "            if isinstance(node, ast.Call):\n" +
+            "                yield node\n" +
+            "            stack.extend(ast.iter_child_nodes(node))\n" +
+            "    def _call_name(self, call):\n" +
+            "        f = call.func\n" +
+            "        if isinstance(f, ast.Name):\n" +
+            "            return f.id\n" +
+            "        if isinstance(f, ast.Attribute) and f.attr in self.method_names:\n" +
+            "            return f.attr\n" +
+            "        return None\n" +
+            "    @staticmethod\n" +
+            "    def _can_be_async(fn):\n" +
+            "        if fn.name.startswith('__') and fn.name.endswith('__'):\n" +
+            "            return False\n" +
+            "        for node in ast.walk(fn):\n" +
+            "            if isinstance(node, (ast.Yield, ast.YieldFrom)):\n" +
+            "                return False\n" +
+            "        return True\n" +
+            "    def run(self):\n" +
+            "        self.method_names = {\n" +
+            "            item.name\n" +
+            "            for cls in ast.walk(self.tree) if isinstance(cls, ast.ClassDef)\n" +
+            "            for item in cls.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))\n" +
+            "        }\n" +
+            "        funcs = [n for n in ast.walk(self.tree) if isinstance(n, ast.FunctionDef) and self._can_be_async(n)]\n" +
+            "        changed = True\n" +
+            "        while changed:\n" +
+            "            changed = False\n" +
+            "            for fn in funcs:\n" +
+            "                if fn.name in self.async_names:\n" +
+            "                    continue\n" +
+            "                for call in self._own_calls(fn):\n" +
+            "                    name = self._call_name(call)\n" +
+            "                    if name == 'input' or name in self.async_names:\n" +
+            "                        self.async_names.add(fn.name)\n" +
+            "                        changed = True\n" +
+            "                        break\n" +
+            "        self._rewrite(self.tree, True)\n" +
+            "        ast.fix_missing_locations(self.tree)\n" +
+            "        return self.tree\n" +
+            "    def _rewrite(self, node, in_async):\n" +
+            "        for field, value in ast.iter_fields(node):\n" +
+            "            if isinstance(value, list):\n" +
+            "                setattr(node, field, [self._visit(v, in_async) if isinstance(v, ast.AST) else v for v in value])\n" +
+            "            elif isinstance(value, ast.AST):\n" +
+            "                setattr(node, field, self._visit(value, in_async))\n" +
+            "    def _visit(self, node, in_async):\n" +
+            "        if isinstance(node, ast.FunctionDef):\n" +
+            "            if node.name in self.async_names and self._can_be_async(node):\n" +
+            "                extra = {'type_params': node.type_params} if hasattr(node, 'type_params') else {}\n" +
+            "                new = ast.AsyncFunctionDef(name=node.name, args=node.args, body=node.body,\n" +
+            "                                           decorator_list=node.decorator_list, returns=node.returns,\n" +
+            "                                           type_comment=None, **extra)\n" +
+            "                ast.copy_location(new, node)\n" +
+            "                self._rewrite(new, True)\n" +
+            "                return new\n" +
+            "            self._rewrite(node, False)\n" +
+            "            return node\n" +
+            "        if isinstance(node, ast.AsyncFunctionDef):\n" +
+            "            self._rewrite(node, True)\n" +
+            "            return node\n" +
+            "        if isinstance(node, ast.Lambda):\n" +
+            "            self._rewrite(node, False)\n" +
+            "            return node\n" +
+            "        if isinstance(node, ast.ClassDef):\n" +
+            "            self._rewrite(node, in_async)\n" +
+            "            return node\n" +
+            "        self._rewrite(node, in_async)\n" +
+            "        if isinstance(node, ast.Call):\n" +
+            "            name = self._call_name(node)\n" +
+            "            if name == 'input' or name in self.async_names:\n" +
+            "                if in_async:\n" +
+            "                    return ast.copy_location(ast.Await(value=node), node)\n" +
+            "                if name == 'input':\n" +
+            "                    node.func = ast.copy_location(ast.Name(id='_cobrabyte_input_unsupported', ctx=ast.Load()), node.func)\n" +
+            "        return node\n" +
+            "def _cobrabyte_input_unsupported(*args, **kwargs):\n" +
+            "    raise RuntimeError(\"input() can't be used inside __init__, a lambda, or a generator here. Move it into a normal function.\")\n" +
+            "async def _cobrabyte_exec_async(source, mod_globals):\n" +
+            "    tree = ast.parse(source or '', filename='<exec>', mode='exec')\n" +
+            "    tree = _CobrabyteAsyncify(tree).run()\n" +
+            "    code = compile(tree, '<exec>', 'exec', flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)\n" +
+            "    mod_globals['_cobrabyte_input_unsupported'] = _cobrabyte_input_unsupported\n" +
+            "    result = eval(code, mod_globals)\n" +
+            "    if result is not None and hasattr(result, '__await__'):\n" +
+            "        await result\n" +
+            "def _cobrabyte_imported_names(source):\n" +
+            "    # Top-level names of every `import x` / `from x import y` in source.\n" +
+            "    try:\n" +
+            "        tree = ast.parse(source or '')\n" +
+            "    except SyntaxError:\n" +
+            "        return []\n" +
+            "    nodes = [n for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))]\n" +
+            "    nodes.sort(key=lambda n: (n.lineno, n.col_offset))\n" +
+            "    names = []\n" +
+            "    for node in nodes:\n" +
+            "        if isinstance(node, ast.Import):\n" +
+            "            names.extend(alias.name.split('.')[0] for alias in node.names)\n" +
+            "        elif node.level == 0 and node.module:\n" +
+            "            names.append(node.module.split('.')[0])\n" +
+            "    return names\n" +
+            "# Other lesson blocks by module name (the clicked block is never in here).\n" +
+            "_cobrabyte_lesson_modules = {}\n" +
+            "for _mf in _cobrabyte_module_files.to_py():\n" +
+            "    _mf_name = (_mf.get('filename') or '').strip()\n" +
+            "    if not _mf_name.lower().endswith('.py'):\n" +
+            "        continue\n" +
+            "    _mod_name = _mf_name.split('/')[-1].split(chr(92))[-1][:-3]\n" +
+            "    if _mod_name and _mod_name not in _cobrabyte_lesson_modules:\n" +
+            "        _cobrabyte_lesson_modules[_mod_name] = _mf.get('code') or ''\n" +
+            "# Forget lesson modules from earlier runs, so edited code is loaded fresh.\n" +
+            "for _name, _m in list(sys.modules.items()):\n" +
+            "    if getattr(_m, '__cobrabyte_lesson__', False) or str(getattr(_m, '__file__', '') or '').startswith(_cobrabyte_modules_dir + '/'):\n" +
+            "        sys.modules.pop(_name, None)\n" +
+            "_cobrabyte_loaded = set()\n" +
+            "async def _cobrabyte_load_module(name):\n" +
+            "    # Runs one imported lesson block as a module, its own lesson imports\n" +
+            "    # first. Each block loads at most once, so import cycles stop here.\n" +
+            "    if name in _cobrabyte_loaded or name not in _cobrabyte_lesson_modules:\n" +
+            "        return\n" +
+            "    _cobrabyte_loaded.add(name)\n" +
+            "    source = _cobrabyte_lesson_modules[name]\n" +
+            "    mod = types.ModuleType(name)\n" +
+            "    mod.__file__ = _cobrabyte_modules_dir + '/' + name + '.py'\n" +
+            "    mod.__cobrabyte_lesson__ = True\n" +
+            "    sys.modules[name] = mod\n" +
+            "    for dep in _cobrabyte_imported_names(source):\n" +
+            "        await _cobrabyte_load_module(dep)\n" +
+            "    try:\n" +
+            "        await _cobrabyte_exec_async(source, mod.__dict__)\n" +
+            "    except Exception:\n" +
+            "        traceback.print_exc()\n" +
+            "try:\n" +
+            "    for _dep in _cobrabyte_imported_names(_cobrabyte_user_code):\n" +
+            "        await _cobrabyte_load_module(_dep)\n" +
+            "    await _cobrabyte_exec_async(_cobrabyte_user_code, {'__name__': '__main__'})\n" +
+            "except SystemExit:\n" +
+            "    pass\n" +
+            "except Exception:\n" +
+            "    traceback.print_exc()\n" +
+            "finally:\n" +
+            "    builtins.input = _old_input\n" +
+            "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n";
+
+        // Writes text straight into the run's Output box, as it happens.
+        function appendRunOutput(run, text) {
+            if (!text || run.stopped) return;
+            const box = run.outputBox;
+            const last = box.lastChild;
+            if (last && last.nodeType === Node.TEXT_NODE) {
+                last.appendData(text);
+            } else {
+                box.appendChild(document.createTextNode(text));
+            }
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // input(): the prompt + inline field go into the run's own Output box.
+        // Resolves with the typed text, or null when Stop is clicked.
+        function readRunInput(run, promptText) {
+            return new Promise((resolve) => {
+                if (run.stopped) { resolve(null); return; }
+                const box = run.outputBox;
+
+                const promptSpan = document.createElement("span");
+                promptSpan.className = "editor-terminal-prompt-text";
+                promptSpan.textContent = promptText || "";
+
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "editor-terminal-inline-input";
+                input.autocomplete = "off";
+                input.spellcheck = false;
+
+                box.appendChild(promptSpan);
+                box.appendChild(input);
+                box.scrollTop = box.scrollHeight;
+                input.focus();
+
+                run.inputResolve = function (value) {
+                    run.inputResolve = null;
+                    // The answered line stays behind as plain text, like a terminal.
+                    const answered = (promptText || "") + (value === null ? "" : value + "\n");
+                    if (answered) box.insertBefore(document.createTextNode(answered), promptSpan);
+                    promptSpan.remove();
+                    input.remove();
+                    resolve(value);
+                };
+
+                input.addEventListener("keydown", function (e) {
+                    if (e.key === "Enter" && run.inputResolve) {
+                        e.preventDefault();
+                        run.inputResolve(input.value);
+                    }
+                });
+            });
+        }
+
+        // Stop: a waiting input() gets null, so the program ends through
+        // EOFError - its traceback is hidden, since nothing prints once stopped.
+        function stopCurrentRun() {
+            const run = currentRun;
+            if (!run || run.stopped) return;
+            run.stopped = true;
+            if (run.inputResolve) run.inputResolve(null);
+            const box = run.outputBox;
+            const text = box.textContent;
+            box.appendChild(document.createTextNode((text && !text.endsWith("\n") ? "\n" : "") + "Program stopped."));
+            box.scrollTop = box.scrollHeight;
+            run.runBtn.disabled = true;
+            run.signalStop();
+        }
+
+        // An always-true loop (`while True:` / `while 1:`) whose body has no
+        // break, return, input(), exit() or sys.exit() can never end.
+        function hasEndlessLoop(code) {
+            const lines = code.replace(/ /g, " ").split(/\r?\n/);
+            const indentOf = (line) => line.match(/^\s*/)[0].replace(/\t/g, "    ").length;
+            for (let i = 0; i < lines.length; i++) {
+                const match = lines[i].match(/^\s*while\s*\(?\s*(?:True|1)\s*\)?\s*:(.*)$/);
+                if (!match) continue;
+                const loopIndent = indentOf(lines[i]);
+                const body = [match[1]];
+                for (let j = i + 1; j < lines.length; j++) {
+                    const line = lines[j];
+                    if (!line.trim() || /^\s*#/.test(line)) continue;
+                    if (indentOf(line) <= loopIndent) break;
+                    body.push(line);
+                }
+                if (!/\b(?:break|return)\b|\b(?:input|exit)\s*\(/.test(body.join("\n"))) return true;
+            }
+            return false;
+        }
+
+        function confirmEndlessLoopRun() {
+            return showRunModal(
+                "This loop might never stop",
+                "This loop has no way to end, so it can freeze the page. If that happens, just refresh. Run anyway?",
+                "Run anyway",
+                true
+            );
+        }
+
+        // Runs one block. Never throws - the finally always puts every Run
+        // button back, whether the code finished, failed or was stopped.
+        async function runCodeBlock(opts) {
+            let signalStop = null;
+            const run = {
+                runBtn: opts.runBtn,
+                outputBox: opts.outputBox,
+                inputResolve: null,
+                stopped: false,
+                stopPromise: new Promise((resolve) => { signalStop = resolve; }),
+            };
+            run.signalStop = () => signalStop(null);
+
+            const runBtn = run.runBtn;
+            const originalHtml = runBtn.innerHTML;
+            const originalTitle = runBtn.getAttribute("title");
+            const otherBtns = Array.from(opts.scopeEl.querySelectorAll(".run-btn"))
+                .filter((btn) => btn !== runBtn && !btn.disabled);
+            currentRun = run;
 
             try {
-                const result = await pyodide.runPythonAsync(
-                    "import sys, io, traceback, builtins, importlib, ast, types\n" +
-                    "import js as _cobrabyte_js\n" +
-                    `_cobrabyte_modules_dir = ${JSON.stringify(PREVIEW_LESSON_MODULES_DIR)}\n` +
-                    "if _cobrabyte_modules_dir not in sys.path:\n" +
-                    "    sys.path.insert(0, _cobrabyte_modules_dir)\n" +
-                    "importlib.invalidate_caches()\n" +
-                    "_cobrabyte_stdout = io.StringIO()\n" +
-                    "_cobrabyte_stderr = io.StringIO()\n" +
-                    "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
-                    "_old_input = builtins.input\n" +
-                    "sys.stdout, sys.stderr = _cobrabyte_stdout, _cobrabyte_stderr\n" +
-                    "async def _cobrabyte_input(prompt=''):\n" +
-                    "    if prompt:\n" +
-                    "        sys.stdout.write(str(prompt))\n" +
-                    "    _val = await _cobrabyte_js.cobraByteContentPreviewInput(str(prompt) if prompt else '')\n" +
-                    "    if _val is None:\n" +
-                    "        raise EOFError('Input was cancelled while testing.')\n" +
-                    "    _val = str(_val)\n" +
-                    "    sys.stdout.write(_val + chr(10))\n" +
-                    "    return _val\n" +
-                    "builtins.input = _cobrabyte_input\n" +
-                    "class _CobrabyteAsyncify:\n" +
-                    "    # input() -> await input(). Any function that calls input() - directly\n" +
-                    "    # or through other user functions/methods - becomes async, and every\n" +
-                    "    # call to it is awaited, so input() works anywhere in the code.\n" +
-                    "    def __init__(self, tree):\n" +
-                    "        self.tree = tree\n" +
-                    "        self.async_names = set()\n" +
-                    "        self.method_names = set()\n" +
-                    "    @staticmethod\n" +
-                    "    def _own_calls(fn):\n" +
-                    "        stack = list(fn.body)\n" +
-                    "        while stack:\n" +
-                    "            node = stack.pop()\n" +
-                    "            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):\n" +
-                    "                continue\n" +
-                    "            if isinstance(node, ast.Call):\n" +
-                    "                yield node\n" +
-                    "            stack.extend(ast.iter_child_nodes(node))\n" +
-                    "    def _call_name(self, call):\n" +
-                    "        f = call.func\n" +
-                    "        if isinstance(f, ast.Name):\n" +
-                    "            return f.id\n" +
-                    "        if isinstance(f, ast.Attribute) and f.attr in self.method_names:\n" +
-                    "            return f.attr\n" +
-                    "        return None\n" +
-                    "    @staticmethod\n" +
-                    "    def _can_be_async(fn):\n" +
-                    "        if fn.name.startswith('__') and fn.name.endswith('__'):\n" +
-                    "            return False\n" +
-                    "        for node in ast.walk(fn):\n" +
-                    "            if isinstance(node, (ast.Yield, ast.YieldFrom)):\n" +
-                    "                return False\n" +
-                    "        return True\n" +
-                    "    def run(self):\n" +
-                    "        self.method_names = {\n" +
-                    "            item.name\n" +
-                    "            for cls in ast.walk(self.tree) if isinstance(cls, ast.ClassDef)\n" +
-                    "            for item in cls.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))\n" +
-                    "        }\n" +
-                    "        funcs = [n for n in ast.walk(self.tree) if isinstance(n, ast.FunctionDef) and self._can_be_async(n)]\n" +
-                    "        changed = True\n" +
-                    "        while changed:\n" +
-                    "            changed = False\n" +
-                    "            for fn in funcs:\n" +
-                    "                if fn.name in self.async_names:\n" +
-                    "                    continue\n" +
-                    "                for call in self._own_calls(fn):\n" +
-                    "                    name = self._call_name(call)\n" +
-                    "                    if name == 'input' or name in self.async_names:\n" +
-                    "                        self.async_names.add(fn.name)\n" +
-                    "                        changed = True\n" +
-                    "                        break\n" +
-                    "        self._rewrite(self.tree, True)\n" +
-                    "        ast.fix_missing_locations(self.tree)\n" +
-                    "        return self.tree\n" +
-                    "    def _rewrite(self, node, in_async):\n" +
-                    "        for field, value in ast.iter_fields(node):\n" +
-                    "            if isinstance(value, list):\n" +
-                    "                setattr(node, field, [self._visit(v, in_async) if isinstance(v, ast.AST) else v for v in value])\n" +
-                    "            elif isinstance(value, ast.AST):\n" +
-                    "                setattr(node, field, self._visit(value, in_async))\n" +
-                    "    def _visit(self, node, in_async):\n" +
-                    "        if isinstance(node, ast.FunctionDef):\n" +
-                    "            if node.name in self.async_names and self._can_be_async(node):\n" +
-                    "                extra = {'type_params': node.type_params} if hasattr(node, 'type_params') else {}\n" +
-                    "                new = ast.AsyncFunctionDef(name=node.name, args=node.args, body=node.body,\n" +
-                    "                                           decorator_list=node.decorator_list, returns=node.returns,\n" +
-                    "                                           type_comment=None, **extra)\n" +
-                    "                ast.copy_location(new, node)\n" +
-                    "                self._rewrite(new, True)\n" +
-                    "                return new\n" +
-                    "            self._rewrite(node, False)\n" +
-                    "            return node\n" +
-                    "        if isinstance(node, ast.AsyncFunctionDef):\n" +
-                    "            self._rewrite(node, True)\n" +
-                    "            return node\n" +
-                    "        if isinstance(node, ast.Lambda):\n" +
-                    "            self._rewrite(node, False)\n" +
-                    "            return node\n" +
-                    "        if isinstance(node, ast.ClassDef):\n" +
-                    "            self._rewrite(node, in_async)\n" +
-                    "            return node\n" +
-                    "        self._rewrite(node, in_async)\n" +
-                    "        if isinstance(node, ast.Call):\n" +
-                    "            name = self._call_name(node)\n" +
-                    "            if name == 'input' or name in self.async_names:\n" +
-                    "                if in_async:\n" +
-                    "                    return ast.copy_location(ast.Await(value=node), node)\n" +
-                    "                if name == 'input':\n" +
-                    "                    node.func = ast.copy_location(ast.Name(id='_cobrabyte_input_unsupported', ctx=ast.Load()), node.func)\n" +
-                    "        return node\n" +
-                    "def _cobrabyte_input_unsupported(*args, **kwargs):\n" +
-                    "    raise RuntimeError(\"input() can't be used inside __init__, a lambda, or a generator here. Move it into a normal function.\")\n" +
-                    "async def _cobrabyte_exec_async(source, mod_globals):\n" +
-                    "    tree = ast.parse(source or '', filename='<exec>', mode='exec')\n" +
-                    "    tree = _CobrabyteAsyncify(tree).run()\n" +
-                    "    code = compile(tree, '<exec>', 'exec', flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)\n" +
-                    "    mod_globals['_cobrabyte_input_unsupported'] = _cobrabyte_input_unsupported\n" +
-                    "    result = eval(code, mod_globals)\n" +
-                    "    if result is not None and hasattr(result, '__await__'):\n" +
-                    "        await result\n" +
-                    "try:\n" +
-                    "    for _mf in _cobrabyte_module_files.to_py():\n" +
-                    "        _mf_name = (_mf.get('filename') or '').strip()\n" +
-                    "        if not _mf_name.lower().endswith('.py'):\n" +
-                    "            continue\n" +
-                    "        if _mf_name == _cobrabyte_current_filename:\n" +
-                    "            continue\n" +
-                    "        _mod_name = _mf_name.split('/')[-1].split(chr(92))[-1][:-3]\n" +
-                    "        sys.modules.pop(_mod_name, None)\n" +
-                    "        _mod = types.ModuleType(_mod_name)\n" +
-                    "        sys.modules[_mod_name] = _mod\n" +
-                    "        try:\n" +
-                    "            await _cobrabyte_exec_async(_mf.get('code') or '', _mod.__dict__)\n" +
-                    "        except Exception:\n" +
-                    "            traceback.print_exc()\n" +
-                    "    await _cobrabyte_exec_async(_cobrabyte_user_code, {'__name__': '__main__'})\n" +
-                    "except Exception:\n" +
-                    "    traceback.print_exc()\n" +
-                    "finally:\n" +
-                    "    builtins.input = _old_input\n" +
-                    "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
-                    "_cobrabyte_stdout.getvalue() + _cobrabyte_stderr.getvalue()\n"
-                );
-                return result;
-            } catch (err) {
-                return "Error running code: " + (err && err.message ? err.message : String(err));
+                otherBtns.forEach((btn) => { btn.disabled = true; });
+                runBtn.disabled = false;
+                runBtn.classList.add("run-btn--stop");
+                runBtn.setAttribute("title", "Stop");
+                runBtn.innerHTML = pyodideReady ? RUN_BTN_STOP_HTML : RUN_BTN_LOADING_HTML;
+                run.outputBox.textContent = "";
+
+                let pyodide;
+                try {
+                    pyodide = await Promise.race([getPreviewPyodideInstance(), run.stopPromise]);
+                } catch (err) {
+                    appendRunOutput(run, "Could not load the Python runtime. Check your internet connection and try again.");
+                    return;
+                }
+                if (run.stopped || !pyodide) return;
+                pyodideReady = true;
+                runBtn.innerHTML = RUN_BTN_STOP_HTML;
+
+                syncPreviewModuleFilesToFS(pyodide, opts.allFiles);
+                pyodide.globals.set("_cobrabyte_user_code", opts.code || "");
+                pyodide.globals.set("_cobrabyte_module_files", opts.moduleFiles);
+                pyodide.globals.set("_cobrabyte_write", (text) => appendRunOutput(run, text));
+                pyodide.globals.set("_cobrabyte_read_input", (promptText) => readRunInput(run, promptText));
+
+                try {
+                    await pyodide.runPythonAsync(CODE_BLOCK_RUN_PY);
+                } catch (err) {
+                    appendRunOutput(run, "Error running code: " + (err && err.message ? err.message : String(err)));
+                }
+            } finally {
+                otherBtns.forEach((btn) => { btn.disabled = false; });
+                runBtn.disabled = false;
+                runBtn.classList.remove("run-btn--stop");
+                if (originalTitle === null) runBtn.removeAttribute("title");
+                else runBtn.setAttribute("title", originalTitle);
+                runBtn.innerHTML = originalHtml;
+                if (currentRun === run) currentRun = null;
             }
         }
 
@@ -540,34 +751,35 @@
             const runBtn = wrapper.querySelector(".run-btn");
             const consoleBox = wrapper.querySelector(".editor-console-box");
             const outputBox = wrapper.querySelector(".editor-output-box");
-            const filenameInput = wrapper.querySelector(".editor-code-filename");
             if (!runBtn || !consoleBox || !outputBox) return;
 
             runBtn.addEventListener("click", async function () {
-                const code = consoleBox.innerText.trim();
-                if (!code) {
-                    alert("There's no example code in this Console block.");
+                // While a run is going, this block's button is Stop and the
+                // others are disabled. A run left in a closed preview is stopped.
+                if (currentRun) {
+                    if (currentRun.runBtn === runBtn || !currentRun.runBtn.isConnected) stopCurrentRun();
                     return;
                 }
 
-                const originalHtml = runBtn.innerHTML;
-                runBtn.disabled = true;
-                runBtn.innerHTML = previewPyodideLoadPromise
-                    ? '<i class="fa-solid fa-spinner fa-spin"></i> Running...'
-                    : '<i class="fa-solid fa-spinner fa-spin"></i> Loading Python...';
+                const code = consoleBox.innerText.trim();
+                if (!code) {
+                    showRunModal("Notice", "There's no example code in this Console block.", "OK", false);
+                    return;
+                }
 
-                previewActiveOutputBox = outputBox;
-                outputBox.textContent = "";
+                if (hasEndlessLoop(code)) {
+                    const runAnyway = await confirmEndlessLoopRun();
+                    if (!runAnyway || currentRun || !runBtn.isConnected) return;
+                }
 
-                const files = getAllPreviewCodeBlockFiles(scopeEl);
-                const currentFilename = filenameInput ? filenameInput.value.trim() : "";
-                const output = await runPreviewPythonCode(code, files, currentFilename);
-
-                previewActiveOutputBox = null;
-                outputBox.textContent = output.trim();
-
-                runBtn.disabled = false;
-                runBtn.innerHTML = originalHtml;
+                await runCodeBlock({
+                    runBtn,
+                    outputBox,
+                    code,
+                    scopeEl,
+                    allFiles: getAllPreviewCodeBlockFiles(scopeEl),
+                    moduleFiles: getAllPreviewCodeBlockFiles(scopeEl, wrapper),
+                });
             });
         }
 
@@ -611,7 +823,10 @@
 
         async function showContentPreviewModal(resourceId) {
             let overlay = document.getElementById("contentPreviewModalOverlay");
-            if (overlay) overlay.remove();
+            if (overlay) {
+                stopCurrentRun();
+                overlay.remove();
+            }
 
             overlay = document.createElement("div");
             overlay.id = "contentPreviewModalOverlay";
@@ -628,6 +843,8 @@
             document.body.appendChild(overlay);
 
             function closeModal() {
+                // A block still running in this preview is stopped with it.
+                stopCurrentRun();
                 overlay.remove();
                 document.removeEventListener("keydown", onEscKey);
             }

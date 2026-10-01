@@ -2737,6 +2737,21 @@ textarea.form-control-custom {
     cursor: not-allowed;
 }
 
+/* Run button while its block is running - click to stop the program. */
+.console-action-btn.run-btn.run-btn--stop {
+    background: #dc2626;
+}
+
+.console-action-btn.run-btn.run-btn--stop:hover {
+    background: #b91c1c;
+}
+
+/* Shared #confirmActionModal shown on top of an open preview overlay
+   (e.g. the code block "This loop might never stop" warning). */
+.modal-overlay.modal-overlay-front {
+    z-index: 2100;
+}
+
 .editor-terminal-container {
     background: #ffffff;
     border: 1px solid #e5e7eb;
