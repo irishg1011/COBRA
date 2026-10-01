@@ -1274,15 +1274,8 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
             "feedback": feedback,
             "state": _mcq_state(cursor, ctx),
         }
-        if not is_correct:
-            # Revealed only AFTER a wrong answer (never before one).
-            right = next((o for o in options if o["is_correct"]), None)
-            if right:
-                payload["correct_option"] = {
-                    "option_id": right["option_id"],
-                    "option_letter": right.get("option_letter") or "",
-                    "option_text": right.get("option_text") or "",
-                }
+        # The correct option is never sent back, not even after a wrong
+        # answer - learners only get the chosen option's feedback.
         return payload, None
     return _run_mcq(acc_id, la_id, action, "grade MCQ answer")
 
