@@ -32,10 +32,8 @@
    ============================================================ */
 import * as THREE from './three.module.js';
 import { createScenery } from './scenery3d.js';
+import { createCobra } from './cobra3d.js';
 
-const COBRA_MID   = 0x16a34a;
-const COBRA_DARK  = 0x15803d;
-const COBRA_LIGHT = 0x22c55e;
 
 export function createFlashStage(canvas, opts = {}) {
   const terrain = opts.terrain === 'water' ? 'water' : 'land';
@@ -72,7 +70,7 @@ export function createFlashStage(canvas, opts = {}) {
   rim.position.set(12, 6, -10);
   scene.add(rim);
 
-  const heroGlow = new THREE.PointLight(0x22c55e, 5, 12, 2);
+  const heroGlow = new THREE.PointLight(0x22d3ee, 5, 12, 2);
   scene.add(heroGlow);
   const foeGlow = new THREE.PointLight(0xa78bfa, 6, 14, 2);
   scene.add(foeGlow);
@@ -90,64 +88,13 @@ export function createFlashStage(canvas, opts = {}) {
   const cobra = new THREE.Group();
   scene.add(cobra);
 
-  const segGeo = new THREE.SphereGeometry(1, 16, 12);
-  const bodyMats = [
-    new THREE.MeshStandardMaterial({ color: COBRA_MID, roughness: 0.42, metalness: 0.15 }),
-    new THREE.MeshStandardMaterial({ color: COBRA_DARK, roughness: 0.42, metalness: 0.15 })
-  ];
-  const segments = [];
+  // shared model (cobra3d.js): scaled coil, rearing neck, spectacle hood
+  const cobraModel = createCobra({ headScale: 2.7, maxPoints: SEGS });
+  cobra.add(cobraModel.group);
+  const cobraRadii = [];
   for (let i = 0; i < SEGS; i++) {
-    const m = new THREE.Mesh(segGeo, bodyMats[i % 2]);
-    m.castShadow = true;
-    cobra.add(m);
-    segments.push(m);
+    cobraRadii.push(i < COIL_SEGS ? 0.36 + 0.36 * (i / COIL_SEGS) : 0.72 - 0.1 * ((i - COIL_SEGS) / NECK_SEGS));
   }
-
-  const head = new THREE.Group();
-  cobra.add(head);
-  const hoodMat = new THREE.MeshStandardMaterial({ color: COBRA_DARK, roughness: 0.5, side: THREE.DoubleSide });
-  const hood = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 16), hoodMat);
-  hood.position.set(-0.7, 0.05, 0);
-  hood.castShadow = true;
-  head.add(hood);
-  const markMat = new THREE.MeshStandardMaterial({ color: 0xfef9c3, emissive: 0x3f3a10, roughness: 0.6 });
-  [-0.45, 0.45].forEach(z => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.055, 8, 18), markMat);
-    ring.position.set(-1.05, 0.16, z * 0.85);
-    ring.rotation.y = Math.PI / 2;
-    head.add(ring);
-  });
-  const skullMat = new THREE.MeshStandardMaterial({ color: COBRA_LIGHT, roughness: 0.35, metalness: 0.2 });
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 16), skullMat);
-  skull.scale.set(0.95, 0.5, 0.62);
-  skull.castShadow = true;
-  head.add(skull);
-  const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xfefce8, emissive: 0x2a2608, roughness: 0.3 });
-  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x08150f });
-  const eyes = [];
-  [-0.34, 0.34].forEach(z => {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 12), eyeWhiteMat);
-    e.position.set(0.5, 0.2, z);
-    head.add(e);
-    const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), pupilMat);
-    p.position.set(0.63, 0.2, z);
-    p.scale.set(0.6, 1.5, 0.6);
-    head.add(p);
-    eyes.push(e, p);
-  });
-  const tongue = new THREE.Group();
-  const tongueMat = new THREE.MeshBasicMaterial({ color: 0xe11d48 });
-  const tstem = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.7, 6), tongueMat);
-  tstem.rotation.z = Math.PI / 2; tstem.position.x = 0.35;
-  tongue.add(tstem);
-  [-1, 1].forEach(s => {
-    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.01, 0.42, 6), tongueMat);
-    tip.rotation.z = Math.PI / 2 + s * 0.45;
-    tip.position.set(0.85, 0, s * 0.11);
-    tongue.add(tip);
-  });
-  tongue.position.set(0.8, -0.05, 0);
-  head.add(tongue);
 
   /* ---------- NullScorpion ---------- */
   const FOE_X = 7.4;
@@ -259,8 +206,6 @@ export function createFlashStage(canvas, opts = {}) {
 
   const foeMats = [shellMat, shellDarkMat, clawMat];
   const foeBaseColors = foeMats.map(m => m.color.clone());
-  const cobraMats = [bodyMats[0], bodyMats[1], hoodMat, skullMat];
-  const cobraBaseColors = cobraMats.map(m => m.color.clone());
   const HURT_COLOR = new THREE.Color(0xf87171);
   const CRIT_COLOR = new THREE.Color(0xef4444);
   const FLASH_COLOR = new THREE.Color(0xffffff);
@@ -521,24 +466,14 @@ export function createFlashStage(canvas, opts = {}) {
         coilEnd.z * (1 - s) + COIL_Z * s + sway
       ));
     }
-    for (let i = 0; i < SEGS; i++) {
-      const s = i / (SEGS - 1);
-      const r = i < COIL_SEGS ? 0.34 + 0.34 * (i / COIL_SEGS) : 0.66 - 0.12 * ((i - COIL_SEGS) / NECK_SEGS);
-      segments[i].position.copy(pts[i]);
-      segments[i].scale.set(r * 1.08, r, r);
-    }
-    const hp0 = pts[SEGS - 1], hp1 = pts[SEGS - 3];
-    head.position.copy(hp0);
-    tmpA.copy(hp0).sub(hp1);
-    head.rotation.y = -Math.atan2(tmpA.z, tmpA.x) * 0.3;
-    head.rotation.z = down ? -1.0 : 0.05 - flick * 0.35;
-    head.scale.setScalar(1.45);
-    hood.scale.set(0.42, down ? 0.6 : 1.05 + flick * 0.2, down ? 0.8 : 1.2 + flick * 0.25);
-    tongue.visible = !down;
-    if (tongue.visible) tongue.scale.setScalar(0.7 + ((Math.sin(t * 7) + 1) / 2) * 0.7);
-    eyes.forEach(e => { e.visible = !down; });
+    const hp0 = pts[SEGS - 1];
     const hf = f.heroFlash || 0;
-    cobraMats.forEach((m, i) => m.color.copy(cobraBaseColors[i]).lerp(HURT_COLOR, Math.min(1, hf)));
+    cobraModel.update({
+      points: pts, radii: cobraRadii, t, dt,
+      down,
+      flare: flick,
+      hurt: Math.min(1, hf),
+    });
     heroGlow.position.set(hp0.x - 1.5, hp0.y - 1.2, -1.2);
     heroGlow.intensity = down ? 0.5 : 2 + Math.sin(t * 3) * 0.6;
     anchors.hero.set(hp0.x, hp0.y, hp0.z);
@@ -721,6 +656,7 @@ export function createFlashStage(canvas, opts = {}) {
     canvas.removeEventListener('dblclick', resetOrbit);
     floats.forEach(fl => scene.remove(fl.sp));
     floats.length = 0;
+    cobraModel.dispose();
     const geos = new Set(), mats = new Set(), maps = new Set();
     scene.traverse(o => {
       if (o.geometry) geos.add(o.geometry);
