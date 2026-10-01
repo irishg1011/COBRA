@@ -172,12 +172,20 @@ def _published_game_activities(cursor, resource_id):
     return [r for r in cursor.fetchall() if (r.get("activity_type_name") or "") in GAME_TABLES]
 
 
+SKIPPED_FEEDBACK = "You skipped this one. Read the lesson part above, then try it again."
+
+
 def _first_answer(cursor, acc_id, activity_type, item_id):
-    """What the learner gave on their first attempt ("Skipped" for a skip)."""
+    """
+    (answer, feedback) from the learner's first attempt.
+    answer is "Skipped" for a skip; feedback is the exact feedback the game
+    gave on that attempt (feedback_given), or SKIPPED_FEEDBACK for a skip.
+    The correct answer is never part of this - learners only see feedback.
+    """
     answers_table, id_col, _, _ = GAME_TABLES[activity_type]
     if activity_type == MCQ_TYPE:
         cursor.execute(
-            f"""SELECT a.status, o.option_text AS given
+            f"""SELECT a.status, o.option_text AS given, a.feedback_given AS feedback
                 FROM {answers_table} a
                 LEFT JOIN mcq_options_tbl o ON a.option_id = o.option_id
                 WHERE a.acc_id = %s AND a.{id_col} = %s AND a.attempt_number = 1
@@ -186,16 +194,16 @@ def _first_answer(cursor, acc_id, activity_type, item_id):
         )
     else:
         cursor.execute(
-            f"""SELECT status, answer_given AS given FROM {answers_table}
+            f"""SELECT status, answer_given AS given, feedback_given AS feedback FROM {answers_table}
                 WHERE acc_id = %s AND {id_col} = %s AND attempt_number = 1 LIMIT 1""",
             (acc_id, item_id)
         )
     row = cursor.fetchone()
     if not row:
-        return ""
+        return "", ""
     if row["status"] == "skipped":
-        return "Skipped"
-    return row.get("given") or ""
+        return "Skipped", SKIPPED_FEEDBACK
+    return (row.get("given") or ""), (row.get("feedback") or "").strip()
 
 
 def _missed_items(cursor, acc_id, resource_id):
@@ -240,6 +248,7 @@ def _missed_items(cursor, acc_id, resource_id):
             if not row:
                 continue
             number = position.get(item_id, 0)
+            your_answer, feedback = _first_answer(cursor, acc_id, activity_type, item_id)
             items.append({
                 "source_resource_id": resource_id,
                 "activity_type": activity_type,
@@ -247,7 +256,8 @@ def _missed_items(cursor, acc_id, resource_id):
                 "sort": (act["la_id"], number),
                 "prompt": (row.get("prompt") or "").strip(),
                 "correct": (row.get("correct") or "").strip(),
-                "your_answer": _first_answer(cursor, acc_id, activity_type, item_id),
+                "your_answer": your_answer,
+                "feedback": feedback,
             })
     items.sort(key=lambda i: i["sort"])
     return items
@@ -333,8 +343,10 @@ def _build(cursor, acc_id, lessons_in_scope, course):
                 "activity_type": item["activity_type"],
                 "from_resource_id": item["source_resource_id"],
                 "prompt": item["prompt"],
-                "correct": item["correct"],
+                # "correct" stays server-side (section matching only) - it is
+                # never sent to the learner; they get the feedback instead.
                 "your_answer": item["your_answer"],
+                "feedback": item["feedback"],
             })
 
     out = sorted(groups.values(), key=lambda g: g["order"])
@@ -366,7 +378,7 @@ def get_weak_spots(acc_id, resource_id, scope="lesson"):
     scope "lesson": this lesson's missed items; "module": every lesson of its module.
     Returns {"scope", "module_id", "groups": [...], "missed_total"} or None on error.
     Each group: {"resource_id", "lesson_title", "heading", "html",
-                 "is_current_lesson", "items": [{"label", "prompt", "correct", "your_answer", ...}]}
+                 "is_current_lesson", "items": [{"label", "prompt", "your_answer", "feedback", ...}]}
     """
     connection = get_db_connection()
     if connection is None:

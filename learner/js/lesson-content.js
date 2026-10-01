@@ -883,9 +883,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 answers.className = 'weak-spot-item-answers';
                 const yours = document.createElement('code');
                 yours.textContent = item.your_answer || '-';
-                const correct = document.createElement('code');
-                correct.textContent = item.correct;
-                answers.append('Your answer: ', yours, '  ·  Correct: ', correct);
+                // Feedback only - the correct answer is never shown to learners.
+                const feedback = document.createElement('span');
+                feedback.className = 'weak-spot-item-feedback';
+                feedback.textContent = item.feedback || '-';
+                answers.append('Your answer: ', yours, '  ·  Feedback: ', feedback);
 
                 row.append(label, prompt, answers);
                 list.appendChild(row);
