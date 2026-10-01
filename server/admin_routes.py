@@ -90,6 +90,7 @@ from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - re
     get_preview_video, get_preview_exercise, grade_preview_exercise, get_preview_next_lesson,
 )
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
+import preview_play  # feat/admin-real-game-preview: real learner games in preview - session state only, nothing saved
 from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
@@ -2174,6 +2175,162 @@ def publishing_preview_check_answer():
         }), 200
 
     return jsonify({"success": False, "message": "Unknown answer type."}), 400
+
+
+# ============================================================
+# ROUTES: PREVIEW PLAY (feat/admin-real-game-preview)
+# ------------------------------------------------------------
+# /admin/preview-play loads the REAL learner game JS/CSS in preview
+# mode (window.COBRA_PREVIEW_MODE, set by admin-preview-play.js). The
+# games then call the mirror routes below instead of the learner
+# /api/... routes - same response shapes, but:
+#   - no locks, any status except Archived (walkthrough: Ready + Published)
+#   - lives always full, wrong answers never end the game
+#   - nothing saved: play state lives in session[PREVIEW_SESSION_KEY]
+#     only; preview_play.py and grade_preview_exercise() only SELECT.
+# Admin-session gated like every admin_bp route.
+# ============================================================
+def _preview_store():
+    """This browser session's preview play state (never the database)."""
+    store = session.get(preview_play.PREVIEW_SESSION_KEY)
+    if not isinstance(store, dict):
+        store = {}
+    return store
+
+
+def _save_preview_store(store):
+    session[preview_play.PREVIEW_SESSION_KEY] = store
+    session.modified = True
+
+
+def _preview_reply(payload, error_message, store=None, wrap_state=False):
+    """Learner-route-shaped JSON: {"success": True, ...payload} or a 4xx."""
+    if payload is None:
+        status = 404 if error_message in (preview_play.NOT_AVAILABLE,) or "not a" in (error_message or "") else 400
+        return jsonify({"success": False, "message": error_message or "Request failed."}), status
+    if store is not None:
+        _save_preview_store(store)
+    if wrap_state:
+        return jsonify({"success": True, "state": payload}), 200
+    return jsonify({"success": True, **payload}), 200
+
+
+@admin_bp.route('/preview-play')
+def preview_play_page():
+    """The preview page itself. Every visit starts every game fresh."""
+    _save_preview_store({})
+    return render_template('preview-play.html')
+
+
+@admin_bp.route('/preview-play/api/lesson-content')
+def preview_play_lesson_content():
+    scope, error_message = preview_play.resolve_scope(request.args)
+    if scope is None:
+        return jsonify({"success": False, "message": error_message}), 404
+    lesson = preview_play.get_preview_lesson(scope)
+    if lesson is None:
+        return jsonify({"success": False, "message": "Could not load this preview."}), 500
+    return jsonify({"success": True, **lesson}), 200
+
+
+@admin_bp.route('/preview-play/api/lesson-activities')
+def preview_play_activities():
+    scope, error_message = preview_play.resolve_scope(request.args)
+    if scope is None:
+        return jsonify({"success": False, "message": error_message}), 404
+    return jsonify({
+        "success": True,
+        "activities": preview_play.get_preview_activities(scope),
+        "module_needs_retake": False,
+        "module_percent": None,
+    }), 200
+
+
+@admin_bp.route('/preview-play/api/lesson-activities/mcq/state')
+def preview_play_mcq_state():
+    store = _preview_store()
+    state, error_message = preview_play.preview_mcq(store, request.args.get("la_id"), "state")
+    return _preview_reply(state, error_message, store, wrap_state=True)
+
+
+@admin_bp.route('/preview-play/api/lesson-activities/mcq/<action>', methods=['POST'])
+def preview_play_mcq_action(action):
+    if action not in ("play", "answer", "skip", "lose-life"):
+        return jsonify({"success": False, "message": "Unknown action."}), 404
+    data = request.get_json(silent=True) or {}
+    store = _preview_store()
+    payload, error_message = preview_play.preview_mcq(store, data.get("la_id"), action, data)
+    return _preview_reply(payload, error_message, store, wrap_state=action in ("play", "lose-life"))
+
+
+@admin_bp.route('/preview-play/api/lesson-activities/fib-play')
+def preview_play_fib_play():
+    store = _preview_store()
+    payload, error_message = preview_play.preview_fib(store, request.args.get("la_id"), "play")
+    return _preview_reply(payload, error_message, store)
+
+
+@admin_bp.route('/preview-play/api/lesson-activities/fib-<action>', methods=['POST'])
+def preview_play_fib_action(action):
+    if action not in ("answer", "skip"):
+        return jsonify({"success": False, "message": "Unknown action."}), 404
+    data = request.get_json(silent=True) or {}
+    store = _preview_store()
+    payload, error_message = preview_play.preview_fib(store, data.get("la_id"), action, data)
+    return _preview_reply(payload, error_message, store)
+
+
+@admin_bp.route('/preview-play/api/lesson-activities/flashcard-play')
+def preview_play_flashcard_play():
+    store = _preview_store()
+    payload, error_message = preview_play.preview_flashcards(store, request.args.get("la_id"), "play")
+    return _preview_reply(payload, error_message, store)
+
+
+@admin_bp.route('/preview-play/api/lesson-activities/flashcard-<action>', methods=['POST'])
+def preview_play_flashcard_action(action):
+    if action not in ("start", "answer", "skip"):
+        return jsonify({"success": False, "message": "Unknown action."}), 404
+    data = request.get_json(silent=True) or {}
+    store = _preview_store()
+    payload, error_message = preview_play.preview_flashcards(store, data.get("la_id"), action, data)
+    return _preview_reply(payload, error_message, store, wrap_state=action == "start")
+
+
+@admin_bp.route('/preview-play/api/lesson-activities/mark-complete', methods=['POST'])
+def preview_play_mark_complete():
+    """Old fallback games call this when they finish - nothing is recorded in preview."""
+    return jsonify({"success": True, "message": "Preview - nothing saved."}), 200
+
+
+@admin_bp.route('/preview-play/api/lesson-exercise/submit', methods=['POST'])
+def preview_play_exercise_submit():
+    """Grades like /api/lesson-exercise/submit, but never writes a submission or progress row."""
+    data = request.get_json(silent=True) or {}
+    exercise_id = data.get("exercise_id")
+    if not exercise_id:
+        return jsonify({"success": False, "message": "exercise_id is required."}), 400
+    result = grade_preview_exercise(exercise_id, data.get("actual_outputs") or [])
+    if result is None:
+        return jsonify({"success": False, "message": "Could not grade this submission."}), 500
+    if result["status"] != "correct":
+        # Same wording the learner sees (learner_exercise.grade_exercise_submission).
+        result["feedback"] = f"{result['passed']} of {result['total']} test cases passed. Review your code and try again."
+    store = _preview_store()
+    exercises = store.get("exercises") or {}
+    exercises[str(exercise_id)] = {"passed": result["passed"], "total": result["total"]}
+    store["exercises"] = exercises
+    _save_preview_store(store)
+    return jsonify({"success": True, **result}), 200
+
+
+@admin_bp.route('/preview-play/api/tally')
+def preview_play_tally():
+    """Scores from this preview (session only) for the walkthrough's Summary step."""
+    scope, error_message = preview_play.resolve_scope(request.args)
+    if scope is None:
+        return jsonify({"success": False, "message": error_message}), 404
+    return jsonify({"success": True, **preview_play.preview_tally(_preview_store(), scope)}), 200
 
 
 # ------------------------------------------------------------------

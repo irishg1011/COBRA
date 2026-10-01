@@ -18,7 +18,10 @@
 (function () {
     "use strict";
 
-    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
+    // feat/admin-real-game-preview: set ONLY by admin-preview-play.js on /admin/preview-play.
+    // Undefined on learner pages, so everything below runs exactly as before.
+    const PREVIEW = window.COBRA_PREVIEW_MODE || null;
+    const API_BASE_URL = PREVIEW ? PREVIEW.apiBase : ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
 
     // Folder this script was served from - Multiple Choice loads arena3d.js
     // (and three.module.js) from the same folder, only when it opens.
@@ -34,7 +37,8 @@
     }
 
     async function fetchActivities(resourceId) {
-        const response = await fetch(`${API_BASE_URL}/api/lesson-activities?resource_id=${encodeURIComponent(resourceId)}`, {
+        const query = PREVIEW ? PREVIEW.query : `resource_id=${encodeURIComponent(resourceId)}`;
+        const response = await fetch(`${API_BASE_URL}/api/lesson-activities?${query}`, {
             credentials: "include"
         });
         if (!response.ok) throw new Error("Request failed");
@@ -1397,6 +1401,13 @@
             activityHost.style.display = "block";
             runNext(0);
         });
+
+        if (PREVIEW) {
+            // Admin preview: no "Proceed to Activities" gate.
+            gate.style.display = "none";
+            activityHost.style.display = "block";
+            runNext(0);
+        }
 
         function runNext(index) {
             if (index >= activities.length) {

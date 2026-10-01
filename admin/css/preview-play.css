@@ -1,0 +1,33 @@
+/* preview-play.css - feat/admin-real-game-preview
+   Page around the REAL learner games on /admin/preview-play (shown in a
+   popup iframe). Everything inside the lesson card is styled by the
+   learner stylesheets; this file only adds the page frame. */
+
+/* Starts hidden; lesson-content.js shows parts by setting style.display,
+   which overrides this class (so no !important here). */
+.is-hidden {
+    display: none;
+}
+
+.preview-play-page {
+    padding: 20px 24px 40px;
+}
+
+.preview-play-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(2, 132, 199, 0.12);
+    color: #075985;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .preview-play-page {
+        padding: 12px 16px 32px;
+    }
+}

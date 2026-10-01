@@ -149,6 +149,7 @@
                     <td class="text-muted">${escapeHtml(ex.updated_at)}</td>
                     <td class="text-right exercise-actions-column">
                         <div class="table-actions-group">
+                            <a href="#" title="Preview" class="table-action-icon js-preview-exercise-btn" data-exercise-id="${escapeHtml(ex.exercise_id)}" data-exercise-title="${escapeHtml(ex.exercise_title)}"><i class="fa-regular fa-eye"></i></a>
                             <a href="/admin/coding-exercises/create?exercise_id=${escapeHtml(ex.exercise_id)}" title="Edit" class="table-action-icon"><i class="fa-solid fa-pen-to-square"></i></a>
                             <a href="#" title="Name history" class="table-action-icon js-title-history" data-scope="exercise" data-id="${escapeHtml(ex.exercise_id)}"><i class="fa-solid fa-clock-rotate-left"></i></a>
                             <a href="#" title="Archive"
@@ -307,6 +308,19 @@
 
         // feat/module-title-history: a reverted name shows up right away.
         document.addEventListener("cobra:title-changed", () => fetchExercises(currentPage));
+
+        // feat/admin-real-game-preview: eye icon -> the REAL learner exercise
+        // screen in a popup (admin-preview-frame.js). Delegated, so it works
+        // for the server-rendered rows and the ones renderRows() builds.
+        tableBody.addEventListener("click", (e) => {
+            const previewBtn = e.target.closest(".js-preview-exercise-btn");
+            if (!previewBtn) return;
+            e.preventDefault();
+            window.CobraPreviewFrame.open(
+                `exercise_id=${encodeURIComponent(previewBtn.dataset.exerciseId)}`,
+                previewBtn.dataset.exerciseTitle || "Coding Exercise"
+            );
+        });
 
         if (prevBtn) {
             prevBtn.addEventListener("click", () => {

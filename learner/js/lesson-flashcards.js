@@ -31,7 +31,10 @@
 (function () {
     "use strict";
 
-    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
+    // feat/admin-real-game-preview: set ONLY by admin-preview-play.js on /admin/preview-play.
+    // Undefined on learner pages, so everything below runs exactly as before.
+    const PREVIEW = window.COBRA_PREVIEW_MODE || null;
+    const API_BASE_URL = PREVIEW ? PREVIEW.apiBase : ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
     const FC_JS_BASE = (document.currentScript && document.currentScript.src)
         ? new URL(".", document.currentScript.src).href
         : "";

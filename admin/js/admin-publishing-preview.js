@@ -8,9 +8,10 @@
  * the real learner /api/... routes, and with every gate (locking,
  * watch-%, scroll-%) removed since nothing needs to be earned here.
  *
- * Nothing in this file ever calls a route that records progress -
- * activities are graded via the real check-answer logic, exercises via
- * the real comparison logic, but neither is ever saved anywhere.
+ * Nothing in this file ever calls a route that records progress. The
+ * Activities + Exercise steps run the REAL learner games and exercise
+ * screen through /admin/preview-play (scope=walkthrough) in a frame -
+ * no locks, unlimited lives, nothing saved.
  *
  * Exposes window.CobraBytePublishingPreview.open() for the Preview
  * button (admin-publishing.js) to call.
@@ -49,19 +50,6 @@
         const activitiesContainer = document.getElementById("previewActivitiesContainer");
         const activitiesContinueBtn = document.getElementById("previewActivitiesContinueBtn");
 
-        const exerciseStep = document.getElementById("previewExerciseStep");
-        const exerciseTitleEl = document.getElementById("previewExerciseTitle");
-        const exerciseSituationEl = document.getElementById("previewExerciseSituation");
-        const exerciseProblemEl = document.getElementById("previewExerciseProblem");
-        const exerciseClueEl = document.getElementById("previewExerciseClue");
-        const exerciseCodeBox = document.getElementById("previewExerciseCodeBox");
-        const exerciseOutputBox = document.getElementById("previewExerciseOutputBox");
-        const exerciseRunBtn = document.getElementById("previewExerciseRunBtn");
-        const exerciseSubmitBtn = document.getElementById("previewExerciseSubmitBtn");
-        const exerciseResultBox = document.getElementById("previewExerciseResultBox");
-        const exerciseCompleteRow = document.getElementById("previewExerciseCompleteRow");
-        const exerciseContinueBtn = document.getElementById("previewExerciseContinueBtn");
-
         const summaryStep = document.getElementById("previewSummaryStep");
         const summaryListEl = document.getElementById("previewSummaryList");
         const summaryContinueBtn = document.getElementById("previewSummaryContinueBtn");
@@ -84,6 +72,7 @@
         }
 
         function showScreen(screen) {
+            stopPlayFrame();
             [mapScreen, lessonsScreen, contentScreen].forEach((s) => s.classList.add("preview-hidden"));
             screen.classList.remove("preview-hidden");
         }
@@ -282,9 +271,11 @@
         }
 
         function showStep(key) {
-            [videoStep, contentStep, activitiesStep, exerciseStep, summaryStep].forEach((s) => s.style.display = "none");
-            const map = { video: videoStep, content: contentStep, activities: activitiesStep, exercise: exerciseStep, summary: summaryStep };
+            [videoStep, contentStep, activitiesStep, summaryStep].forEach((s) => s.style.display = "none");
+            // The Exercise runs inside the activities frame (real exercise screen).
+            const map = { video: videoStep, content: contentStep, activities: activitiesStep, exercise: activitiesStep, summary: summaryStep };
             map[key].style.display = "block";
+            if (key !== "activities" && key !== "exercise") stopPlayFrame();
             renderStepper(key);
             if (key === "summary") loadSummary();
         }
@@ -333,17 +324,6 @@
                     videoFrame.innerHTML = `<iframe src="https://www.youtube.com/embed/${escapeHtml(currentLesson.video.video_id || "")}" allowfullscreen></iframe>`;
                 }
 
-                if (currentLesson.exercise) {
-                    exerciseTitleEl.textContent = currentLesson.exercise.exercise_title || "";
-                    exerciseSituationEl.textContent = currentLesson.exercise.situation || "";
-                    exerciseProblemEl.textContent = currentLesson.exercise.problem_question || "";
-                    exerciseClueEl.textContent = currentLesson.exercise.clue || "";
-                    exerciseCodeBox.textContent = "# Write your code here\n";
-                    exerciseOutputBox.textContent = "Run your code to see the output.";
-                    exerciseResultBox.style.display = "none";
-                    exerciseCompleteRow.style.display = "none";
-                }
-
                 showStep(stepOrder[0].key);
             } catch (e) {
                 lessonTitleEl.style.display = "block";
@@ -362,147 +342,26 @@
         });
 
         // ------------------------------------------------------------
-        // Activities - adapted from lesson-activities.js: same
-        // sequential Question X of Y flow, pointed at the preview
-        // check-answer route, with markActivityComplete() dropped
-        // entirely (nothing is ever recorded).
+        // Activities + Exercise - feat/admin-real-game-preview: the REAL
+        // learner games and exercise screen, run by /admin/preview-play
+        // (scope=walkthrough: Ready to Publish + Published only) inside a
+        // frame. It tells this page which step it's on and when it's
+        // done; the scores for the Summary come from the preview's own
+        // session state (/admin/preview-play/api/tally). Nothing is saved.
         // ------------------------------------------------------------
-        function el(tag, className, html) {
-            const e = document.createElement(tag);
-            if (className) e.className = className;
-            if (html !== undefined) e.innerHTML = html;
-            return e;
+        let playFrame = null;
+
+        function walkthroughQuery() {
+            return `resource_id=${encodeURIComponent(currentLesson.resource_id)}&scope=walkthrough`;
         }
 
-        async function checkPreviewAnswer(payload) {
-            const resp = await fetch("/admin/publishing/preview/check-answer", {
-                method: "POST", credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-            return resp.json();
-        }
-
-        function renderMCQ(activity, container, onDone) {
-            let idx = 0, correct = 0;
-            const total = activity.items.length;
-            function renderQ() {
-                container.innerHTML = "";
-                const q = activity.items[idx];
-                container.appendChild(el("p", "activity-progress-label", `Question ${idx + 1} of ${total}`));
-                container.appendChild(el("h4", "activity-question-text", escapeHtml(q.question_text)));
-                const wrap = el("div", "activity-options-list");
-                q.options.forEach((opt) => {
-                    const btn = el("button", "activity-option-btn", escapeHtml(opt.text));
-                    btn.type = "button"; btn.dataset.optionId = opt.option_id;
-                    btn.addEventListener("click", () => select(opt.option_id, btn, wrap));
-                    wrap.appendChild(btn);
-                });
-                container.appendChild(wrap);
-                const feedback = el("div", "activity-feedback-box"); feedback.style.display = "none";
-                container.appendChild(feedback);
-                const nextBtn = el("button", "activity-next-btn", idx === total - 1 ? "Finish" : "Next Question");
-                nextBtn.type = "button"; nextBtn.style.display = "none";
-                nextBtn.addEventListener("click", () => { idx += 1; idx >= total ? finish() : renderQ(); });
-                container.appendChild(nextBtn);
-
-                async function select(optId, btnEl, wrapEl) {
-                    wrapEl.querySelectorAll(".activity-option-btn").forEach((b) => (b.disabled = true));
-                    btnEl.classList.add("selected");
-                    const result = await checkPreviewAnswer({ type: "mcq", q_id: q.q_id, option_id: optId });
-                    wrapEl.querySelectorAll(".activity-option-btn").forEach((b) => {
-                        if (Number(b.dataset.optionId) === result.correct_option_id) b.classList.add("correct");
-                    });
-                    if (!result.is_correct) btnEl.classList.add("incorrect"); else correct += 1;
-                    feedback.style.display = "block";
-                    feedback.className = "activity-feedback-box " + (result.is_correct ? "is-correct" : "is-incorrect");
-                    feedback.textContent = result.feedback || (result.is_correct ? "Correct!" : "Not quite.");
-                    nextBtn.style.display = "inline-flex";
-                }
-            }
-            function finish() {
-                container.innerHTML = "";
-                const s = el("div", "activity-summary"); s.innerHTML = `<p>Scored <strong>${correct} / ${total}</strong> on "${escapeHtml(activity.activity_title)}".</p>`;
-                container.appendChild(s);
-                sessionTally.activities.push({ title: activity.activity_title, score: correct, total });
-                onDone();
-            }
-            renderQ();
-        }
-
-        function renderFillBlanks(activity, container, onDone) {
-            let idx = 0, correct = 0;
-            const total = activity.items.length;
-            function renderItem() {
-                container.innerHTML = "";
-                const item = activity.items[idx];
-                container.appendChild(el("p", "activity-progress-label", `Item ${idx + 1} of ${total}`));
-                container.appendChild(el("p", "activity-question-text", escapeHtml(item.content)));
-                const input = el("input", "activity-fillblank-input"); input.type = "text"; input.placeholder = "Type your answer...";
-                container.appendChild(input);
-                const submitBtn = el("button", "activity-next-btn", "Submit"); submitBtn.type = "button";
-                container.appendChild(submitBtn);
-                const feedback = el("div", "activity-feedback-box"); feedback.style.display = "none";
-                container.appendChild(feedback);
-
-                submitBtn.addEventListener("click", async () => {
-                    if (submitBtn.textContent === "Submit") {
-                        const result = await checkPreviewAnswer({ type: "fill_blank", fib_id: item.fib_id, answer: input.value });
-                        input.disabled = true;
-                        if (result.is_correct) correct += 1;
-                        feedback.style.display = "block";
-                        feedback.className = "activity-feedback-box " + (result.is_correct ? "is-correct" : "is-incorrect");
-                        feedback.textContent = result.is_correct ? (result.feedback || "Correct!") : (result.feedback || `Not quite. Answer: ${result.correct_answer}`);
-                        submitBtn.textContent = idx === total - 1 ? "Finish" : "Next Item";
-                    } else {
-                        idx += 1; idx >= total ? finish() : renderItem();
-                    }
-                });
-            }
-            function finish() {
-                container.innerHTML = "";
-                const s = el("div", "activity-summary"); s.innerHTML = `<p>Scored <strong>${correct} / ${total}</strong> on "${escapeHtml(activity.activity_title)}".</p>`;
-                container.appendChild(s);
-                sessionTally.activities.push({ title: activity.activity_title, score: correct, total });
-                onDone();
-            }
-            renderItem();
-        }
-
-        function renderFlashcards(activity, container, onDone) {
-            let idx = 0, flipped = false;
-            const total = activity.items.length;
-            function renderCard() {
-                flipped = false;
-                container.innerHTML = "";
-                const card = activity.items[idx];
-                container.appendChild(el("p", "activity-progress-label", `Card ${idx + 1} of ${total}`));
-                const box = el("div", "activity-flashcard-box", escapeHtml(card.front));
-                box.addEventListener("click", () => { flipped = !flipped; box.textContent = flipped ? card.back : card.front; });
-                container.appendChild(box);
-                container.appendChild(el("p", "activity-flashcard-hint", "Click the card to flip it."));
-                const nextBtn = el("button", "activity-next-btn", idx === total - 1 ? "Finish" : "Next Card"); nextBtn.type = "button";
-                nextBtn.addEventListener("click", () => { idx += 1; idx >= total ? finish() : renderCard(); });
-                container.appendChild(nextBtn);
-            }
-            function finish() {
-                container.innerHTML = "";
-                const s = el("div", "activity-summary"); s.innerHTML = `<p>Reviewed all ${total} flashcards in "${escapeHtml(activity.activity_title)}".</p>`;
-                container.appendChild(s);
-                sessionTally.activities.push({ title: activity.activity_title, score: null, total });
-                onDone();
-            }
-            renderCard();
-        }
-
-        function renderActivity(activity, container, onDone) {
-            if (activity.activity_type === "Multiple Choice" || activity.activity_type === "Quiz") renderMCQ(activity, container, onDone);
-            else if (activity.activity_type === "Fill in the Blanks") renderFillBlanks(activity, container, onDone);
-            else if (activity.activity_type === "Flashcards") renderFlashcards(activity, container, onDone);
-            else onDone();
+        function stopPlayFrame() {
+            // Removing the frame stops its game loop and any sound.
+            if (playFrame) { playFrame.remove(); playFrame = null; }
         }
 
         async function startActivitiesStep() {
+            stopPlayFrame();
             showStep("activities");
             activitiesContinueBtn.style.display = "none";
 
@@ -513,7 +372,7 @@
                 activities = result.activities || [];
             } catch (e) { /* leave empty */ }
 
-            if (activities.length === 0) {
+            if (activities.length === 0 && !currentLesson.exercise) {
                 activitiesContainer.style.display = "none";
                 afterActivities();
                 return;
@@ -521,136 +380,39 @@
 
             activitiesContainer.style.display = "block";
             activitiesContainer.innerHTML = "";
-            const gate = el("div", "activities-gate");
-            gate.innerHTML = `<h3><i class="fa-solid fa-list-check"></i> Activities</h3><p>Complete the activities below.</p><button type="button" class="activities-proceed-btn">Proceed to Activities</button>`;
-            activitiesContainer.appendChild(gate);
-            const host = el("div", "activity-host"); host.style.display = "none";
-            activitiesContainer.appendChild(host);
-
-            gate.querySelector(".activities-proceed-btn").addEventListener("click", () => {
-                gate.style.display = "none"; host.style.display = "block"; runNext(0);
-            });
-
-            function runNext(index) {
-                if (index >= activities.length) {
-                    host.innerHTML = `<div class="activity-summary"><p><i class="fa-solid fa-circle-check"></i> All activities completed!</p></div>`;
-                    afterActivities();
-                    return;
-                }
-                const section = el("div", "activity-section");
-                host.innerHTML = ""; host.appendChild(section);
-                renderActivity(activities[index], section, () => runNext(index + 1));
-            }
+            playFrame = document.createElement("iframe");
+            playFrame.className = "preview-play-frame";
+            playFrame.title = "Activities and exercise preview";
+            playFrame.src = `/admin/preview-play?${walkthroughQuery()}`;
+            activitiesContainer.appendChild(playFrame);
         }
+
+        async function onPlayFinished() {
+            try {
+                const resp = await fetch(`/admin/preview-play/api/tally?${walkthroughQuery()}`, { credentials: "include" });
+                const result = await resp.json();
+                if (result.success) {
+                    sessionTally.activities = result.activities || [];
+                    sessionTally.exercise = result.exercise || null;
+                }
+            } catch (e) { /* summary shows what it has */ }
+            afterActivities();
+        }
+
+        window.addEventListener("message", (e) => {
+            if (!playFrame || e.source !== playFrame.contentWindow || e.origin !== window.location.origin) return;
+            const msg = e.data || {};
+            if (msg.source !== "cobra-preview-play") return;
+            if (msg.type === "step" && stepOrder.some((s) => s.key === msg.key)) renderStepper(msg.key);
+            if (msg.type === "finished") onPlayFinished();
+        });
 
         function afterActivities() {
             activitiesContinueBtn.style.display = "inline-flex";
-            if (currentLesson.exercise) {
-                activitiesContinueBtn.textContent = "Continue";
-                activitiesContinueBtn.onclick = () => showStep("exercise");
-            } else {
-                activitiesContinueBtn.textContent = "View Summary";
-                activitiesContinueBtn.onclick = () => showStep("summary");
-            }
+            activitiesContinueBtn.textContent = "View Summary";
+            activitiesContinueBtn.onclick = () => showStep("summary");
         }
 
-        // ------------------------------------------------------------
-        // Exercise - own lean Pyodide runtime (this modal isn't on the
-        // real lesson-content.js page, so it needs its own loader).
-        // Deterministic grading run feeds each test case's real input
-        // through builtins.input(); the free "Run" button uses a blank
-        // input queue since there's no real terminal prompt UI here -
-        // good enough for an admin sanity-checking their own code.
-        // ------------------------------------------------------------
-        let pyodideLoadPromise = null;
-        function getPyodide() {
-            if (!pyodideLoadPromise) {
-                if (typeof loadPyodide !== "function") return Promise.reject(new Error("Pyodide not loaded."));
-                pyodideLoadPromise = loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
-            }
-            return pyodideLoadPromise;
-        }
-
-        async function runForGrading(code, testInput) {
-            let pyodide;
-            try { pyodide = await getPyodide(); } catch (e) { return null; }
-            const inputLines = (testInput || "").split("\n");
-            pyodide.globals.set("_pv_code", code || "");
-            pyodide.globals.set("_pv_inputs", inputLines);
-            try {
-                return await pyodide.runPythonAsync(
-                    "import sys, io, traceback, builtins\n" +
-                    "_pv_out = io.StringIO()\n" +
-                    "_old_out, _old_err = sys.stdout, sys.stderr\n" +
-                    "sys.stdout = sys.stderr = _pv_out\n" +
-                    "_pv_queue = list(_pv_inputs.to_py())\n" +
-                    "def _pv_input(prompt=''):\n" +
-                    "    return _pv_queue.pop(0) if _pv_queue else ''\n" +
-                    "_old_input = builtins.input\n" +
-                    "builtins.input = _pv_input\n" +
-                    "try:\n" +
-                    "    exec(_pv_code, {'__name__': '__main__'})\n" +
-                    "except Exception:\n" +
-                    "    traceback.print_exc()\n" +
-                    "finally:\n" +
-                    "    builtins.input = _old_input\n" +
-                    "    sys.stdout, sys.stderr = _old_out, _old_err\n" +
-                    "_pv_out.getvalue()\n"
-                );
-            } catch (err) {
-                return "Error running code: " + (err && err.message ? err.message : String(err));
-            }
-        }
-
-        exerciseRunBtn.addEventListener("click", async () => {
-            const code = exerciseCodeBox.innerText.trim();
-            if (!code) return;
-            exerciseRunBtn.disabled = true; exerciseRunBtn.textContent = "Running...";
-            exerciseOutputBox.textContent = "";
-            const output = await runForGrading(code, "");
-            exerciseOutputBox.textContent = (output || "").trim();
-            exerciseRunBtn.disabled = false; exerciseRunBtn.textContent = "Run";
-        });
-
-        exerciseSubmitBtn.addEventListener("click", async () => {
-            const code = exerciseCodeBox.innerText;
-            if (!code.trim() || !currentLesson.exercise) return;
-            exerciseSubmitBtn.disabled = true; exerciseSubmitBtn.textContent = "Running tests...";
-
-            const actualOutputs = [];
-            for (const tc of currentLesson.exercise.test_cases) {
-                const output = await runForGrading(code, tc.test_input);
-                actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
-            }
-
-            try {
-                const resp = await fetch("/admin/publishing/preview/exercise/grade", {
-                    method: "POST", credentials: "include",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ exercise_id: currentLesson.exercise.exercise_id, actual_outputs: actualOutputs }),
-                });
-                const result = await resp.json();
-                exerciseResultBox.style.display = "block";
-                if (result.success) {
-                    const passed = result.status === "correct";
-                    exerciseResultBox.className = "exercise-result " + (passed ? "pass" : "fail");
-                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${escapeHtml(result.feedback)} (${result.passed}/${result.total} test cases passed)`;
-                    sessionTally.exercise = { passed: result.passed, total: result.total };
-                    exerciseCompleteRow.style.display = "flex";
-                } else {
-                    exerciseResultBox.className = "exercise-result fail";
-                    exerciseResultBox.textContent = result.message || "Could not grade this submission.";
-                }
-            } catch (e) {
-                exerciseResultBox.style.display = "block";
-                exerciseResultBox.className = "exercise-result fail";
-                exerciseResultBox.textContent = "Could not reach the server.";
-            }
-
-            exerciseSubmitBtn.disabled = false; exerciseSubmitBtn.textContent = "Submit";
-        });
-
-        exerciseContinueBtn.addEventListener("click", () => showStep("summary"));
 
         // ------------------------------------------------------------
         // Summary - built entirely from THIS session's in-memory state
@@ -707,6 +469,7 @@
             loadMap(false);
         }
         function closeModal() {
+            stopPlayFrame();
             modal.classList.add("preview-hidden");
             navStack = [];
         }

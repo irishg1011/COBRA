@@ -498,3 +498,14 @@
 #publishingPreviewModal .map-connector-svg path {
     filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.9));
 }
+
+/* feat/admin-real-game-preview: the walkthrough's Activities + Exercise
+   steps run the real learner games in this frame (/admin/preview-play). */
+#publishingPreviewModal .preview-play-frame {
+    display: block;
+    width: 100%;
+    height: 70vh;
+    min-height: 480px;
+    border: none;
+    border-radius: 12px;
+}

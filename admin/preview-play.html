@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - Preview</title>
+    <!-- feat/admin-real-game-preview: the REAL learner stylesheets, from the
+         same files the learner lesson page uses. (animations.css is left out:
+         it hides <body> until page-transitions.js fades it in.) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-content.css') }}">
+    <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-activities.css') }}">
+    <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-fill-blanks.css') }}">
+    <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-flashcards.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/preview-play.css') }}">
+</head>
+<body class="preview-play-body">
+
+    <!-- Same element ids as learner/html/lesson-content.html, because
+         lesson-content.js / lesson-activities.js look them up by id.
+         Video, Content and Summary are never shown in preview (nothing
+         to earn, nothing saved) but must exist for lesson-content.js. -->
+    <main class="lesson-page preview-play-page">
+        <p class="preview-play-banner"><i class="fa-regular fa-eye"></i> Admin preview - no locks, unlimited lives, nothing is saved.</p>
+
+        <a href="#" id="backToLessonsLink" class="lesson-back-link is-hidden">Back to Lessons</a>
+
+        <div class="lesson-stepper" id="lessonStepper"></div>
+
+        <div class="lesson-card">
+            <p class="lesson-loading" id="lessonLoading">Loading preview...</p>
+            <p class="lesson-error is-hidden" id="lessonError">Could not load this preview.</p>
+
+            <h1 id="lessonResourceTitle" class="is-hidden"></h1>
+
+            <!-- STEP: VIDEO (never shown in preview) -->
+            <div id="videoStep" class="lesson-step is-hidden">
+                <div class="lesson-video-frame" id="lessonVideoFrame"></div>
+                <p class="lesson-video-title" id="lessonVideoTitle"></p>
+                <div class="lesson-step-footer">
+                    <span class="lesson-step-locked-note" id="videoLockedNote"></span>
+                    <button class="lesson-step-btn" id="videoContinueBtn" disabled>Continue</button>
+                </div>
+            </div>
+
+            <!-- STEP: CONTENT (never shown in preview) -->
+            <div id="contentStep" class="lesson-step is-hidden">
+                <div class="lesson-content-scroll" id="lessonContentScroll">
+                    <div id="lessonContentBody" class="lesson-content-body"></div>
+                </div>
+                <div class="lesson-step-footer">
+                    <span class="lesson-step-locked-note" id="contentLockedNote"></span>
+                    <button class="lesson-step-btn" id="contentContinueBtn" disabled>Continue</button>
+                </div>
+            </div>
+
+            <!-- STEP: ACTIVITIES -->
+            <div id="activitiesStep" class="lesson-step is-hidden">
+                <div id="activitiesContainer" class="activities-container is-hidden"></div>
+
+                <div class="lesson-complete-row is-hidden" id="lessonCompleteRow">
+                    <span id="lessonCompleteStatus" class="mark-complete-confirm is-hidden">
+                        <i class="fa-solid fa-circle-check"></i> Preview finished - nothing was saved.
+                    </span>
+                    <span id="lessonInProgressStatus" class="lesson-in-progress-label is-hidden">
+                        Finish the activities above to complete this lesson.
+                    </span>
+                    <button type="button" class="lesson-step-btn is-hidden" id="viewSummaryFromActivitiesBtn">View Summary</button>
+                    <button type="button" class="lesson-step-btn" id="backToActivitiesBtn" hidden>Back to activities</button>
+                </div>
+            </div>
+
+            <!-- STEP: EXERCISE -->
+            <div id="exerciseStep" class="lesson-step is-hidden">
+                <p class="lesson-step-eyebrow">Coding Exercise</p>
+                <h2 class="exercise-title" id="exerciseTitle"></h2>
+
+                <div class="exercise-prompt">
+                    <p><strong>Situation:</strong> <span id="exerciseSituation"></span></p>
+                    <p><strong>Problem:</strong> <span id="exerciseProblem"></span></p>
+                    <p class="exercise-clue"><i class="fa-solid fa-lightbulb"></i> <span id="exerciseClue"></span></p>
+                </div>
+
+                <div class="exercise-editor-grid">
+                    <div class="exercise-pane">
+                        <div class="exercise-pane-head">Your Code <button type="button" class="exercise-run-btn" id="exerciseRunBtn">Run</button></div>
+                        <pre class="exercise-code-box" id="exerciseCodeBox" contenteditable="true" spellcheck="false"># Write your code here
+</pre>
+                    </div>
+                    <div class="exercise-pane">
+                        <div class="exercise-pane-head">Output</div>
+                        <pre class="exercise-output-box" id="exerciseOutputBox">Run your code to see the output.</pre>
+                    </div>
+                </div>
+
+                <div class="exercise-result is-hidden" id="exerciseResultBox"></div>
+
+                <div class="lesson-step-footer">
+                    <button class="lesson-step-btn" id="exerciseSubmitBtn">Submit</button>
+                </div>
+
+                <div class="lesson-complete-row is-hidden" id="exerciseCompleteRow">
+                    <span id="exerciseCompleteStatus" class="mark-complete-confirm is-hidden">
+                        <i class="fa-solid fa-circle-check"></i> Exercise passed - nothing was saved.
+                    </span>
+                </div>
+            </div>
+
+            <!-- STEP: SUMMARY (never shown in preview) -->
+            <div id="summaryStep" class="lesson-step is-hidden">
+                <div class="perf-banner is-hidden" id="perfBanner">
+                    <div class="perf-ring" id="perfRing"><span id="perfRingLabel">0%</span></div>
+                </div>
+                <div class="summary-list" id="summaryList"></div>
+                <p class="summary-gate-note" id="summaryGateNote" hidden></p>
+                <div class="summary-review" id="summaryReview" hidden>
+                    <p class="summary-review-note" id="summaryReviewNote"></p>
+                    <button type="button" class="review-btn" id="reviewLessonBtn">Review lesson</button>
+                    <button type="button" class="review-btn" id="reviewWeakSpotsBtn" hidden><span id="reviewWeakSpotsLabel"></span></button>
+                    <button type="button" class="review-btn" id="reviewModuleWeakSpotsBtn" hidden><span id="reviewModuleWeakSpotsLabel"></span></button>
+                    <div class="weak-spots-panel" id="weakSpotsPanel" hidden></div>
+                </div>
+                <button class="lesson-step-btn" id="summaryContinueBtn" disabled>Continue</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Preview flag first, then the REAL learner scripts from the learner paths. -->
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-preview-play.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+    <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-fill-blanks.js') }}"></script>
+    <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-flashcards.js') }}"></script>
+    <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-activities.js') }}"></script>
+    <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-content.js') }}"></script>
+</body>
+</html>

@@ -665,78 +665,19 @@
             });
         }
 
-        // ------------------------------------------------------------
-        // Content preview modal - read-only display of one activity
-        // TYPE's content for a Lesson (all activities of that type, if
-        // more than one exists).
-        // ------------------------------------------------------------
-        function renderActivityPreviewBody(activities, type) {
-            const matching = activities.filter((a) => a.activity_type === type);
-            if (matching.length === 0) return "<em>No content yet.</em>";
-
-            return matching.map((a) => {
-                let itemsHtml = "";
-                if (type === "Multiple Choice" || type === "Quiz") {
-                    itemsHtml = a.items.map((q, idx) => `
-                        <p class="preview-question">${idx + 1}. ${escapeHtml(q.question_text)}</p>
-                        <ul class="preview-options">
-                            ${q.options.map((o) => `<li class="${o.is_correct ? 'preview-correct-option' : ''}">${escapeHtml(o.option_letter)}. ${escapeHtml(o.text)}${o.is_correct ? ' ✓' : ''}</li>`).join("")}
-                        </ul>
-                    `).join("");
-                } else if (type === "Fill in the Blanks") {
-                    itemsHtml = a.items.map((f, idx) => `
-                        <p class="preview-item"><strong>${idx + 1}.</strong> ${escapeHtml(f.content)}</p>
-                        <p class="preview-answer">Answer: ${escapeHtml(f.correct_answer)}</p>
-                    `).join("");
-                } else if (type === "Flashcards") {
-                    itemsHtml = a.items.map((c, idx) => `
-                        <p class="preview-item"><strong>Card ${idx + 1} - Front:</strong> ${escapeHtml(c.front)}</p>
-                        <p class="preview-item-back"><strong>Back:</strong> ${escapeHtml(c.back)}</p>
-                    `).join("");
-                }
-                return `<div class="preview-activity-block">
-                    <p class="preview-activity-title">${escapeHtml(a.activity_title)} <span class="preview-activity-status">(${escapeHtml(a.status)})</span></p>
-                    ${itemsHtml}
-                </div>`;
-            }).join("");
-        }
-
-        function showActivityPreviewModal(resourceId, activityType, activities) {
-            let overlay = document.getElementById("activityPreviewModalOverlay");
-            if (overlay) overlay.remove();
-
-            overlay = document.createElement("div");
-            overlay.id = "activityPreviewModalOverlay";
-            overlay.className = "modal-overlay";
-            overlay.innerHTML = `
-                <div class="content-preview-card">
-                    <div class="content-preview-header">
-                        <strong>${escapeHtml(activityType)}</strong>
-                        <button type="button" id="activityPreviewCloseBtn" class="modal-close-btn modal-close-inline" title="Close">&times;</button>
-                    </div>
-                    <div class="content-preview-body">${renderActivityPreviewBody(activities, activityType)}</div>
-                </div>
-            `;
-            document.body.appendChild(overlay);
-
-            function closeModal() {
-                overlay.remove();
-                document.removeEventListener("keydown", onEscKey);
-            }
-            function onEscKey(e) { if (e.key === "Escape") closeModal(); }
-            overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
-            overlay.querySelector("#activityPreviewCloseBtn").addEventListener("click", closeModal);
-            document.addEventListener("keydown", onEscKey);
-        }
-
         tableBody.addEventListener("click", async (e) => {
             const previewTrigger = e.target.closest(".activity-content-trigger");
             if (previewTrigger) {
                 e.preventDefault();
+                // feat/admin-real-game-preview: plays the REAL learner game for
+                // this type in this lesson (admin-preview-frame.js) - no locks,
+                // unlimited lives, nothing saved.
                 const resourceId = previewTrigger.dataset.resourceId;
                 const activityType = previewTrigger.dataset.activityType;
-                const activities = await fetchActivitiesForResource(resourceId);
-                showActivityPreviewModal(resourceId, activityType, activities);
+                window.CobraPreviewFrame.open(
+                    `resource_id=${encodeURIComponent(resourceId)}&activity_type=${encodeURIComponent(activityType)}`,
+                    activityType
+                );
                 return;
             }
 

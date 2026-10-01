@@ -25,7 +25,9 @@
  *   - Empty chapters/modules (no lesson) can't be marked ready, and a
  *     chapter/module can't go live unless a lesson inside goes live too.
  *   - "+ Chapter" (Draft tab only) and chapter / module Edit are modals.
- *   - Click a name: Edit / Preview / Name history.
+ *   - Click a name: Edit / Preview / Name history. Activity and exercise
+ *     Preview play the real learner game / exercise screen in a popup
+ *     (admin-preview-frame.js).
  *
  * Edit Order mode (drag handle + arrows, Save / Cancel) shows every
  * chapter, module and lesson, whatever its status or the active tab.
@@ -515,7 +517,7 @@
             const t = typeOf(node.id);
             const items = [];
             items.push(`<button type="button" class="resource-edit-menu-item js-pub-edit" data-id="${node.id}"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`);
-            if (t === "res" || t === "act" || t === "vid") {
+            if (t === "res" || t === "act" || t === "ex" || t === "vid") {
                 items.push(`<button type="button" class="resource-edit-menu-item js-pub-preview" data-id="${node.id}"><i class="fa-regular fa-eye"></i> Preview</button>`);
             }
             const hist = historyTrigger(node);
@@ -793,14 +795,15 @@
                     openPreviewOverlay(result.title || "Preview", result.content_html || "<em>No content yet.</em>");
                     return;
                 }
+                // Activities and exercises play in the REAL learner game /
+                // exercise screen (admin-preview-frame.js, /admin/preview-play):
+                // any status, no locks, unlimited lives, nothing saved.
                 if (t === "act") {
-                    const lesson = parentOf[node.id];
-                    const resp = await fetch(`/admin/learning-activities/preview?resource_id=${numId(lesson.id)}`, { credentials: "same-origin" });
-                    const result = await resp.json();
-                    const match = (result.activities || []).find((a) => String(a.activity_id) === numId(node.id));
-                    if (!match) { showAlertModal("Could not load a preview for this activity.", "Preview"); return; }
-                    openPreviewOverlay(`${match.activity_type}: ${match.activity_title}`,
-                        `<p>Status: ${escapeHtml(match.status)}</p><p>${match.items.length} item(s).</p>`);
+                    window.CobraPreviewFrame.open(`la_id=${encodeURIComponent(numId(node.id))}`, node.name);
+                    return;
+                }
+                if (t === "ex") {
+                    window.CobraPreviewFrame.open(`exercise_id=${encodeURIComponent(numId(node.id))}`, node.name);
                 }
             } catch (e) {
                 showAlertModal("Could not reach the server.", "Error");

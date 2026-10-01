@@ -1,6 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const API_BASE_URL = ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
+    // feat/admin-real-game-preview: set ONLY by admin-preview-play.js on /admin/preview-play.
+    // Undefined on learner pages, so everything below runs exactly as before.
+    const PREVIEW = window.COBRA_PREVIEW_MODE || null;
+    const API_BASE_URL = PREVIEW ? PREVIEW.apiBase : ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
     const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
     const LESSON_MODULES_DIR = "/lesson_modules";
     const VIDEO_WATCH_THRESHOLD = 0.9; // 90% watched unlocks Continue
@@ -111,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exerciseStep.style.display = key === "exercise" ? "block" : "none";
         summaryStep.style.display = key === "summary" ? "block" : "none";
         renderStepper(key);
+        if (PREVIEW) PREVIEW.onStep(key);
         if (key === "summary") loadSummary();
     }
 
@@ -171,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ytPollTimer) clearInterval(ytPollTimer);
         videoContinueBtn.disabled = false;
         videoLockedNote.style.display = "none";
+        if (PREVIEW) return;   // admin preview: nothing saved
         try {
             await fetch(`${API_BASE_URL}/api/lesson-content/mark-video-watched`, {
                 method: 'POST',
@@ -195,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         contentUnlocked = true;
         contentContinueBtn.disabled = false;
         contentLockedNote.style.display = "none";
+        if (PREVIEW) return;   // admin preview: nothing saved
         try {
             await fetch(`${API_BASE_URL}/api/lesson-content/mark-content-read`, {
                 method: 'POST',
@@ -1139,6 +1145,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---------------- Activities step (unchanged behavior from before) ----------------
     async function attemptCompleteLesson() {
+        if (PREVIEW) {
+            // Admin preview: nothing is saved - just say it's finished.
+            lessonData.is_completed = true;
+            lessonInProgressStatus.style.display = 'none';
+            lessonCompleteStatus.style.display = 'inline-flex';
+            PREVIEW.onFinished();
+            return;
+        }
         try {
             const response = await fetch(`${API_BASE_URL}/api/lesson-content/complete`, {
                 method: 'POST',
@@ -1452,7 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---------------- Initial load ----------------
     async function loadLesson() {
-        if (!resourceId) {
+        if (!resourceId && !PREVIEW) {
             lessonLoading.style.display = 'none';
             lessonError.textContent = 'No lesson selected.';
             lessonError.style.display = 'block';
@@ -1460,7 +1474,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/lesson-content?resource_id=${encodeURIComponent(resourceId)}`, {
+            const lessonQuery = PREVIEW ? PREVIEW.query : `resource_id=${encodeURIComponent(resourceId)}`;
+            const response = await fetch(`${API_BASE_URL}/api/lesson-content?${lessonQuery}`, {
                 credentials: 'include'
             });
 
@@ -1521,6 +1536,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     exerciseResultBox.className = "exercise-result " + (passed ? "pass" : "fail");
                     exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${lastSub.feedback_given || ""} (${lastSub.test_cases_passed}/${lastSub.test_cases_total} test cases passed)`;
                 }
+            }
+
+            // Admin preview: only this preview's games and/or exercise,
+            // opened directly - no video/content gates, no summary.
+            if (PREVIEW) {
+                stepOrder = [];
+                if (data.has_activities) stepOrder.push({ key: "activities", label: "Activities" });
+                if (data.exercise) stepOrder.push({ key: "exercise", label: "Exercise" });
+                goToStep(stepOrder.length ? stepOrder[0].key : "activities");
+                return;
             }
 
             // Build step order - Video and Exercise are only included if
