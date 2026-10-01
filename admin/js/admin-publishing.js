@@ -27,7 +27,8 @@
  *   - "+ Chapter" (Draft tab only) and chapter / module Edit are modals.
  *   - Click a name: Edit / Preview / Name history.
  *
- * Edit Order mode (drag handle + arrows, Save / Cancel) is unchanged.
+ * Edit Order mode (drag handle + arrows, Save / Cancel) shows every
+ * chapter, module and lesson, whatever its status or the active tab.
  * Reuses the shared #confirmActionModal - no native alert()/confirm().
  */
 (function () {
@@ -280,10 +281,9 @@
 
         function matchesTab(node) {
             if (editOrder) {
-                // Edit Order shows Ready + Published together, never Draft, no leaves.
-                if (["vid", "act", "ex"].includes(typeOf(node.id))) return false;
-                if (node.status && node.status !== "Draft") return true;
-                return kidsOf(node).some(matchesTab);
+                // Edit Order shows every chapter, module and lesson (any
+                // status, any tab), each with its badge. No leaves.
+                return !["vid", "act", "ex"].includes(typeOf(node.id));
             }
             const wanted = TAB_STATUS[activeTab];
             return node.status === wanted || kidsOf(node).some(matchesTab);
@@ -515,7 +515,7 @@
             const t = typeOf(node.id);
             const items = [];
             items.push(`<button type="button" class="resource-edit-menu-item js-pub-edit" data-id="${node.id}"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`);
-            if (t === "res" || t === "act") {
+            if (t === "res" || t === "act" || t === "vid") {
                 items.push(`<button type="button" class="resource-edit-menu-item js-pub-preview" data-id="${node.id}"><i class="fa-regular fa-eye"></i> Preview</button>`);
             }
             const hist = historyTrigger(node);
@@ -741,8 +741,50 @@
             overlay.addEventListener("click", (e) => { if (e.target === overlay || e.target.closest(".js-preview-close")) close(); });
         }
 
+        // Video Preview: same YouTube popup as showVideoPreviewModal() in
+        // admin-learning-resources.js (reuses its admin-style.css classes).
+        // Removing the overlay removes the iframe, so the audio stops.
+        function showVideoPreviewModal(videoId) {
+            let overlay = document.getElementById("videoPreviewModalOverlay");
+            if (overlay) overlay.remove();
+
+            overlay = document.createElement("div");
+            overlay.id = "videoPreviewModalOverlay";
+            overlay.className = "modal-overlay";
+            overlay.innerHTML = `
+                <div class="video-preview-modal-card">
+                    <button type="button" id="videoPreviewModalCloseBtn" class="modal-close-btn video-preview-close-btn" title="Close">&times;</button>
+                    <div class="video-preview-frame">
+                        <iframe src="https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1" class="video-preview-iframe" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            function closeModal() {
+                overlay.remove();
+                document.removeEventListener("keydown", onEscKey);
+            }
+            function onEscKey(e) {
+                if (e.key === "Escape") closeModal();
+            }
+
+            overlay.addEventListener("click", (e) => {
+                if (e.target === overlay) closeModal();
+            });
+            const closeBtn = overlay.querySelector("#videoPreviewModalCloseBtn");
+            if (closeBtn) closeBtn.addEventListener("click", closeModal);
+            document.addEventListener("keydown", onEscKey);
+        }
+
         async function showPreview(node) {
             const t = typeOf(node.id);
+            if (t === "vid") {
+                const videoId = (node.video_id || "").trim();
+                if (!videoId) { showAlertModal("This video doesn't have a YouTube link yet.", "Preview"); return; }
+                showVideoPreviewModal(videoId);
+                return;
+            }
             try {
                 if (t === "res") {
                     const resp = await fetch(`/admin/learning-resources/preview-content?resource_id=${numId(node.id)}`, { credentials: "same-origin" });

@@ -180,7 +180,7 @@ def _build_publishing_tree():
                 "children": [
                   { "id": "res-<resource_id>", "type": "lesson", "name", "status",
                     "edited", "display_order",
-                    "videos":     [{"id": "vid-<id>", "name", "status", "edited"}],
+                    "videos":     [{"id": "vid-<id>", "name", "status", "edited", "video_id"}],
                     "activities": [{"id": "act-<id>", "name", "status", "edited", "activity_type"}],
                     "exercises":  [{"id": "ex-<id>",  "name", "status", "edited"}] } ] } ] } ]
 
@@ -245,7 +245,7 @@ def _build_publishing_tree():
 
         leaf_status = "COALESCE(last.la_stats_name, 'Draft')"
         cursor.execute(
-            f"""SELECT vt.video_tutorial_id, vt.video_title, vt.resource_id,
+            f"""SELECT vt.video_tutorial_id, vt.video_title, vt.resource_id, vt.file_path,
                        {leaf_status} AS status_name, {_edited_sql('vt', leaf_status)} AS edited
                 FROM {VIDEO_TUTORIALS_TABLE} vt
                 LEFT JOIN {LA_STATS_TABLE} last ON vt.video_stats_id = last.la_stats_id
@@ -291,7 +291,7 @@ def _build_publishing_tree():
         videos_by_resource = {}
         for v in videos:
             videos_by_resource.setdefault(v["resource_id"], []).append(
-                leaf("vid", v, "video_tutorial_id", "video_title"))
+                leaf("vid", v, "video_tutorial_id", "video_title", video_id=v.get("file_path") or ""))
 
         activities_by_resource = {}
         for a in activities:
