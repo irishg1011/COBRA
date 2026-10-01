@@ -99,6 +99,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showStep(key) {
+        // Leaving the video step (Continue button or the stepper): pause the
+        // YouTube player - hiding the iframe alone doesn't stop playback.
+        // Paused (not stopped) so it resumes where the learner left off.
+        if (key !== "video" && ytPlayer && typeof ytPlayer.pauseVideo === "function") {
+            ytPlayer.pauseVideo();
+        }
         videoStep.style.display = key === "video" ? "block" : "none";
         contentStep.style.display = key === "content" ? "block" : "none";
         activitiesStep.style.display = key === "activities" ? "block" : "none";
