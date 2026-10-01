@@ -1,4 +1,6 @@
 import os
+import hashlib
+import secrets
 from functools import wraps
 from datetime import datetime
 from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for, flash
@@ -1890,13 +1892,43 @@ def _read_prefill():
     return prefill
 
 
-def _publishing_return_url(source=None):
-    """Publishing page URL when the editor was opened from it, else None."""
+# feat/publishing-focus: tree node id prefixes (same as publishing.py), so
+# the Publishing page can open the path to the saved item and glow it.
+PUBLISHING_FOCUS_PREFIX = {"lesson": "res", "video": "vid", "activity": "act", "exercise": "ex"}
+
+
+def _publishing_return_url(source=None, focus_kind=None, focus_id=None):
+    """Publishing page URL when the editor was opened from it, else None.
+    focus_kind/focus_id (e.g. "lesson", 12) add ?focus=res-12 for the saved item."""
     source = source or request.args
     if (source.get('return') or source.get('return_to')) != 'publishing':
         return None
+    params = {}
     tab = source.get('tab') or ''
-    return url_for('admin_bp.publishing', tab=tab) if tab in PUBLISHING_TABS else url_for('admin_bp.publishing')
+    if tab in PUBLISHING_TABS:
+        params['tab'] = tab
+    prefix = PUBLISHING_FOCUS_PREFIX.get(focus_kind)
+    if prefix and str(focus_id or '').isdigit():
+        params['focus'] = f"{prefix}-{int(focus_id)}"
+    return url_for('admin_bp.publishing', **params)
+
+
+def _publishing_login_key():
+    """
+    feat/publishing-focus: a short per-login marker for the Publishing page,
+    so the remembered open/closed tree state resets on every new login.
+    It is a HASH of the session token - the raw token never reaches the
+    page. Without a token (session tracking had a DB hiccup), a random
+    seed is kept in the session instead; login clears the session, so
+    that one resets on a new login too.
+    """
+    seed = session.get('session_token')
+    if not seed:
+        seed = session.get('publishing_login_seed')
+        if not seed:
+            seed = secrets.token_hex(16)
+            session['publishing_login_seed'] = seed
+    return hashlib.sha256(f"publishing-tree:{seed}".encode()).hexdigest()[:16]
 
 
 # ============================================================
@@ -1922,6 +1954,7 @@ def publishing():
         tree_json=json.dumps(tree),
         tree_error=publishing_tree_module.last_tree_error or '',
         initial_tab=tab if tab in PUBLISHING_TABS else 'ready',
+        login_key=_publishing_login_key(),
     )
 
 
@@ -3431,7 +3464,7 @@ def upload_resource():
             return redirect(url_for('admin_bp.upload_resource'))
 
         flash(message, 'success')
-        return redirect(_publishing_return_url(request.form) or url_for('admin_bp.learning_resources'))
+        return redirect(_publishing_return_url(request.form, 'lesson', saved_resource_id) or url_for('admin_bp.learning_resources'))
 
     # Task #41: Category dropdown is rendered server-side from real
     # category_tbl rows (same get_categories() Manage Course already
@@ -3867,7 +3900,7 @@ def create_activity_submit():
         return redirect(url_for('admin_bp.create_learning_activity_page', activity_id=saved_activity_id))
 
     flash('Learning activity saved and marked as Ready to Publish.', 'success')
-    return redirect(_publishing_return_url(request.form) or url_for('admin_bp.learning_activities'))
+    return redirect(_publishing_return_url(request.form, 'activity', saved_activity_id) or url_for('admin_bp.learning_activities'))
 # ============================================================
 # ROUTE: CREATE CODING EXERCISE (PAGE VIEW) & DEPENDENT DROPDOWNS
 # ============================================================
@@ -3965,7 +3998,7 @@ def create_coding_exercise():
                                     "message": f"Coding exercise saved, but could not mark it ready: {ready_message}"}), 400
                 return redirect(url_for('admin_bp.create_coding_exercise', exercise_id=exercise_id))
 
-        back_url = _publishing_return_url(request.form) or url_for('admin_bp.coding_exercises')
+        back_url = _publishing_return_url(request.form, 'exercise', exercise_id) or url_for('admin_bp.coding_exercises')
         if success:
             flash(msg, 'success')
             if is_ajax:
@@ -4024,7 +4057,7 @@ def save_coding_exercise_draft():
     admin_id = session.get('admin_id')
     success, exercise_id, msg = save_coding_exercise(data, status='Draft', uploaded_by=admin_id)
 
-    back_url = _publishing_return_url(request.form) or url_for('admin_bp.coding_exercises')
+    back_url = _publishing_return_url(request.form, 'exercise', exercise_id) or url_for('admin_bp.coding_exercises')
     if success:
         flash(msg, 'success')
         if is_ajax:

@@ -4,11 +4,12 @@
  * Shared by the 4 editors (New Lesson, Create Learning Activity, Create
  * Coding Exercise, Video Tutorial):
  *
- * 1. window.cobraEditorReturnUrl(fallback)
+ * 1. window.cobraEditorReturnUrl(fallback, kind, id)
  *    Where to go after a save / status change. When the editor was
  *    opened from the Publishing page (?return=publishing), the server
  *    puts that page's URL on <body data-return-url="...">; otherwise the
- *    editor's own manage page (fallback) is used.
+ *    editor's own manage page (fallback) is used. kind + id (e.g.
+ *    "lesson", 12) add &focus=res-12 to the Publishing URL only.
  *
  * 2. Status buttons in the editor header, e.g.
  *      <button class="js-editor-status-action" data-kind="lesson"
@@ -22,18 +23,36 @@
 (function () {
     "use strict";
 
-    window.cobraEditorReturnUrl = function (fallback) {
+    // feat/publishing-focus: tree node id prefixes (same as publishing.py).
+    // Going back to the Publishing page adds ?focus=<node id> so it opens
+    // the path to the saved item and glows it. Never added to the manage
+    // pages (fallback URLs).
+    const FOCUS_PREFIX = { lesson: "res", video: "vid", activity: "act", exercise: "ex" };
+
+    function withFocus(url, kind, id) {
+        const prefix = FOCUS_PREFIX[kind];
+        if (!url || !prefix || !/^\d+$/.test(String(id || ""))) return url;
+        try {
+            const u = new URL(url, window.location.origin);
+            u.searchParams.set("focus", `${prefix}-${id}`);
+            return u.pathname + u.search;
+        } catch (e) {
+            return url;
+        }
+    }
+
+    window.cobraEditorReturnUrl = function (fallback, kind, id) {
         const url = document.body ? document.body.dataset.returnUrl : "";
-        return url || fallback;
+        return url ? withFocus(url, kind, id) : fallback;
     };
 
     // Same tab the admin came from, unless the action moved the item to another tab.
-    function returnUrlForTab(fallback, tab) {
+    function returnUrlForTab(fallback, tab, kind, id) {
         const url = window.cobraEditorReturnUrl("");
         if (!url) return fallback;
-        if (!tab) return url;
+        if (!tab) return withFocus(url, kind, id);
         const base = url.split("?")[0];
-        return `${base}?tab=${encodeURIComponent(tab)}`;
+        return withFocus(`${base}?tab=${encodeURIComponent(tab)}`, kind, id);
     }
     window.cobraEditorReturnUrlForTab = returnUrlForTab;
 
@@ -132,7 +151,7 @@
                 // "leave without saving?" warning on the redirect below.
                 showToast(result.message || "Status updated.");
                 setTimeout(() => {
-                    window.location.href = returnUrlForTab(fallback || "/admin/publishing", tab);
+                    window.location.href = returnUrlForTab(fallback || "/admin/publishing", tab, kind, id);
                 }, 1200);
             } catch (err) {
                 showToast("Could not reach the server. Please try again.", true);

@@ -207,6 +207,28 @@
     font-weight: 500;
 }
 
+/* feat/publishing-focus: the item just added / edited / changed. Same
+   soft green as .row-restored-highlight on the manage pages, plus a
+   glow, fading out over ~3.5s. admin-publishing.js removes the class. */
+@keyframes publishingRowFocus {
+    0%   { background-color: #bbf7d0; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.35); }
+    60%  { background-color: #dcfce7; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15); }
+    100% { background-color: transparent; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0); }
+}
+
+.publishing-row.publishing-row-focus {
+    animation: publishingRowFocus 3.5s ease-out;
+}
+
+/* Reduced motion: no fade, just a short static highlight */
+@media (prefers-reduced-motion: reduce) {
+    .publishing-row.publishing-row-focus {
+        animation: none;
+        background-color: #dcfce7;
+        box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.45);
+    }
+}
+
 /* Parent shown only because something inside matches the tab */
 .publishing-row.is-context .publishing-name-btn,
 .publishing-row.is-context .publishing-name-static {
