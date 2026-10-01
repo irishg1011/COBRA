@@ -1122,3 +1122,233 @@ select {
         padding: 28px 22px;
     }
 }
+
+/* ==========================================================================
+   LOGIN - SLIDING DOUBLE PANEL (feat/login-slider)
+   Sign In on the left, Sign Up on the right; a teal/blue overlay with a
+   curved inner edge slides over the side that is not in use.
+   script.js adds .is-signup to #authCard; .is-instant (first paint only)
+   switches the transitions off.
+   ========================================================================== */
+.hero-container--auth {
+    max-width: 1440px;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr);
+    gap: 56px;
+    padding: 32px 5%;
+}
+
+.hero-container--auth h1 {
+    font-size: 56px;
+}
+
+.auth-card--slider {
+    position: relative;
+    max-width: 900px;
+    padding: 0;
+}
+
+.auth-slider {
+    --slide-ease: cubic-bezier(0.77, 0, 0.18, 1);   /* soft start, soft landing */
+    --slide-time: 1.25s;
+    --curve: 170px;                                 /* depth of the curved edge */
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    min-height: 580px;
+    isolation: isolate;
+}
+
+.auth-forms {
+    position: relative;
+    z-index: 1;
+    width: 50%;
+    padding: 40px;
+    transition: transform var(--slide-time) var(--slide-ease);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* Smoothness: the overlay is ONE shape curved on BOTH sides and wider than
+   half the card by --curve. The outer curve always sits outside the card
+   (clipped by .auth-slider), so switching sides only moves it with a GPU
+   transform - nothing is re-drawn mid-slide (no border-radius / shadow
+   animation, which is what made it stutter). */
+.auth-overlay {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    z-index: 2;
+    width: calc(50% + var(--curve));
+    height: 100%;
+    overflow: hidden;
+    color: #FFFFFF;
+    background:
+        radial-gradient(420px 260px at 30% 8%, rgba(56, 255, 146, 0.2), transparent 70%),
+        radial-gradient(420px 260px at 70% 92%, rgba(0, 208, 255, 0.22), transparent 70%),
+        linear-gradient(120deg, #1D4ED8 0%, #0891B2 50%, #14B8A6 100%);
+    border-radius: var(--curve) var(--curve) 120px 120px / 50% 50% 50% 50%;
+    box-shadow: 0 0 34px rgba(8, 47, 73, 0.2);
+    transform: translate3d(0, 0, 0);
+    transition: transform var(--slide-time) var(--slide-ease);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+.auth-card--slider.is-signup .auth-forms {
+    transform: translate3d(100%, 0, 0);
+}
+
+/* while sliding, the new form stays hidden under the overlay and fades in
+   as the overlay uncovers it (script.js adds .is-sliding for one slide) */
+.auth-card--slider.is-sliding .auth-forms {
+    animation: authFormsReveal var(--slide-time) var(--slide-ease) both;
+}
+
+@keyframes authFormsReveal {
+    0%   { opacity: 0; }
+    40%  { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+.auth-card--slider.is-signup .auth-overlay {
+    transform: translate3d(-100%, 0, 0);
+}
+
+/* the two messages sit over the VISIBLE part of the overlay and cross-fade:
+   the old one leaves quickly, the new one glides in once the panel is
+   well on its way */
+.auth-overlay-panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 0 56px;
+    text-align: center;
+    will-change: transform, opacity;
+    transition:
+        opacity 0.45s ease,
+        transform var(--slide-time) var(--slide-ease);
+}
+
+.auth-overlay-panel--signup {   /* shown while the overlay is on the right */
+    left: 0;
+    right: var(--curve);
+}
+
+.auth-overlay-panel--signin {   /* shown while the overlay is on the left */
+    left: var(--curve);
+    right: 0;
+}
+
+.auth-overlay-panel h2 {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.auth-overlay-panel p {
+    font-size: 14.5px;
+    line-height: 1.6;
+    max-width: 300px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.auth-overlay-panel--signup {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    transition-delay: 0.5s, 0s;
+}
+
+.auth-overlay-panel--signin {
+    opacity: 0;
+    transform: translate3d(-24%, 0, 0);
+    pointer-events: none;
+    transition-delay: 0s, 0s;
+}
+
+.auth-card--slider.is-signup .auth-overlay-panel--signup {
+    opacity: 0;
+    transform: translate3d(24%, 0, 0);
+    pointer-events: none;
+    transition-delay: 0s, 0s;
+}
+
+.auth-card--slider.is-signup .auth-overlay-panel--signin {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    pointer-events: auto;
+    transition-delay: 0.5s, 0s;
+}
+
+.auth-overlay-btn {
+    margin-top: 8px;
+    min-width: 150px;
+    padding: 11px 32px;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    border-radius: 25px;
+    background: transparent;
+    color: #FFFFFF;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+}
+
+.auth-overlay-btn:hover {
+    background: #FFFFFF;
+    color: #0E7490;
+}
+
+.auth-overlay-btn:active {
+    transform: scale(0.97);
+}
+
+.auth-overlay-btn:focus-visible {
+    outline: 3px solid #38FF92;
+    outline-offset: 3px;
+}
+
+/* the overlay replaces the Sign In / Sign Up tabs on wide screens */
+@media (min-width: 901px) {
+    .auth-card--slider .auth-toggle {
+        display: none !important;
+    }
+}
+
+.auth-card--slider.is-instant .auth-forms,
+.auth-card--slider.is-instant .auth-overlay,
+.auth-card--slider.is-instant .auth-overlay-panel {
+    transition: none;
+}
+
+/* The slide answers the learner's own click, so it plays at the same
+   pace even with "reduce motion" turned on in Windows/macOS. */
+
+/* phones / narrow screens: one column, the tabs come back */
+@media (max-width: 900px) {
+    .hero-container--auth {
+        grid-template-columns: 1fr;
+    }
+    .auth-card--slider {
+        max-width: 480px;
+    }
+    .auth-slider {
+        min-height: 0;
+    }
+    .auth-forms {
+        width: 100%;
+        padding: 32px 24px;
+    }
+    .auth-card--slider.is-signup .auth-forms {
+        transform: none;
+    }
+    .auth-overlay {
+        display: none;
+    }
+}

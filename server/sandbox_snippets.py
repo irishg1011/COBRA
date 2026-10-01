@@ -99,6 +99,9 @@ def save_snippet(acc_id, code, snippet_id=None):
         return False, None, "Not logged in."
 
     code = code if isinstance(code, str) else ("" if code is None else str(code))
+    if not code.strip():
+        # Empty editor (or only spaces / blank lines) - never store a blank snippet.
+        return False, None, "Write some code first before saving."
     if len(code) > MAX_CODE_LENGTH:
         return False, None, f"Code is too long to save (max {MAX_CODE_LENGTH} characters)."
 

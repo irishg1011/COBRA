@@ -620,6 +620,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saveCodeBtn && codeEditor) {
         saveCodeBtn.addEventListener('click', async () => {
             const originalHtml = saveCodeBtn.innerHTML;
+
+            // Nothing typed (or only spaces / blank lines): don't save an empty snippet.
+            if (!codeEditor.value.trim()) {
+                showOutput('Write some code first before saving.', true);
+                saveCodeBtn.disabled = true;
+                saveCodeBtn.innerHTML = 'Nothing to save';
+                setTimeout(() => {
+                    saveCodeBtn.innerHTML = originalHtml;
+                    saveCodeBtn.disabled = false;
+                }, 1600);
+                codeEditor.focus();
+                return;
+            }
+
             saveCodeBtn.disabled = true;
             saveCodeBtn.innerHTML = 'Saving...';
 

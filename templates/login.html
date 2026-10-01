@@ -12,7 +12,7 @@
     <!-- Reusable Header Placeholder -->
     <div id="header-placeholder"></div>
 
-    <main class="hero-container">
+    <main class="hero-container hero-container--auth">
         <!-- Left Side: Copy Elements -->
         <section class="content-col">
             <h1>
@@ -27,7 +27,7 @@
 
         <!-- Right Side: Interactive Authentication Card -->
         <section class="visual-col">
-            <div class="auth-card">
+            <div class="auth-card auth-card--slider is-instant" id="authCard">
                 <!-- feat/login-animations: gradient "snake" that coils around
                      the card once on page load. Sized + started by script.js
                      (runSnakeTrace); styled in animations.css. -->
@@ -39,6 +39,13 @@
                     </defs>
                     <rect id="snakeTraceRect" x="2" y="2" rx="18" ry="18" pathLength="100" />
                 </svg>
+
+                <!-- feat/login-slider: sliding double panel. Sign In (and its
+                     Forgot Password steps) shows on the left, Sign Up steps
+                     on the right; the teal overlay slides over the side not
+                     in use. script.js toggles .is-signup on #authCard. -->
+                <div class="auth-slider">
+                <div class="auth-forms">
 
                 <!-- Toggle Slider Buttons -->
                 <div class="auth-toggle">
@@ -382,6 +389,23 @@
                         Back to home
                     </a>
                 </div>
+                </div><!-- /.auth-forms -->
+
+                <!-- Sliding overlay (desktop). Its buttons press the same
+                     Sign In / Sign Up switch as the tabs above. -->
+                <div class="auth-overlay">
+                    <div class="auth-overlay-panel auth-overlay-panel--signin">
+                        <h2>Welcome Back!</h2>
+                        <p>Already have an account? Sign in and pick up right where you left off.</p>
+                        <button type="button" class="auth-overlay-btn" id="overlaySignInBtn">Sign In</button>
+                    </div>
+                    <div class="auth-overlay-panel auth-overlay-panel--signup">
+                        <h2>Hello, Coder!</h2>
+                        <p>New to CobraByte? Create a free account and learn Python the interactive way.</p>
+                        <button type="button" class="auth-overlay-btn" id="overlaySignUpBtn">Sign Up</button>
+                    </div>
+                </div>
+                </div><!-- /.auth-slider -->
             </div>
         </section>
     </main>
