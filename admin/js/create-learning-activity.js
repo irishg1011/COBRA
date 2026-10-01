@@ -96,8 +96,7 @@ function isGuardedActivityField(el) {
  */
 function normalizeActivityFieldCasing(value) {
     if (!value) return value;
-    // Only the first letter becomes capital - the rest stays as typed.
-    return value.replace(/^(\s*)(\S)/, (m, space, ch) => space + ch.toUpperCase());
+    return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }
 
 /**
@@ -157,10 +156,7 @@ function refreshQuestionFieldTrackers(scopeEl) {
  */
 function isExactAnswerField(el) {
     const name = el.getAttribute('name') || '';
-    return /^questions\[\d+\]\[options\]\[\d+\]\[text\]$/.test(name) ||
-           /^fill_blanks\[\d+\]\[content\]$/.test(name) ||
-           /^fill_blanks\[\d+\]\[correct_answer\]$/.test(name) ||
-           /^flashcards\[\d+\]\[front\]$/.test(name) ||
+    return /^fill_blanks\[\d+\]\[correct_answer\]$/.test(name) ||
            /^flashcards\[\d+\]\[back\]$/.test(name);
 }
 

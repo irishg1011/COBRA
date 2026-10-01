@@ -82,13 +82,20 @@ def ensure_resource_display_order_column(connection):
         )
         cursor.execute(f"SELECT DISTINCT module_id FROM {LEARNING_RESOURCES_TABLE}")
         for (module_id,) in cursor.fetchall():
+            # Fix: append after the module's highest position (was: restart at 1,
+            # which collided with lessons that were already ordered).
+            cursor.execute(
+                f"SELECT COALESCE(MAX(display_order), 0) FROM {LEARNING_RESOURCES_TABLE} WHERE module_id = %s",
+                (module_id,)
+            )
+            start = cursor.fetchone()[0] + 1
             cursor.execute(
                 f"SELECT resource_id FROM {LEARNING_RESOURCES_TABLE} "
                 f"WHERE module_id = %s AND display_order IS NULL "
                 f"ORDER BY created_at ASC, resource_id ASC",
                 (module_id,)
             )
-            for position, (resource_id,) in enumerate(cursor.fetchall(), start=1):
+            for position, (resource_id,) in enumerate(cursor.fetchall(), start=start):
                 cursor.execute(
                     f"UPDATE {LEARNING_RESOURCES_TABLE} SET display_order = %s WHERE resource_id = %s",
                     (position, resource_id)

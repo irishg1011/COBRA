@@ -28,6 +28,8 @@ from admin_routes import admin_bp  # NEW: import admin blueprint
 from learner_routes import learner_bp  # NEW: import learner blueprint|
 from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (own blueprint)
 from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
+from learner_profile import learner_profile_bp  # Profile dropdown: View/Edit Profile, Change Password, badges
+from notifications import learner_notifications_bp, notify  # header bell notifications
 from session_tracker import end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
 from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /admin/login
     authenticate, send_reset_code, verify_reset_code, reset_password, otp_storage,
@@ -65,6 +67,8 @@ app.register_blueprint(learner_bp)
 
 app.register_blueprint(learner_fib_bp)
 app.register_blueprint(learner_flashcard_bp)
+app.register_blueprint(learner_profile_bp)
+app.register_blueprint(learner_notifications_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
@@ -326,6 +330,12 @@ def signup():
             f"INSERT INTO {PROFILE_TABLE} (acc_id, firstname, lastname, gender, birthdate) VALUES (%s, %s, %s, %s, %s)",
             (new_acc_id, first_name, last_name, gender, birthdate)
         )
+
+        # 3. Welcome notification for the header bell
+        notify(cursor, new_acc_id, "welcome",
+               f"Welcome to CobraByte, **{first_name}**!",
+               "Start with Chapter 1 on your Learning Map. Your progress, badges and lives show up here.",
+               "/learning-map", "welcome")
 
         connection.commit()
         cursor.close()

@@ -513,8 +513,8 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
             "feedback": feedback,
             "state": _state(pool, min(index, total), total, first_try, solved_count, completed, retake_info),
         }
-        if not is_correct:
-            payload["correct_answer"] = (item.get("correct_answer") or "").strip()
+        # The correct answer is never sent back, not even after a wrong
+        # answer - learners only get the feedback.
         return payload, None
     except Error as e:
         connection.rollback()

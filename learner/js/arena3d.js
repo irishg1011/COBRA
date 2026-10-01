@@ -28,6 +28,7 @@
    and are mapped to world units where one cell = one unit.
    ============================================================ */
 import * as THREE from './three.module.js';
+import { createCobra } from './cobra3d.js';
 
 export function createArena(canvas, opts = {}) {
   let COLS = 40, ROWS = 15;
@@ -554,73 +555,17 @@ export function createArena(canvas, opts = {}) {
   const gx = x => x - COLS / 2 + 0.5;
   const gz = y => y - ROWS / 2 + 0.5;
 
-  /* ---------- cobra ---------- */
+  /* ---------- cobra (shared model: cobra3d.js) ---------- */
   const MAXSEG = 90;
-  const bodyMatA = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.45, metalness: 0.08 });
-  const bodyMatB = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.5, metalness: 0.08 });
-  const segGeo = new THREE.SphereGeometry(1, 16, 12);
-  const segs = [];
-  for (let i = 0; i < MAXSEG; i++) {
-    const m = new THREE.Mesh(segGeo, i % 2 ? bodyMatA : bodyMatB);
-    m.castShadow = true;
-    m.visible = false;
-    scene.add(m);
-    segs.push(m);
-  }
-
-  const head = new THREE.Group();
-  head.scale.setScalar(1.55);
-  scene.add(head);
-
-  const skullMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.38, metalness: 0.1 });
-  const skull = new THREE.Mesh(segGeo, skullMat);
-  skull.scale.set(0.62, 0.42, 0.46);
-  skull.castShadow = true;
-  head.add(skull);
-
-  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5, side: THREE.DoubleSide });
-  const hood = new THREE.Mesh(segGeo, hoodMat);
-  hood.scale.set(0.34, 0.5, 0.86);
-  hood.position.set(-0.52, 0.02, 0);
-  hood.castShadow = true;
-  head.add(hood);
-
-  const markMat = new THREE.MeshStandardMaterial({ color: 0xfef9c3, roughness: 0.6 });
-  [-0.3, 0.3].forEach(z => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.036, 8, 16), markMat);
-    ring.position.set(-0.72, 0.16, z);
-    ring.rotation.y = Math.PI / 2;
-    head.add(ring);
-  });
-
-  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
-  [-1, 1].forEach(s => {
-    const e = new THREE.Mesh(segGeo, eyeWhite);
-    e.scale.setScalar(0.105);
-    e.position.set(0.26, 0.2, s * 0.19);
-    head.add(e);
-    const pu = new THREE.Mesh(segGeo, pupilMat);
-    pu.scale.set(0.035, 0.07, 0.05);
-    pu.position.set(0.345, 0.21, s * 0.2);
-    head.add(pu);
-  });
-
-  const tongue = new THREE.Group();
-  const tongueMat = new THREE.MeshBasicMaterial({ color: 0xe11d48 });
-  const tstem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.34, 6), tongueMat);
-  tstem.rotation.z = -Math.PI / 2;
-  tstem.position.x = 0.17;
-  tongue.add(tstem);
-  [-1, 1].forEach(s => {
-    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.012, 0.22, 6), tongueMat);
-    f.rotation.z = -Math.PI / 2;
-    f.rotation.y = s * 0.5;
-    f.position.set(0.44, 0, s * 0.055);
-    tongue.add(f);
-  });
-  tongue.position.set(0.5, 0.03, 0);
-  head.add(tongue);
+  const REAR_CELLS = 3;      // the front of the body rears up off the deck
+  const REAR_HEIGHT = 0.75;
+  const R_TAIL = 0.2, R_NECK = 0.54;
+  const cobra = createCobra({ headScale: 1.55, maxPoints: MAXSEG });
+  scene.add(cobra.group);
+  const cobraPath = [];
+  for (let i = 0; i < MAXSEG; i++) cobraPath.push(new THREE.Vector3());
+  let lastLen = 0;
+  let eatFlare = 0;
 
   /* ---------- pellets ---------- */
   const pelletPool = [];
@@ -746,27 +691,36 @@ export function createArena(canvas, opts = {}) {
     const pts = f.segs || [];
     const n = pts.length;
 
-    for (let i = 0; i < MAXSEG; i++) {
-      const m = segs[i];
-      if (i >= n) { m.visible = false; continue; }
-      const s = n > 1 ? i / (n - 1) : 0;
-      const r = 0.56 * (1 - 0.42 * s);
-      m.visible = true;
-      m.position.set(gx(pts[i].x), r + 0.05, gz(pts[i].y));
-      m.scale.set(r, r * 0.86, r);
-    }
-
     if (n) {
       const h = pts[0];
-      head.position.set(gx(h.x), 0.52, gz(h.y));
-      head.rotation.y = -(f.headAngle || 0);
       const dead = !!f.dead;
-      head.position.y = dead ? 0.44 : 0.66 + Math.sin(t * 5) * 0.04;
-      head.rotation.z = dead ? 0.5 : 0;
-      const flick = (Math.sin(t * 7) + 1) / 2;
-      tongue.scale.setScalar(dead ? 0.001 : 0.6 + flick * 0.7);
-      hood.scale.set(0.34, dead ? 0.3 : 0.5, dead ? 0.55 : 0.86);
+      // growing = just ate a pellet -> flare the hood for a moment
+      if (lastLen > 0 && n > lastLen) eatFlare = 1;
+      lastLen = n;
+      eatFlare = Math.max(0, eatFlare - dt * 1.4);
+
+      // pts[0] is the head; the cobra model wants TAIL -> HEAD
+      const count = Math.min(n, MAXSEG);
+      const path = cobraPath.slice(0, count);
+      for (let k = 0; k < count; k++) {
+        const i = count - 1 - k;                 // index from the head
+        const s = count > 1 ? k / (count - 1) : 1;  // 0 tail .. 1 head
+        const r = R_TAIL + (R_NECK - R_TAIL) * s;
+        const lift = dead ? 0 : (i < REAR_CELLS ? REAR_HEIGHT * Math.pow(1 - i / REAR_CELLS, 2) : 0);
+        const bob = dead || i > 0 ? 0 : Math.sin(t * 5) * 0.04;
+        path[k].set(gx(pts[i].x), 0.06 + r * 0.62 + lift + bob, gz(pts[i].y));
+      }
+      cobra.group.visible = true;
+      cobra.update({
+        points: path, rTail: R_TAIL, rNeck: R_NECK, t, dt,
+        yaw: -(f.headAngle || 0),
+        down: dead,
+        flare: eatFlare,
+      });
       animateScenery(gx(h.x), gz(h.y), t, dt);
+    } else {
+      cobra.group.visible = false;
+      lastLen = 0;
     }
 
     // pellets
@@ -825,7 +779,8 @@ export function createArena(canvas, opts = {}) {
     disposeForest();
     // Everything still in the scene, plus the shared pieces this terrain
     // never used - each geometry/material/texture disposed exactly once.
-    const geos = new Set([bushGeo, trunkGeo, crownGeo, tuftGeo, petalGeo, segGeo, boxGeo,
+    cobra.dispose();
+    const geos = new Set([bushGeo, trunkGeo, crownGeo, tuftGeo, petalGeo, boxGeo,
       barrelGeo, hoopGeo, portGeo, glassGeo, ropeGeo]);
     const mats = new Set([...bushMats, ...flowerMats, innerBushMat, trunkMat, crownMat, tuftMat,
       hullMat, railMat, beamMat, crateMat, barrelMat, ironMat, brassMat, seaMat, ropeMat, lampGlowMat]);

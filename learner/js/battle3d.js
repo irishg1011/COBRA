@@ -27,10 +27,8 @@
    ============================================================ */
 import * as THREE from './three.module.js';
 import { createScenery } from './scenery3d.js';
+import { createCobra } from './cobra3d.js';
 
-const COBRA_MID   = 0x16a34a;
-const COBRA_DARK  = 0x15803d;
-const COBRA_LIGHT = 0x22c55e;
 
 export function createBattle(canvas, opts = {}) {
   const O = Object.assign({
@@ -78,7 +76,7 @@ export function createBattle(canvas, opts = {}) {
   rim.position.set(12, 6, -10);
   scene.add(rim);
 
-  const heroGlow = new THREE.PointLight(0x22c55e, 6, 14, 2);
+  const heroGlow = new THREE.PointLight(0x22d3ee, 6, 14, 2);
   heroGlow.position.set(-5, 2, 2);
   scene.add(heroGlow);
 
@@ -96,88 +94,10 @@ export function createBattle(canvas, opts = {}) {
   const cobra = new THREE.Group();
   scene.add(cobra);
 
-  const segGeo = new THREE.SphereGeometry(1, 18, 14);
-  const bodyMats = [
-    new THREE.MeshStandardMaterial({ color: COBRA_MID, roughness: 0.42, metalness: 0.15 }),
-    new THREE.MeshStandardMaterial({ color: COBRA_DARK, roughness: 0.42, metalness: 0.15 })
-  ];
-  const segments = [];
-  for (let i = 0; i < SEGS; i++) {
-    const m = new THREE.Mesh(segGeo, bodyMats[i % 2]);
-    m.castShadow = true;
-    cobra.add(m);
-    segments.push(m);
-  }
-
-  // head assembly
-  const head = new THREE.Group();
-  cobra.add(head);
-
-  const hoodMat = new THREE.MeshStandardMaterial({ color: COBRA_DARK, roughness: 0.5, side: THREE.DoubleSide });
-  const hood = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 16), hoodMat);
-  hood.scale.set(0.42, 1.0, 1.15);
-  hood.position.set(-0.75, 0.05, 0);
-  hood.castShadow = true;
-  head.add(hood);
-
-  // spectacle marks on the back of the hood
-  const markMat = new THREE.MeshStandardMaterial({ color: 0xfef9c3, emissive: 0x3f3a10, roughness: 0.6 });
-  [-0.45, 0.45].forEach(z => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.055, 8, 18), markMat);
-    ring.position.set(-1.1, 0.16, z * 0.85);
-    ring.rotation.y = Math.PI / 2;
-    head.add(ring);
-  });
-
-  const skullMat = new THREE.MeshStandardMaterial({ color: COBRA_LIGHT, roughness: 0.35, metalness: 0.2 });
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 16), skullMat);
-  skull.scale.set(0.95, 0.5, 0.62);
-  skull.castShadow = true;
-  head.add(skull);
-
-  const browMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.6 });
-  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 1.05), browMat);
-  brow.position.set(0.15, 0.36, 0);
-  head.add(brow);
-
-  const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xfefce8, emissive: 0x2a2608, roughness: 0.3 });
-  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x08150f });
-  const eyes = [];
-  [-0.34, 0.34].forEach(z => {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 12), eyeWhiteMat);
-    e.position.set(0.5, 0.2, z);
-    head.add(e);
-    const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), pupilMat);
-    p.position.set(0.63, 0.2, z);
-    p.scale.set(0.6, 1.5, 0.6);
-    head.add(p);
-    eyes.push(e, p);
-  });
-
-  const fangMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
-  const fangs = new THREE.Group();
-  [-0.2, 0.2].forEach(z => {
-    const f = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.62, 8), fangMat);
-    f.position.set(0.82, -0.2, z);
-    f.rotation.z = Math.PI / 2 + 0.35;
-    fangs.add(f);
-  });
-  fangs.visible = false;
-  head.add(fangs);
-
-  const tongue = new THREE.Group();
-  const tongueMat = new THREE.MeshBasicMaterial({ color: 0xe11d48 });
-  const tstem = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.7, 6), tongueMat);
-  tstem.rotation.z = Math.PI / 2; tstem.position.x = 0.35;
-  tongue.add(tstem);
-  [-1, 1].forEach(s => {
-    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.01, 0.42, 6), tongueMat);
-    tip.rotation.z = Math.PI / 2 + s * 0.45;
-    tip.position.set(0.85, 0, s * 0.11);
-    tongue.add(tip);
-  });
-  tongue.position.set(0.8, -0.05, 0);
-  head.add(tongue);
+  // shared model (cobra3d.js): one scaled body, rearing neck, spectacle hood
+  const R_TAIL = 0.26, R_NECK = 0.68;
+  const cobraModel = createCobra({ headScale: 2.7, maxPoints: SEGS });
+  cobra.add(cobraModel.group);
 
   /* ---------- the foe ---------- */
   const FOE_X = 7.6;
@@ -304,8 +224,6 @@ export function createBattle(canvas, opts = {}) {
 
   const foeShellMats = [shellMat, shellDarkMat, hornMat];
   const foeBaseColors = foeShellMats.map(m => m.color.clone());
-  const cobraMats = [bodyMats[0], bodyMats[1], hoodMat, skullMat];
-  const cobraBaseColors = cobraMats.map(m => m.color.clone());
 
   const HURT_COLOR = new THREE.Color(0xf87171);
   const CRIT_COLOR = new THREE.Color(O.critColor);
@@ -435,32 +353,15 @@ export function createBattle(canvas, opts = {}) {
       const y = 0.3 + 0.36 * s + Math.pow(s, 2.6) * rear * (down ? 0 : 1);
       pts.push(new THREE.Vector3(x, down ? 0.32 : y, wob));
     }
-    for (let i = 0; i < SEGS; i++) {
-      const s = i / (SEGS - 1);
-      const r = 0.36 + 0.52 * s;
-      segments[i].position.copy(pts[i]);
-      segments[i].scale.set(r * 1.1, r, r);
-    }
-    const hp0 = pts[SEGS - 1], hp1 = pts[SEGS - 3];
-    head.position.copy(hp0);
-    const dirV = hp0.clone().sub(hp1);
-    head.rotation.y = -Math.atan2(dirV.z, dirV.x);
-    head.rotation.z = down ? -0.9 : Math.max(-0.3, Math.min(0.35, -dirV.y * 0.5));
-    head.scale.setScalar(1.5);
-
     const biting = heroLunge > 0.85;
-    fangs.visible = biting;
-    tongue.visible = !biting && !down;
-    if (tongue.visible) {
-      const flick = (Math.sin(t * 7) + 1) / 2;
-      tongue.scale.setScalar(0.7 + flick * 0.7);
-    }
-    eyes.forEach(e => { e.visible = !down; });
-    hood.scale.set(0.42, down ? 0.62 : 1.0 + Math.max(0, heroLunge) * 0.22, down ? 0.8 : 1.15 + Math.max(0, heroLunge) * 0.26);
-
-    // hurt tint
     const hf = f.heroFlash || 0;
-    cobraMats.forEach((m, i) => m.color.copy(cobraBaseColors[i]).lerp(HURT_COLOR, Math.min(1, hf)));
+    cobraModel.update({
+      points: pts, rTail: R_TAIL, rNeck: R_NECK, t, dt,
+      down,
+      biting,
+      flare: Math.max(0, heroLunge),
+      hurt: Math.min(1, hf),
+    });
     heroGlow.position.set(headX - 1, 2.2, 0);
     heroGlow.intensity = down ? 1 : 5 + Math.sin(t * 3) * 1.5;
 
@@ -657,6 +558,7 @@ export function createBattle(canvas, opts = {}) {
     canvas.removeEventListener('dblclick', resetOrbit);
     floats.forEach(fl => scene.remove(fl.sp));
     floats.length = 0;
+    cobraModel.dispose();
     scene.traverse(o => {
       if (o.geometry) o.geometry.dispose();
       const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);

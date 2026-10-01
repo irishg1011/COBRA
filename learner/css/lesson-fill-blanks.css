@@ -453,6 +453,8 @@
 .fib-tile-text { font-family: var(--fib-mono); font-size: 14px; font-weight: 700; color: var(--fib-text); white-space: pre; }
 
 .fib-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Answer-bar Skip sits on the far right, away from Check answer. */
+.fib-controls .fib-skip-btn { margin-left: auto; }
 
 .fib-feedback {
     display: flex;

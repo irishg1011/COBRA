@@ -128,3 +128,24 @@ def format_sentence_case(value):
             capitalize_next_alpha = True
 
     return "".join(chars)
+
+
+def capitalize_first_only(value):
+    """
+    Activity question/feedback casing rule.
+
+    Only the first character is uppercased. Every other character is
+    kept EXACTLY as typed, so "What does Python's print() do?" stays
+    "What does Python's print() do?" instead of being lowercased.
+
+    Leading/trailing whitespace is stripped; an empty/blank/None input
+    returns "".
+    """
+    if not value:
+        return ""
+
+    trimmed = value.strip()
+    if not trimmed:
+        return ""
+
+    return trimmed[0].upper() + trimmed[1:]

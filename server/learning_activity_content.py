@@ -42,7 +42,7 @@ creation order (fib_id / flashcard_id) - same order learners always got.
 """
 
 from mysql.connector import Error
-from text_formatting import format_display_name
+from text_formatting import capitalize_first_only
 
 MCQ_QUESTIONS_TABLE = "mcq_questions_tbl"
 MCQ_OPTIONS_TABLE = "mcq_options_tbl"
@@ -151,7 +151,7 @@ class MCQActivityController:
         # sort_order = the question's position in the builder (0, 1, 2...),
         # which is the order Quiz learners get them in.
         for sort_order, (q, q_id) in enumerate(zip(incoming, matched)):
-            text = format_display_name(q.get("text").strip())
+            text = capitalize_first_only(q.get("text").strip())
             if q_id:
                 cursor.execute(
                     f"UPDATE {MCQ_QUESTIONS_TABLE} SET question_text = %s, sort_order = %s WHERE q_id = %s",
@@ -188,9 +188,10 @@ class MCQActivityController:
         for position, ((idx, opt), option_id) in enumerate(zip(incoming, matched)):
             letter = chr(65 + position)
             text = opt.get("text").strip()  # answer option - saved exactly as typed
+            text = opt.get("text").strip()  # answer option - saved exactly as typed (only trimmed)
             is_correct = 1 if correct_index == idx else 0
             raw_feedback = (opt.get("feedback") or "").strip()
-            feedback = format_display_name(raw_feedback) if raw_feedback else None
+            feedback = capitalize_first_only(raw_feedback) if raw_feedback else None
             if option_id:
                 cursor.execute(
                     f"""UPDATE {MCQ_OPTIONS_TABLE}
@@ -332,7 +333,7 @@ class _SimpleItemController:
 
 def _fmt_optional(value):
     value = (value or "").strip()
-    return format_display_name(value) if value else None
+    return capitalize_first_only(value) if value else None
 
 
 class FillBlanksActivityController(_SimpleItemController):
@@ -398,7 +399,7 @@ class FlashcardsActivityController(_SimpleItemController):
         if not front or not back:
             return None
         return (
-            front,  # flashcard front - saved exactly as typed (only trimmed)
+            format_display_name(front),
             back,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fc.get("correct_feedback") or fc.get("correctFeedback")),
             _fmt_optional(fc.get("incorrect_feedback") or fc.get("incorrectFeedback")),

@@ -345,6 +345,7 @@
 }
 
 .fc-answer-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.fc-answer-row .fc-skip-btn { flex-shrink: 0; }
 
 .fc-answer-input {
     flex: 1 1 260px;
@@ -482,6 +483,7 @@
     .fc-board { padding: 14px; }
     .fc-card-front { font-size: 17px; }
     .fc-answer-row .fc-primary-btn,
+    .fc-answer-row .fc-skip-btn,
     .fc-feedback .fc-primary-btn { width: 100%; justify-content: center; }
 }
 

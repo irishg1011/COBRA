@@ -201,6 +201,7 @@
                     <div class="fib-controls" data-f="controls">
                         <button type="button" class="fib-primary-btn" data-f="checkBtn" disabled><i class="fa-solid fa-check"></i> Check answer</button>
                         <button type="button" class="fib-ghost-btn" data-f="clearBtn"><i class="fa-solid fa-eraser"></i> Clear</button>
+                        <button type="button" class="fib-ghost-btn fib-skip-btn" data-f="playSkipBtn"><i class="fa-solid fa-forward"></i> <span data-f="playSkipText">Skip (−1 life)</span></button>
                     </div>
                     <div class="fib-feedback" data-f="feedback" hidden>
                         <div class="fib-feedback-body">
@@ -237,6 +238,7 @@
         let score = 0, streak = 0, bestStreak = 0;
         let placedChoice = null;    // index into the current item's choices
         let wrongChoices = new Set(); // tiles already tried (wrong) on this item, this session
+        let wrongOnCurrent = false;   // learner already got THIS puzzle wrong -> answer-bar Skip is free
         let slotEl = null, slotInput = null;
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
@@ -407,6 +409,7 @@
             const item = currentItem();
             placedChoice = null;
             wrongChoices = new Set();
+            wrongOnCurrent = false;
             slotEl = null;
             slotInput = null;
 
@@ -584,6 +587,15 @@
             const hasAnswer = items.length > 0 && !!currentAnswer();
             ui.checkBtn.disabled = !playing || !hasAnswer;
             ui.clearBtn.disabled = !playing || !hasAnswer;
+            // Answer-bar Skip: free once this puzzle was answered wrong,
+            // otherwise -1 life (same rule as the intro-card skip). Hidden
+            // while the after-wrong feedback (with its own Skip) is open.
+            const skipCostsLife = !wrongOnCurrent;
+            ui.playSkipText.textContent = skipCostsLife ? "Skip (−1 life)" : "Skip";
+            ui.playSkipBtn.setAttribute("aria-label", skipCostsLife ? "Skip this puzzle, costs 1 life" : "Skip this puzzle");
+            ui.playSkipBtn.disabled = !playing || items.length === 0
+                || (skipCostsLife && (!server || server.total_lives <= 0));
+            ui.playSkipBtn.hidden = !ui.fbActions.hidden;
             ui.controls.hidden = mode === "review";
             if (slotInput) slotInput.disabled = !playing;
             paintTray();
@@ -662,6 +674,7 @@
             }
 
             // Wrong: stay on this item (Try Again).
+            wrongOnCurrent = true;
             streak = 0;
             bump(ui.livesStat);
             foeStrike();
@@ -684,8 +697,12 @@
         // Skip the current puzzle: no score - the server logs it as 'skipped'.
         //   - after a wrong answer (feedback Skip): no life
         //   - from the intro card (fromPreview, puzzle never tried): -1 life
-        async function skipItem(fromPreview) {
+        //   - from the answer bar (fromBar): free if this puzzle was already
+        //     answered wrong, otherwise -1 life like the intro-card skip
+        async function skipItem(fromPreview, fromBar) {
             fromPreview = fromPreview === true;   // the feedback button passes a click event
+            fromBar = fromBar === true;
+            const costsLife = fromPreview || (fromBar && !wrongOnCurrent);
             if (disposed || mode !== (fromPreview ? "ready" : "playing")) return;
             setMode("busy");
             let data = null;
@@ -694,7 +711,7 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
-                    body: JSON.stringify({ la_id: laId, fib_id: currentItem().fib_id, from_preview: fromPreview })
+                    body: JSON.stringify({ la_id: laId, fib_id: currentItem().fib_id, from_preview: costsLife })
                 });
                 data = await readJson(response, "fib-skip");
                 if (!response.ok || !data.success) throw new Error(data.message || `Request failed (HTTP ${response.status}).`);
@@ -711,9 +728,12 @@
             streak = 0;
             hideFeedback();
             if (fromPreview) {
-                // Leave the intro card; SyntaxBug bites (-1 life) for the skip.
+                // Leave the intro card first.
                 hideOverlay();
                 if (stage3d) stage3d.playIntro();
+            }
+            if (costsLife) {
+                // SyntaxBug bites (-1 life) for a skip on an untried puzzle.
                 bump(ui.livesStat);
                 bt.heroHP = server.total_lives;
                 foeStrike();
@@ -733,7 +753,7 @@
                 return;
             }
             qIndex = Math.min(server.current_index, total - 1);
-            if (fromPreview && server.total_lives <= 0) {
+            if (costsLife && server.total_lives <= 0) {
                 // That skip used the last life: next puzzle waits behind the cooldown.
                 setMode("busy");
                 loadItem();
@@ -975,6 +995,7 @@
         ui.clearBtn.addEventListener("click", () => { if (mode === "playing") clearSlot(); });
         ui.nextBtn.addEventListener("click", advance);
         ui.skipBtn.addEventListener("click", skipItem);
+        ui.playSkipBtn.addEventListener("click", () => skipItem(false, true));
         ui.retryBtn.addEventListener("click", retryItem);
 
         // ---- boot ----

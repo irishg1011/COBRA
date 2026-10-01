@@ -1,0 +1,586 @@
+/* ==========================================================================
+   profile-menu.css - learner header controls, profile dropdown, logout modal
+   Used on every learner page (built by learner/js/learner.js).
+   ========================================================================== */
+
+/* --- Header right-side controls (bell + profile) --- */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.header-icon-btn,
+.profile-menu-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 999px;
+    font-size: 22px;
+    line-height: 1;
+    color: #003344;
+}
+
+.header-icon-btn:focus-visible,
+.profile-menu-btn:focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+}
+
+.profile-menu-btn[aria-expanded="true"] {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    transform: none;
+}
+
+/* --- Dropdown --- */
+.profile-menu {
+    position: relative;
+}
+
+.profile-menu-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 260px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+    padding: 8px;
+    z-index: 1500;
+    font-family: 'Inter', sans-serif;
+    animation: profileMenuIn 0.14s ease-out;
+}
+
+.profile-menu-panel[hidden] {
+    display: none;
+}
+
+@keyframes profileMenuIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-menu-panel { animation: none; }
+}
+
+/* Clickable name -> View Profile */
+.profile-menu-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #0f172a;
+}
+
+.profile-menu-identity:hover,
+.profile-menu-identity:focus-visible {
+    background: #ecfdf5;
+    outline: none;
+}
+
+.profile-menu-avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #22d3ee, #10b981);
+    color: #ffffff;
+    font-size: 17px;
+}
+
+.profile-menu-identity-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.profile-menu-name {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-menu-identity:hover .profile-menu-name {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.profile-menu-sub {
+    font-size: 12.5px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-menu-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 6px 4px;
+}
+
+.profile-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: none;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #1e293b;
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.profile-menu-item i {
+    width: 18px;
+    text-align: center;
+    font-size: 16px;
+    color: #475569;
+}
+
+.profile-menu-item:hover,
+.profile-menu-item:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+.profile-menu-logout,
+.profile-menu-logout i {
+    color: #dc2626;
+}
+
+.profile-menu-logout:hover,
+.profile-menu-logout:focus-visible {
+    background: #fef2f2;
+}
+
+/* --- Logout confirmation modal (moved out of each page's inline styles) --- */
+.logout-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.logout-modal-overlay[hidden] {
+    display: none;
+}
+
+.logout-modal-card {
+    background: #ffffff;
+    padding: 28px 24px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    font-family: 'Inter', sans-serif;
+}
+
+.logout-modal-icon {
+    margin-bottom: 16px;
+    color: #e02424;
+    font-size: 40px;
+}
+
+.logout-modal-card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #111827;
+}
+
+.logout-modal-card p {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.logout-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.logout-modal-cancel,
+.logout-modal-confirm {
+    padding: 10px 20px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.logout-modal-cancel {
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #374151;
+}
+
+.logout-modal-confirm {
+    border: none;
+    background: #e02424;
+    color: #ffffff;
+}
+
+.logout-modal-cancel:focus-visible,
+.logout-modal-confirm:focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Notifications bell + dropdown (built by learner.js)
+   ========================================================================== */
+.notif-menu {
+    position: relative;
+}
+
+.notif-bell {
+    position: relative;
+}
+
+.notif-bell[aria-expanded="true"] {
+    background: rgba(14, 165, 233, 0.14);
+    color: #0284c7;
+    transform: none;
+}
+
+.notif-count {
+    position: absolute;
+    top: 1px;
+    right: 0;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #e41e3f;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 19px;
+    text-align: center;
+    box-shadow: 0 0 0 2px #ffffff;
+    pointer-events: none;
+}
+
+.notif-count[hidden] {
+    display: none;
+}
+
+.notif-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: -54px;
+    width: 380px;
+    max-width: calc(100vw - 24px);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+    z-index: 1500;
+    font-family: 'Inter', sans-serif;
+    color: #0f172a;
+    animation: profileMenuIn 0.14s ease-out;
+}
+
+.notif-panel[hidden] {
+    display: none;
+}
+
+.notif-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 6px;
+}
+
+.notif-head h2 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.notif-more {
+    position: relative;
+}
+
+.notif-more-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #475569;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.notif-more-btn:hover,
+.notif-more-btn:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+.notif-more-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 190px;
+    padding: 6px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    z-index: 2;
+}
+
+.notif-more-menu[hidden] {
+    display: none;
+}
+
+.notif-more-menu button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1e293b;
+    text-align: left;
+    cursor: pointer;
+}
+
+.notif-more-menu button:hover,
+.notif-more-menu button:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+.notif-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 4px 16px 8px;
+}
+
+.notif-tab {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+}
+
+.notif-tab:hover {
+    background: #f1f5f9;
+}
+
+.notif-tab.is-active {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.notif-tab:focus-visible {
+    outline: 2px solid #0ea5e9;
+    outline-offset: 2px;
+}
+
+.notif-scroll {
+    max-height: min(560px, 70vh);
+    overflow-y: auto;
+    padding: 0 8px 10px;
+}
+
+.notif-status {
+    padding: 18px 12px;
+    font-size: 14px;
+    color: #64748b;
+    text-align: center;
+}
+
+.notif-status[hidden] {
+    display: none;
+}
+
+.notif-section {
+    margin: 8px 8px 4px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.notif-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.notif-item:hover,
+.notif-item:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+/* round type icon with a small corner badge, like a profile picture + reaction */
+.notif-avatar {
+    position: relative;
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21px;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--tone-a), var(--tone-b));
+}
+
+.notif-avatar-badge {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #ffffff;
+    background: var(--tone-b);
+    box-shadow: 0 0 0 2px #ffffff;
+}
+
+.tone-red    { --tone-a: #fb7185; --tone-b: #e11d48; }
+.tone-rose   { --tone-a: #f9a8d4; --tone-b: #be185d; }
+.tone-amber  { --tone-a: #fcd34d; --tone-b: #d97706; }
+.tone-gold   { --tone-a: #fde047; --tone-b: #ca8a04; }
+.tone-green  { --tone-a: #4ade80; --tone-b: #16a34a; }
+.tone-teal   { --tone-a: #2dd4bf; --tone-b: #0d9488; }
+.tone-orange { --tone-a: #fdba74; --tone-b: #ea580c; }
+.tone-blue   { --tone-a: #60a5fa; --tone-b: #1d4ed8; }
+.tone-indigo { --tone-a: #a5b4fc; --tone-b: #4f46e5; }
+.tone-sky    { --tone-a: #7dd3fc; --tone-b: #0284c7; }
+
+.notif-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.notif-title {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #1e293b;
+}
+
+.notif-title strong {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.notif-detail {
+    font-size: 13px;
+    line-height: 1.4;
+    color: #64748b;
+}
+
+.notif-time {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.notif-item.is-unread .notif-time {
+    color: #0284c7;
+    font-weight: 600;
+}
+
+.notif-dot {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.notif-item.is-unread .notif-dot {
+    background: #0ea5e9;
+}
+
+.notif-older {
+    display: block;
+    width: calc(100% - 16px);
+    margin: 8px auto 2px;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.notif-older:hover {
+    background: #e2e8f0;
+}
+
+.notif-older[hidden] {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    .notif-panel {
+        position: fixed;
+        top: 70px;
+        right: 12px;
+        left: 12px;
+        width: auto;
+    }
+}

@@ -158,6 +158,7 @@
                     <div class="fc-answer-row" data-c="answerRow">
                         <input type="text" class="fc-answer-input" data-c="input" autocomplete="off" spellcheck="false" placeholder="Type the answer on the back of the card..." aria-label="Your answer">
                         <button type="button" class="fc-primary-btn" data-c="checkBtn" disabled><i class="fa-solid fa-bolt"></i> Throw answer</button>
+                        <button type="button" class="fc-ghost-btn fc-skip-btn" data-c="playSkipBtn"><i class="fa-solid fa-forward"></i> <span data-c="playSkipText">Skip (−1 life)</span></button>
                     </div>
                     <div class="fc-feedback" data-c="feedback" hidden>
                         <div class="fc-feedback-body">
@@ -183,6 +184,7 @@
         let total = 0;
         let server = null;
         let mode = "loading";   // loading | ready | playing | busy | review | tryagain | cooldown | done | error
+        let wrongOnCurrent = false;  // learner already got THIS card wrong -> answer-bar Skip is free
         let booted = false;
         let disposed = false;
         let stage3d = null;
@@ -241,6 +243,12 @@
             const playing = mode === "playing";
             ui.input.disabled = !playing;
             ui.checkBtn.disabled = !playing || !ui.input.value.trim();
+            // Answer-bar Skip: free once this card was answered wrong,
+            // otherwise -1 life (same rule as the preview skip).
+            const skipCostsLife = !wrongOnCurrent;
+            ui.playSkipText.textContent = skipCostsLife ? "Skip (−1 life)" : "Skip";
+            ui.playSkipBtn.setAttribute("aria-label", skipCostsLife ? "Skip this card, costs 1 life" : "Skip this card");
+            ui.playSkipBtn.disabled = !playing || (skipCostsLife && (!server || server.total_lives <= 0));
             ui.answerRow.hidden = mode === "review";
         }
 
@@ -465,6 +473,7 @@
             ui.input.value = "";
             ui.feedback.hidden = true;
             revealedAnswer = null;
+            wrongOnCurrent = false;
             fx.thrown = false;
             fx.glow = "";
             if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, "?");
@@ -581,6 +590,7 @@
             }
 
             // Wrong: reveal the back, then Try Again or Skip.
+            wrongOnCurrent = true;
             streak = 0;
             revealedAnswer = result.answer || null;
             bump(ui.livesStat);
@@ -602,6 +612,15 @@
             if (disposed || mode !== "tryagain") return;
             setMode("busy");
             await sendSkip(false);
+        }
+
+        // Skip from the answer bar while playing: free if this card was
+        // already answered wrong (same as Skip card), otherwise -1 life
+        // like the preview skip. No score either way - logged as 'skipped'.
+        async function skipFromBar() {
+            if (disposed || mode !== "playing") return;
+            setMode("busy");
+            await sendSkip(!wrongOnCurrent, false);
         }
 
         // Skip from the card preview (the card was never played): costs 1
@@ -826,6 +845,7 @@
             }
         });
         ui.checkBtn.addEventListener("click", submitAnswer);
+        ui.playSkipBtn.addEventListener("click", skipFromBar);
         ui.nextBtn.addEventListener("click", advance);
 
         function onKeyDown(e) {

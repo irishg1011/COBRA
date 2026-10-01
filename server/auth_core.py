@@ -323,7 +323,7 @@ def verify_reset_code(email, otp, portal):
     return {"success": True, "message": "OTP verified successfully."}, 200
 
 
-def reset_password(email, new_password, confirm_password, portal):
+def reset_password(email, new_password, confirm_password, portal, via="forgot"):
     """Returns (payload, status). Needs a code verified by verify_reset_code()."""
     portal = _portal(portal)
     email = (email or "").strip().lower()
@@ -369,6 +369,17 @@ def reset_password(email, new_password, confirm_password, portal):
                 WHERE acc_id = %s""",
             (generate_password_hash(new_password), account["acc_id"])
         )
+        if portal == "learner":
+            # learner bell: via="change" = Profile > Change Password, else Forgot Password
+            from notifications import notify
+            if via == "change":
+                notify(cursor, account["acc_id"], "security", "Your **password was changed**",
+                       "Changed from your profile. If this wasn't you, reset your password right away.",
+                       "/profile/change-password")
+            else:
+                notify(cursor, account["acc_id"], "security", "Your password was reset with **Forgot password**",
+                       "A code sent to your email was used. If this wasn't you, change your password now.",
+                       "/profile/change-password")
         connection.commit()
         cursor.close()
 

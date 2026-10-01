@@ -550,9 +550,9 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
       correct / close -> next card (or completes the activity)
       incorrect       -> -1 life, SAME card; at 0 lives the play pauses
 
-    back_text ("answer") is returned after the card is answered - for a
-    wrong answer too, so the learner can Try Again or Skip - but never
-    before the first answer on a card. payload["graded"] is False when nothing was
+    back_text ("answer") is returned only once the card is passed
+    (correct/close) - never after a wrong answer and never before the
+    first answer on a card. payload["graded"] is False when nothing was
     graded (no running play, 0 lives, completed, or a different card).
     """
     flashcard_id = _to_int(flashcard_id)
@@ -610,7 +610,9 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
             "first_try": attempt_number == 1 and status == "correct",
             "attempt_number": attempt_number,
             "feedback": feedback,
-            "answer": (card["back_text"] or "").strip(),
+            # The back is only sent once the card is passed (correct/close) -
+            # never after a wrong answer, so it can't be peeked at.
+            "answer": (card["back_text"] or "").strip() if passed else None,
             "state": _state(cursor, ctx),
         }, None
     return _run(acc_id, la_id, action, "grade flashcard answer")
