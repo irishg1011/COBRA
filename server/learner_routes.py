@@ -313,80 +313,27 @@ def learning_map_data():
         for module in modules:
             module_id = module["module_id"]
 
-            cursor.execute(
-                """SELECT COUNT(*) AS total
-                   FROM learning_resources_tbl lr
-                   JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
-                   WHERE lr.module_id = %s AND lrs.lr_stats_name = 'Published'""",
-                (module_id,)
-            )
-            total_resources = cursor.fetchone()["total"]
-
-            cursor.execute(
-                """SELECT COUNT(*) AS done
-                   FROM learner_resource_progress_tbl lrp
-                   JOIN learning_resources_tbl lr ON lrp.resource_id = lr.resource_id
-                   WHERE lr.module_id = %s AND lrp.acc_id = %s AND lrp.status = 'completed'""",
-                (module_id, acc_id)
-            )
-            completed_resources = cursor.fetchone()["done"]
-
-            cursor.execute(
-                """SELECT COUNT(*) AS total
-                   FROM learning_activities_tbl la
-                   JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
-                   WHERE la.module_id = %s AND las.la_stats_name = 'Published'""",
-                (module_id,)
-            )
-            total_activities = cursor.fetchone()["total"]
-
-            cursor.execute(
-                """SELECT COUNT(DISTINCT lap.la_id) AS done
-                   FROM learner_activity_progress_tbl lap
-                   JOIN learning_activities_tbl la ON lap.la_id = la.la_id
-                   JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
-                   WHERE la.module_id = %s AND lap.acc_id = %s AND lap.status = 'completed'
-                     AND las.la_stats_name = 'Published'""",
-                (module_id, acc_id)
-            )
-            completed_activities = cursor.fetchone()["done"]
-
-            cursor.execute(
-                """SELECT COUNT(*) AS total
-                   FROM coding_exercises_tbl ce
-                   JOIN learning_resources_tbl lr ON ce.resource_id = lr.resource_id
-                   JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-                   WHERE lr.module_id = %s AND las.la_stats_name = 'Published'""",
-                (module_id,)
-            )
-            total_exercises = cursor.fetchone()["total"]
-
-            cursor.execute(
-                """SELECT COUNT(*) AS done
-                   FROM learner_exercise_progress_tbl lep
-                   JOIN coding_exercises_tbl ce ON lep.exercise_id = ce.exercise_id
-                   JOIN learning_resources_tbl lr ON ce.resource_id = lr.resource_id
-                   WHERE lr.module_id = %s AND lep.acc_id = %s AND lep.status = 'completed'""",
-                (module_id, acc_id)
-            )
-            completed_exercises = cursor.fetchone()["done"]
-
-            total_items = total_resources + total_activities + total_exercises
-            completed_items = completed_resources + completed_activities + completed_exercises
-
-            if total_items > 0 and completed_items == total_items:
+            # Learning Map completion uses the SAME rule as the Lessons page
+            # and the Module 85% gate (module_performance): a module is
+            # completed once every published lesson in it is done (content
+            # watched/read + its activities + its coding exercise - lessons
+            # with no activities still complete) AND the lesson average is
+            # >= 85%. A module with no lessons counts as passed, so empty
+            # modules never block their chapter.
+            if module_performance(cursor, acc_id, module_id)["passed"]:
                 status = "completed"
-            elif completed_items > 0:
-                status = "in_progress"
             else:
-                status = "not_started"
-
-            # Module 85% gate: every item done is not enough - a module
-            # only counts as completed once it has PASSED (lesson average
-            # >= 85%). Until then it stays in progress, which also keeps
-            # the next chapter locked.
-            if status == "completed" and not module_performance(cursor, acc_id, module_id)["passed"]:
-                status = "in_progress"
+                # In progress = the learner has started (or finished) at
+                # least one lesson in this module.
+                cursor.execute(
+                    """SELECT COUNT(*) AS touched
+                       FROM learner_resource_progress_tbl lrp
+                       JOIN learning_resources_tbl lr ON lrp.resource_id = lr.resource_id
+                       WHERE lr.module_id = %s AND lrp.acc_id = %s""",
+                    (module_id, acc_id)
+                )
+                touched = cursor.fetchone()["touched"]
+                status = "in_progress" if touched > 0 else "not_started"
 
             module_status_by_id[module_id] = status
 
