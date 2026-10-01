@@ -96,7 +96,8 @@ function isGuardedActivityField(el) {
  */
 function normalizeActivityFieldCasing(value) {
     if (!value) return value;
-    return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+    // Only the first letter is capitalized - the rest stays exactly as typed.
+    return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 /**
@@ -155,8 +156,11 @@ function refreshQuestionFieldTrackers(scopeEl) {
  */
 function isExactAnswerField(el) {
     const name = el.getAttribute('name') || '';
-    return /^fill_blanks\[\d+\]\[correct_answer\]$/.test(name) ||
-           /^flashcards\[\d+\]\[back\]$/.test(name);
+    return /^questions\[\d+\]\[options\]\[\d+\]\[text\]$/.test(name) ||   // MCQ answer option
+           /^fill_blanks\[\d+\]\[content\]$/.test(name) ||                 // FIB sentence
+           /^fill_blanks\[\d+\]\[correct_answer\]$/.test(name) ||          // FIB correct answer
+           /^flashcards\[\d+\]\[front\]$/.test(name) ||                    // Flashcard front
+           /^flashcards\[\d+\]\[back\]$/.test(name);                       // Flashcard back
 }
 
 function handleActivityFieldInput(e) {
