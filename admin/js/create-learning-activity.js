@@ -41,7 +41,58 @@
  * question/item card - including ones added, duplicated, moved, or
  * reindexed after page load - without needing to re-bind anything per
  * card.
+ *
+ * feat/activity-add-many:
+ *   - "Add [n] questions / items / cards": the number box next to each
+ *     main Add button (1-20, clamped) adds that many blank cards at once,
+ *     through the same gate + add function as adding one.
+ *   - A NEW Multiple Choice question starts with options A-D. Add Option
+ *     goes up to F (6); options can be removed down to B (2). The
+ *     buttons are disabled at those limits. Saved questions load with
+ *     exactly the options they were saved with.
  */
+
+// feat/activity-add-many: limits
+const ADD_MANY_MIN = 1;
+const ADD_MANY_MAX = 20;
+const MCQ_DEFAULT_OPTIONS = 4;
+const MCQ_MIN_OPTIONS = 2;
+const MCQ_MAX_OPTIONS = 6;
+
+/** Value of an "Add [n]" box, clamped to 1-20 (empty/invalid -> 1). Writes the clamped value back. */
+function readAddManyCount(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return 1;
+    let n = parseInt(input.value, 10);
+    if (!Number.isFinite(n) || n < ADD_MANY_MIN) n = ADD_MANY_MIN;
+    if (n > ADD_MANY_MAX) n = ADD_MANY_MAX;
+    input.value = n;
+    updateAddManyLabel(input);
+    return n;
+}
+
+/** "question" / "questions" (etc.) next to an "Add [n]" box. */
+function updateAddManyLabel(input) {
+    const label = input ? document.querySelector(`label.add-many-label[for="${input.id}"]`) : null;
+    if (!label) return;
+    const n = parseInt(input.value, 10);
+    label.textContent = n === 1 ? input.dataset.singular : input.dataset.plural;
+}
+
+/** Disables Add Option at 6 options and every remove (-) button at 2. */
+function updateOptionControls(card) {
+    if (!card) return;
+    const count = card.querySelectorAll('.answer-row').length;
+    const addBtn = card.querySelector('.add-sub-question-btn');
+    if (addBtn) {
+        addBtn.disabled = count >= MCQ_MAX_OPTIONS;
+        addBtn.title = addBtn.disabled ? `A question can have up to ${MCQ_MAX_OPTIONS} options (A-F).` : 'Add an answer option';
+    }
+    card.querySelectorAll('.delete-option-btn').forEach((btn) => {
+        btn.disabled = count <= MCQ_MIN_OPTIONS;
+        btn.title = btn.disabled ? `A question needs at least ${MCQ_MIN_OPTIONS} options.` : 'Remove Option';
+    });
+}
 
 // ========================================================================
 // TASK #58 & TASK #60 (as amended by TASK #108): shared helpers - casing
@@ -778,6 +829,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     function onCancel() {
                         activityTypeSelect.value = previousActivityType;
+                        // feat/activity-auto-title: the title follows the type back
+                        if (typeof window.cobraByteUpdateActivityTitle === 'function') window.cobraByteUpdateActivityTitle();
                     },
                     title
                 );
@@ -796,7 +849,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Task #58, Requirement #3: never append a new question while
             // the current last one is still incomplete.
             if (!canAddNewQuestion()) return;
-            addNewQuestionCard();
+            // feat/activity-add-many: same gate + same add function, n times
+            const count = readAddManyCount('addQuestionCount');
+            for (let i = 0; i < count; i++) addNewQuestionCard();
         });
     }
 
@@ -806,7 +861,8 @@ document.addEventListener('DOMContentLoaded', function() {
         addFillBlankMainBtn.addEventListener('click', function() {
             // Task #61: never append a new item while the current last one is incomplete
             if (!canAddNewFillBlank()) return;
-            addNewFillBlankCard();
+            const count = readAddManyCount('addFillBlankCount');
+            for (let i = 0; i < count; i++) addNewFillBlankCard();
         });
     }
 
@@ -816,9 +872,31 @@ document.addEventListener('DOMContentLoaded', function() {
         addFlashcardMainBtn.addEventListener('click', function() {
             // Task #61: never append a new flashcard while the current last one is incomplete
             if (!canAddNewFlashcard()) return;
-            addNewFlashcardCard();
+            const count = readAddManyCount('addFlashcardCount');
+            for (let i = 0; i < count; i++) addNewFlashcardCard();
         });
     }
+
+    // feat/activity-add-many: the "Add [n]" boxes. Their events stop here,
+    // so typing a number never marks the form as having unsaved changes
+    // and never goes through the builder fields' casing handler.
+    document.querySelectorAll('.js-add-many-count').forEach((input) => {
+        input.addEventListener('input', (e) => {
+            e.stopPropagation();
+            updateAddManyLabel(input);
+        });
+        input.addEventListener('change', (e) => {
+            e.stopPropagation();
+            readAddManyCount(input.id);
+        });
+        input.addEventListener('keydown', (e) => {
+            // Enter adds, instead of submitting the form
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const btn = input.parentElement ? input.parentElement.querySelector('button') : null;
+            if (btn) btn.click();
+        });
+    });
 
     // Task #63: Load preloaded Section 2 content if reopening an existing saved draft
     const preloadedScript = document.getElementById('preloadedActivityData');
@@ -897,12 +975,12 @@ function addNewQuestionCard(prefilledData = null) {
     
     let questionTextVal = prefilledData ? prefilledData.text : '';
 
+    // feat/activity-add-many: a NEW question starts with A-D. Saved and
+    // duplicated questions keep exactly the options they have.
+    const blankOptions = (n) => Array.from({ length: n }, () => ({ text: '', feedback: '' }));
     const optionsToRender = (prefilledData && Array.isArray(prefilledData.options) && prefilledData.options.length > 0)
         ? prefilledData.options
-        : [
-            { text: '', feedback: '' },
-            { text: '', feedback: '' }
-        ];
+        : blankOptions(prefilledData ? MCQ_MIN_OPTIONS : MCQ_DEFAULT_OPTIONS);
 
     let correctOptionIdx = (prefilledData && prefilledData.correct_option !== undefined && prefilledData.correct_option !== null)
         ? Number(prefilledData.correct_option)
@@ -969,6 +1047,7 @@ function addNewQuestionCard(prefilledData = null) {
     `;
 
     container.appendChild(card);
+    updateOptionControls(card);
     setupTextareaCounters(card);
     // Task #58: seed the clear-confirmation tracker with whatever this
     // card starts out with (blank for a fresh card, or the prefilled
@@ -998,6 +1077,11 @@ function addOptionRow(btn, qIndex) {
     const card = btn.closest('.question-card');
     const optionsWrapper = card.querySelector('.answer-options-wrapper');
     const existingRows = optionsWrapper.querySelectorAll('.answer-row');
+    // feat/activity-add-many: at most 6 options (A-F)
+    if (existingRows.length >= MCQ_MAX_OPTIONS) {
+        updateOptionControls(card);
+        return;
+    }
     const optIndex = existingRows.length;
     const nextLetter = String.fromCharCode(65 + optIndex);
 
@@ -1016,6 +1100,7 @@ function addOptionRow(btn, qIndex) {
     `;
 
     optionsWrapper.appendChild(newRow);
+    updateOptionControls(card);
     // Task #58: a freshly-added option row starts empty - track it from
     // the start so clearing it later behaves consistently.
     refreshQuestionFieldTrackers(newRow);
@@ -1027,7 +1112,7 @@ function removeOptionRow(btn) {
     const row = btn.closest('.answer-row');
     const wrapper = row.closest('.answer-options-wrapper');
     
-    if (wrapper.querySelectorAll('.answer-row').length <= 2) {
+    if (wrapper.querySelectorAll('.answer-row').length <= MCQ_MIN_OPTIONS) {
         showActivityAlert('Multiple choice questions must have at least 2 options.', 'Option Limit');
         return;
     }
@@ -1065,6 +1150,7 @@ function removeOptionRow(btn) {
             radioInput.checked = wasChecked;
         }
     });
+    updateOptionControls(card);
     updateAddButtonsState();
 }
 

@@ -96,3 +96,65 @@
 .create-activity-page .custom-radio {
     accent-color: #09B300;
 }
+
+/* ==========================================================================
+   feat/activity-auto-title: LOCKED ACTIVITY TITLE
+   Built from Lesson + Activity Type ("Variables – Multiple Choice"),
+   never typed. Readable (not muted) but clearly locked.
+   ========================================================================== */
+.create-activity-page .form-control.activity-title-locked {
+    background-color: #f3f4f6;
+    color: var(--admin-text);
+    border-style: dashed;
+    cursor: not-allowed;
+}
+
+.create-activity-page .form-control.activity-title-locked:focus {
+    border-color: #9ca3af;
+    box-shadow: none;
+}
+
+.create-activity-page .activity-title-lock-icon {
+    margin-left: 4px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+/* ==========================================================================
+   feat/activity-add-many: "Add [n] questions / items / cards"
+   ========================================================================== */
+.create-activity-page .add-many-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+/* beats create-learning-activity.css's #flashcardsSection .add-question-btn margin */
+.create-activity-page #flashcardsSection .add-many-row .add-question-btn {
+    margin-top: 0;
+}
+
+.create-activity-page .form-control.add-many-count {
+    width: 72px;
+    padding: 6px 8px;
+    text-align: center;
+}
+
+.create-activity-page .add-many-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--admin-text);
+}
+
+/* feat/activity-mcq-options: Add Option / remove option at their limits (6 / 2) */
+.create-activity-page .add-sub-question-btn:disabled,
+.create-activity-page .delete-option-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.create-activity-page .add-sub-question-btn:disabled:hover {
+    background: #ffffff;
+    border-color: #9ca3af;
+}

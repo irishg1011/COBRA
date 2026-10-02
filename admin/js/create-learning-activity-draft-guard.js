@@ -249,20 +249,10 @@
             let firstErrorMsg = "";
             let firstErrorField = null;
 
-            // 1. Activity Title
-            const titleVal = activityTitleInput ? activityTitleInput.value.trim() : "";
-            if (!titleVal) {
-                isValid = false;
-                if (activityTitleInput) activityTitleInput.classList.add("field-error");
-                if (!firstErrorMsg) {
-                    firstErrorMsg = isPublish
-                        ? "Please enter an activity title before publishing."
-                        : "Please enter an activity title before saving a draft.";
-                    firstErrorField = activityTitleInput;
-                }
-            } else {
-                if (activityTitleInput) activityTitleInput.classList.remove("field-error");
-            }
+            // 1. Activity Title - feat/activity-auto-title: read-only, built
+            // from Lesson + Activity Type, so the Lesson / Type checks below
+            // report anything missing (the server builds it again anyway).
+            if (activityTitleInput) activityTitleInput.classList.remove("field-error");
 
             // 2. Category
             const catVal = courseSelect ? courseSelect.value : "";
