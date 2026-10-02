@@ -1,0 +1,150 @@
+/* ==========================================================================
+   MENTOR > RECOMMENDATIONS (recommendations.html)
+   feat/mentor-recommendations. Page-only styles. Everything shared
+   (.table-card, .metric-card, toolbar, pagination) comes from
+   admin-style.css. Script: js/admin-recommendations.js.
+   ========================================================================== */
+
+/* --- Stat cards: 4 across, no icons --- */
+.metrics-grid.rec-metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.rec-metrics-grid .metric-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "title"
+        "value";
+    padding: 16px 18px;
+}
+
+.rec-metrics-grid .rec-metric-good {
+    color: #0F7A3D;
+}
+
+@media (max-width: 1100px) {
+    .metrics-grid.rec-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid.rec-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Toolbar --- */
+.table-card .header-search.search-override {
+    width: 380px;
+}
+
+.rec-date-separator {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+/* Shown by admin-recommendations.js when From is after To */
+.date-filter-error.is-visible {
+    display: block;
+}
+
+/* --- Table --- */
+.table-card .rec-table th:nth-child(3),
+.table-card .rec-table th:nth-child(4),
+.table-card .rec-table td:nth-child(3),
+.table-card .rec-table td:nth-child(4) {
+    text-align: left;
+}
+
+.table-card .rec-table td:nth-child(3),
+.table-card .rec-table td:nth-child(4) {
+    white-space: normal;
+    min-width: 170px;
+}
+
+/* Lesson / reason text lines up with its left-aligned header */
+.data-table.rec-table td .cell-truncate {
+    margin-left: 0;
+}
+
+.data-table.rec-table td:nth-child(4) .cell-truncate {
+    max-width: 320px;
+}
+
+.rec-learner-name,
+.rec-module-name {
+    display: block;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+/* Weak topic pill */
+.rec-topic {
+    display: inline-block;
+    max-width: 220px;
+    padding: 2px 12px;
+    border-radius: 999px;
+    background: #FBD9D9;
+    color: #A61B1B;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Status pills (table + legend) */
+.rec-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.rec-status-pending {
+    background: #FBF3C4;
+    color: #7A5B00;
+}
+
+.rec-status-in_progress {
+    background: #DCF5DC;
+    color: #0F7A3D;
+}
+
+.rec-status-completed {
+    background: #A9E8B4;
+    color: #0B5A2B;
+}
+
+.rec-completed-on {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    color: var(--admin-muted);
+}
+
+/* --- What each status means --- */
+.rec-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: #374151;
+}
+
+.rec-legend li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

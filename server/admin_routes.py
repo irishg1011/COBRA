@@ -101,6 +101,7 @@ from achievements import (  # feat/mentor-achievements: Mentor > Achievements pa
 from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
 from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo
 from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
+from recommendations import get_recommendations_data, empty_recommendations_data  # feat/mentor-recommendations: Mentor > Recommendations page
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
@@ -3394,9 +3395,38 @@ def analytics():
     return render_placeholder("Analytics")
 
 
+# ============================================================
+# ROUTE: RECOMMENDATIONS (Mentor) - feat/mentor-recommendations
+# Read-only: the lesson parts each learner is told to re-read, made
+# from their missed items by weak_spots.py. Thin wrappers - the queries
+# live in recommendations.py. Both endpoints are MENTOR in
+# role_permissions.py (default-deny).
+# ============================================================
 @admin_bp.route('/recommendations')
 def recommendations():
-    return render_placeholder("Recommendations")
+    """
+    Mentor > Recommendations page. The stat cards and the table are
+    loaded by admin-recommendations.js from /admin/recommendations/data
+    right after the page opens.
+    """
+    return render_template('recommendations.html')
+
+
+@admin_bp.route('/recommendations/data')
+def recommendations_data():
+    """Stat cards + one page of the table. refresh=1 (first load) re-checks learners' weak spots first."""
+    data = get_recommendations_data(
+        search_query=request.args.get('q', ''),
+        status_filter=request.args.get('status', ''),
+        date_from=request.args.get('date_from', '') or None,
+        date_to=request.args.get('date_to', '') or None,
+        page=request.args.get('page', 1, type=int),
+        refresh=request.args.get('refresh') == '1',
+    )
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load recommendations.", **empty_recommendations_data()}), 500
+
+    return jsonify({"success": True, **data}), 200
 
 
 # ============================================================

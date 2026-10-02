@@ -233,6 +233,7 @@ ENDPOINT_ROLES = {
     "admin_bp.save_coding_exercise_draft": MENTOR,
 
     "admin_bp.recommendations": MENTOR,
+    "admin_bp.recommendations_data": MENTOR,  # feat/mentor-recommendations
     "admin_bp.achievements": MENTOR,
     # Achievements (feat/mentor-achievements): mentor-made badges
     "admin_bp.achievements_data": MENTOR,

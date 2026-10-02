@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Recommendations</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/recommendations.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+    <!-- admin/recommendations.html - Mentor > Recommendations (feat/mentor-recommendations).
+         Read-only: the lesson parts each learner is told to re-read, made from
+         their missed items (weak_spots.py). The stat cards and the table are
+         filled by js/admin-recommendations.js from /admin/recommendations/data. -->
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+
+                <!-- Page title, greeting & live date/time -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Lesson Recommendations</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Mentor!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Lessons recommended to each learner, based on the items they missed.</p>
+                    </div>
+                    <div class="top-bar-right">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stat cards (follow search + date, not status) -->
+                <div class="metrics-grid rec-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">Total Recommendations</p>
+                            <p class="metric-value" id="metricRecTotal">0</p>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">Pending</p>
+                            <p class="metric-value" id="metricRecPending">0</p>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">In Progress</p>
+                            <p class="metric-value rec-metric-good" id="metricRecInProgress">0</p>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <p class="metric-title">Completed</p>
+                            <p class="metric-value rec-metric-good" id="metricRecCompleted">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations table -->
+                <div class="table-card">
+
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="recSearchInput" placeholder="Search by learner, topic, or lesson..." aria-label="Search recommendations">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="recStatusSelect" aria-label="Status">
+                                <option value="">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                            </select>
+
+                            <div class="date-filter-group" id="recDateGroup">
+                                <span class="date-filter-label">Date</span>
+                                <input type="date" class="custom-select" id="recDateFromInput" title="From">
+                                <span class="rec-date-separator">to</span>
+                                <input type="date" class="custom-select" id="recDateToInput" title="To">
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearRecDateBtn" title="Clear date filter" aria-label="Clear date filter">
+                                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <p id="recDateFilterError" class="date-filter-error"></p>
+
+                    <div class="table-scroll">
+                        <table class="data-table rec-table">
+                            <thead>
+                                <tr>
+                                    <th>Learner ID</th>
+                                    <th>Weak Topic</th>
+                                    <th>Recommended Lesson</th>
+                                    <th>Reason</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recTableBody">
+                                <tr>
+                                    <td colspan="6" class="text-muted table-empty-message">Checking learners' latest results...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-pagination">
+                        <span id="recShowingCount">Showing 0 of 0 recommendations</span>
+                        <div class="pagination-controls">
+                            <button type="button" class="btn-pagination" id="recPrevBtn" disabled title="Previous Page">&lt;</button>
+                            <span id="recPageLabel">1 of 1</span>
+                            <button type="button" class="btn-pagination" id="recNextBtn" disabled title="Next Page">&gt;</button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- What each status means -->
+                <ul class="rec-legend" aria-label="What each status means">
+                    <li><span class="rec-status rec-status-pending">Pending -</span> The learner has not opened the review yet.</li>
+                    <li><span class="rec-status rec-status-in_progress">In Progress -</span> The learner opened the review or fixed some of the missed items.</li>
+                    <li><span class="rec-status rec-status-completed">Completed -</span> Every missed item was fixed in a retake.</li>
+                </ul>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-recommendations.js') }}"></script>
+</body>
+</html>
