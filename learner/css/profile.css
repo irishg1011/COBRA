@@ -49,6 +49,18 @@
     font-size: 36px;
 }
 
+/* feat/profile-photo: the learner's uploaded photo (profile.js adds .has-photo) */
+.profile-hero-avatar.has-photo {
+    background: none;
+}
+
+.profile-hero-photo {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
 .profile-hero-main {
     flex: 1;
     min-width: 0;

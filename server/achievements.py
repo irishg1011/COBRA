@@ -27,6 +27,10 @@ from datetime import datetime
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from image_uploads import (  # ONE copy of the image checks, shared with profile_avatar.py
+    has_upload, read_image_upload, save_image, delete_image, stored_name_regex,
+    ERROR_SIZE, ERROR_EMPTY,
+)
 from badges import (
     BADGES_TABLE, LEARNER_BADGES_TABLE, REQUIREMENT_BY_KEY,
     DEFAULT_BADGE_COLOR, DEFAULT_BADGE_ICON,
@@ -40,10 +44,10 @@ DEFAULT_PER_PAGE = 8
 # The folder behind /assets/uploads/badges/ (served by login.py's /assets route).
 BADGE_UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../assets/uploads/badges"))
 MAX_ICON_BYTES = 1 * 1024 * 1024
-ALLOWED_ICON_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+ICON_FILE_PREFIX = "badge"
 ICON_TYPE_MESSAGE = "The icon must be a PNG, JPG or WebP image."
 ICON_SIZE_MESSAGE = "The icon must be 1 MB or smaller."
-_ICON_FILE_REGEX = re.compile(r"^badge_[0-9a-f]{24}\.(png|jpg|webp)$")
+_ICON_FILE_REGEX = stored_name_regex(ICON_FILE_PREFIX)
 
 # Field limits - also sent to the page so the inputs use the same numbers.
 BADGE_LIMITS = {"name": 60, "description": 150, "criteria": 150, "max_value": 9999}
@@ -338,61 +342,35 @@ def get_achievements_data(tab="badges", search_query=None, status_filter=None, d
 
 
 # ------------------------------------------------------------------
-# Icon upload
+# Icon upload (the checks themselves live in image_uploads.py)
 # ------------------------------------------------------------------
-def _sniff_image_extension(data):
-    """The image type from the file's first bytes (never from its name)."""
-    if data.startswith(b"\x89PNG\r\n\x1a\n"):
-        return "png"
-    if data.startswith(b"\xff\xd8\xff"):
-        return "jpg"
-    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return "webp"
-    return None
-
-
 def _read_icon(file_storage):
     """
     Checks an uploaded icon WITHOUT saving it.
     Returns (data, extension, error_message) - error_message is None when valid.
     """
-    name_ext = os.path.splitext(file_storage.filename or "")[1].lower().lstrip(".")
-    if name_ext not in ALLOWED_ICON_EXTENSIONS:
-        return None, None, ICON_TYPE_MESSAGE
-
-    data = file_storage.read(MAX_ICON_BYTES + 1)
-    if not data:
-        return None, None, "The icon file is empty."
-    if len(data) > MAX_ICON_BYTES:
+    data, extension, error = read_image_upload(file_storage, MAX_ICON_BYTES)
+    if error == ERROR_SIZE:
         return None, None, ICON_SIZE_MESSAGE
-
-    extension = _sniff_image_extension(data)
-    if not extension:
+    if error == ERROR_EMPTY:
+        return None, None, "The icon file is empty."
+    if error:
         return None, None, ICON_TYPE_MESSAGE
     return data, extension, None
 
 
 def _save_icon(data, extension):
     """Writes the icon under a random name and returns that file name."""
-    os.makedirs(BADGE_UPLOAD_DIR, exist_ok=True)
-    filename = f"badge_{secrets.token_hex(12)}.{extension}"
-    with open(os.path.join(BADGE_UPLOAD_DIR, filename), "wb") as handle:
-        handle.write(data)
-    return filename
+    return save_image(BADGE_UPLOAD_DIR, ICON_FILE_PREFIX, data, extension)
 
 
 def _delete_icon(filename):
     """Removes an icon this module saved. Never raises."""
-    if not filename or not _ICON_FILE_REGEX.match(filename):
-        return
-    try:
-        os.remove(os.path.join(BADGE_UPLOAD_DIR, filename))
-    except OSError:
-        pass
+    delete_image(BADGE_UPLOAD_DIR, ICON_FILE_PREFIX, filename)
 
 
 def _has_file(file_storage):
-    return bool(file_storage and (file_storage.filename or "").strip())
+    return has_upload(file_storage)
 
 
 # ------------------------------------------------------------------

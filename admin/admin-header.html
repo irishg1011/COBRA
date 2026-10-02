@@ -1,4 +1,8 @@
 <!-- admin/admin-header.html -->
+{# feat/profile-photo: this header is the one file every admin and mentor page
+   includes, so the profile photo's stylesheet, popup and script are attached
+   here instead of being repeated in every page. #}
+<link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-profile-photo.css') }}">
 <header class="admin-header">
     <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle sidebar" aria-controls="adminSidebar" aria-expanded="true">
         <span class="mask-icon icon-menu"></span>
@@ -11,14 +15,16 @@
         <button type="button" class="notification-btn" aria-label="Notifications">
             <img src="/assets/images/notif-bell-1.png" class="header-icon" alt="">
         </button>
-        <div class="admin-profile-badge">
-            <img src="/assets/images/avatar.png" class="avatar-icon" alt="">
-            <div class="admin-info">
+        {# feat/profile-photo: opens the Profile photo popup. Shows the uploaded
+           photo, or the default avatar.png when the account has none. #}
+        <button type="button" class="admin-profile-badge" id="openProfilePhotoBtn" aria-haspopup="dialog" title="Change profile photo">
+            <img src="{{ current_admin.avatar_url if current_admin and current_admin.avatar_url else '/assets/images/avatar.png' }}" class="avatar-icon" id="headerAvatarImg" alt="">
+            <span class="admin-info">
                 <strong>{{ current_admin.full_name if current_admin else 'Administrator' }}</strong>
                 <small>{{ current_admin.role if current_admin else 'Administrator' }}</small>
-            </div>
+            </span>
             <img src="/assets/images/d-down.png" class="dropdown-arrow-img" alt="">
-        </div>
+        </button>
     </div>
 </header>
 
@@ -32,3 +38,6 @@
 </div>
 {% endif %}
 {% endwith %}
+
+{% include 'profile-photo-modal.html' %}
+<script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-photo.js') }}"></script>

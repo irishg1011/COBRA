@@ -5,7 +5,8 @@
  *    clickable name (-> /profile), Edit Profile, Change Password and
  *    Logout. The menu markup is built here and mounted into the page's
  *    <div class="profile-menu" data-profile-menu></div> placeholder, so
- *    every page shares one copy.
+ *    every page shares one copy. The learner's profile photo (when they
+ *    uploaded one) replaces the default icon there.
  *  - Logout: same flow as before (confirm modal -> auth-guard's
  *    cobraByteLogout()). The modal is built here too, so pages no longer
  *    carry their own inline-styled copy.
@@ -42,6 +43,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const subEl = menuPanel.querySelector('[data-pm="sub"]');
         nameEl.textContent = profile.full_name || profile.username || 'My profile';
         subEl.textContent = profile.username ? `@${profile.username}` : '';
+    }
+
+    // feat/profile-photo: the learner's uploaded photo replaces the default
+    // icons (header button + the dropdown's identity row). No photo, or a
+    // photo whose file is gone -> the icons come back (never a broken image).
+    function renderAvatar(avatarUrl) {
+        if (!menuBtn || !menuPanel) return;
+        const spots = [
+            { el: menuBtn, icon: 'fa-solid fa-circle-user' },
+            { el: menuPanel.querySelector('.profile-menu-avatar'), icon: 'fa-solid fa-user' },
+        ];
+        spots.forEach(({ el, icon }) => {
+            if (!el) return;
+            el.classList.toggle('has-photo', !!avatarUrl);
+            if (!avatarUrl) {
+                el.innerHTML = `<i class="${icon}" aria-hidden="true"></i>`;
+                return;
+            }
+            el.innerHTML = `<img class="profile-menu-photo" src="${escapeHtml(avatarUrl)}" alt="">`;
+            el.querySelector('img').addEventListener('error', () => renderAvatar(null), { once: true });
+        });
     }
 
     function openMenu() {
@@ -100,12 +122,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fetch('/api/profile/me', { credentials: 'include' })
             .then((res) => res.json())
-            .then((data) => { if (data && data.success) renderName(data.profile); })
+            .then((data) => {
+                if (!data || !data.success) return;
+                renderName(data.profile);
+                renderAvatar(data.profile.avatar_url);   // feat/profile-photo
+            })
             .catch(() => { /* name stays "My profile" */ });
     }
 
-    // Lets Edit Profile refresh the dropdown name right after saving.
-    window.cobraByteProfileMenu = { renderName };
+    // Lets Edit Profile refresh the dropdown name right after saving, and
+    // the header photo right after an upload / remove (profile-photo.js).
+    window.cobraByteProfileMenu = { renderName, renderAvatar };
 
     // ===============================
     // Notifications bell (Facebook-style dropdown)

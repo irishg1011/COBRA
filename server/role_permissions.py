@@ -44,6 +44,10 @@ ENDPOINT_ROLES = {
     "admin_bp.admin_logout": BOTH,
     "admin_bp.admin_session_end_beacon": BOTH,  # also public (runs without a session)
 
+    # Profile photo in the shared header (feat/profile-photo) - own account only
+    "admin_bp.profile_photo_upload": BOTH,
+    "admin_bp.profile_photo_remove": BOTH,
+
     # Publishing - admins view only (page + read-only refresh)
     "admin_bp.publishing": BOTH,
     "admin_bp.publishing_data": BOTH,

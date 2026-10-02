@@ -14,6 +14,8 @@ Blueprint behind the learner header's profile dropdown:
     GET  /api/profile/overview              - profile page data + badges (awards new badges)
     POST /api/profile/heartbeat             - learning-time tracker (once a minute)
     POST /api/profile/update                - save name / username / email
+    POST /api/profile/avatar                - upload / replace the profile photo
+    POST /api/profile/avatar/remove         - back to the default icon
     POST /api/profile/email/send-otp        - code to a NEW email address
     POST /api/profile/email/verify-otp      - verify that code
     POST /api/profile/password/send-otp     - reset code to the account's email
@@ -40,6 +42,7 @@ from module_performance import module_performance, PASS_PERCENT
 from learning_time import record_heartbeat, get_total_seconds
 from badges import award_and_list_badges
 from notifications import notify
+from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo
 
 learner_profile_bp = Blueprint("learner_profile_bp", __name__)
 
@@ -133,11 +136,13 @@ def profile_me():
     try:
         cursor = connection.cursor(dictionary=True)
         row = _fetch_account(cursor, acc_id)
-        cursor.close()
         if not row:
+            cursor.close()
             return _not_logged_in()
         payload = _account_payload(row)
         payload["masked_email"] = _mask_email(row["email"])
+        payload["avatar_url"] = get_avatar_url(cursor, acc_id)  # feat/profile-photo (None = default icon)
+        cursor.close()
         return jsonify({"success": True, "profile": payload})
     except Error as e:
         return jsonify({"success": False, "message": f"Database error: {e}"}), 500
@@ -294,6 +299,8 @@ def profile_overview():
             cursor.close()
             return _not_logged_in()
         topics, areas, stats, facts = _build_overview(cursor, acc_id)
+        profile = _account_payload(row)
+        profile["avatar_url"] = get_avatar_url(cursor, acc_id)  # feat/profile-photo
         cursor.close()
 
         badges = award_and_list_badges(connection, acc_id, facts)
@@ -302,7 +309,7 @@ def profile_overview():
 
         return jsonify({
             "success": True,
-            "profile": _account_payload(row),
+            "profile": profile,
             "stats": stats,
             "topics": topics,
             "areas_to_improve": areas,
@@ -314,6 +321,31 @@ def profile_overview():
     finally:
         if connection.is_connected():
             connection.close()
+
+
+# ============================================================
+# API: PROFILE PHOTO (feat/profile-photo)
+# The account is ALWAYS the logged-in learner from the session - no id
+# is read from the request - so a learner can only change their own
+# photo. Every rule (file type, size, replacing the old file) lives in
+# profile_avatar.py, shared with the staff side.
+# ============================================================
+@learner_profile_bp.route("/api/profile/avatar", methods=["POST"])
+def profile_avatar_upload():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return _not_logged_in()
+    payload, status = set_avatar(acc_id, request.files.get("avatar"))
+    return jsonify(payload), status
+
+
+@learner_profile_bp.route("/api/profile/avatar/remove", methods=["POST"])
+def profile_avatar_remove():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return _not_logged_in()
+    payload, status = remove_avatar(acc_id)
+    return jsonify(payload), status
 
 
 # ============================================================

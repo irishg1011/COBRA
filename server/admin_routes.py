@@ -99,6 +99,7 @@ from achievements import (  # feat/mentor-achievements: Mentor > Achievements pa
     BADGE_LIMITS, BADGE_COLOR_SWATCHES,
 )
 from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
+from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
@@ -349,6 +350,8 @@ def get_current_admin():
             (admin_id,)
         )
         row = cursor.fetchone()
+        # feat/profile-photo: the header photo (None = the default avatar.png)
+        avatar_url = get_avatar_url(cursor, admin_id) if row else None
         cursor.close()
 
         if not row:
@@ -362,6 +365,7 @@ def get_current_admin():
             "acc_id": row["acc_id"],
             "full_name": full_name,
             "role": row.get("role") or "Administrator",
+            "avatar_url": avatar_url,
         }
 
     except Error as e:
@@ -3392,6 +3396,25 @@ def analytics():
 @admin_bp.route('/recommendations')
 def recommendations():
     return render_placeholder("Recommendations")
+
+
+# ============================================================
+# ROUTE: PROFILE PHOTO (Admin + Mentor) - feat/profile-photo
+# Opened from the profile area in the shared header (admin-header.html).
+# The account is ALWAYS session["admin_id"] - nothing from the request -
+# so a staff member can only change their own photo. Rules live in
+# profile_avatar.py, shared with the learner side.
+# ============================================================
+@admin_bp.route('/profile/photo', methods=['POST'])
+def profile_photo_upload():
+    payload, status = set_avatar(session.get("admin_id"), request.files.get('avatar'))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/profile/photo/remove', methods=['POST'])
+def profile_photo_remove():
+    payload, status = remove_avatar(session.get("admin_id"))
+    return jsonify(payload), status
 
 
 # ============================================================

@@ -1,0 +1,120 @@
+/*
+ * profile-photo.css - learner profile photo (feat/profile-photo)
+ * The photo section at the top of Edit Profile (edit-profile.html).
+ * Script: learner/js/profile-photo.js. Buttons and hints reuse the
+ * classes in account-forms.css.
+ */
+
+.photo-section {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding-bottom: 24px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+/* The classes above set display, so [hidden] needs its own rule */
+.photo-section[hidden],
+.photo-actions[hidden],
+.photo-confirm[hidden],
+.photo-message[hidden],
+.photo-actions [hidden] {
+    display: none;
+}
+
+/* The photo: always a circle, cropped from the center, never stretched */
+.photo-avatar {
+    flex-shrink: 0;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+    color: #ffffff;
+    font-size: 38px;
+    overflow: hidden;
+}
+
+.photo-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.photo-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.photo-actions,
+.photo-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+}
+
+.photo-section .acct-btn {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.photo-confirm-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.acct-btn.photo-btn-danger {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.acct-btn.photo-btn-danger:hover {
+    background: #b91c1c;
+}
+
+/* Result of the last upload / remove */
+.photo-message {
+    font-size: 13.5px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.photo-message.is-error {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+/* The real file input is visually hidden; the button opens it */
+.photo-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+@media (max-width: 520px) {
+    .photo-section {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

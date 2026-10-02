@@ -47,6 +47,19 @@ document.addEventListener('DOMContentLoaded', () => {
         $('heroOverall').textContent = `${stats.overall_completion}%`;
         $('heroLessons').textContent = `${stats.lessons_completed}/${stats.lessons_total}`;
         document.title = `CobraByte - ${profile.full_name}`;
+
+        // feat/profile-photo: the uploaded photo replaces the default icon.
+        // A photo whose file is gone puts the icon back (no broken image).
+        const heroAvatar = document.querySelector('.profile-hero-avatar');
+        if (heroAvatar && profile.avatar_url) {
+            const icon = heroAvatar.innerHTML;
+            heroAvatar.classList.add('has-photo');
+            heroAvatar.innerHTML = `<img class="profile-hero-photo" src="${esc(profile.avatar_url)}" alt="">`;
+            heroAvatar.querySelector('img').addEventListener('error', () => {
+                heroAvatar.classList.remove('has-photo');
+                heroAvatar.innerHTML = icon;
+            }, { once: true });
+        }
     }
 
     function renderStats(stats) {
