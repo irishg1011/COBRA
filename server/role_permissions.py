@@ -224,6 +224,12 @@ ENDPOINT_ROLES = {
 
     "admin_bp.recommendations": MENTOR,
     "admin_bp.achievements": MENTOR,
+    # Achievements (feat/mentor-achievements): mentor-made badges
+    "admin_bp.achievements_data": MENTOR,
+    "admin_bp.achievements_create_badge": MENTOR,
+    "admin_bp.achievements_update_badge": MENTOR,
+    "admin_bp.achievements_archive_badge": MENTOR,
+    "admin_bp.achievements_restore_badge": MENTOR,
 }
 
 

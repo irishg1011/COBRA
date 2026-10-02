@@ -1,0 +1,522 @@
+/* ==========================================================================
+   MENTOR > ACHIEVEMENTS (achievements.html + create-badge-modal.html +
+   awarded-badges-modal.html)
+   Page-only styles. Everything shared (.table-card, .metric-card, pill
+   buttons, .modal-overlay, .form-group) comes from admin-style.css.
+
+   Badge colors: an element carries data-badge-color="#rrggbb" and
+   admin-achievements.js copies it into the --badge-color variable used
+   below - no inline style attributes in the HTML.
+   ========================================================================== */
+
+/* --- Tabs (Badges / Earned Badges) + page buttons --- */
+.ach-tab {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    font-size: 14px;
+    color: var(--admin-text);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ach-tab:hover {
+    background: #f3f4f6;
+}
+
+.ach-tab.is-active {
+    background: #C8F2D2;
+}
+
+.ach-tab:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+.ach-page-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* --- Stat cards: 4 across, no icons --- */
+.metrics-grid.ach-metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.ach-metrics-grid .metric-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "title"
+        "value";
+    padding: 16px 18px;
+}
+
+.ach-metrics-grid .ach-metric-good {
+    color: #0F7A3D;
+}
+
+@media (max-width: 1100px) {
+    .metrics-grid.ach-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid.ach-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Toolbar: date range --- */
+.ach-date-separator {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+/* Shown by admin-achievements.js when From is after To */
+.date-filter-error.is-visible {
+    display: block;
+}
+
+/* --- Badge icon tile (table rows, pills, modal preview) --- */
+.ach-icon-tile {
+    --badge-color: #22C55E;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--badge-color);
+    color: #ffffff;
+    font-size: 13px;
+    overflow: hidden;
+}
+
+.ach-icon-tile img {
+    width: 70%;
+    height: 70%;
+    object-fit: contain;
+}
+
+.ach-icon-tile.ach-icon-tile--sm {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    font-size: 9px;
+}
+
+.ach-icon-tile.ach-icon-tile--lg {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    font-size: 22px;
+}
+
+/* --- Badges table --- */
+.ach-badge-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+}
+
+.ach-badge-name {
+    color: var(--admin-text);
+    font-size: 13px;
+}
+
+.table-card .ach-badges-table td:nth-child(2),
+.table-card .ach-badges-table td:nth-child(3),
+.table-card .ach-badges-table th:nth-child(2),
+.table-card .ach-badges-table th:nth-child(3) {
+    text-align: left;
+}
+
+.table-card .ach-badges-table td:nth-child(2),
+.table-card .ach-badges-table td:nth-child(3) {
+    white-space: normal;
+    min-width: 160px;
+}
+
+/* Description / Requirements text lines up with its left-aligned header */
+.data-table.ach-badges-table td .cell-truncate {
+    margin-left: 0;
+}
+
+.ach-badges-table .table-actions-group {
+    justify-content: center;
+}
+
+.ach-row-archived .ach-badge-name,
+.ach-row-archived td:nth-child(2),
+.ach-row-archived td:nth-child(3) {
+    color: var(--admin-muted);
+}
+
+.ach-row-archived .ach-icon-tile {
+    filter: grayscale(1);
+    opacity: 0.7;
+}
+
+/* Learners Earned count */
+.ach-count-pill {
+    display: inline-block;
+    min-width: 34px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.6;
+}
+
+.ach-count-pill.has-earners {
+    background: #C8F2D2;
+    color: #0F7A3D;
+}
+
+/* Row action buttons (Edit / Archive / Restore). "button." so the padding
+   beats the shared button.table-action-icon reset in admin-style.css. */
+button.ach-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    min-height: 26px;
+    padding: 4px;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.ach-action-btn:hover {
+    background: #f3f4f6;
+    color: var(--admin-blue);
+}
+
+.ach-action-btn.delete-action:hover {
+    color: #dc2626;
+}
+
+.ach-action-btn:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 1px;
+}
+
+/* --- Earned Badges table + awarded modal: badge pill --- */
+.ach-earned-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 12px 3px 4px;
+    border-radius: 999px;
+    background: #DCF5DC;
+    color: #0F7A3D;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.ach-earned-pill.is-archived {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.ach-learner-name {
+    display: block;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.table-card .ach-earned-table th,
+.table-card .ach-earned-table td {
+    width: 33.33%;
+}
+
+/* ==========================================================================
+   MODALS (Create / Edit Badge, View Awarded Badges)
+   ========================================================================== */
+.ach-modal-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: 90vh;
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.ach-modal-card.ach-badge-form-card {
+    max-width: 520px;
+}
+
+.ach-modal-card.ach-awarded-card {
+    max-width: 860px;
+}
+
+.ach-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 18px 22px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.ach-modal-heading h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.ach-modal-heading p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.ach-modal-header .modal-close-btn {
+    color: var(--admin-muted);
+    line-height: 1;
+}
+
+.ach-modal-header .modal-close-btn:hover {
+    color: var(--admin-text);
+}
+
+.ach-badge-form-card form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.ach-modal-body {
+    padding: 18px 22px;
+    overflow-y: auto;
+}
+
+.ach-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* The awarded modal sits on the page's soft background, like the reference */
+.ach-awarded-card .ach-modal-body {
+    background: #eef6f8;
+}
+
+.ach-awarded-table-card .header-search {
+    width: 280px;
+}
+
+/* --- Form pieces --- */
+.ach-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.form-group .ach-textarea {
+    min-height: 64px;
+}
+
+.ach-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+/* Message under a field - filled by the script, empty otherwise */
+.ach-field-error {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: #e02424;
+}
+
+.ach-field-error:empty {
+    display: none;
+}
+
+.ach-form-error {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #e02424;
+}
+
+.ach-form-error:empty {
+    display: none;
+}
+
+/* Icon upload: the real file input is visually hidden, the button opens it */
+.ach-upload-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px;
+    border: 1px dashed #9ca3af;
+    border-radius: 10px;
+}
+
+.ach-upload-row.field-error {
+    border-style: solid;
+}
+
+.ach-upload-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    min-width: 0;
+}
+
+.ach-upload-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
+.ach-upload-name {
+    font-size: 12px;
+    color: var(--admin-text);
+    overflow-wrap: anywhere;
+}
+
+.ach-upload-info .ach-hint {
+    flex-basis: 100%;
+    margin-top: 0;
+}
+
+.form-group input.ach-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* Color swatches */
+.ach-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ach-swatch,
+.form-group label.ach-swatch {
+    --badge-color: #d1d5db;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: var(--badge-color);
+    box-shadow: 0 0 0 1px #d1d5db;
+    color: #ffffff;
+    font-size: 11px;
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+}
+
+.ach-swatch.is-selected,
+.form-group label.ach-swatch.is-selected {
+    box-shadow: 0 0 0 2px var(--admin-text);
+}
+
+.ach-swatch:focus-visible,
+.ach-swatch-custom:focus-within {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+/* "+" swatch: grey until a custom color is picked */
+.ach-swatch-custom:not(.is-selected) {
+    color: #4b5563;
+}
+
+.form-group input.ach-color-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* Number input next to the dropdown keeps the same height */
+.ach-badge-form-card .form-row {
+    align-items: flex-start;
+}
+
+/* Live preview */
+.ach-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background: #f9fafb;
+}
+
+.ach-preview-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.ach-preview-text strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--admin-text);
+    overflow-wrap: anywhere;
+}
+
+.ach-preview-text span {
+    font-size: 12px;
+    color: var(--admin-muted);
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+    .ach-badge-form-card .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .ach-awarded-table-card .header-search {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ach-tab,
+    .ach-action-btn,
+    .ach-swatch {
+        transition: none;
+    }
+}

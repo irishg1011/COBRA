@@ -442,6 +442,23 @@
     margin-bottom: 14px;
 }
 
+/* Mentor-made badges: the badge's own color (profile.js copies it from
+   the database into --badge-color) and its uploaded icon image. */
+.badge-medal.has-color {
+    background: var(--badge-color);
+}
+
+.badge-icon-img {
+    width: 60%;
+    height: 60%;
+    object-fit: contain;
+}
+
+.badge-empty {
+    color: #64748b;
+    font-size: 14px;
+}
+
 .badge-name {
     font-size: 15px;
     font-weight: 700;

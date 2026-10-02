@@ -1,0 +1,114 @@
+<!-- admin/create-badge-modal.html - Mentor > Achievements: Create Badge / Edit Badge.
+     One modal for both: admin-achievements.js switches the title, fills
+     the fields when editing, and posts to /admin/achievements/badges
+     (create) or /admin/achievements/badges/<id> (edit).
+     novalidate - empty or wrong fields get the red border and a message
+     under the field, not the browser bubble.
+     Colors are never written as inline styles: each swatch only carries
+     data-badge-color and the script applies it. Hidden with .modal-hidden. -->
+<div id="badgeFormModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="badgeFormTitle">
+    <div class="ach-modal-card ach-badge-form-card">
+
+        <div class="ach-modal-header">
+            <div class="ach-modal-heading">
+                <h3 id="badgeFormTitle">Create Badge</h3>
+                <p id="badgeFormSubtitle">Learners earn this badge automatically once they meet the requirement.</p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeBadgeFormBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <form id="badgeForm" novalidate>
+            <div class="ach-modal-body">
+
+                <div class="form-group">
+                    <label for="badgeNameInput">Badge Name</label>
+                    <input type="text" id="badgeNameInput" name="name" placeholder="e.g. Python Master" maxlength="{{ badge_limits.name }}" autocomplete="off">
+                    <small class="char-counter" data-counter-for="badgeNameInput"></small>
+                    <small class="ach-field-error" data-error-for="name"></small>
+                </div>
+
+                <div class="form-group">
+                    <span class="ach-label" id="badgeIconLabel">Badge Icon</span>
+                    <div class="ach-upload-row">
+                        <span class="ach-icon-tile ach-icon-tile--lg" id="badgeIconThumb" data-badge-color="{{ default_badge_color }}">
+                            <i class="fa-solid fa-image" aria-hidden="true"></i>
+                        </span>
+                        <div class="ach-upload-info">
+                            <button type="button" class="btn-pill-light ach-upload-btn" id="badgeIconPickBtn" aria-describedby="badgeIconHint">
+                                <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> <span id="badgeIconPickLabel">Upload image</span>
+                            </button>
+                            <span class="ach-upload-name" id="badgeIconFileName">No image chosen</span>
+                            <small class="ach-hint" id="badgeIconHint">PNG, JPG or WebP, up to 1 MB. A square image with a clear background looks best.</small>
+                        </div>
+                        <input type="file" id="badgeIconInput" name="icon" class="ach-file-input" accept="image/png,image/jpeg,image/webp" tabindex="-1" aria-labelledby="badgeIconLabel">
+                    </div>
+                    <small class="ach-field-error" data-error-for="icon"></small>
+                </div>
+
+                <div class="form-group">
+                    <span class="ach-label" id="badgeColorLabel">Badge Color</span>
+                    <div class="ach-swatches" id="badgeColorSwatches" role="radiogroup" aria-labelledby="badgeColorLabel">
+                        {% for color in badge_colors %}
+                        <button type="button" class="ach-swatch" role="radio" aria-checked="false" data-badge-color="{{ color }}" title="{{ color }}" aria-label="Color {{ color }}"></button>
+                        {% endfor %}
+                        <label class="ach-swatch ach-swatch-custom" id="badgeCustomColorSwatch" title="Custom color">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                            <input type="color" id="badgeCustomColorInput" class="ach-color-input" value="{{ default_badge_color }}" aria-label="Custom color">
+                        </label>
+                    </div>
+                    <small class="ach-field-error" data-error-for="color"></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="badgeDescriptionInput">Badge Description</label>
+                    <textarea id="badgeDescriptionInput" name="description" class="ach-textarea" placeholder="e.g. Awarded to learners who finish every lesson in the basics." maxlength="{{ badge_limits.description }}"></textarea>
+                    <small class="char-counter" data-counter-for="badgeDescriptionInput"></small>
+                    <small class="ach-field-error" data-error-for="description"></small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="badgeRequirementTypeSelect">Requirement Type</label>
+                        <select id="badgeRequirementTypeSelect" name="requirement_type">
+                            {% for req in requirement_types %}
+                            <option value="{{ req['key'] }}" data-singular="{{ req['singular'] }}" data-plural="{{ req['plural'] }}">{{ req['label'] }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="ach-field-error" data-error-for="requirement_type"></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="badgeRequiredValueInput">Required Value</label>
+                        <input type="number" id="badgeRequiredValueInput" name="required_value" min="1" max="{{ badge_limits.max_value }}" step="1" value="1" inputmode="numeric">
+                        <small class="ach-field-error" data-error-for="required_value"></small>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="badgeCriteriaInput">Criteria Description</label>
+                    <input type="text" id="badgeCriteriaInput" name="criteria" placeholder="e.g. Complete 5 lessons" maxlength="{{ badge_limits.criteria }}" autocomplete="off">
+                    <small class="ach-hint">Leave this empty to use the text shown in the preview.</small>
+                    <small class="ach-field-error" data-error-for="criteria"></small>
+                </div>
+
+                <div class="ach-preview" aria-live="polite">
+                    <span class="ach-icon-tile ach-icon-tile--lg" id="badgePreviewTile" data-badge-color="{{ default_badge_color }}">
+                        <i class="fa-solid fa-image" aria-hidden="true"></i>
+                    </span>
+                    <div class="ach-preview-text">
+                        <strong id="badgePreviewName">Badge Preview</strong>
+                        <span id="badgePreviewCriteria">Criteria preview...</span>
+                    </div>
+                </div>
+
+                <p class="ach-form-error" id="badgeFormError" role="alert"></p>
+            </div>
+
+            <div class="ach-modal-footer">
+                <button type="button" class="btn-pill-light" id="cancelBadgeFormBtn">Cancel</button>
+                <button type="submit" class="btn-pill-green" id="saveBadgeBtn">
+                    <i class="fa-solid fa-check" aria-hidden="true"></i> Save Badge
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

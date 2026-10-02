@@ -3,6 +3,8 @@
  * Loads /api/profile/overview (which also awards any newly earned
  * badges) and renders the hero, Topic Performance Breakdown, Your Stats,
  * Areas to Improve and the Badges & Achievements tab.
+ * Badges are fetched from the database (badges_tbl) - mentors create
+ * them on Mentor > Achievements; nothing about a badge is hardcoded here.
  * Styles: learner/css/profile.css
  */
 document.addEventListener('DOMContentLoaded', () => {
@@ -106,17 +108,40 @@ document.addEventListener('DOMContentLoaded', () => {
             </a>`).join('');
     }
 
+    // Badges come from the database (made by mentors on Mentor > Achievements).
+    // Earned: the mentor's uploaded image (or the old Font Awesome icon when
+    // the badge has no image). Locked: the lock.
+    function badgeIconHtml(b) {
+        if (!b.earned) return '<i class="fa-solid fa-lock"></i>';
+        if (b.icon_url) return `<img class="badge-icon-img" src="${esc(b.icon_url)}" alt="">`;
+        return `<i class="fa-solid ${esc(b.icon || 'fa-award')}"></i>`;
+    }
+
     function renderBadges(badges, stats) {
+        const grid = $('badgeGrid');
         $('badgesCount').textContent = `${stats.badges_earned} of ${stats.badges_total} earned`;
-        $('badgeGrid').innerHTML = badges.map((b) => `
+        if (!badges.length) {
+            grid.innerHTML = '<p class="badge-empty">No badges are available yet.</p>';
+            return;
+        }
+        // A locked badge shows how to earn it; an earned one shows its description.
+        grid.innerHTML = badges.map((b) => `
             <div class="badge-card ${b.earned ? '' : 'is-locked'}">
-                <div class="badge-medal" aria-hidden="true">
-                    <i class="fa-solid ${b.earned ? esc(b.icon) : 'fa-lock'}"></i>
+                <div class="badge-medal" aria-hidden="true"${b.earned && b.color ? ` data-badge-color="${esc(b.color)}"` : ''}>
+                    ${badgeIconHtml(b)}
                 </div>
                 <div class="badge-name">${esc(b.name)}</div>
-                <div class="badge-desc">${esc(b.description)}</div>
+                <div class="badge-desc">${esc(b.earned ? b.description : (b.criteria || b.description))}</div>
                 <div class="badge-date">${b.earned ? `Earned ${esc(b.earned_at)}` : 'Locked'}</div>
             </div>`).join('');
+
+        // The badge's color goes into the --badge-color variable used by
+        // profile.css (.badge-medal.has-color) - no inline styles in the HTML.
+        grid.querySelectorAll('[data-badge-color]').forEach((medal) => {
+            if (!/^#[0-9a-f]{6}$/i.test(medal.dataset.badgeColor)) return;
+            medal.style.setProperty('--badge-color', medal.dataset.badgeColor);
+            medal.classList.add('has-color');
+        });
     }
 
     // ---------------- Tabs ----------------
