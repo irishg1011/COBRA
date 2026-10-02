@@ -6,6 +6,8 @@ DB helpers behind the Mentor > Achievements page:
     get_achievements_data()  - stat cards + one page of the Badges tab
                                or the Earned Badges tab (also feeds the
                                View Awarded Badges modal)
+    get_requirement_limits() - the highest Required Value each content-based
+                               requirement type can have (published content only)
     create_badge()           - Create Badge modal (with icon upload)
     update_badge()           - the same modal in Edit mode
     set_badge_archived()     - Archive / Restore (soft archive only)
@@ -60,6 +62,38 @@ BADGE_COLOR_SWATCHES = [
 _COLOR_REGEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 STATUS_FILTERS = {"active": 0, "archived": 1}
+
+# Requirement types that count CONTENT: their Required Value can never be
+# higher than what is published right now, or no learner could earn the
+# badge. key -> (singular, plural) for the messages. The other types
+# (sandbox runs, saved snippets, learning hours, login days) have no such
+# ceiling and keep BADGE_LIMITS["max_value"].
+PUBLISHED_COUNT_NOUNS = {
+    "lessons_completed": ("lesson", "lessons"),
+    "modules_passed": ("module", "modules"),
+    "chapters_completed": ("chapter", "chapters"),
+    "perfect_mcq": ("Multiple Choice activity", "Multiple Choice activities"),
+    "perfect_fib": ("Fill in the Blanks activity", "Fill in the Blanks activities"),
+    "perfect_flashcards": ("Flashcards activity", "Flashcards activities"),
+    "exercises_passed": ("coding exercise", "coding exercises"),
+}
+ACTIVITY_TYPE_KEYS = {
+    "Multiple Choice": "perfect_mcq",
+    "Quiz": "perfect_mcq",
+    "Fill in the Blanks": "perfect_fib",
+    "Flashcards": "perfect_flashcards",
+}
+# Published lessons in chapters / modules that are not archived - the same
+# lessons learners can open (learner_progress_monitor._load_course_tree).
+PUBLISHED_LESSONS_SQL = """
+    FROM learning_resources_tbl lr
+    JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+    JOIN modules_tbl m ON lr.module_id = m.module_id
+    JOIN category_tbl c ON m.cat_id = c.cat_id
+    WHERE lrs.lr_stats_name = 'Published'
+      AND COALESCE(c.is_archived, 0) = 0
+      AND COALESCE(m.is_archived, 0) = 0
+"""
 
 
 # ------------------------------------------------------------------
@@ -117,6 +151,96 @@ def empty_achievements_data(tab="badges"):
         "tab": tab, "rows": [], "metrics": _empty_metrics(),
         "total": 0, "page": 1, "per_page": DEFAULT_PER_PAGE, "total_pages": 1,
     }
+
+
+# ------------------------------------------------------------------
+# Required Value ceiling: how much published content there is
+# ------------------------------------------------------------------
+def _published_counts(cursor):
+    """
+    {requirement key: how many are published right now} for the
+    content-based types only. Counts what learners can actually reach:
+    published lessons (and the modules / chapters that hold them), and the
+    published activities and coding exercises under those lessons.
+    """
+    counts = {key: 0 for key in PUBLISHED_COUNT_NOUNS}
+
+    cursor.execute(
+        f"""SELECT COUNT(*) AS lessons,
+                   COUNT(DISTINCT lr.module_id) AS modules,
+                   COUNT(DISTINCT m.cat_id) AS chapters
+            {PUBLISHED_LESSONS_SQL}"""
+    )
+    row = cursor.fetchone() or {}
+    counts["lessons_completed"] = int(row.get("lessons") or 0)
+    counts["modules_passed"] = int(row.get("modules") or 0)
+    counts["chapters_completed"] = int(row.get("chapters") or 0)
+
+    cursor.execute(
+        f"""SELECT atp.activity_type_name AS type_name, COUNT(*) AS n
+            FROM learning_activities_tbl la
+            JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
+            JOIN activity_types_tbl atp ON la.activity_type_id = atp.activity_type_id
+            WHERE las.la_stats_name = 'Published'
+              AND la.resource_id IN (SELECT lr.resource_id {PUBLISHED_LESSONS_SQL})
+            GROUP BY atp.activity_type_name"""
+    )
+    for row in cursor.fetchall():
+        key = ACTIVITY_TYPE_KEYS.get(row["type_name"])
+        if key:
+            counts[key] += int(row["n"] or 0)
+
+    cursor.execute(
+        f"""SELECT COUNT(*) AS n
+            FROM coding_exercises_tbl ce
+            JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
+            WHERE las.la_stats_name = 'Published'
+              AND COALESCE(ce.is_archived, 0) = 0
+              AND ce.resource_id IN (SELECT lr.resource_id {PUBLISHED_LESSONS_SQL})"""
+    )
+    counts["exercises_passed"] = int((cursor.fetchone() or {}).get("n") or 0)
+    return counts
+
+
+def get_requirement_limits(cursor):
+    """
+    For the Create / Edit Badge modal:
+        {requirement key: {"max": int, "text": "11 published chapters"}}
+    Only the content-based types are listed. {} when the counts could not
+    be read (the modal then shows no ceiling; saving checks again).
+    """
+    try:
+        counts = _published_counts(cursor)
+    except Error as e:
+        print(f"achievements: could not count published content: {e}")
+        return {}
+    limits = {}
+    for key, count in counts.items():
+        singular, plural = PUBLISHED_COUNT_NOUNS[key]
+        limits[key] = {"max": count, "text": f"{count} published {singular if count == 1 else plural}"}
+    return limits
+
+
+def _value_error(cursor, requirement_type, required_value):
+    """
+    Message when `required_value` is more than the published content the
+    requirement type counts; None when it is fine or the type has no ceiling.
+    """
+    if requirement_type not in PUBLISHED_COUNT_NOUNS:
+        return None
+    try:
+        count = _published_counts(cursor)[requirement_type]
+    except Error as e:
+        print(f"achievements: could not count published content: {e}")
+        return None   # counts unreadable - the general 1..max_value rule already passed
+    singular, plural = PUBLISHED_COUNT_NOUNS[requirement_type]
+    if count == 0:
+        return f"There are no published {plural} yet. Publish one first, or choose another requirement type."
+    if required_value > count:
+        if count == 1:
+            return f"Only 1 {singular} is published, so the required value can only be 1."
+        return f"Only {count} {plural} are published. Enter a whole number from 1 to {count}."
+    return None
 
 
 # ------------------------------------------------------------------
@@ -322,6 +446,7 @@ def get_achievements_data(tab="badges", search_query=None, status_filter=None, d
             "tab": tab,
             "rows": rows,
             "metrics": _get_metrics(cursor),
+            "requirement_limits": get_requirement_limits(cursor),
             "total": total,
             "page": page,
             "per_page": per_page,
@@ -376,12 +501,18 @@ def _has_file(file_storage):
 # ------------------------------------------------------------------
 # Create / Edit validation
 # ------------------------------------------------------------------
-def _validate_badge_form(cursor, form, badge_id=None):
+def _validate_badge_form(cursor, form, badge_id=None, saved_rule=None):
     """
     Returns (clean, errors). `errors` maps a field key (name, description,
     color, requirement_type, required_value, criteria) to its message.
     Name, description and criteria only get their first letter
     capitalized - the rest is kept as typed.
+
+    For the content-based requirement types the required value can not be
+    more than the published content (see _value_error). saved_rule is the
+    (requirement_type, required_value) an existing badge already has:
+    leaving it unchanged is always allowed, so a badge saved before content
+    was unpublished can still have its name, icon or color edited.
     """
     errors = {}
 
@@ -421,6 +552,10 @@ def _validate_badge_form(cursor, form, badge_id=None):
     raw_value = (form.get("required_value") or "").strip()
     if raw_value.isdigit() and 1 <= int(raw_value) <= BADGE_LIMITS["max_value"]:
         required_value = int(raw_value)
+        if "requirement_type" not in errors and (requirement_type, required_value) != saved_rule:
+            too_high = _value_error(cursor, requirement_type, required_value)
+            if too_high:
+                errors["required_value"] = too_high
     else:
         errors["required_value"] = f"Enter a whole number from 1 to {BADGE_LIMITS['max_value']}."
 
@@ -527,13 +662,18 @@ def update_badge(badge_id, form, icon_file):
         cursor = connection.cursor(dictionary=True)
         ensure_badge_schema(connection, cursor)
 
-        cursor.execute(f"SELECT badge_id, icon_file FROM {BADGES_TABLE} WHERE badge_id = %s", (badge_id,))
+        cursor.execute(
+            f"SELECT badge_id, icon_file, requirement_type, required_value FROM {BADGES_TABLE} WHERE badge_id = %s",
+            (badge_id,)
+        )
         current = cursor.fetchone()
         if not current:
             cursor.close()
             return {"success": False, "message": "Badge not found."}, 404
 
-        clean, errors = _validate_badge_form(cursor, form, badge_id=badge_id)
+        clean, errors = _validate_badge_form(
+            cursor, form, badge_id=badge_id,
+            saved_rule=(current["requirement_type"], current["required_value"]))
 
         icon_data = icon_extension = None
         if _has_file(icon_file):

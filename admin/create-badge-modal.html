@@ -78,7 +78,8 @@
                     </div>
                     <div class="form-group">
                         <label for="badgeRequiredValueInput">Required Value</label>
-                        <input type="number" id="badgeRequiredValueInput" name="required_value" min="1" max="{{ badge_limits.max_value }}" step="1" value="1" inputmode="numeric">
+                        <input type="number" id="badgeRequiredValueInput" name="required_value" min="1" max="{{ badge_limits.max_value }}" data-default-max="{{ badge_limits.max_value }}" step="1" value="1" inputmode="numeric" aria-describedby="badgeRequiredValueHint">
+                        <small class="ach-hint" id="badgeRequiredValueHint"></small>
                         <small class="ach-field-error" data-error-for="required_value"></small>
                     </div>
                 </div>

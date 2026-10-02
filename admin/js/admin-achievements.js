@@ -7,6 +7,10 @@
  * 2. Create Badge / Edit Badge modal (#badgeFormModal): icon upload
  *    with preview, color swatches, live Badge Preview. Posts a
  *    multipart form to /admin/achievements/badges[/<id>].
+ *    Required Value has a ceiling for the requirement types that count
+ *    content (lessons, modules, chapters, activities, coding exercises):
+ *    it can not be more than what is PUBLISHED right now. The ceilings
+ *    come from the server with every data load (requirement_limits).
  * 3. Archive / Restore from a row, through the shared
  *    #confirmActionModal (/admin/achievements/badges/<id>/archive|restore).
  * 4. View Awarded Badges modal (#awardedBadgesModal): learner search +
@@ -298,6 +302,7 @@
                     applyBadgeColors(earnedBody);
                 }
                 updateMetrics(data.metrics);
+                if (data.requirement_limits) requirementLimits = data.requirement_limits;
                 updatePagination(rows.length, data.total || 0, data.page || 1, data.total_pages || 1);
             } catch (err) {
                 console.error("admin-achievements: failed to load data:", err);
@@ -381,7 +386,10 @@
         const openCreateBtn = document.getElementById("openCreateBadgeBtn");
 
         const defaultColor = previewTile.dataset.badgeColor;   // DEFAULT_BADGE_COLOR from the server
-        const maxValue = parseInt(valueInput.max, 10) || 9999;
+        const valueHint = document.getElementById("badgeRequiredValueHint");
+        const defaultMaxValue = parseInt(valueInput.dataset.defaultMax, 10) || 9999;
+        // { requirement key: { max, text } } - only the types that count published content.
+        let requirementLimits = {};
         // Each field key -> the element that gets the red border.
         const fieldEls = {
             name: nameInput,
@@ -514,6 +522,7 @@
                 criteriaInput.value = badge.criteria || "";
             }
             resetIconPicker();
+            applyValueLimit();
             selectColor(badge ? badge.color : defaultColor);
 
             formModal.classList.remove("modal-hidden");
@@ -580,7 +589,66 @@
          [valueInput, "required_value"]].forEach(([input, key]) => {
             input.addEventListener("input", () => { clearFieldError(key); updatePreview(); });
         });
-        typeSelect.addEventListener("change", () => { clearFieldError("requirement_type"); updatePreview(); });
+        typeSelect.addEventListener("change", () => {
+            clearFieldError("requirement_type");
+            applyValueLimit();
+            showValueErrorNow();
+            updatePreview();
+        });
+        valueInput.addEventListener("input", showValueErrorNow);
+
+        // ---- Required Value ceiling (published content only) ----
+        // The limit for the selected requirement type, or null when the type
+        // has no ceiling (sandbox runs, saved snippets, learning hours, login days).
+        function currentLimit() {
+            const limit = requirementLimits[typeSelect.value];
+            return limit && Number.isInteger(limit.max) ? limit : null;
+        }
+
+        // Sets the input's max and the hint under it for the selected type.
+        function applyValueLimit() {
+            const limit = currentLimit();
+            if (!limit) {
+                valueInput.max = String(defaultMaxValue);
+                valueHint.textContent = "";
+            } else if (limit.max === 0) {
+                valueInput.max = "1";
+                valueHint.textContent = `No ${limit.text.replace(/^0 /, "")} yet.`;
+            } else {
+                valueInput.max = String(limit.max);
+                valueHint.textContent = `Maximum ${limit.max} (${limit.text}).`;
+            }
+        }
+
+        // The message for the Required Value field, or "" when it is fine.
+        function valueProblem() {
+            const raw = valueInput.value.trim();
+            const n = Number(raw);
+            if (!/^\d+$/.test(raw) || n < 1 || n > defaultMaxValue) {
+                return `Enter a whole number from 1 to ${defaultMaxValue}.`;
+            }
+            const limit = currentLimit();
+            if (!limit) return "";
+            // A saved badge may keep the rule it already has (the server allows it too).
+            const unchanged = editingBadge && editingBadge.requirement_type === typeSelect.value
+                && Number(editingBadge.required_value) === n;
+            if (unchanged) return "";
+            if (limit.max === 0) return `There are no ${limit.text.replace(/^0 /, "")} yet. Publish one first, or choose another requirement type.`;
+            if (n > limit.max) {
+                return limit.max === 1
+                    ? `Only ${limit.text}, so the required value can only be 1.`
+                    : `Only ${limit.text}. Enter a whole number from 1 to ${limit.max}.`;
+            }
+            return "";
+        }
+
+        // Shows the ceiling message as soon as the value or the type changes.
+        function showValueErrorNow() {
+            const messageEl = form.querySelector('.ach-field-error[data-error-for="required_value"]');
+            const problem = valueInput.value.trim() ? valueProblem() : "";
+            messageEl.textContent = problem;
+            valueInput.classList.toggle("field-error", Boolean(problem));
+        }
 
         function validateForm() {
             const errors = {};
@@ -588,11 +656,8 @@
             if (!editingBadge && !(iconInput.files && iconInput.files[0])) errors.icon = "Upload a badge icon.";
             if (!descriptionInput.value.trim()) errors.description = "Badge description is required.";
             if (!typeSelect.value) errors.requirement_type = "Choose a requirement type.";
-            const raw = valueInput.value.trim();
-            const n = Number(raw);
-            if (!/^\d+$/.test(raw) || n < 1 || n > maxValue) {
-                errors.required_value = `Enter a whole number from 1 to ${maxValue}.`;
-            }
+            const problem = valueProblem();
+            if (problem) errors.required_value = problem;
             return errors;
         }
 
