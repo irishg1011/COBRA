@@ -1,9 +1,10 @@
 /**
- * admin-login.js - Admin sign in + forgot password (feat/admin-login-page)
+ * admin-login.js - Staff sign in + forgot password (feat/admin-login-page)
  * --------------------------------------------------------------------------
  * Drives admin-login.html. Same behavior as the learner login (script.js),
  * minus Sign Up:
- *   Sign In -> Sign In Successful -> /admin/dashboard
+ *   Sign In -> Sign In Successful -> the role's home (server's data.redirect:
+ *   Admin -> /admin/dashboard, Mentor -> mentor home; feat/mentor-role)
  *   Forgot password -> Verify code (1:00) -> Set New Password -> Success
  * with the same 5-try lockout countdown, password checklist, match
  * indicator, show/hide code, and snake animations (animations.css).
@@ -246,7 +247,7 @@
 
             if (data.success) {
                 showPanel(panels.signInSuccess);
-                setTimeout(() => window.location.replace(data.redirect || "/admin/dashboard"), REDIRECT_DELAY_MS);
+                setTimeout(() => window.location.replace(data.redirect || "/admin/login"), REDIRECT_DELAY_MS);
                 return;
             }
 

@@ -696,3 +696,19 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* feat/mentor-role: admins see Publishing read-only (publishing.html,
+   can_edit = False) - content is managed by Mentors. */
+.publishing-view-only-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1d4ed8;
+    font-size: 13px;
+    font-weight: 500;
+}

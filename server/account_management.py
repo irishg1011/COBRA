@@ -40,6 +40,7 @@ PROFILE_TABLE = "profile_tbl"
 USERTYPE_TABLE = "usertype_tbl"
 
 ADMIN_ROLE = "Admin"
+MENTOR_ROLE = "Mentor"  # feat/mentor-role
 LEARNER_ROLE = "Learner"
 RECENT_LOGINS_LIMIT = 10
 ARCHIVED_PER_PAGE = 8
@@ -332,7 +333,7 @@ def get_account_detail(acc_id, current_admin_id=None):
             "content": None,
         }
 
-        if role == ADMIN_ROLE:
+        if role in (ADMIN_ROLE, MENTOR_ROLE):  # feat/mentor-role: mentors upload content too
             detail["content"] = _load_content(cursor, acc_id)
         cursor.close()
 

@@ -37,6 +37,13 @@
             return div.innerHTML;
         }
 
+        // feat/mentor-role: role -> badge class (Mentor has its own color).
+        function roleBadgeClass(role) {
+            if (role === "Admin") return "badge-admin";
+            if (role === "Mentor") return "badge-mentor";
+            return "badge-learner";
+        }
+
         function badge(cls, label) {
             return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
         }
@@ -314,16 +321,17 @@
             currentAccount = acc;
             nameEl.textContent = acc.full_name;
             accIdEl.textContent = acc.acc_id;
-            badgesEl.innerHTML = `${badge(acc.role === "Admin" ? "badge-admin" : "badge-learner", acc.role)} ${statusBadge(acc)}`
+            badgesEl.innerHTML = `${badge(roleBadgeClass(acc.role), acc.role)} ${statusBadge(acc)}`
                 + (acc.is_self ? ` ${badge("badge-inactive", "You")}` : "");
 
-            const isAdmin = acc.role === "Admin";
-            document.getElementById("accountTabLearning").classList.toggle("is-hidden", isAdmin);
-            document.getElementById("accountTabContent").classList.toggle("is-hidden", !isAdmin);
+            // Staff (Admin or Mentor) get the Content section; learners get Learning.
+            const isStaff = acc.role === "Admin" || acc.role === "Mentor";
+            document.getElementById("accountTabLearning").classList.toggle("is-hidden", isStaff);
+            document.getElementById("accountTabContent").classList.toggle("is-hidden", !isStaff);
 
             fillProfile(acc);
             fillSecurity(acc.security || {}, acc);
-            if (isAdmin) fillContent(acc.content);
+            if (isStaff) fillContent(acc.content);
             else fillLearning(acc.learning);
 
             archiveBtn.disabled = Boolean(acc.archive_block);
@@ -484,7 +492,7 @@
                                 <small class="text-muted cell-truncate-1">${escapeHtml(a.email)}</small>
                             </td>
                             <td><span class="cell-truncate-1 cell-truncate--sm">${escapeHtml(a.username)}</span></td>
-                            <td>${badge(a.role === "Admin" ? "badge-admin" : "badge-learner", a.role)}</td>
+                            <td>${badge(roleBadgeClass(a.role), a.role)}</td>
                             <td>${escapeHtml(a.archived_at)}</td>
                             <td class="text-right">
                                 <button type="button" class="btn-pill-sm btn-pill-light js-restore-account" data-acc-id="${escapeHtml(a.acc_id)}" data-name="${escapeHtml(a.full_name)}">

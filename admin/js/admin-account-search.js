@@ -51,7 +51,7 @@
         }
 
         function roleBadgeHtml(acc) {
-            const roleClass = acc.role === "Admin" ? "badge-admin" : "badge-learner";
+            const roleClass = acc.role === "Admin" ? "badge-admin" : acc.role === "Mentor" ? "badge-mentor" : "badge-learner";
             return `<span class="badge ${roleClass}">${escapeHtml(acc.role)}</span>`;
         }
 
@@ -65,7 +65,7 @@
             const viewBtn = (tab, icon, title, label) =>
                 `<button type="button" class="account-action-btn js-account-view" data-acc-id="${id}" data-tab="${tab}" title="${title}" aria-label="${label} ${name}"><i class="fa-solid ${icon}"></i></button>`;
 
-            const third = acc.role === "Admin"
+            const third = (acc.role === "Admin" || acc.role === "Mentor")
                 ? viewBtn("content", "fa-book", "Content created", "Content created by")
                 : viewBtn("learning", "fa-chart-simple", "Learning progress", "Learning progress of");
 

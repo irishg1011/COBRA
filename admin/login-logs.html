@@ -42,15 +42,20 @@
                     </div>
                 </div>
 
-                <!-- View switcher (plain links to the two existing routes) + Create Administrator -->
+                <!-- View switcher (plain links to the two existing routes) + Create Administrator / Create Mentor -->
                 <div class="page-actions-row">
                     <nav class="page-switcher" aria-label="Account & Security views">
                         <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link active" aria-current="page">Login Logs</a>
                         <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link">Account Management</a>
                     </nav>
-                    <button type="button" id="openCreateAdminBtn" class="btn-create-admin">
-                        <span class="mask-icon icon-plus"></span> Create Administrator
-                    </button>
+                    <div class="page-actions-buttons">
+                        <button type="button" id="openCreateAdminBtn" class="btn-create-admin" data-open-modal="createAdminModal">
+                            <span class="mask-icon icon-plus"></span> Create Administrator
+                        </button>
+                        <button type="button" id="openCreateMentorBtn" class="btn-create-admin" data-open-modal="createMentorModal">
+                            <span class="mask-icon icon-plus"></span> Create Mentor
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Metrics Grid -->
@@ -112,6 +117,7 @@
                             <select class="custom-select" id="logRoleSelect">
                                 <option value="">All Roles</option>
                                 <option value="Administrator">Administrator</option>
+                                <option value="Mentor">Mentor</option>
                                 <option value="Learner">Learner</option>
                             </select>
                             <select class="custom-select" id="logStatusSelect">
@@ -151,6 +157,8 @@
                                     <td>
                                         {% if log.role == 'Admin' %}
                                         <span class="badge badge-admin">{{ log.role }}</span>
+                                        {% elif log.role == 'Mentor' %}
+                                        <span class="badge badge-mentor">{{ log.role }}</span>
                                         {% elif log.role == 'Learner' %}
                                         <span class="badge badge-learner">{{ log.role }}</span>
                                         {% else %}
@@ -195,7 +203,10 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-login-logs.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-create-admin.js') }}"></script>
 
-    <!-- Include Create New Administrator Modal -->
+    <!-- Include Create New Administrator / Create New Mentor Modals -->
     {% include 'admin-create-admin-modal.html' %}
+    {% include 'admin-create-mentor-modal.html' %}
+    {# Shared confirm modal: "discard this form?" when closing a filled-in create modal #}
+    {% include 'confirm-action-modal.html' %}
 </body>
 </html>

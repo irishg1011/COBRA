@@ -103,6 +103,9 @@
             if (log.role === "Admin") {
                 return '<span class="badge badge-admin">Admin</span>';
             }
+            if (log.role === "Mentor") {
+                return '<span class="badge badge-mentor">Mentor</span>';
+            }
             if (log.role === "Learner") {
                 return '<span class="badge badge-learner">Learner</span>';
             }

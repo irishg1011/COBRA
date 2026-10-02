@@ -3,7 +3,7 @@ import hashlib
 import secrets
 from functools import wraps
 from datetime import datetime
-from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for, flash
+from flask import Blueprint, render_template, session, redirect, request, jsonify, url_for, flash, g
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash  # NEW: reuses the exact same hashing scheme as the Learner Sign Up flow
 
@@ -101,6 +101,10 @@ from account_management import (  # feat/archive-accounts: Account Details modal
     get_account_detail, archive_account, restore_account, get_archived_accounts,
     get_archive_block_reason, is_account_archived,
 )
+from user_types import ADMIN_ROLE, MENTOR_ROLE, STAFF_ROLES, get_account_role, get_user_type_id  # feat/mentor-role
+from role_permissions import (  # feat/mentor-role: ONE endpoint -> roles map, default-deny
+    is_allowed, role_home_url, NO_ACCESS_PAGE_MESSAGE, NO_PERMISSION_MESSAGE,
+)
 from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By Lesson + By Learner)
     get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
     get_learners_progress_overview, get_learner_course_detail, empty_learners_progress_overview,
@@ -148,9 +152,14 @@ GENDER_TABLE = "gender_tbl"
 ADMIN_ID_PREFIX = "AD"
 ADMIN_ID_SEQ_DIGITS = 4
 
-# Matches usertype_tbl: 1 = Admin, 2 = Learner (see login.py's
-# ADMIN_U_TYPE/LEARNER_U_TYPE constants).
-ADMIN_U_TYPE = 1
+# feat/mentor-role: staff accounts the Account & Security page can create.
+# Same form, validators, age rules and ID generator for both - only the
+# role (looked up BY NAME in usertype_tbl, never a hardcoded ut_id),
+# the ID prefix and the wording differ.
+STAFF_ACCOUNT_TYPES = {
+    "admin": {"role": ADMIN_ROLE, "prefix": ADMIN_ID_PREFIX, "label": "Administrator"},
+    "mentor": {"role": MENTOR_ROLE, "prefix": "MT", "label": "Mentor"},
+}
 
 
 # ------------------------------------------------------------------
@@ -165,6 +174,7 @@ ADMIN_U_TYPE = 1
 ROLE_FILTER_MAP = {
     "administrator": "Admin",
     "admin": "Admin",
+    "mentor": "Mentor",  # feat/mentor-role
     "learner": "Learner",
 }
 
@@ -229,6 +239,22 @@ def _require_admin_session():
         end_active_session(session.get("session_token"))
         session.clear()
         return redirect(LOGIN_REDIRECT_URL)
+    # feat/mentor-role: the CURRENT role, read from the database on every
+    # request (the session only ever holds the acc_id), then checked
+    # against role_permissions.ENDPOINT_ROLES - default-deny, so an
+    # endpoint missing from the map is refused to everyone.
+    role, role_ok = get_account_role(session.get("admin_id"))
+    if not role_ok:
+        return jsonify({"success": False, "message": "Could not verify your access. Please try again."}), 503
+    if role not in STAFF_ROLES:
+        # Not a staff account (or it vanished): no access to /admin at all.
+        end_active_session(session.get("session_token"))
+        session.clear()
+        return redirect(LOGIN_REDIRECT_URL)
+    g.staff_role = role
+    if not is_allowed(request.endpoint, role):
+        return _deny_access(role)
+
     # NEW: bump active_sessions_tbl.last_seen_at so an admin actively
     # browsing isn't swept as a stale/expired session mid-use (see
     # session_tracker.sweep_expired_sessions()). Passing admin_id lets
@@ -237,6 +263,24 @@ def _require_admin_session():
     # the same token instead of the admin silently disappearing from
     # the "Active Sessions" count until they log out and back in.
     touch_session(session.get("session_token"), session.get("admin_id"))
+
+
+def _is_page_request():
+    """A normal browser page load (GET that wants HTML), not fetch()/AJAX."""
+    if request.method != "GET":
+        return False
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return False
+    # fetch() sends Accept: */* (json wins the tie); a page load asks for text/html.
+    return request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html"
+
+
+def _deny_access(role):
+    """feat/mentor-role: page -> flash + that role's home; anything else -> 403 JSON."""
+    if _is_page_request():
+        flash(NO_ACCESS_PAGE_MESSAGE, "access")
+        return redirect(role_home_url(role))
+    return jsonify({"success": False, "message": NO_PERMISSION_MESSAGE}), 403
 
 
 def get_greeting():
@@ -395,6 +439,9 @@ def inject_current_admin():
     """
     return {
         "current_admin": get_current_admin(),
+        # feat/mentor-role: "Admin" / "Mentor", loaded from the database by
+        # _require_admin_session() on this same request (None when signed out).
+        "current_role": g.get("staff_role"),
         "greeting": get_greeting(),
         "genders": get_gender_options(),
         # feat/title-char-limit: every title input's maxlength comes from
@@ -404,17 +451,19 @@ def inject_current_admin():
 
 
 # ============================================================
-# feat/admin-login-page: ADMIN LOGIN + FORGOT PASSWORD
+# feat/admin-login-page: STAFF LOGIN + FORGOT PASSWORD
 # Thin wrappers - every rule lives in auth_core.py, shared with the
-# learner login. Only admin accounts get in here; a learner account
-# gets the same generic message as an unknown username.
+# learner login. Admin and Mentor accounts get in here (feat/mentor-role);
+# a learner account gets the same generic message as an unknown username.
 # ============================================================
 @admin_bp.route('/login', methods=['GET'])
 def admin_login_page():
-    """Admin sign-in page. An admin who is already signed in goes straight to the dashboard."""
+    """Staff sign-in page. A staff member already signed in goes straight to their role's home."""
     admin_id = session.get("admin_id")
     if admin_id and not is_account_archived(admin_id):
-        return redirect(url_for('admin_bp.admin_dashboard'))
+        role, _ = get_account_role(admin_id)
+        if role in STAFF_ROLES:
+            return redirect(role_home_url(role))
     return render_template('admin-login.html')
 
 
@@ -431,6 +480,7 @@ def admin_login_submit():
         if login_info["session_token"]:
             session["session_token"] = login_info["session_token"]
         session["admin_id"] = login_info["acc_id"]
+        payload["redirect"] = role_home_url(login_info["role"])  # feat/mentor-role: Admin -> dashboard, Mentor -> mentor home
     return jsonify(payload), status
 
 
@@ -709,6 +759,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "active_accounts": 0,
                 "inactive_accounts": 0,
                 "administrators": 0,
+                "mentors": 0,
                 "learners": 0,
                 "locked_accounts": 0,
             }
@@ -716,7 +767,8 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
             total_accounts = len(accounts)
             active_accounts = sum(1 for a in accounts if a["status"] == "Active")
             inactive_accounts = sum(1 for a in accounts if a["status"] == "Inactive")
-            administrators = sum(1 for a in accounts if a["role"] == "Admin")
+            administrators = sum(1 for a in accounts if a["role"] == ADMIN_ROLE)
+            mentors = sum(1 for a in accounts if a["role"] == MENTOR_ROLE)
             learners = sum(1 for a in accounts if a["role"] == "Learner")
             locked_accounts = sum(1 for a in accounts if a["is_locked"])
             metrics = {
@@ -724,6 +776,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "active_accounts": active_accounts,
                 "inactive_accounts": inactive_accounts,
                 "administrators": administrators,
+                "mentors": mentors,
                 "learners": learners,
                 "locked_accounts": locked_accounts,
             }
@@ -966,6 +1019,7 @@ def account_security():
                 "active_accounts": 0,
                 "inactive_accounts": 0,
                 "administrators": 0,
+                "mentors": 0,
                 "learners": 0,
                 "locked_accounts": 0,
             },
@@ -1174,8 +1228,20 @@ def login_logs_metrics():
 
 @admin_bp.route('/create-administrator', methods=['POST'])
 def create_administrator():
+    """Create Administrator modal -> AD... account (see _create_staff_account)."""
+    return _create_staff_account("admin")
+
+
+@admin_bp.route('/create-mentor', methods=['POST'])
+def create_mentor():
+    """feat/mentor-role: Create Mentor modal -> MT... account, same rules as admins."""
+    return _create_staff_account("mentor")
+
+
+def _create_staff_account(account_type):
     """
-    Task: Admin > Create Administrator modal backend.
+    Task: Admin > Create Administrator modal backend (feat/mentor-role:
+    shared by Create Mentor - account_type is a STAFF_ACCOUNT_TYPES key).
 
     Reuses the EXACT SAME validation rules as the Learner Sign Up flow
     (see validators.py - imported by both login.py's /signup route and
@@ -1183,15 +1249,17 @@ def create_administrator():
     password rules a second time. The only meaningful differences from
     Learner sign-up are:
       - no OTP step (the Create Administrator modal has no OTP UI)
-      - the generated account ID uses the "AD" prefix instead of "LR"
-        (via the same id_generator.generate_prefixed_acc_id() function)
-      - u_type is hardcoded to ADMIN_U_TYPE (1) instead of Learner's 2
+      - the generated account ID uses the "AD" (admin) / "MT" (mentor)
+        prefix instead of "LR" (via the same
+        id_generator.generate_prefixed_acc_id() function)
+      - u_type is the Admin / Mentor usertype_tbl row, looked up by name
 
     Returns JSON (not a redirect) so the modal's JS
     (admin-create-admin.js) can show inline validation errors and
     success feedback without a page reload, per the "display validation
     messages dynamically" / "show success feedback" requirements.
     """
+    account = STAFF_ACCOUNT_TYPES[account_type]
     data = request.form if request.form else (request.get_json(silent=True) or {})
 
     # NOTE: acc_id is intentionally NEVER read from the request body -
@@ -1330,8 +1398,13 @@ def create_administrator():
         # password-hashing (werkzeug's generate_password_hash, same
         # call login.py's /signup route makes) as Learner Sign Up.
         # ------------------------------------------------------------
+        u_type = get_user_type_id(connection, account["role"])
+        if u_type is None:
+            cursor.close()
+            return jsonify({"success": False, "message": f"The {account['role']} user type is missing."}), 500
+
         hashed_password = generate_password_hash(password)
-        new_acc_id = generate_prefixed_acc_id(cursor, ADMIN_ID_PREFIX, ADMIN_ID_SEQ_DIGITS)
+        new_acc_id = generate_prefixed_acc_id(cursor, account["prefix"], ADMIN_ID_SEQ_DIGITS)
 
         cursor.execute(
             f"""INSERT INTO {ACCOUNT_TABLE} (
@@ -1343,7 +1416,7 @@ def create_administrator():
                     'Active', NOW(), NULL,
                     0, NULL, 0
                 )""",
-            (new_acc_id, email, username, hashed_password, ADMIN_U_TYPE)
+            (new_acc_id, email, username, hashed_password, u_type)
         )
 
         # Task: "Automatically capitalize all name fields using the
@@ -1368,13 +1441,13 @@ def create_administrator():
 
         return jsonify({
             "success": True,
-            "message": "Administrator account created successfully.",
+            "message": f"{account['label']} account created successfully.",
             "acc_id": new_acc_id,
         }), 201
 
     except Error as e:
         connection.rollback()
-        print(f"admin_routes: failed to create administrator: {e}")
+        print(f"admin_routes: failed to create {account_type} account: {e}")
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
     finally:
         if connection.is_connected():
@@ -1405,14 +1478,19 @@ def preview_next_admin_id():
     that once its own transaction runs. This is expected and harmless -
     the preview is a UX nicety, not a reservation.
 
+    feat/mentor-role: ?type=mentor previews the next MT... ID (default: admin).
+
     Returns JSON: { "success": bool, "next_id": str }
     """
+    account = STAFF_ACCOUNT_TYPES.get((request.args.get('type') or 'admin').strip().lower())
+    if account is None:
+        return jsonify({"success": False, "message": "Unknown account type."}), 400
     connection = get_db_connection()
     if connection is None:
         return jsonify({"success": False, "message": "Could not connect to the database."}), 500
     try:
         cursor = connection.cursor()
-        today_prefix = f"{ADMIN_ID_PREFIX}{datetime.now().strftime('%y%m%d')}"
+        today_prefix = f"{account['prefix']}{datetime.now().strftime('%y%m%d')}"
         cursor.execute(
             f"""SELECT acc_id FROM {ACCOUNT_TABLE}
                 WHERE acc_id LIKE %s
@@ -1955,6 +2033,9 @@ def publishing():
         tree_error=publishing_tree_module.last_tree_error or '',
         initial_tab=tab if tab in PUBLISHING_TABS else 'ready',
         login_key=_publishing_login_key(),
+        # feat/mentor-role: admins get a view-only page (the server still
+        # refuses every action through role_permissions).
+        can_edit=is_allowed('admin_bp.publishing_item_action', g.staff_role),
     )
 
 

@@ -4,15 +4,10 @@
         <img src="/assets/images/logo-ad.png" class="brand-logo" alt="CobraByte">
     </div>
 
+    {# feat/mentor-role: one sidebar, links by role (current_role comes from
+       the database on every request - see role_permissions.py). #}
     <nav class="sidebar-nav">
-        <a href="{{ url_for('admin_bp.admin_dashboard') }}" title="Dashboard" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.admin_dashboard' else '' }}">
-            <span class="sidebar-icon mask-icon icon-nav-dashboard"></span>
-            <span class="nav-label">Dashboard</span>
-        </a>
-        <a href="{{ url_for('admin_bp.account_security') }}" title="Account & Security" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs'] else '' }}">
-            <span class="sidebar-icon mask-icon icon-nav-account"></span>
-            <span class="nav-label">Account & Security</span>
-        </a>
+        {% if current_role == 'Mentor' %}
         <a href="{{ url_for('admin_bp.publishing') }}" title="Publishing" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.publishing' else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-publishing"></span>
             <span class="nav-label">Publishing</span>
@@ -23,7 +18,7 @@
             <span class="sidebar-icon mask-icon icon-nav-course"></span>
             <span class="nav-label">Manage Course</span>
         </a>
-        <a href="{{ url_for('admin_bp.learning_resources') }}" title="Learning Resources" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learning_resources', 'admin_bp.upload_resource'] else '' }}">
+        <a href="{{ url_for('admin_bp.learning_resources') }}" title="Learning Resources" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learning_resources', 'admin_bp.upload_resource', 'admin_bp.upload_video_tutorial'] else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-resources"></span>
             <span class="nav-label">Learning Resources</span>
         </a>
@@ -37,6 +32,31 @@
             <span class="sidebar-icon mask-icon icon-nav-exercises"></span>
             <span class="nav-label">Coding Exercises</span>
         </a>
+
+        <div class="sidebar-section-label"><span>Progress</span></div>
+        <a href="{{ url_for('admin_bp.recommendations') }}" title="Recommendations" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-recommendations"></span>
+            <span class="nav-label">Recommendations</span>
+        </a>
+        <a href="{{ url_for('admin_bp.achievements') }}" title="Achievements" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-achievements"></span>
+            <span class="nav-label">Achievements</span>
+        </a>
+        {% elif current_role == 'Admin' %}
+        <a href="{{ url_for('admin_bp.admin_dashboard') }}" title="Dashboard" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.admin_dashboard' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-dashboard"></span>
+            <span class="nav-label">Dashboard</span>
+        </a>
+        <a href="{{ url_for('admin_bp.account_security') }}" title="Account & Security" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs'] else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-account"></span>
+            <span class="nav-label">Account & Security</span>
+        </a>
+        <a href="{{ url_for('admin_bp.publishing') }}" title="Publishing" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.publishing' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-publishing"></span>
+            <span class="nav-label">Publishing</span>
+        </a>
+
+        <div class="sidebar-section-label"><span>Coding</span></div>
         <a href="{{ url_for('admin_bp.coding_sandbox') }}" title="Coding Sandbox" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.coding_sandbox' else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-sandbox"></span>
             <span class="nav-label">Coding Sandbox</span>
@@ -51,20 +71,13 @@
             <span class="sidebar-icon mask-icon icon-nav-analytics"></span>
             <span class="nav-label">Analytics</span>
         </a>
-        <a href="{{ url_for('admin_bp.recommendations') }}" title="Recommendations" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
-            <span class="sidebar-icon mask-icon icon-nav-recommendations"></span>
-            <span class="nav-label">Recommendations</span>
-        </a>
-        <a href="{{ url_for('admin_bp.achievements') }}" title="Achievements" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.achievements' else '' }}">
-            <span class="sidebar-icon mask-icon icon-nav-achievements"></span>
-            <span class="nav-label">Achievements</span>
-        </a>
 
         <div class="sidebar-section-label"><span>Support</span></div>
         <a href="{{ url_for('admin_bp.reports') }}" title="Reports" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-reports"></span>
             <span class="nav-label">Reports</span>
         </a>
+        {% endif %}
     </nav>
 
     <div class="sidebar-footer">
