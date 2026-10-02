@@ -635,12 +635,13 @@
                     existingVideoIdInput.value = currentVideoId;
                 }
 
-                const backUrl = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("") : "";
+                const savedVideoId = videoTutorialIdInput ? videoTutorialIdInput.value : "";
+                const backUrl = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("", "video", savedVideoId) : "";
                 if (isPublish) {
                     showSuccessToast(result.message || "Video tutorial saved and marked as Ready to Publish.");
                     setTimeout(() => {
                         window.location.href = window.cobraEditorReturnUrlForTab
-                            ? window.cobraEditorReturnUrlForTab("/admin/learning-resources", "ready")
+                            ? window.cobraEditorReturnUrlForTab("/admin/learning-resources", "ready", "video", savedVideoId)
                             : "/admin/learning-resources";
                     }, TOAST_DURATION_MS);
                 } else if (backUrl) {

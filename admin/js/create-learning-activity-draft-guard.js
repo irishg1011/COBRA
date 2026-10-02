@@ -768,7 +768,9 @@
                         const ok = await performSaveDraft();
                         // After a successful save, go back to the list page - or to the
                         // Publishing page when the editor was opened from there.
-                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("/admin/learning-activities") : "/admin/learning-activities";
+                        const back = window.cobraEditorReturnUrl
+                            ? window.cobraEditorReturnUrl("/admin/learning-activities", "activity", activityIdInput ? activityIdInput.value : "")
+                            : "/admin/learning-activities";
                         if (ok && back) {
                             isSubmitting = true;
                             setTimeout(() => { window.location.href = back; }, TOAST_DURATION_MS);
@@ -818,7 +820,7 @@
                 clearDirty();
                 showSuccessToast("Activity saved and marked as Ready to Publish.");
                 setTimeout(() => {
-                    window.location.href = window.cobraEditorReturnUrlForTab("/admin/learning-activities", "ready");
+                    window.location.href = window.cobraEditorReturnUrlForTab("/admin/learning-activities", "ready", "activity", activityId);
                 }, TOAST_DURATION_MS);
             } catch (err) {
                 showPopupAlert("Could not reach the server. Please try again.", "error");

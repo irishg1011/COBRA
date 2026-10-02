@@ -32,6 +32,17 @@
  * Edit Order mode (drag handle + arrows, Save / Cancel) shows every
  * chapter, module and lesson, whatever its status or the active tab.
  * Reuses the shared #confirmActionModal - no native alert()/confirm().
+ *
+ * feat/publishing-focus:
+ *   - Open/closed rows are remembered in localStorage until the next
+ *     login (key includes the server's per-login data-login-key). First
+ *     visit after a login: chapters closed, everything inside open.
+ *   - ?focus=<node id> (sent back by the editors): close everything,
+ *     open only the path to that item, switch to its status tab if
+ *     needed, scroll it to the middle and glow it. Then the param is
+ *     removed from the URL.
+ *   - Actions on this page keep the open/closed state and glow the
+ *     changed rows; + Chapter / + Module / Edit also open the path.
  */
 (function () {
     "use strict";
@@ -87,12 +98,49 @@
         try { tree = JSON.parse(root.dataset.tree || "[]"); } catch (e) { tree = []; }
 
         let activeTab = TAB_STATUS[root.dataset.initialTab] ? root.dataset.initialTab : "ready";
-        const collapsed = {};          // id -> true when collapsed (default open)
         let openMenu = null;           // { id, kind: "name" | "plus" }
         let editOrder = false;
         let snapshot = null;
         let draggedId = null;
         let parentOf = {};             // node id -> parent node (built by indexTree)
+
+        // ------------------------------------------------------------
+        // feat/publishing-focus: remembered open/closed state
+        // ------------------------------------------------------------
+        // openState: node id -> true (open) / false (closed). A missing id
+        // uses the default: chapters closed, everything else open.
+        const STORE_PREFIX = "cobraPublishingTree:";
+        const loginKey = root.dataset.loginKey || "";
+        const storeKey = loginKey ? STORE_PREFIX + loginKey : "";
+        let openState = loadOpenState();
+        let orderOpenBackup = null;    // Edit Order works on a copy, then puts this back
+
+        function loadOpenState() {
+            if (!storeKey) return {};
+            try {
+                // A new login has a new marker: drop the older trees' memory.
+                const stale = [];
+                for (let i = 0; i < window.localStorage.length; i++) {
+                    const key = window.localStorage.key(i);
+                    if (key && key.indexOf(STORE_PREFIX) === 0 && key !== storeKey) stale.push(key);
+                }
+                stale.forEach((key) => window.localStorage.removeItem(key));
+                const saved = JSON.parse(window.localStorage.getItem(storeKey) || "{}");
+                return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function saveOpenState() {
+            if (!storeKey || editOrder) return; // Edit Order never overwrites the memory
+            try { window.localStorage.setItem(storeKey, JSON.stringify(openState)); } catch (e) { /* storage off: still works this visit */ }
+        }
+
+        function isOpen(id) {
+            if (Object.prototype.hasOwnProperty.call(openState, id)) return !!openState[id];
+            return typeOf(id) !== "cat";
+        }
 
         // ------------------------------------------------------------
         // Shared confirm / info modal
@@ -479,6 +527,7 @@
             const cfg = CHECKLIST_MODES[openMenu.mode];
             const items = [...openMenu.checked].map((id) => ({ kind: KIND[typeOf(id)], id: numId(id) }));
             const send = async () => {
+                const before = statusSnapshot();
                 try {
                     const resp = await fetch("/admin/publishing/checklist", {
                         method: "POST",
@@ -498,7 +547,7 @@
                     }
                     openMenu = null;
                     showToast(result.message || "Done.");
-                    await refreshTree();
+                    if (await refreshTree()) glowRows(changedSince(before));
                 } catch (err) {
                     showAlertModal("Could not reach the server. Please try again.", "Error");
                 }
@@ -569,7 +618,7 @@
             const t = typeOf(node.id);
             const [tagText, tagClass] = TAG[t];
             const isContext = !editOrder && node.status !== TAB_STATUS[activeTab];
-            const open = !collapsed[node.id];
+            const open = isOpen(node.id);
 
             let guideHtml = "";
             if (guides !== null) {
@@ -607,7 +656,7 @@
 
             const dragAttr = editOrder ? `data-draggable-row="${node.id}"` : "";
             return `
-                <div class="publishing-row publishing-row-${t}${isContext ? " is-context" : ""}" ${dragAttr}>
+                <div class="publishing-row publishing-row-${t}${isContext ? " is-context" : ""}" data-node-id="${node.id}" ${dragAttr}>
                     <span class="pub-guides">${guideHtml}</span>
                     ${toggle}
                     <span class="publishing-tag ${tagClass}">${tagText}</span>
@@ -627,7 +676,7 @@
                     const isLast = i === visible.length - 1;
                     const kids = kidsOf(node).filter(matchesTab);
                     out.push(rowHtml(node, guides, isLast, kids));
-                    if (!collapsed[node.id] && kids.length) {
+                    if (isOpen(node.id) && kids.length) {
                         walk(kidsOf(node), guides === null ? [] : guides.concat(!isLast));
                     }
                 });
@@ -659,6 +708,117 @@
                 // keep the current tree rather than blanking the page
             }
             return false;
+        }
+
+        // ------------------------------------------------------------
+        // feat/publishing-focus: glow / reveal rows
+        // ------------------------------------------------------------
+        const FOCUS_CLASS = "publishing-row-focus";
+        const STATUS_TAB = { "Draft": "draft", "Ready to Publish": "ready", "Published": "published" };
+
+        function reducedMotion() {
+            try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; }
+        }
+
+        function rowFor(id) {
+            return root.querySelector(`.publishing-row[data-node-id="${id}"]`);
+        }
+
+        // Glow every listed row that is on screen right now.
+        function glowRows(ids) {
+            const reduced = reducedMotion();
+            [...new Set(ids)].forEach((id) => {
+                const row = rowFor(id);
+                if (!row) return;
+                row.classList.remove(FOCUS_CLASS);
+                void row.offsetWidth; // restart the animation
+                row.classList.add(FOCUS_CLASS);
+                setTimeout(() => row.classList.remove(FOCUS_CLASS), reduced ? 1500 : 3600);
+            });
+        }
+
+        function scrollToRow(id) {
+            const row = rowFor(id);
+            if (row) row.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "center" });
+        }
+
+        // Open every parent of this item (the item itself is left as it is).
+        function openPathTo(id) {
+            indexTree();
+            let cur = parentOf[id];
+            while (cur) {
+                openState[cur.id] = true;
+                cur = parentOf[cur.id];
+            }
+        }
+
+        // + Chapter / + Module / Edit: keep the state, open the path, scroll, glow.
+        function revealAndGlow(id) {
+            if (!findNode(id)) return;
+            openPathTo(id);
+            saveOpenState();
+            renderTree();
+            scrollToRow(id);
+            glowRows([id]);
+        }
+
+        // id -> "status|edited", to find what an action changed.
+        function statusSnapshot() {
+            const map = {};
+            (function walk(nodes) {
+                nodes.forEach((n) => { map[n.id] = `${n.status}|${n.edited ? 1 : 0}`; walk(kidsOf(n)); });
+            })(tree);
+            return map;
+        }
+
+        function changedSince(before) {
+            const now = statusSnapshot();
+            return Object.keys(now).filter((id) => before[id] !== now[id]);
+        }
+
+        // id -> "parent:index", to find what Edit Order moved.
+        function orderSnapshot(nodes) {
+            const map = {};
+            (function walk(list, parentId) {
+                list.forEach((n, i) => { map[n.id] = `${parentId}:${i}`; walk(kidsOf(n), n.id); });
+            })(nodes, "");
+            return map;
+        }
+
+        // ?focus=<node id> from an editor: close everything, open only the
+        // path to it, show its tab, scroll to it and glow it.
+        let pendingFocus = null;
+        try {
+            const url = new URL(window.location.href);
+            pendingFocus = url.searchParams.get("focus");
+            if (pendingFocus) {
+                // Remove it right away (tab= stays) so a refresh doesn't re-highlight.
+                url.searchParams.delete("focus");
+                window.history.replaceState(null, "", url.toString());
+            }
+        } catch (e) { pendingFocus = null; }
+
+        function applyPendingFocus() {
+            const id = pendingFocus;
+            pendingFocus = null;
+            if (!id || !/^(cat|mod|res|vid|act|ex)-\d+$/.test(id)) return;
+            const node = findNode(id);
+            if (!node) return; // e.g. archived: load normally
+
+            const next = {};
+            (function walk(nodes) {
+                nodes.forEach((n) => { if (kidsOf(n).length) next[n.id] = false; walk(kidsOf(n)); });
+            })(tree);
+            openState = next;
+            openPathTo(id);
+            saveOpenState(); // the focused layout is the new memory
+
+            if (!matchesTab(node) && STATUS_TAB[node.status]) setTab(STATUS_TAB[node.status]);
+            else renderTree();
+            window.requestAnimationFrame(() => {
+                scrollToRow(id);
+                glowRows([id]);
+            });
         }
 
         // ------------------------------------------------------------
@@ -702,6 +862,7 @@
             const [message, title] = confirmTextFor(action, node);
             showConfirmModal(message, async () => {
                 if (button) button.disabled = true;
+                const before = statusSnapshot();
                 try {
                     const resp = await fetch(`/admin/publishing/${KIND[typeOf(node.id)]}/${numId(node.id)}/${action}`, {
                         method: "POST", credentials: "same-origin",
@@ -713,7 +874,7 @@
                         return;
                     }
                     showToast(result.message || "Saved.");
-                    await refreshTree();
+                    if (await refreshTree()) glowRows([node.id].concat(changedSince(before)));
                 } catch (err) {
                     showAlertModal("Could not reach the server. Please try again.", "Error");
                     if (button) button.disabled = false;
@@ -886,7 +1047,8 @@
             return pairs.find(([el]) => el && !(el.value || "").trim()) || null;
         }
 
-        function wireSubmit(form, modal, handler) {
+        // focusFor(result): node id to open, scroll to and glow after the save.
+        function wireSubmit(form, modal, handler, focusFor) {
             if (!form) return;
             let busy = false;
             form.addEventListener("submit", async (e) => {
@@ -897,9 +1059,10 @@
                     const result = await handler();
                     if (!result) return;
                     if (!result.success) { showAlertModal(result.message || "Could not save.", "Not Saved"); return; }
+                    const focusId = focusFor ? focusFor(result) : null; // before closeModal() resets the form
                     closeModal(modal);
                     showToast(result.message || "Saved.");
-                    await refreshTree();
+                    if (await refreshTree() && focusId) revealAndGlow(focusId);
                 } catch (err) {
                     showAlertModal("Could not reach the server. Please try again.", "Error");
                 } finally {
@@ -916,7 +1079,7 @@
             const name = ($("newCategoryName").value || "").trim();
             if (!name) return fieldError($("newCategoryName"), "Please enter a chapter name.");
             return postForm("/admin/manage-course/categories/create", { category_name: name });
-        });
+        }, (result) => (result.cat_id ? `cat-${result.cat_id}` : null));
 
         // + Module (chapter locked)
         const createModuleModal = $("createModuleModal");
@@ -938,7 +1101,7 @@
             const catId = $("newModuleCategory").value;
             // No module_stats_id: the server starts new modules as Draft.
             return postForm("/admin/manage-course/modules/create", { module_name: name, description: desc, cat_id: catId });
-        });
+        }, (result) => (result.module_id ? `mod-${result.module_id}` : null));
 
         // Edit chapter
         const editCategoryModal = $("editCategoryModal");
@@ -953,7 +1116,7 @@
             const name = ($("editCategoryName").value || "").trim();
             if (!name) return fieldError($("editCategoryName"), "Please enter a chapter name.");
             return postForm(`/admin/manage-course/categories/${$("editCategoryId").value}/update`, { category_name: name });
-        });
+        }, () => ($("editCategoryId").value ? `cat-${$("editCategoryId").value}` : null));
 
         // Edit module
         const editModuleModal = $("editModuleModal");
@@ -977,7 +1140,7 @@
             const desc = $("editModuleDesc").value.trim();
             const catId = $("editModuleCategory").value;
             return postForm(`/admin/manage-course/modules/${$("editModuleId").value}/update`, { module_name: name, description: desc, cat_id: catId });
-        });
+        }, () => ($("editModuleId").value ? `mod-${$("editModuleId").value}` : null));
 
         function doEdit(node) {
             const t = typeOf(node.id);
@@ -1037,6 +1200,7 @@
         }
 
         function startEditOrder() {
+            orderOpenBackup = Object.assign({}, openState); // put back when Edit Order ends
             editOrder = true;
             snapshot = JSON.stringify(tree);
             openMenu = null;
@@ -1049,6 +1213,7 @@
             tree = JSON.parse(snapshot);
             editOrder = false;
             snapshot = null;
+            if (orderOpenBackup) { openState = orderOpenBackup; orderOpenBackup = null; }
             setToolbarDisabled(false);
             setOrderActionsHtml();
             updateCounts();
@@ -1084,12 +1249,18 @@
             const results = await Promise.all(requests);
             const failed = results.filter((r) => !r.success);
 
+            // Rows that moved: glow them once the tree is back.
+            const beforeOrder = orderSnapshot(JSON.parse(snapshot));
+            const afterOrder = orderSnapshot(tree);
+            const moved = Object.keys(afterOrder).filter((id) => beforeOrder[id] !== afterOrder[id]);
+
             editOrder = false;
             snapshot = null;
+            if (orderOpenBackup) { openState = orderOpenBackup; orderOpenBackup = null; }
             setToolbarDisabled(false);
             setOrderActionsHtml();
             if (failed.length) showAlertModal("Some of the new order could not be saved. Please try again.", "Order Not Fully Saved");
-            await refreshTree();
+            if (await refreshTree()) glowRows(moved);
         }
 
         // Drag and drop - only within the same parent, like the arrows.
@@ -1144,7 +1315,8 @@
         root.addEventListener("click", (e) => {
             const toggle = e.target.closest(".js-pub-toggle");
             if (toggle) {
-                collapsed[toggle.dataset.id] = !collapsed[toggle.dataset.id];
+                openState[toggle.dataset.id] = !isOpen(toggle.dataset.id);
+                saveOpenState(); // skipped in Edit Order
                 renderTree();
                 return;
             }
@@ -1309,7 +1481,10 @@
                 if (!ok && root.dataset.treeError) {
                     showLoadError(`Could not load the course tree: ${root.dataset.treeError}`);
                 }
+                if (ok) applyPendingFocus();
             });
+        } else {
+            applyPendingFocus();
         }
     });
 })();

@@ -458,7 +458,9 @@
                         const ok = await performSaveDraft();
                         // After a successful save, go back to the list page - or to the
                         // Publishing page when the editor was opened from there.
-                        const back = window.cobraEditorReturnUrl ? window.cobraEditorReturnUrl("/admin/learning-resources") : "/admin/learning-resources";
+                        const back = window.cobraEditorReturnUrl
+                            ? window.cobraEditorReturnUrl("/admin/learning-resources", "lesson", resourceIdInput ? resourceIdInput.value : "")
+                            : "/admin/learning-resources";
                         if (ok && back) {
                             isSubmitting = true;
                             setTimeout(() => { window.location.href = back; }, TOAST_DURATION_MS);
@@ -594,7 +596,7 @@
                 showSuccessToast(result.message || "Lesson saved and marked as Ready to Publish.");
                 setTimeout(() => {
                     window.location.href = window.cobraEditorReturnUrlForTab
-                        ? window.cobraEditorReturnUrlForTab("/admin/learning-resources", "ready")
+                        ? window.cobraEditorReturnUrlForTab("/admin/learning-resources", "ready", "lesson", resourceIdInput ? resourceIdInput.value : "")
                         : "/admin/learning-resources";
                 }, TOAST_DURATION_MS);
                 return true;
