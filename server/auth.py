@@ -43,10 +43,7 @@ CORS(app)  # allows requests from other origins/ports, e.g. Live Server on :5500
 # ============================================================
 # DATABASE CONFIG (same as your cobradb.py)
 # ============================================================
-DB_HOST = "localhost"
-DB_USER = "root"
-DB_PASSWORD = ""            # leave empty for default XAMPP/WAMP setup
-DB_NAME = "cobra_db"
+from cobradb import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME  # single source of DB settings
 
 ACCOUNT_TABLE = "account_tbl"
 PROFILE_TABLE = "profile_tbl"       # <-- confirm this table name
