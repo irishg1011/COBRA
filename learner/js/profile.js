@@ -2,7 +2,8 @@
  * profile.js - learner View Profile page (/profile)
  * Loads /api/profile/overview (which also awards any newly earned
  * badges) and renders the hero, Topic Performance Breakdown, Your Stats,
- * Areas to Improve and the Badges & Achievements tab.
+ * Areas to Improve and the Badges & Achievements tab (badges + the
+ * Certificate of Completion card).
  * Badges are fetched from the database (badges_tbl) - mentors create
  * them on Mentor > Achievements; nothing about a badge is hardcoded here.
  * Styles: learner/css/profile.css
@@ -157,6 +158,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // feat/certificate: the Certificate of Completion card above the badges.
+    // The server decides whether it is unlocked (certificates.py).
+    function renderCertificate(cert) {
+        const card = $('certificateCard');
+        if (!card || !cert) return;
+        const text = $('certificateCardText');
+        card.classList.toggle('is-locked', !cert.unlocked);
+        $('certificateCardBtn').hidden = !cert.unlocked;
+        if (cert.unlocked) {
+            $('certificateCardIcon').innerHTML = '<i class="fa-solid fa-graduation-cap"></i>';
+            text.textContent = `You completed the ${cert.course_name} on ${cert.completed_on}.`;
+        } else if (cert.chapters_total) {
+            const s = cert.chapters_total === 1 ? '' : 's';
+            text.textContent = `Pass every chapter of the ${cert.course_name} to unlock your certificate. `
+                + `${cert.chapters_passed} of ${cert.chapters_total} chapter${s} passed.`;
+        } else {
+            text.textContent = `Pass every chapter of the ${cert.course_name} to unlock your certificate.`;
+        }
+    }
+
     // ---------------- Tabs ----------------
     const tabs = [
         { tab: $('tabAnalytics'), panel: $('panelAnalytics') },
@@ -197,6 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTopics(data.topics, data.pass_percent);
             renderAreas(data.areas_to_improve, data.pass_percent);
             renderBadges(data.badges, data.stats);
+            renderCertificate(data.certificate);
             $('profileLoading').hidden = true;
             $('profileContent').hidden = false;
         })

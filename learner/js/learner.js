@@ -147,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
         badge:         { icon: 'fa-award',            badge: 'fa-star',             tone: 'gold' },
         module_passed: { icon: 'fa-layer-group',      badge: 'fa-check',            tone: 'green' },
         chapter_done:  { icon: 'fa-flag-checkered',   badge: 'fa-check',            tone: 'teal' },
+        course_done:   { icon: 'fa-graduation-cap',   badge: 'fa-star',             tone: 'gold' },
         retake:        { icon: 'fa-arrow-rotate-right', badge: 'fa-exclamation',    tone: 'orange' },
         review:        { icon: 'fa-lightbulb',        badge: 'fa-book-open',        tone: 'orange' },
         security:      { icon: 'fa-lock',             badge: 'fa-shield-halved',    tone: 'blue' },
