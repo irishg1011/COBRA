@@ -72,9 +72,16 @@
         // ------------------------------------------------------------
         // Lesson dropdown (Module -> Lesson step)
         // ------------------------------------------------------------
+        // feat/activity-auto-title: the Activity Title is built from the
+        // Lesson; setting the Lesson by script fires no "change" event.
+        function refreshActivityTitle() {
+            if (typeof window.cobraByteUpdateActivityTitle === "function") window.cobraByteUpdateActivityTitle();
+        }
+
         function resetLessonDropdown() {
             lessonSelect.innerHTML = LESSON_PLACEHOLDER_HTML;
             lessonSelect.disabled = true;
+            refreshActivityTitle();
         }
 
         async function loadLessonsForModule(moduleId) {
@@ -183,6 +190,7 @@
                 loadLessonsForModule(preselectModuleId).then(() => {
                     if (preselectResourceId) {
                         lessonSelect.value = preselectResourceId;
+                        refreshActivityTitle();
                     }
                 });
             });

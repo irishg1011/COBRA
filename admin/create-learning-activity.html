@@ -113,8 +113,12 @@
                         </div>
 
                         <div class="form-group mb-20">
-                            <label class="form-label" for="activityTitle">Activity Title *</label>
-                            <input type="text" id="activityTitle" name="activity_title" class="form-control" placeholder="Enter activity title..." maxlength="{{ title_limits.activity }}" value="{{ existing_activity.activity_title if existing_activity else '' }}">
+                            <!-- feat/activity-auto-title: built from Lesson + Activity Type
+                                 ("Variables – Multiple Choice") by
+                                 create-learning-activity-validations.js. Read-only; the
+                                 server builds it again on every save. -->
+                            <label class="form-label" for="activityTitle">Activity Title * <i class="fa-solid fa-lock activity-title-lock-icon" aria-hidden="true"></i></label>
+                            <input type="text" id="activityTitle" name="activity_title" class="form-control activity-title-locked" placeholder="Select a lesson and activity type" maxlength="{{ title_limits.activity }}" value="{{ existing_activity.activity_title if existing_activity else '' }}" readonly aria-readonly="true" tabindex="-1" title="Filled automatically from the lesson and activity type">
                             <small class="char-counter" data-counter-for="activityTitle"></small>
                         </div>
 
@@ -207,9 +211,14 @@
                                     </div>
                                 </div>
 
-                                <button type="button" id="addQuestionMainBtn" class="btn btn-success-custom w-100">
-                                    <i class="fa-solid fa-plus"></i> Add Question
-                                </button>
+                                <!-- feat/activity-add-many: "Add [n] questions" -->
+                                <div class="add-many-row">
+                                    <button type="button" id="addQuestionMainBtn" class="btn btn-success-custom">
+                                        <i class="fa-solid fa-plus"></i> Add
+                                    </button>
+                                    <input type="number" id="addQuestionCount" class="form-control add-many-count js-add-many-count" value="1" min="1" max="20" step="1" aria-label="How many questions to add" data-singular="question" data-plural="questions">
+                                    <label class="add-many-label" for="addQuestionCount">question</label>
+                                </div>
                             </div>
 
                             <!-- Fill in the Blanks Space Holder (Hidden by default) -->
@@ -220,9 +229,13 @@
                                     </div>
                                 </div>
 
-                                <button type="button" id="addFillBlankMainBtn" class="btn btn-success-custom w-100 mt-14">
-                                    <i class="fa-solid fa-plus"></i> Add Blank Item
-                                </button>
+                                <div class="add-many-row">
+                                    <button type="button" id="addFillBlankMainBtn" class="btn btn-success-custom">
+                                        <i class="fa-solid fa-plus"></i> Add
+                                    </button>
+                                    <input type="number" id="addFillBlankCount" class="form-control add-many-count js-add-many-count" value="1" min="1" max="20" step="1" aria-label="How many blank items to add" data-singular="item" data-plural="items">
+                                    <label class="add-many-label" for="addFillBlankCount">item</label>
+                                </div>
                             </div>
 
                             <!-- Flashcards Space Holder (Hidden by default) -->
@@ -234,9 +247,13 @@
                                 </div>
 
                                 <!-- OUTSIDE BUTTON: Add Flashcard Main Button -->
-                                <button type="button" class="add-question-btn" id="addFlashcardMainBtn">
-                                    <i class="fa-solid fa-plus"></i> Add Flashcard
-                                </button>
+                                <div class="add-many-row">
+                                    <button type="button" class="add-question-btn" id="addFlashcardMainBtn">
+                                        <i class="fa-solid fa-plus"></i> Add
+                                    </button>
+                                    <input type="number" id="addFlashcardCount" class="form-control add-many-count js-add-many-count" value="1" min="1" max="20" step="1" aria-label="How many flashcards to add" data-singular="card" data-plural="cards">
+                                    <label class="add-many-label" for="addFlashcardCount">card</label>
+                                </div>
 
                             </div>
                         </div>

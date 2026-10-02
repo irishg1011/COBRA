@@ -62,10 +62,15 @@ from learning_activities import (
     ensure_la_stats, LA_STATS_TABLE, LEARNING_ACTIVITIES_TABLE,
     ensure_activity_types, ACTIVITY_TYPES_TABLE,
 )
-from activity_validation import validate_activity_title, validate_activity_type_for_lesson  # Task #53 & Task #62
+from activity_validation import (  # Task #53 & Task #62
+    validate_activity_type_for_lesson,
+    get_lesson_title, build_activity_title, validate_generated_activity_title,  # feat/activity-auto-title
+)
 from activity_points import calculate_activity_points_from_lists  # Task #55/#56: never trust client-supplied points
 from learning_activity_content import save_activity_content, get_activity_content, ContentInUseError  # Task #56: Section 2 persistence; ContentInUseError: feat/publishing-tree
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
+
+MCQ_MAX_OPTIONS = 6  # feat/activity-add-many: options A-F
 
 
 def get_la_draft_status_id(connection=None):
@@ -223,10 +228,9 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
         activity_id (int | str | None): the la_id from a PRIOR save on
             this same activity, or None/empty for the very first save
             (which INSERTs a new row).
-        activity_title (str): raw, as-typed title - normalized to
-            sentence case and checked for GLOBAL uniqueness exactly
-            like the final Publish flow (Task #53), excluding this
-            activity's own row when updating.
+        activity_title (str): IGNORED (feat/activity-auto-title) - kept
+            so callers don't change. The saved title is always built
+            here as "<Lesson name> – <Activity type>".
         cat_id / module_id / resource_id (int | str | None): the
             selected Category / Module / Lesson.
         activity_type (str): "Multiple Choice", "Fill in the Blanks",
@@ -262,15 +266,6 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
         except (TypeError, ValueError):
             existing_id = None
 
-    # Task #53: casing normalization ("Python quiz") + GLOBAL uniqueness
-    # check across the whole learning_activities_tbl, excluding this
-    # activity's own row when re-saving an existing draft so it doesn't
-    # collide with itself.
-    is_valid, result = validate_activity_title(activity_title, exclude_la_id=existing_id)
-    if not is_valid:
-        return False, result, None, 0
-    title = result
-
     cat_id = cat_id or None
     module_id = module_id or None
     resource_id = resource_id or None
@@ -294,10 +289,30 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
     if not is_type_valid:
         return False, type_err_msg, None, 0
 
+    # feat/activity-auto-title: the client's activity_title is IGNORED.
+    # The title is always "<lesson's current name> – <activity type>",
+    # built here, then checked for length + uniqueness (archived
+    # activities don't count), excluding this activity's own row.
+    lesson_title = get_lesson_title(resource_id)
+    if not lesson_title:
+        return False, "Could not find the selected lesson. Please refresh and try again.", None, 0
+    is_valid, result = validate_generated_activity_title(
+        build_activity_title(lesson_title, activity_type_name), exclude_la_id=existing_id
+    )
+    if not is_valid:
+        return False, result, None, 0
+    title = result
+
     # Task #103: Validate Multiple Choice questions for duplicate options and matching feedback
     if activity_type_name in ("Multiple Choice", "Quiz") and questions:
         for q_idx, q in enumerate(questions):
             opts = q.get("options") or []
+            # feat/activity-add-many: at most 6 options (A-F) per question.
+            # Blank rows are dropped on save, so only filled ones count. The
+            # minimum of 2 stays an editor check, as before (drafts may be
+            # half-filled).
+            if len([o for o in opts if (o.get("text") or "").strip()]) > MCQ_MAX_OPTIONS:
+                return False, f"Question #{q_idx + 1} has more than {MCQ_MAX_OPTIONS} answer options (A-F).", None, 0
             seen_opts = set()
             for opt_idx, opt in enumerate(opts):
                 opt_text = (opt.get("text") or "").strip()

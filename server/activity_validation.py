@@ -40,14 +40,74 @@ This file never touches Flask/session state directly - admin_routes.py
 is the only place these get turned into HTTP responses, matching this
 project's existing convention (lesson_validation.py, manage_course.py,
 etc.).
+
+feat/activity-auto-title:
+    Activity titles are no longer typed. They are always built on the
+    server as "<Lesson name> – <Activity type>" (build_activity_title /
+    generate_activity_title) and checked by
+    validate_generated_activity_title() - length + uniqueness, no casing
+    change (the type keeps its capitals: "Variables – Multiple Choice").
+    ARCHIVED activities never block a title, so a new activity can reuse
+    the title of an archived one for the same lesson + type.
 """
 
 from mysql.connector import Error
 from cobradb import get_db_connection
 from text_formatting import format_display_name
 from validators import validate_title_length  # feat/title-char-limit
+from title_history import log_title_change  # feat/activity-auto-title: lesson rename -> activity titles
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
+LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
+
+# feat/activity-auto-title: "<Lesson name> – <Activity type>" (en dash)
+ACTIVITY_TITLE_SEPARATOR = " \u2013 "
+
+
+def build_activity_title(lesson_title, activity_type_name):
+    """
+    "<Lesson name> – <Activity type>", e.g. "Variables – Multiple Choice".
+    Returns "" when either part is missing. Never truncated.
+    """
+    lesson = (lesson_title or "").strip()
+    type_name = (activity_type_name or "").strip()
+    if not lesson or not type_name:
+        return ""
+    return f"{lesson}{ACTIVITY_TITLE_SEPARATOR}{type_name}"
+
+
+def get_lesson_title(resource_id, connection=None):
+    """Current resource_title of a lesson, or None (missing lesson / DB error)."""
+    try:
+        rid = int(resource_id)
+    except (TypeError, ValueError):
+        return None
+
+    own_connection = connection is None
+    if own_connection:
+        connection = get_db_connection()
+        if connection is None:
+            return None
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"SELECT resource_title FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",
+            (rid,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row[0] if row and row[0] else None
+    except Error as e:
+        print(f"activity_validation: failed to read lesson {resource_id} title: {e}")
+        return None
+    finally:
+        if own_connection and connection is not None and connection.is_connected():
+            connection.close()
+
+
+def generate_activity_title(resource_id, activity_type_name, connection=None):
+    """Server-side title for an activity: built from the lesson's CURRENT name."""
+    return build_activity_title(get_lesson_title(resource_id, connection), activity_type_name)
 
 
 def format_activity_title(value):
@@ -66,7 +126,7 @@ def format_activity_title(value):
     return format_display_name(value)
 
 
-def is_activity_title_taken(title, exclude_la_id=None):
+def is_activity_title_taken(title, exclude_la_id=None, format_case=True):
     """
     Checks whether `title` (after formatting) already exists ANYWHERE in
     learning_activities_tbl - across every category, module, and lesson,
@@ -81,6 +141,10 @@ def is_activity_title_taken(title, exclude_la_id=None):
         exclude_la_id (int | None): when re-validating an existing
             activity (e.g. editing a saved draft), pass its own la_id so
             the row doesn't collide with itself.
+        format_case (bool): False for generated titles - compare them
+            as they are (the check itself is case-insensitive anyway).
+
+    Archived activities are ignored (feat/activity-auto-title).
 
     Returns:
         True  - an activity with this title already exists somewhere.
@@ -90,7 +154,7 @@ def is_activity_title_taken(title, exclude_la_id=None):
             (block the save) rather than silently allowing a possible
             duplicate through.
     """
-    name = format_activity_title(title)
+    name = format_activity_title(title) if format_case else (title or "").strip()
     if not name:
         return None
 
@@ -100,17 +164,22 @@ def is_activity_title_taken(title, exclude_la_id=None):
 
     try:
         cursor = connection.cursor()
+        # feat/activity-auto-title: archived activities never block a title.
         if exclude_la_id:
             cursor.execute(
-                f"""SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE}
-                    WHERE LOWER(activity_title) = LOWER(%s) AND la_id != %s
+                f"""SELECT la.la_id FROM {LEARNING_ACTIVITIES_TABLE} la
+                    LEFT JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
+                    WHERE LOWER(la.activity_title) = LOWER(%s) AND la.la_id != %s
+                      AND (las.la_stats_name IS NULL OR las.la_stats_name != 'Archived')
                     LIMIT 1""",
                 (name, exclude_la_id)
             )
         else:
             cursor.execute(
-                f"""SELECT la_id FROM {LEARNING_ACTIVITIES_TABLE}
-                    WHERE LOWER(activity_title) = LOWER(%s)
+                f"""SELECT la.la_id FROM {LEARNING_ACTIVITIES_TABLE} la
+                    LEFT JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
+                    WHERE LOWER(la.activity_title) = LOWER(%s)
+                      AND (las.la_stats_name IS NULL OR las.la_stats_name != 'Archived')
                     LIMIT 1""",
                 (name,)
             )
@@ -165,6 +234,69 @@ def validate_activity_title(title, exclude_la_id=None):
         )
 
     return True, normalized
+
+
+def sync_lesson_activity_titles(cursor, resource_id, lesson_title, changed_by=None):
+    """
+    feat/activity-auto-title: after a lesson is renamed, rewrite the
+    titles of ALL its activities (archived ones too, so a later restore
+    already has the right name) to "<new lesson name> – <type>".
+
+    Runs on the CALLER's cursor, inside the caller's transaction - the
+    caller commits or rolls back the lesson rename and these together.
+    Each change is logged in Name History ('activity' entries) with the
+    same changed_by. Lesson names are globally unique, so the new titles
+    can't collide. Returns how many activities were renamed.
+    """
+    cursor.execute(
+        f"""SELECT la.la_id, la.activity_title, at.activity_type_name
+            FROM {LEARNING_ACTIVITIES_TABLE} la
+            LEFT JOIN {ACTIVITY_TYPES_TABLE} at ON la.activity_type_id = at.activity_type_id
+            WHERE la.resource_id = %s""",
+        (resource_id,)
+    )
+    renamed = 0
+    for la_id, old_title, type_name in cursor.fetchall():
+        new_title = build_activity_title(lesson_title, type_name)
+        if not new_title or new_title == old_title:
+            continue
+        cursor.execute(
+            f"UPDATE {LEARNING_ACTIVITIES_TABLE} SET activity_title = %s, updated_at = NOW() WHERE la_id = %s",
+            (new_title, la_id)
+        )
+        log_title_change(cursor, "activity", la_id, old_title, new_title, changed_by)
+        renamed += 1
+    return renamed
+
+
+def validate_generated_activity_title(title, exclude_la_id=None):
+    """
+    feat/activity-auto-title: checks a title built by
+    generate_activity_title(). Same (is_valid, message_or_title)
+    convention as validate_activity_title(), but the title is kept
+    exactly as built (no casing change) and is never truncated.
+    """
+    title = (title or "").strip()
+    if not title:
+        return False, "Please select a lesson and an activity type."
+
+    is_valid, _msg = validate_title_length(title, "activity", "Activity title")
+    if not is_valid:
+        return False, (
+            "This lesson's name is too long to build the activity title "
+            f'("{title}"). Please shorten the lesson name first.'
+        )
+
+    taken = is_activity_title_taken(title, exclude_la_id=exclude_la_id, format_case=False)
+    if taken is None:
+        return False, "Could not verify activity title uniqueness. Please try again."
+    if taken:
+        return False, (
+            f'An activity named "{title}" already exists. Each lesson can only '
+            "have one activity of each type."
+        )
+
+    return True, title
 
 
 ACTIVITY_TYPES_TABLE = "activity_types_tbl"

@@ -13,7 +13,7 @@ through the SAME rules a normal rename does for that type:
               no duplicate name inside the same chapter
     lesson    format_lesson_title, 60-char limit, globally unique
     video     format_video_title, 60-char limit
-    activity  validate_activity_title (format + limit + unique)
+    activity  only its generated "<Lesson> – <Type>" title (feat/activity-auto-title)
     exercise  validate_exercise_title (format + limit + unique)
 
 If an old name is now taken or too long, the revert is refused with
@@ -30,7 +30,9 @@ from cobradb import get_db_connection
 from validators import validate_title_length
 from text_formatting import format_display_name, format_sentence_case
 from lesson_validation import format_lesson_title, is_lesson_title_taken
-from activity_validation import validate_activity_title
+from activity_validation import (
+    build_activity_title, validate_generated_activity_title, sync_lesson_activity_titles,  # feat/activity-auto-title
+)
 from coding_exercises import validate_exercise_title
 from video_tutorials import format_video_title
 from title_history import (
@@ -94,7 +96,23 @@ def _prepare_title(cursor, entity_type, entity_id, raw_title):
         return True, name
 
     if entity_type == "activity":
-        ok, result = validate_activity_title(raw_title, exclude_la_id=entity_id)
+        # feat/activity-auto-title: an activity's title is always
+        # "<Lesson> – <Type>", so only that title can be put back. Older
+        # free-text names are refused - rename the lesson instead.
+        cursor.execute(
+            """SELECT lr.resource_title, at.activity_type_name
+               FROM learning_activities_tbl la
+               LEFT JOIN learning_resources_tbl lr ON la.resource_id = lr.resource_id
+               LEFT JOIN activity_types_tbl at ON la.activity_type_id = at.activity_type_id
+               WHERE la.la_id = %s""",
+            (entity_id,)
+        )
+        row = cursor.fetchone()
+        generated = build_activity_title(row[0], row[1]) if row else ""
+        if not generated or (raw_title or "").strip() != generated:
+            return False, ("Activity titles follow their lesson name and type, so older names "
+                           "can't be put back. Rename the lesson to change this title.")
+        ok, result = validate_generated_activity_title(generated, exclude_la_id=entity_id)
         return (True, result) if ok else (False, result)
 
     if entity_type == "exercise":
@@ -155,6 +173,10 @@ def revert_title(history_id, changed_by=None):
         )
         log_title_change(cursor, entity_type, entity_id, current_title, new_title,
                          changed_by=changed_by, change_type="reverted")
+        # feat/activity-auto-title: a reverted lesson name renames its
+        # activities too, in this same transaction.
+        if entity_type == "lesson":
+            sync_lesson_activity_titles(cursor, entity_id, new_title, changed_by)
         connection.commit()
         cursor.close()
         return True, f'{label} renamed back to "{new_title}".'
