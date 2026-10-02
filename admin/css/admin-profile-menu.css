@@ -1,0 +1,161 @@
+/* ==========================================================================
+   STAFF PROFILE DROPDOWN (feat/staff-profile-menu) - admin-header.html
+   Same format as the learner header's profile dropdown
+   (learner/css/profile-menu.css): identity row, items, Logout.
+   Loaded from admin-header.html, so it is on every admin and mentor page.
+   Script: js/admin-profile-menu.js.
+   ========================================================================== */
+
+.staff-menu {
+    position: relative;
+}
+
+/* The header profile area (photo + name + arrow) is the button that opens
+   the dropdown. "button." so these beat the browser's default button look. */
+button.admin-profile-badge {
+    padding: 4px 6px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    transition: background 0.2s;
+}
+
+button.admin-profile-badge:hover,
+button.admin-profile-badge[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.55);
+}
+
+button.admin-profile-badge:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+/* The arrow flips while the dropdown is open */
+.admin-profile-badge .dropdown-arrow-img {
+    transition: transform 0.2s;
+}
+
+.admin-profile-badge[aria-expanded="true"] .dropdown-arrow-img {
+    transform: rotate(180deg);
+}
+
+/* --- Dropdown --- */
+.staff-menu-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 260px;
+    padding: 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+    z-index: 1500;
+    animation: staffMenuIn 0.14s ease-out;
+}
+
+.staff-menu-panel[hidden] {
+    display: none;
+}
+
+@keyframes staffMenuIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Who is logged in */
+.staff-menu-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+}
+
+.staff-menu-avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.staff-menu-identity-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.staff-menu-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--admin-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.staff-menu-sub {
+    font-size: 12.5px;
+    color: var(--admin-muted);
+}
+
+.staff-menu-divider {
+    height: 1px;
+    margin: 6px 4px;
+    background: #e2e8f0;
+}
+
+.staff-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #1e293b;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.staff-menu-item i {
+    width: 18px;
+    text-align: center;
+    font-size: 16px;
+    color: #475569;
+}
+
+.staff-menu-item:hover,
+.staff-menu-item:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+.staff-menu-logout,
+.staff-menu-logout i {
+    color: #dc2626;
+}
+
+.staff-menu-logout:hover,
+.staff-menu-logout:focus-visible {
+    background: #fef2f2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .staff-menu-panel {
+        animation: none;
+    }
+
+    button.admin-profile-badge,
+    .admin-profile-badge .dropdown-arrow-img {
+        transition: none;
+    }
+}

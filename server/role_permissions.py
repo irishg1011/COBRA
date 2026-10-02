@@ -48,6 +48,12 @@ ENDPOINT_ROLES = {
     "admin_bp.profile_photo_upload": BOTH,
     "admin_bp.profile_photo_remove": BOTH,
 
+    # Change Password from the header dropdown (feat/staff-change-password) - own account only
+    "admin_bp.staff_change_password": BOTH,
+    "admin_bp.staff_password_send_otp": BOTH,
+    "admin_bp.staff_password_verify_otp": BOTH,
+    "admin_bp.staff_password_reset": BOTH,
+
     # Publishing - admins view only (page + read-only refresh)
     "admin_bp.publishing": BOTH,
     "admin_bp.publishing_data": BOTH,

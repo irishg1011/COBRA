@@ -1,31 +1,10 @@
 /* ==========================================================================
-   PROFILE PHOTO (feat/profile-photo) - shared header + profile-photo-modal.html
+   PROFILE PHOTO (feat/profile-photo) - profile-photo-modal.html
    Loaded from admin-header.html, so it is on every admin and mentor page.
+   The header button and its dropdown are in admin-profile-menu.css.
    Everything shared (.modal-overlay, pill buttons, .is-hidden) comes from
    admin-style.css.
    ========================================================================== */
-
-/* The header profile area is now a button that opens the photo popup.
-   "button." so these beat the browser's default button look. */
-button.admin-profile-badge {
-    padding: 4px 6px;
-    border: none;
-    border-radius: 10px;
-    background: none;
-    font: inherit;
-    color: inherit;
-    text-align: left;
-    transition: background 0.2s;
-}
-
-button.admin-profile-badge:hover {
-    background: rgba(255, 255, 255, 0.55);
-}
-
-button.admin-profile-badge:focus-visible {
-    outline: 2px solid var(--admin-blue);
-    outline-offset: 2px;
-}
 
 /* --- Popup --- */
 .photo-modal-card {
@@ -141,10 +120,4 @@ button.admin-profile-badge:focus-visible {
     opacity: 0;
     overflow: hidden;
     pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    button.admin-profile-badge {
-        transition: none;
-    }
 }

@@ -4,15 +4,16 @@
  * feat/profile-photo
  *
  * Loaded from admin-header.html, so it runs on every admin and mentor
- * page. Clicking the profile area in the header opens
- * #profilePhotoModal (profile-photo-modal.html):
+ * page. "Change Photo" in the header's profile dropdown
+ * (admin-profile-menu.js) opens #profilePhotoModal (profile-photo-modal.html):
  *
  *   Upload / Change photo -> POST /admin/profile/photo        (field "avatar")
  *   Remove photo          -> asks first, then POST /admin/profile/photo/remove
  *
  * The server decides whose photo it is (the logged-in account) and
  * checks the file again (profile_avatar.py) - the checks here only
- * save a round trip. After a change the header photo updates right
+ * save a round trip. After a change every copy of the photo on the
+ * page (.js-profile-photo: header button + dropdown) updates right
  * away; no page reload.
  */
 (function () {
@@ -29,7 +30,7 @@
         const openBtn = document.getElementById("openProfilePhotoBtn");
         if (!modal || !openBtn) return;
 
-        const headerImg = document.getElementById("headerAvatarImg");
+        const pagePhotos = Array.from(document.querySelectorAll(".js-profile-photo"));   // header button + dropdown
         const preview = document.getElementById("profilePhotoPreview");
         const mainView = document.getElementById("profilePhotoMain");
         const confirmView = document.getElementById("profilePhotoConfirm");
@@ -69,14 +70,13 @@
             hasPhoto = Boolean(url);
             const src = url || defaultSrc;
             preview.src = src;
-            if (headerImg) headerImg.src = src;
+            pagePhotos.forEach((img) => { img.src = src; });
             pickBtn.textContent = hasPhoto ? "Change photo" : "Upload photo";
             removeBtn.classList.toggle("is-hidden", !hasPhoto);
         }
 
         // A photo whose file is gone falls back to the default picture - no broken image.
-        [preview, headerImg].forEach((img) => {
-            if (!img) return;
+        [preview, ...pagePhotos].forEach((img) => {
             img.addEventListener("error", () => {
                 if (img.getAttribute("src") !== defaultSrc) img.src = defaultSrc;
             });

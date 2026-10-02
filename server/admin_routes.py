@@ -100,6 +100,7 @@ from achievements import (  # feat/mentor-achievements: Mentor > Achievements pa
 )
 from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
 from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo
+from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
@@ -3414,6 +3415,45 @@ def profile_photo_upload():
 @admin_bp.route('/profile/photo/remove', methods=['POST'])
 def profile_photo_remove():
     payload, status = remove_avatar(session.get("admin_id"))
+    return jsonify(payload), status
+
+
+# ============================================================
+# ROUTE: CHANGE PASSWORD (Admin + Mentor) - feat/staff-change-password
+# Opened from "Change Password" in the header's profile dropdown. Same
+# 3 steps as the learner's Profile > Change Password. The account is
+# ALWAYS session["admin_id"] and the code always goes to that account's
+# own email - no email or id is read from the request. Rules live in
+# auth_core.py through staff_password.py.
+# ============================================================
+@admin_bp.route('/profile/change-password')
+def staff_change_password():
+    return render_template(
+        'staff-change-password.html',
+        masked_email=get_masked_email(session.get("admin_id")),
+        home_url=role_home_url(g.get("staff_role")),
+    )
+
+
+@admin_bp.route('/profile/password/send-otp', methods=['POST'])
+def staff_password_send_otp():
+    payload, status = send_change_code(session.get("admin_id"))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/profile/password/verify-otp', methods=['POST'])
+def staff_password_verify_otp():
+    data = request.get_json(silent=True) or {}
+    payload, status = verify_change_code(session.get("admin_id"), data.get("otp"))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/profile/password/reset', methods=['POST'])
+def staff_password_reset():
+    data = request.get_json(silent=True) or {}
+    payload, status = change_password(
+        session.get("admin_id"), data.get("newPassword"), data.get("confirmPassword")
+    )
     return jsonify(payload), status
 
 

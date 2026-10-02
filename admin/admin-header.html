@@ -1,8 +1,11 @@
 <!-- admin/admin-header.html -->
-{# feat/profile-photo: this header is the one file every admin and mentor page
-   includes, so the profile photo's stylesheet, popup and script are attached
+{# feat/profile-photo + feat/staff-profile-menu: this header is the one file
+   every admin and mentor page includes, so the profile dropdown and the
+   profile photo popup (their stylesheets, markup and scripts) are attached
    here instead of being repeated in every page. #}
+<link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-profile-menu.css') }}">
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-profile-photo.css') }}">
+{% set staff_photo_src = current_admin.avatar_url if current_admin and current_admin.avatar_url else '/assets/images/avatar.png' %}
 <header class="admin-header">
     <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle sidebar" aria-controls="adminSidebar" aria-expanded="true">
         <span class="mask-icon icon-menu"></span>
@@ -15,16 +18,42 @@
         <button type="button" class="notification-btn" aria-label="Notifications">
             <img src="/assets/images/notif-bell-1.png" class="header-icon" alt="">
         </button>
-        {# feat/profile-photo: opens the Profile photo popup. Shows the uploaded
-           photo, or the default avatar.png when the account has none. #}
-        <button type="button" class="admin-profile-badge" id="openProfilePhotoBtn" aria-haspopup="dialog" title="Change profile photo">
-            <img src="{{ current_admin.avatar_url if current_admin and current_admin.avatar_url else '/assets/images/avatar.png' }}" class="avatar-icon" id="headerAvatarImg" alt="">
-            <span class="admin-info">
-                <strong>{{ current_admin.full_name if current_admin else 'Administrator' }}</strong>
-                <small>{{ current_admin.role if current_admin else 'Administrator' }}</small>
-            </span>
-            <img src="/assets/images/d-down.png" class="dropdown-arrow-img" alt="">
-        </button>
+        {# feat/staff-profile-menu: profile dropdown, same format as the learner
+           header's (identity row, items, Logout). The photo is the uploaded
+           one, or the default avatar.png when the account has none. #}
+        <div class="staff-menu" id="staffProfileMenu">
+            <button type="button" class="admin-profile-badge" id="staffMenuBtn" title="Open profile menu"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="staffMenuPanel">
+                <img src="{{ staff_photo_src }}" class="avatar-icon js-profile-photo" alt="">
+                <span class="admin-info">
+                    <strong>{{ current_admin.full_name if current_admin else 'Administrator' }}</strong>
+                    <small>{{ current_admin.role if current_admin else 'Administrator' }}</small>
+                </span>
+                <img src="/assets/images/d-down.png" class="dropdown-arrow-img" alt="">
+            </button>
+
+            <div class="staff-menu-panel" id="staffMenuPanel" role="menu" aria-labelledby="staffMenuBtn" hidden>
+                <div class="staff-menu-identity">
+                    <img src="{{ staff_photo_src }}" class="staff-menu-avatar js-profile-photo" alt="">
+                    <span class="staff-menu-identity-text">
+                        <span class="staff-menu-name">{{ current_admin.full_name if current_admin else 'Administrator' }}</span>
+                        <span class="staff-menu-sub">{{ current_admin.role if current_admin else 'Administrator' }}</span>
+                    </span>
+                </div>
+                <div class="staff-menu-divider" role="separator"></div>
+                <button type="button" class="staff-menu-item" role="menuitem" id="openProfilePhotoBtn">
+                    <i class="fa-regular fa-circle-user" aria-hidden="true"></i> Change Photo
+                </button>
+                {# feat/staff-change-password: same item (and lock icon) as the learner dropdown #}
+                <a href="{{ url_for('admin_bp.staff_change_password') }}" class="staff-menu-item" role="menuitem" id="staffMenuChangePasswordLink">
+                    <i class="fa-solid fa-lock" aria-hidden="true"></i> Change Password
+                </a>
+                <div class="staff-menu-divider" role="separator"></div>
+                <button type="button" class="staff-menu-item staff-menu-logout" role="menuitem" id="staffMenuLogoutBtn">
+                    <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i> Logout
+                </button>
+            </div>
+        </div>
     </div>
 </header>
 
@@ -40,4 +69,5 @@
 {% endwith %}
 
 {% include 'profile-photo-modal.html' %}
+<script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-menu.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-photo.js') }}"></script>
