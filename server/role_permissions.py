@@ -28,9 +28,9 @@ MENTOR = frozenset({MENTOR_ROLE})
 BOTH = frozenset({ADMIN_ROLE, MENTOR_ROLE})
 
 # Where each role lands after login, and when it opens a page it can't use.
-# Mentor Dashboard comes later: change MENTOR_HOME_ENDPOINT only.
+# Change a role's landing page here only (login + blocked-page redirects use it).
 ADMIN_HOME_ENDPOINT = "admin_bp.admin_dashboard"
-MENTOR_HOME_ENDPOINT = "admin_bp.manage_course"
+MENTOR_HOME_ENDPOINT = "admin_bp.mentor_dashboard"
 ROLE_HOME_ENDPOINTS = {ADMIN_ROLE: ADMIN_HOME_ENDPOINT, MENTOR_ROLE: MENTOR_HOME_ENDPOINT}
 
 NO_ACCESS_PAGE_MESSAGE = "You don't have access to that page."
@@ -117,6 +117,8 @@ ENDPOINT_ROLES = {
     # ------------------------------------------------------------
     # Mentor only - content and publishing actions
     # ------------------------------------------------------------
+    "admin_bp.mentor_dashboard": MENTOR,  # the mentor's home page
+
     # Publishing actions (mark ready, publish, unpublish, checklist, reorder)
     "admin_bp.publishing_item_action": MENTOR,
     "admin_bp.publishing_checklist_action": MENTOR,

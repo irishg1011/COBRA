@@ -8,6 +8,10 @@
        the database on every request - see role_permissions.py). #}
     <nav class="sidebar-nav">
         {% if current_role == 'Mentor' %}
+        <a href="{{ url_for('admin_bp.mentor_dashboard') }}" title="Dashboard" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.mentor_dashboard' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-dashboard"></span>
+            <span class="nav-label">Dashboard</span>
+        </a>
         <a href="{{ url_for('admin_bp.publishing') }}" title="Publishing" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.publishing' else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-publishing"></span>
             <span class="nav-label">Publishing</span>

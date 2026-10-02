@@ -105,6 +105,10 @@ from user_types import ADMIN_ROLE, MENTOR_ROLE, STAFF_ROLES, get_account_role, g
 from role_permissions import (  # feat/mentor-role: ONE endpoint -> roles map, default-deny
     is_allowed, role_home_url, NO_ACCESS_PAGE_MESSAGE, NO_PERMISSION_MESSAGE,
 )
+from dashboards import (  # feat/dashboards: Mentor + Admin dashboards (read-only)
+    build_mentor_dashboard, build_learning_section, build_top_learners_section,
+    build_content_snapshot_section, section as dashboard_section, RECENT_LOGINS_LIMIT,
+)
 from reports import get_learner_ranking, empty_learner_ranking, get_report_filter_options  # Admin > Reports: learner ranking
 from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By Lesson + By Learner)
     get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
@@ -1002,9 +1006,45 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
             connection.close()
 
 
+# ============================================================
+# ROUTE: ADMIN DASHBOARD - monitoring overview (read-only)
+# Every number reuses an existing function (see dashboards.py); each
+# section is {"ok": False} when it fails, so the page still renders.
+# ============================================================
+def _admin_accounts_section():
+    def build():
+        overview = get_accounts_overview()
+        if overview is None:
+            return None
+        return {"accounts": overview["metrics"], "logins": get_login_logs_metrics()}
+    return dashboard_section(build)
+
+
+def _admin_recent_logins_section():
+    def build():
+        logs = get_login_logs_overview()
+        return None if logs is None else {"logs": logs[:RECENT_LOGINS_LIMIT]}
+    return dashboard_section(build)
+
+
 @admin_bp.route('/dashboard')
 def admin_dashboard():
-    return render_template('admin_dashboard.html')
+    return render_template(
+        'admin_dashboard.html',
+        accounts=_admin_accounts_section(),
+        learning=build_learning_section(),
+        top_learners=build_top_learners_section(),
+        recent_logins=_admin_recent_logins_section(),
+        content=build_content_snapshot_section(),
+    )
+
+
+# ============================================================
+# ROUTE: MENTOR DASHBOARD (feat/dashboards) - the mentor's home page
+# ============================================================
+@admin_bp.route('/mentor-dashboard')
+def mentor_dashboard():
+    return render_template('mentor-dashboard.html', **build_mentor_dashboard(session.get("admin_id")))
 
 
 @admin_bp.route('/account-security.html')

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Mentor Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body data-auth-guard-mode="refresh">
+    {# Editor URLs: the same editors the Publishing tree's "Edit" opens #}
+    {% set editor_endpoints = {
+        'res': ('admin_bp.upload_resource', 'resource_id'),
+        'vid': ('admin_bp.upload_video_tutorial', 'video_id'),
+        'act': ('admin_bp.create_learning_activity_page', 'activity_id'),
+        'ex': ('admin_bp.create_coding_exercise', 'exercise_id'),
+    } %}
+    {% set status_badge = {'Draft': 'badge-draft', 'Ready to Publish': 'badge-ready', 'Published': 'badge-active'} %}
+
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+                <!-- Page title, greeting & live date/time -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Dashboard</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Mentor!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Your course content at a glance.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
+                    </div>
+                </div>
+
+                <!-- Waiting to publish + Quick actions -->
+                <div class="dash-row dash-row-top">
+                    <section class="panel-card dash-waiting-card">
+                        <div class="panel-header">
+                            <h3>Waiting to publish</h3>
+                        </div>
+                        <div class="dash-waiting-body">
+                            {% if waiting.ok %}
+                            <div class="dash-waiting-count">
+                                <strong>{{ waiting.ready_total }}</strong>
+                                <span>item{{ '' if waiting.ready_total == 1 else 's' }} Ready to Publish</span>
+                            </div>
+                            <a href="{{ url_for('admin_bp.publishing', tab='ready') }}" class="btn-create-admin dash-waiting-btn">
+                                <i class="fa-solid fa-upload" aria-hidden="true"></i> Review &amp; publish
+                            </a>
+                            {% else %}
+                            <p class="dash-section-error">Couldn't load this right now.</p>
+                            {% endif %}
+                        </div>
+                    </section>
+
+                    <section class="quick-actions-card dash-quick-actions">
+                        <h3>Quick Actions</h3>
+                        <div class="quick-actions-grid dash-quick-grid">
+                            <a href="{{ url_for('admin_bp.upload_resource') }}" class="action-tile">
+                                <span class="tile-icon"><span class="mask-icon icon-book-open"></span></span>
+                                <span class="tile-text"><strong>+ Lesson</strong><small>Write a new lesson</small></span>
+                            </a>
+                            <a href="{{ url_for('admin_bp.upload_video_tutorial') }}" class="action-tile">
+                                <span class="tile-icon"><span class="mask-icon icon-play"></span></span>
+                                <span class="tile-text"><strong>+ Video</strong><small>Add a video tutorial</small></span>
+                            </a>
+                            <a href="{{ url_for('admin_bp.create_learning_activity_page') }}" class="action-tile">
+                                <span class="tile-icon"><span class="mask-icon icon-file-plus"></span></span>
+                                <span class="tile-text"><strong>+ Activity</strong><small>Create a learning activity</small></span>
+                            </a>
+                            <a href="{{ url_for('admin_bp.create_coding_exercise') }}" class="action-tile">
+                                <span class="tile-icon"><span class="mask-icon icon-terminal"></span></span>
+                                <span class="tile-text"><strong>+ Exercise</strong><small>Add a coding exercise</small></span>
+                            </a>
+                            <a href="{{ url_for('admin_bp.manage_course') }}" class="action-tile">
+                                <span class="tile-icon"><span class="mask-icon icon-nav-course"></span></span>
+                                <span class="tile-text"><strong>Manage Course</strong><small>Chapters and modules</small></span>
+                            </a>
+                            <a href="{{ url_for('admin_bp.publishing') }}" class="action-tile">
+                                <span class="tile-icon"><span class="mask-icon icon-nav-publishing"></span></span>
+                                <span class="tile-text"><strong>Go to Publishing</strong><small>Review the course tree</small></span>
+                            </a>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Content status -->
+                <section class="table-card dash-table-card">
+                    <div class="panel-header">
+                        <h3>Content status</h3>
+                        <a href="{{ url_for('admin_bp.publishing') }}" class="view-all-link">Open Publishing</a>
+                    </div>
+                    {% if content_status.ok %}
+                    <div class="table-scroll">
+                        <table class="data-table dash-table dash-status-table">
+                            <thead>
+                                <tr>
+                                    <th>Content</th>
+                                    <th>Draft</th>
+                                    <th>Ready to Publish</th>
+                                    <th>Published</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in content_status.rows %}
+                                <tr>
+                                    <td><strong>{{ row.label }}</strong></td>
+                                    <td><span class="badge badge-draft">{{ row['Draft'] }}</span></td>
+                                    <td><span class="badge badge-ready">{{ row['Ready to Publish'] }}</span></td>
+                                    <td><span class="badge badge-active">{{ row['Published'] }}</span></td>
+                                    <td>{{ row.total }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="dash-section-error">Couldn't load content status right now.</p>
+                    {% endif %}
+                </section>
+
+                <div class="dash-row">
+                    <!-- Recently edited -->
+                    <section class="table-card dash-table-card dash-recent-card">
+                        <div class="panel-header">
+                            <h3>Recently edited</h3>
+                        </div>
+                        {% if not recent_edits.ok %}
+                        <p class="dash-section-error">Couldn't load recent edits right now.</p>
+                        {% elif not recent_edits['items'] %}
+                        <p class="dash-section-empty">Nothing edited yet.</p>
+                        {% else %}
+                        <div class="table-scroll">
+                            <table class="data-table dash-table">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Updated</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in recent_edits['items'] %}
+                                    {% set ep = editor_endpoints[item.kind] %}
+                                    <tr>
+                                        <td><a class="dash-link cell-truncate-1" href="{{ url_for(ep[0], **{ep[1]: item.item_id}) }}" title="Edit {{ item.title }}">{{ item.title }}</a></td>
+                                        <td><span class="badge dash-type-badge dash-type-{{ item.kind }}">{{ item.type_label }}</span></td>
+                                        <td><span class="badge {{ status_badge.get(item.status, 'badge-draft') }}">{{ item.status }}</span></td>
+                                        <td class="text-muted dash-nowrap">{{ item.edited_at }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </section>
+
+                    <!-- Your contributions -->
+                    <section class="table-card dash-table-card dash-contrib-card">
+                        <div class="panel-header">
+                            <h3>Your contributions</h3>
+                            <small class="text-muted dash-header-note">Uploaded by you, not archived</small>
+                        </div>
+                        {% if contributions.ok %}
+                        <ul class="dash-contrib-list">
+                            {% for c in contributions['items'] %}
+                            <li class="dash-contrib-item">
+                                <span class="dash-contrib-label">{{ c.label }}</span>
+                                <strong class="dash-contrib-total">{{ c.total - c.archived }}</strong>
+                                <small class="text-muted">{{ c.published }} published{% if c.archived %} &middot; {{ c.archived }} archived{% endif %}</small>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="dash-section-error">Couldn't load your contributions right now.</p>
+                        {% endif %}
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+</body>
+</html>

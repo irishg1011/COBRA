@@ -9,9 +9,15 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/reports.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 <body data-auth-guard-mode="refresh">
+    {% set level_class = {'Excellent': 'level-excellent', 'Good': 'level-good', 'Needs Improvement': 'level-needs-improvement'} %}
+    {% set role_badge = {'Admin': 'badge-admin', 'Mentor': 'badge-mentor', 'Learner': 'badge-learner'} %}
+
     <div class="admin-layout">
         {% include 'admin-sidebar.html' %}
 
@@ -28,7 +34,7 @@
                         {% else %}
                         <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
                         {% endif %}
-                        <p class="welcome-subtext">Welcome back! Here is what is happening with your platform.</p>
+                        <p class="welcome-subtext">Accounts, learner performance and content at a glance.</p>
                     </div>
                     <div class="dashboard-datetime-badge">
                         <strong id="current-time"></strong>
@@ -36,289 +42,204 @@
                     </div>
                 </div>
 
-                <!-- Metric Summary Cards -->
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Total Modules</span>
-                            <h2 class="metric-value">12</h2>
-                            <span class="metric-trend">↑ +2 this week</span>
-                        </div>
-                        <div class="metric-icon-box"><span class="mask-icon icon-book-open"></span></div>
+                <!-- a) Accounts (same numbers as Account & Security and Login Logs) -->
+                <section class="dash-section">
+                    <div class="dash-section-head">
+                        <h2 class="dash-section-title">Accounts</h2>
+                        <a href="{{ url_for('admin_bp.account_security') }}" class="view-all-link">Account &amp; Security</a>
                     </div>
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Total Learners</span>
-                            <h2 class="metric-value">6</h2>
-                            <span class="metric-trend">↑ +3 new</span>
+                    {% if accounts.ok %}
+                    <div class="metrics-grid dash-metrics-grid dash-metrics-6">
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Learners</span>
+                                <h2 class="metric-value">{{ accounts.accounts.learners }}</h2>
+                            </div>
                         </div>
-                        <div class="metric-icon-box"><span class="mask-icon icon-user"></span></div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Total Resources</span>
-                            <h2 class="metric-value">8</h2>
-                            <span class="metric-trend">↑ +1 today</span>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Mentors</span>
+                                <h2 class="metric-value">{{ accounts.accounts.mentors }}</h2>
+                            </div>
                         </div>
-                        <div class="metric-icon-box"><span class="mask-icon icon-play"></span></div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Coding Exercises</span>
-                            <h2 class="metric-value">8</h2>
-                            <span class="metric-trend">↑ +2 this week</span>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Admins</span>
+                                <h2 class="metric-value">{{ accounts.accounts.administrators }}</h2>
+                            </div>
                         </div>
-                        <div class="metric-icon-box"><span class="mask-icon icon-code"></span></div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Completed</span>
-                            <h2 class="metric-value">16</h2>
-                            <span class="metric-trend">↑ 85% rate</span>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Active Sessions</span>
+                                <h2 class="metric-value">{{ accounts.logins.active_sessions }}</h2>
+                            </div>
                         </div>
-                        <div class="metric-icon-box"><span class="mask-icon icon-check-circle"></span></div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Published Lessons</span>
-                            <h2 class="metric-value">8</h2>
-                            <span class="metric-trend">↑ 83% of total</span>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Logins Today</span>
+                                <h2 class="metric-value">{{ accounts.logins.total_logins_today }}</h2>
+                                <small class="dash-metric-sub">
+                                    <span class="dash-good">{{ accounts.logins.successful_logins }} successful</span> &middot;
+                                    <span class="dash-bad">{{ accounts.logins.failed_logins }} failed</span>
+                                </small>
+                            </div>
                         </div>
-                        <div class="metric-icon-box"><span class="mask-icon icon-eye"></span></div>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Locked Accounts</span>
+                                <h2 class="metric-value dash-bad">{{ accounts.accounts.locked_accounts }}</h2>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                    {% else %}
+                    <p class="dash-section-error dash-section-error-card">Couldn't load account numbers right now.</p>
+                    {% endif %}
+                </section>
 
-                <!-- Quick Actions (full width) -->
-                <div class="quick-actions-card">
-                    <h3>Quick Actions</h3>
-                    <div class="quick-actions-grid">
-                        <button type="button" class="action-tile">
-                            <span class="tile-icon"><span class="mask-icon icon-plus"></span></span>
-                            <span class="tile-text">
-                                <strong>New Module</strong>
-                                <small>Create a new module</small>
-                            </span>
-                        </button>
-                        <button type="button" class="action-tile">
-                            <span class="tile-icon"><span class="mask-icon icon-upload"></span></span>
-                            <span class="tile-text">
-                                <strong>Upload Resource</strong>
-                                <small>Add tutorial material</small>
-                            </span>
-                        </button>
-                        <button type="button" class="action-tile">
-                            <span class="tile-icon"><span class="mask-icon icon-file-plus"></span></span>
-                            <span class="tile-text">
-                                <strong>New Activity</strong>
-                                <small>Create a new activity</small>
-                            </span>
-                        </button>
-                        <button type="button" class="action-tile">
-                            <span class="tile-icon"><span class="mask-icon icon-terminal"></span></span>
-                            <span class="tile-text">
-                                <strong>New Exercise</strong>
-                                <small>Add coding challenge</small>
-                            </span>
-                        </button>
+                <!-- b) Learning (Learner Progress -> By Learner, no filters) -->
+                <section class="dash-section">
+                    <div class="dash-section-head">
+                        <h2 class="dash-section-title">Learning</h2>
+                        <a href="{{ url_for('admin_bp.learner_progress_learners') }}" class="view-all-link">Learner Progress</a>
                     </div>
-                </div>
+                    {% if learning.ok %}
+                    <div class="metrics-grid dash-metrics-grid dash-metrics-4">
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Average Score</span>
+                                <h2 class="metric-value dash-good">{{ learning.metrics.average_score }}</h2>
+                            </div>
+                        </div>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Finished Course</span>
+                                <h2 class="metric-value dash-good">{{ learning.metrics.finished }}</h2>
+                            </div>
+                        </div>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Below 80%</span>
+                                <h2 class="metric-value dash-bad">{{ learning.metrics.below_80 }}</h2>
+                            </div>
+                        </div>
+                        <div class="metric-card dash-metric">
+                            <div class="metric-info">
+                                <span class="metric-title">Not Started</span>
+                                <h2 class="metric-value">{{ learning.metrics.not_started }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="dash-section-error dash-section-error-card">Couldn't load learner progress right now.</p>
+                    {% endif %}
+                </section>
 
-                <!-- Recent Activities, Student Overview & System Health -->
-                <div class="dashboard-panels">
-                    <section class="panel-card">
+                <div class="dash-row">
+                    <!-- c) Top 5 learners (Reports ranking) -->
+                    <section class="table-card dash-table-card">
                         <div class="panel-header">
-                            <h3>Recent Activities</h3>
-                            <a href="#" class="view-all-link">View All</a>
+                            <h3>Top 5 learners</h3>
+                            <a href="{{ url_for('admin_bp.reports') }}" class="view-all-link">View full report</a>
                         </div>
-                        <div class="panel-list">
-                            <div class="activity-item">
-                                <span class="activity-icon"><span class="mask-icon icon-book-open"></span></span>
-                                <div class="activity-details">
-                                    <p>New module "Error Handling with Try/Except" was published</p>
-                                    <small>by Gold Española | Jul 20, 06:30 PM</small>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <span class="activity-icon"><span class="mask-icon icon-bolt"></span></span>
-                                <div class="activity-details">
-                                    <p>Darell Bacani scored 100% on Variables Quiz 1</p>
-                                    <small>by Darell Bacani | Jul 20, 05:45 PM</small>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <span class="activity-icon"><span class="mask-icon icon-code"></span></span>
-                                <div class="activity-details">
-                                    <p>Nicole Mijoy submitted Factorial Function exercise</p>
-                                    <small>by Nicole Mijoy | Jul 20, 05:15 PM</small>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <span class="activity-icon"><span class="mask-icon icon-play"></span></span>
-                                <div class="activity-details">
-                                    <p>String Formatting Tutorial Video was uploaded</p>
-                                    <small>by Emmanuel Spicer | Jul 20, 04:30 PM</small>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <span class="activity-icon"><span class="mask-icon icon-award"></span></span>
-                                <div class="activity-details">
-                                    <p>Markgil Gamboa earned the "Code Warrior" badge</p>
-                                    <small>by Markgil Gamboa | Jul 20, 12:00 AM</small>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <span class="activity-icon"><span class="mask-icon icon-file-text"></span></span>
-                                <div class="activity-details">
-                                    <p>Module Performance Deep Dive report generated</p>
-                                    <small>by Danzen Aquino | Jul 19, 06:00 PM</small>
-                                </div>
-                            </div>
+                        {% if not top_learners.ok %}
+                        <p class="dash-section-error">Couldn't load the ranking right now.</p>
+                        {% elif not top_learners.learners %}
+                        <p class="dash-section-empty">No learner has a score yet.</p>
+                        {% else %}
+                        <div class="table-scroll">
+                            <table class="data-table dash-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Learner</th>
+                                        <th>Avg Score</th>
+                                        <th>Level</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for l in top_learners.learners %}
+                                    <tr>
+                                        <td class="report-rank">{{ l.rank }}</td>
+                                        <td>
+                                            <div class="report-learner-cell">
+                                                <strong class="cell-truncate-1">{{ l.name }}</strong>
+                                                <small class="text-muted">{{ l.acc_id }}</small>
+                                            </div>
+                                        </td>
+                                        <td>{{ l.avg_score }}%</td>
+                                        <td><span class="badge report-level {{ level_class.get(l.level, 'level-not-rated') }}">{{ l.level }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
+                        {% endif %}
                     </section>
 
-                    <section class="panel-card">
+                    <!-- d) Recent logins (Login Logs) -->
+                    <section class="table-card dash-table-card">
                         <div class="panel-header">
-                            <h3>Student Overview</h3>
-                            <a href="#" class="view-all-link">View All</a>
+                            <h3>Recent logins</h3>
+                            <a href="{{ url_for('admin_bp.login_logs') }}" class="view-all-link">View all</a>
                         </div>
-                        <div class="panel-list">
-                            <div class="student-progress-item">
-                                <div class="student-meta">
-                                    <span class="student-avatar"><span class="mask-icon icon-user"></span></span>
-                                    <div>
-                                        <strong>Gold Española</strong>
-                                        <small>5 Lessons completed</small>
-                                    </div>
-                                </div>
-                                <div class="student-progress-right">
-                                    <div class="dash-progress">
-                                        <div class="dash-progress-fill pct-78"></div>
-                                    </div>
-                                    <span class="progress-pct">78%</span>
-                                </div>
-                            </div>
-                            <div class="student-progress-item">
-                                <div class="student-meta">
-                                    <span class="student-avatar"><span class="mask-icon icon-user"></span></span>
-                                    <div>
-                                        <strong>Darell Bacani</strong>
-                                        <small>4 Lessons completed</small>
-                                    </div>
-                                </div>
-                                <div class="student-progress-right">
-                                    <div class="dash-progress">
-                                        <div class="dash-progress-fill pct-65"></div>
-                                    </div>
-                                    <span class="progress-pct">65%</span>
-                                </div>
-                            </div>
-                            <div class="student-progress-item">
-                                <div class="student-meta">
-                                    <span class="student-avatar"><span class="mask-icon icon-user"></span></span>
-                                    <div>
-                                        <strong>Nicole Mijoy</strong>
-                                        <small>3 Lessons completed</small>
-                                    </div>
-                                </div>
-                                <div class="student-progress-right">
-                                    <div class="dash-progress">
-                                        <div class="dash-progress-fill pct-52"></div>
-                                    </div>
-                                    <span class="progress-pct">52%</span>
-                                </div>
-                            </div>
-                            <div class="student-progress-item">
-                                <div class="student-meta">
-                                    <span class="student-avatar"><span class="mask-icon icon-user"></span></span>
-                                    <div>
-                                        <strong>Emmanuel Spicer</strong>
-                                        <small>3 Lessons completed</small>
-                                    </div>
-                                </div>
-                                <div class="student-progress-right">
-                                    <div class="dash-progress">
-                                        <div class="dash-progress-fill pct-35"></div>
-                                    </div>
-                                    <span class="progress-pct">35%</span>
-                                </div>
-                            </div>
-                            <div class="student-progress-item">
-                                <div class="student-meta">
-                                    <span class="student-avatar"><span class="mask-icon icon-user"></span></span>
-                                    <div>
-                                        <strong>Markgil Gamboa</strong>
-                                        <small>2 Lessons completed</small>
-                                    </div>
-                                </div>
-                                <div class="student-progress-right">
-                                    <div class="dash-progress">
-                                        <div class="dash-progress-fill pct-22"></div>
-                                    </div>
-                                    <span class="progress-pct">22%</span>
-                                </div>
-                            </div>
-                            <div class="student-progress-item">
-                                <div class="student-meta">
-                                    <span class="student-avatar"><span class="mask-icon icon-user"></span></span>
-                                    <div>
-                                        <strong>Danzen Aquino</strong>
-                                        <small>2 Lessons completed</small>
-                                    </div>
-                                </div>
-                                <div class="student-progress-right">
-                                    <div class="dash-progress">
-                                        <div class="dash-progress-fill pct-9"></div>
-                                    </div>
-                                    <span class="progress-pct">9%</span>
-                                </div>
-                            </div>
+                        {% if not recent_logins.ok %}
+                        <p class="dash-section-error">Couldn't load login attempts right now.</p>
+                        {% elif not recent_logins.logs %}
+                        <p class="dash-section-empty">No login attempts yet.</p>
+                        {% else %}
+                        <div class="table-scroll">
+                            <table class="data-table dash-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for log in recent_logins.logs %}
+                                    <tr>
+                                        <td><span class="cell-truncate-1">{{ log.full_name }}</span></td>
+                                        <td><span class="badge {{ role_badge.get(log.role, 'badge-inactive') }}">{{ log.role }}</span></td>
+                                        <td>
+                                            {% if log.status == 'Success' %}
+                                            <span class="badge badge-success-log">Success</span>
+                                            {% else %}
+                                            <span class="badge badge-failed-log">{{ log.status or 'Failed' }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-muted dash-nowrap">{{ log.attempted_at }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
-                    </section>
-
-                    <section class="panel-card">
-                        <div class="panel-header">
-                            <h3>System Health</h3>
-                        </div>
-                        <div class="panel-list">
-                            <div class="health-item">
-                                <div class="health-row">
-                                    <span class="health-label">Sandbox Uptime</span>
-                                    <span class="progress-pct">99.8%</span>
-                                </div>
-                                <div class="dash-progress">
-                                    <div class="dash-progress-fill pct-99-8"></div>
-                                </div>
-                            </div>
-                            <div class="health-item">
-                                <div class="health-row">
-                                    <span class="health-label">Storage Usage</span>
-                                    <span class="progress-pct">62%</span>
-                                </div>
-                                <div class="dash-progress">
-                                    <div class="dash-progress-fill pct-62"></div>
-                                </div>
-                            </div>
-                            <div class="health-item">
-                                <div class="health-row">
-                                    <span class="health-label">Active Students Today</span>
-                                    <span class="progress-pct">4/6</span>
-                                </div>
-                                <div class="dash-progress">
-                                    <div class="dash-progress-fill pct-66"></div>
-                                </div>
-                            </div>
-                            <div class="health-item">
-                                <div class="health-row">
-                                    <span class="health-label">Lesson Completion Rate</span>
-                                    <span class="progress-pct">78%</span>
-                                </div>
-                                <div class="dash-progress">
-                                    <div class="dash-progress-fill pct-78"></div>
-                                </div>
-                            </div>
-                        </div>
+                        {% endif %}
                     </section>
                 </div>
+
+                <!-- e) Content snapshot (numbers only - content is managed by Mentors) -->
+                <section class="table-card dash-table-card">
+                    <div class="panel-header">
+                        <h3>Content snapshot</h3>
+                        <a href="{{ url_for('admin_bp.publishing') }}" class="view-all-link">View Publishing</a>
+                    </div>
+                    {% if content.ok %}
+                    <div class="dash-snapshot-grid">
+                        {% for row in content.rows %}
+                        <div class="dash-snapshot-item">
+                            <span class="dash-snapshot-label">{{ row.label }}</span>
+                            <strong class="dash-snapshot-value">{{ row['Published'] }}<small> / {{ row.total }}</small></strong>
+                            <progress class="completion-bar dash-snapshot-bar" value="{{ row['Published'] }}" max="{{ row.total if row.total else 1 }}" aria-label="{{ row['Published'] }} of {{ row.total }} {{ row.label }} published"></progress>
+                            <small class="text-muted">published</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="dash-section-error">Couldn't load the content snapshot right now.</p>
+                    {% endif %}
+                </section>
             </div>
         </main>
     </div>
