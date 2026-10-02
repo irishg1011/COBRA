@@ -12,6 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <!-- Inter: the learner page's font, used only by the Preview Video popup -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 {% set item_status = (existing_video.status if existing_video and existing_video.status else 'Draft') %}
@@ -193,6 +195,25 @@
 
             </div>
             {% include 'confirm-action-modal.html' %}
+
+            <!-- Preview Video popup: the learner's video step (#videoStep in
+                 learner/html/lesson-content.html) - same eyebrow, frame and
+                 title, minus the learner-only lock note and Continue button.
+                 Filled and opened by upload-video-tutorial-ui.js. -->
+            <div id="videoLearnerPreviewModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-label="Video preview">
+                <div class="video-learner-preview">
+                    <button type="button" class="video-learner-preview-close" id="videoLearnerPreviewCloseBtn" aria-label="Close preview">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                    <div class="lesson-card">
+                        <div class="lesson-step">
+                            <p class="lesson-step-eyebrow">Video Tutorial</p>
+                            <div class="lesson-video-frame" id="videoLearnerPreviewFrame"></div>
+                            <p class="lesson-video-title" id="videoLearnerPreviewTitle"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 

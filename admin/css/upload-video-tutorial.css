@@ -291,3 +291,89 @@
     font-weight: 600;
     text-align: right;
 }
+/* ==========================================================================
+   PREVIEW VIDEO POPUP (#videoLearnerPreviewModal)
+   Shows the video exactly like the learner's video step (#videoStep in
+   learner/html/lesson-content.html). The rules below marked "copied" are
+   copied from learner/css/lesson-content.css (.lesson-card and the
+   "Video step" section) plus static/style.css's box-sizing reset, scoped
+   under .video-learner-preview so they can't leak into the admin page -
+   same approach as admin-style.css's copied .lesson-content-body rules.
+   The overlay itself reuses admin-style.css's .modal-overlay /
+   .modal-hidden.
+   ========================================================================== */
+.video-learner-preview {
+    position: relative;
+    width: 100%;
+    max-width: 720px;
+    margin: 16px;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Copied from static/style.css (learner global reset) */
+.video-learner-preview,
+.video-learner-preview * {
+    box-sizing: border-box;
+}
+
+/* Copied from lesson-content.css: .lesson-card */
+.video-learner-preview .lesson-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 36px 40px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+/* Copied from lesson-content.css: Video step */
+.video-learner-preview .lesson-step-eyebrow {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #16a34a;
+    margin: 0 0 16px;
+}
+
+.video-learner-preview .lesson-video-frame {
+    width: 100%;
+    max-width: 640px;
+    aspect-ratio: 16 / 9;
+    background: #0f172a;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 0 auto 14px;
+}
+
+.video-learner-preview .lesson-video-frame iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.video-learner-preview .lesson-video-title {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0 0 24px;
+}
+
+/* Admin-only close (x) button - not part of the learner step */
+.video-learner-preview-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    z-index: 1;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.video-learner-preview-close:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}

@@ -20,7 +20,9 @@
  *     through required. No file is ever uploaded to disk/the server.
  *   - The read-only Video Information panel, updated live from the
  *     selected Category/Module/Lesson option text.
- *   - Preview Video / Save Draft / Publish, each validating through the
+ *   - Preview Video: a popup showing the video exactly like the
+ *     learner's video step, from the current (even unsaved) form values.
+ *   - Save Draft / Publish, each validating through the
  *     SAME custom modal/toast notification pattern already used
  *     elsewhere in this admin (#confirmActionModal, .resource-popup-
  *     alert, .changes-saved-toast) - never a native alert()/confirm()/
@@ -553,36 +555,94 @@
         }
 
         /* =========================================================
-           Preview Video (Task #9) - validates, never submits/publishes.
+           Preview Video - opens #videoLearnerPreviewModal, a copy of
+           the learner's video step (#videoStep in lesson-content.html),
+           filled from the CURRENT form values (saved or not). Never
+           submits/publishes. The player is built the same way
+           lesson-content.js's setupVideoStep() builds it (YouTube
+           IFrame API, playerVars { rel: 0 }) minus the watch-progress
+           tracking, and is destroyed on close so the audio stops.
         ========================================================= */
+        const learnerPreviewModal = document.getElementById("videoLearnerPreviewModal");
+        const learnerPreviewFrame = document.getElementById("videoLearnerPreviewFrame");
+        const learnerPreviewTitle = document.getElementById("videoLearnerPreviewTitle");
+        const learnerPreviewCloseBtn = document.getElementById("videoLearnerPreviewCloseBtn");
+
+        let learnerPreviewPlayer = null;
+        let learnerPreviewToken = 0; // bumped on every open/close so a late API load can't revive a closed popup
+
+        // Same loader as lesson-content.js's loadYouTubeApi().
+        let youtubeApiLoadPromise = null;
+        function loadYouTubeApi() {
+            if (window.YT && window.YT.Player) return Promise.resolve();
+            if (youtubeApiLoadPromise) return youtubeApiLoadPromise;
+            youtubeApiLoadPromise = new Promise((resolve) => {
+                window.onYouTubeIframeAPIReady = resolve;
+                const tag = document.createElement("script");
+                tag.src = "https://www.youtube.com/iframe_api";
+                document.head.appendChild(tag);
+            });
+            return youtubeApiLoadPromise;
+        }
+
+        function isLearnerPreviewOpen() {
+            return !!learnerPreviewModal && !learnerPreviewModal.classList.contains("modal-hidden");
+        }
+
+        async function openLearnerPreview(videoId, title) {
+            if (!learnerPreviewModal || !learnerPreviewFrame) return;
+            const token = ++learnerPreviewToken;
+
+            if (learnerPreviewTitle) learnerPreviewTitle.textContent = title || "";
+            const playerDiv = document.createElement("div");
+            playerDiv.id = "videoLearnerPreviewTarget";
+            learnerPreviewFrame.innerHTML = "";
+            learnerPreviewFrame.appendChild(playerDiv);
+            learnerPreviewModal.classList.remove("modal-hidden");
+
+            await loadYouTubeApi();
+            if (token !== learnerPreviewToken) return; // closed while the API was loading
+
+            learnerPreviewPlayer = new YT.Player("videoLearnerPreviewTarget", {
+                videoId: videoId,
+                playerVars: { rel: 0 },
+            });
+        }
+
+        function closeLearnerPreview() {
+            if (!isLearnerPreviewOpen()) return;
+            learnerPreviewToken++;
+            if (learnerPreviewPlayer && typeof learnerPreviewPlayer.destroy === "function") {
+                learnerPreviewPlayer.destroy();
+            }
+            learnerPreviewPlayer = null;
+            if (learnerPreviewFrame) learnerPreviewFrame.innerHTML = ""; // removes the iframe -> audio stops
+            learnerPreviewModal.classList.add("modal-hidden");
+        }
+
+        if (learnerPreviewCloseBtn) learnerPreviewCloseBtn.addEventListener("click", closeLearnerPreview);
+        if (learnerPreviewModal) {
+            learnerPreviewModal.addEventListener("click", (e) => {
+                if (e.target === learnerPreviewModal) closeLearnerPreview();
+            });
+        }
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && isLearnerPreviewOpen()) closeLearnerPreview();
+        });
+
         if (previewBtn) {
             previewBtn.addEventListener("click", () => {
-                syncHiddenDescription();
-                const catVal = categorySelect ? categorySelect.value : "";
-                const modVal = moduleSelect ? moduleSelect.value : "";
-                const lesVal = lessonSelect ? lessonSelect.value : "";
-                const titleVal = titleInput ? titleInput.value.trim() : "";
-                const hasVideo = !!currentVideoId || (existingVideoIdInput && !!existingVideoIdInput.value);
-
-                const missing = [];
-                if (!catVal) missing.push("Category");
-                if (!modVal) missing.push("Module");
-                if (!lesVal) missing.push("Lesson");
-                if (!titleVal) missing.push("Video Tutorial Title");
-                if (!hasVideo) missing.push("YouTube Video Link");
-
-                if (missing.length > 0) {
-                    showInfoModal(
-                        `Please provide the following before previewing: ${missing.join(", ")}.`,
-                        "Cannot Preview Yet"
-                    );
+                const videoId = extractYouTubeVideoId(videoUrlInput ? videoUrlInput.value.trim() : "");
+                if (!videoId) {
+                    showInfoModal("Add a valid YouTube link to preview the video.", "Cannot Preview Yet");
                     return;
                 }
-
-                updateVideoInfoPanel();
-                if (previewPlayer) {
-                    previewPlayer.scrollIntoView({ behavior: "smooth", block: "center" });
-                }
+                // Learners see the title as the server saves it:
+                // video_tutorials.format_video_title() - trimmed, first
+                // letter uppercase, the rest exactly as typed.
+                const rawTitle = titleInput ? titleInput.value.trim() : "";
+                const title = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : "";
+                openLearnerPreview(videoId, title);
             });
         }
 
