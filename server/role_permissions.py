@@ -112,6 +112,7 @@ ENDPOINT_ROLES = {
 
     "admin_bp.analytics": ADMIN,
     "admin_bp.reports": ADMIN,
+    "admin_bp.reports_data": ADMIN,
 
     # ------------------------------------------------------------
     # Mentor only - content and publishing actions

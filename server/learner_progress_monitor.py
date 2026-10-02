@@ -745,6 +745,39 @@ def get_progress_filter_options():
             connection.close()
 
 
+def build_learner_summaries(cursor, search_query=None, cat_id=None, module_id=None):
+    """
+    One _summarize_learner() row per learner (private "_" keys included),
+    scoped to a Chapter / Module when given. Shared by the By Learner view
+    (get_learners_progress_overview) and Admin > Reports (reports.py), so
+    both always show the same Avg Score / Completion for a learner.
+    """
+    cat_id = _to_int(cat_id)
+    module_id = _to_int(module_id)
+
+    _, lesson_path = _load_course_tree(cursor)
+    scope_ids = {
+        rid for rid, path in lesson_path.items()
+        if (cat_id is None or path["cat_id"] == cat_id)
+        and (module_id is None or path["module_id"] == module_id)
+    }
+
+    learners = _fetch_learners(cursor, search_query)
+    rows = _fetch_progress_rows(cursor, search_query)
+    evaluated = _evaluate_rows(cursor, rows)
+
+    by_acc = {}
+    for row, ev in zip(rows, evaluated):
+        by_acc.setdefault(row["acc_id"], []).append((row, ev))
+
+    scope_modules = _scope_modules(lesson_path, scope_ids)
+    return [
+        _summarize_learner(l, by_acc.get(l["acc_id"], []), scope_ids, lesson_path,
+                           len(scope_ids), scope_modules)
+        for l in learners
+    ]
+
+
 def get_learners_progress_overview(search_query=None, status_filter=None, cat_id=None,
                                    module_id=None, active_from=None, active_to=None,
                                    page=1, per_page=DEFAULT_PER_PAGE):
@@ -760,33 +793,11 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
     try:
         cursor = connection.cursor(dictionary=True)
 
-        cat_id = _to_int(cat_id)
-        module_id = _to_int(module_id)
         active_from = _clean_date(active_from)
         active_to = _clean_date(active_to)
 
-        chapters, lesson_path = _load_course_tree(cursor)
-        scope_ids = {
-            rid for rid, path in lesson_path.items()
-            if (cat_id is None or path["cat_id"] == cat_id)
-            and (module_id is None or path["module_id"] == module_id)
-        }
-
-        learners = _fetch_learners(cursor, search_query)
-        rows = _fetch_progress_rows(cursor, search_query)
-        evaluated = _evaluate_rows(cursor, rows)
+        summaries = build_learner_summaries(cursor, search_query, cat_id, module_id)
         cursor.close()
-
-        by_acc = {}
-        for row, ev in zip(rows, evaluated):
-            by_acc.setdefault(row["acc_id"], []).append((row, ev))
-
-        scope_modules = _scope_modules(lesson_path, scope_ids)
-        summaries = [
-            _summarize_learner(l, by_acc.get(l["acc_id"], []), scope_ids, lesson_path,
-                               len(scope_ids), scope_modules)
-            for l in learners
-        ]
 
         # --- Last Active range (learners with no activity drop out) ---
         if active_from or active_to:

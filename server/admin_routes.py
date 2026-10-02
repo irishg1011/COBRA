@@ -105,6 +105,7 @@ from user_types import ADMIN_ROLE, MENTOR_ROLE, STAFF_ROLES, get_account_role, g
 from role_permissions import (  # feat/mentor-role: ONE endpoint -> roles map, default-deny
     is_allowed, role_home_url, NO_ACCESS_PAGE_MESSAGE, NO_PERMISSION_MESSAGE,
 )
+from reports import get_learner_ranking, empty_learner_ranking, get_report_filter_options  # Admin > Reports: learner ranking
 from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By Lesson + By Learner)
     get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
     get_learners_progress_overview, get_learner_course_detail, empty_learners_progress_overview,
@@ -3353,9 +3354,43 @@ def achievements():
     return render_placeholder("Achievements")
 
 
+# ============================================================
+# ROUTE: REPORTS - learner performance ranking (page + live data)
+# Read-only; every number comes from reports.py, which reuses the
+# By Learner summaries in learner_progress_monitor.py.
+# ============================================================
+def _read_report_filters():
+    """Same query params for the page load and the live-data endpoint."""
+    return {
+        "cat_id": request.args.get('cat_id', '') or None,
+        "module_id": request.args.get('module_id', '') or None,
+        "search": request.args.get('q', ''),
+    }
+
+
 @admin_bp.route('/reports')
 def reports():
-    return render_placeholder("Reports")
+    filters = _read_report_filters()
+    ranking = get_learner_ranking(**filters) or empty_learner_ranking()
+    return render_template(
+        'reports.html',
+        learners=ranking["learners"],
+        summary=ranking["summary"],
+        chapters=get_report_filter_options(),
+        cat_id=filters["cat_id"] or '',
+        module_id=filters["module_id"] or '',
+        search=filters["search"] or '',
+    )
+
+
+@admin_bp.route('/reports/data')
+def reports_data():
+    """Live Chapter / Module / search changes for admin-reports.js."""
+    ranking = get_learner_ranking(**_read_report_filters())
+    if ranking is None:
+        return jsonify({"success": False, "message": "Could not reach the database.",
+                        **empty_learner_ranking()}), 500
+    return jsonify({"success": True, **ranking}), 200
 
 @admin_bp.route('/upload-video-tutorial', methods=['GET'])
 def upload_video_tutorial():
