@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoStep = document.getElementById('videoStep');
     const lessonVideoFrame = document.getElementById('lessonVideoFrame');
     const lessonVideoTitle = document.getElementById('lessonVideoTitle');
+    const lessonVideoDescription = document.getElementById('lessonVideoDescription');
     const videoContinueBtn = document.getElementById('videoContinueBtn');
     const videoLockedNote = document.getElementById('videoLockedNote');
 
@@ -134,6 +135,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function setupVideoStep(video) {
         lessonVideoTitle.textContent = video.title || "";
+        // The description the mentor wrote for this video (formatted text
+        // from the New Video Tutorial editor). Hidden when there is none.
+        if (lessonVideoDescription) {
+            lessonVideoDescription.innerHTML = video.description || "";
+            lessonVideoDescription.hidden = !(video.description || "").trim();
+        }
         const playerDiv = document.createElement('div');
         playerDiv.id = "ytPlayerTarget";
         lessonVideoFrame.innerHTML = "";

@@ -800,3 +800,24 @@
     display: flex;
     justify-content: flex-end;
 }
+
+/* Video description, shown under the video title */
+.lesson-video-title:has(+ .lesson-video-description:not([hidden])) {
+    margin-bottom: 8px;
+}
+
+.lesson-video-description {
+    margin: 0 0 24px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #475569;
+    overflow-wrap: anywhere;
+}
+
+.lesson-video-description[hidden] {
+    display: none;
+}
+
+.lesson-video-description p {
+    margin: 0 0 8px;
+}
