@@ -1,0 +1,42 @@
+<!-- admin/profile-photo-modal.html - Profile photo popup (feat/profile-photo).
+     Opened by "Change Photo" in the header's profile dropdown
+     (admin-header.html), so it is on every admin and mentor page. Upload / change / remove the
+     photo of the staff member who is logged in - nobody else's.
+     Two views: the photo with its buttons, and a "Remove?" confirmation.
+     Script: js/admin-profile-photo.js. Styles: css/admin-profile-photo.css.
+     Hidden with .modal-hidden. -->
+{% set photo_default_src = '/assets/images/avatar.png' %}
+{% set photo_current_src = current_admin.avatar_url if current_admin and current_admin.avatar_url else photo_default_src %}
+<div id="profilePhotoModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="profilePhotoTitle"
+     data-has-photo="{{ '1' if current_admin and current_admin.avatar_url else '0' }}">
+    <div class="photo-modal-card">
+
+        <div class="photo-modal-header">
+            <h3 id="profilePhotoTitle">Profile photo</h3>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeProfilePhotoBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <!-- View 1: the photo + its buttons -->
+        <div class="photo-modal-body" id="profilePhotoMain">
+            <img class="photo-modal-preview" id="profilePhotoPreview" src="{{ photo_current_src }}" data-default-src="{{ photo_default_src }}" alt="Your current profile photo">
+            <p class="photo-modal-name">{{ current_admin.full_name if current_admin else 'Administrator' }}</p>
+            <p class="photo-modal-hint">JPG, PNG or WebP, up to 2 MB.</p>
+            <p class="photo-modal-message" id="profilePhotoMessage" role="status"></p>
+            <div class="photo-modal-actions">
+                <button type="button" class="btn-pill-green" id="profilePhotoPickBtn">Upload photo</button>
+                <button type="button" class="btn-pill-light is-hidden" id="profilePhotoRemoveBtn">Remove photo</button>
+            </div>
+            <input type="file" id="profilePhotoInput" class="photo-file-input" accept="image/png,image/jpeg,image/webp" tabindex="-1" aria-hidden="true">
+        </div>
+
+        <!-- View 2: confirm before removing -->
+        <div class="photo-modal-body is-hidden" id="profilePhotoConfirm">
+            <p class="photo-modal-confirm-title">Remove your profile photo?</p>
+            <p class="photo-modal-hint">Your account will show the default picture again.</p>
+            <div class="photo-modal-actions">
+                <button type="button" class="btn-pill-light" id="profilePhotoKeepBtn">Keep photo</button>
+                <button type="button" class="btn-pill-danger" id="profilePhotoConfirmRemoveBtn">Remove photo</button>
+            </div>
+        </div>
+    </div>
+</div>

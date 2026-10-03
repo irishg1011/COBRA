@@ -60,7 +60,7 @@
                     <p class="profile-hero-username" id="profileUsername"></p>
                     <div class="profile-hero-meta">
                         <span><i class="fa-regular fa-clock" aria-hidden="true"></i> <span id="heroHours">0h</span> total</span>
-                        <span><i class="fa-solid fa-award" aria-hidden="true"></i> <span id="heroBadges">0/12</span> badges</span>
+                        <span><i class="fa-solid fa-award" aria-hidden="true"></i> <span id="heroBadges">0/0</span> badges</span>
                     </div>
                 </div>
                 <div class="profile-hero-figures">
@@ -108,7 +108,7 @@
                             <div class="stat-row"><dt>Average Score</dt><dd id="statScore">-</dd></div>
                             <div class="stat-row"><dt>Overall Progress</dt><dd id="statOverall">0%</dd></div>
                             <div class="stat-row"><dt>Lessons Completed</dt><dd id="statLessons">0/0</dd></div>
-                            <div class="stat-row"><dt>Badges Earned</dt><dd id="statBadges">0/12</dd></div>
+                            <div class="stat-row"><dt>Badges Earned</dt><dd id="statBadges">0/0</dd></div>
                             <div class="stat-row"><dt>Total Hours</dt><dd id="statHours">0h</dd></div>
                         </dl>
                     </section>
@@ -122,6 +122,17 @@
 
             <!-- Badges & Achievements -->
             <div class="profile-panel" id="panelBadges" role="tabpanel" aria-labelledby="tabBadges" hidden>
+                <!-- feat/certificate: Certificate of Completion. Locked until every chapter
+                     is passed; profile.js fills the text and shows the button. -->
+                <section class="profile-card certificate-card is-locked" id="certificateCard" aria-labelledby="certificateCardTitle">
+                    <div class="certificate-card-icon" id="certificateCardIcon" aria-hidden="true"><i class="fa-solid fa-lock"></i></div>
+                    <div class="certificate-card-body">
+                        <h2 class="certificate-card-title" id="certificateCardTitle">Certificate of Completion</h2>
+                        <p class="certificate-card-text" id="certificateCardText">Pass every chapter of the course to unlock your certificate.</p>
+                    </div>
+                    <a href="/certificate" class="certificate-card-btn" id="certificateCardBtn" hidden>View Certificate</a>
+                </section>
+
                 <section class="profile-card" aria-labelledby="badgesTitle">
                     <div class="badges-head">
                         <h2 class="profile-card-title" id="badgesTitle">Badges &amp; Achievements</h2>

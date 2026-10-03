@@ -94,6 +94,14 @@ from publishing_preview import (  # NEW - Task #17/#18: Admin Preview modal - re
 from lesson_activities import check_mcq_answer, check_fill_blank_answer  # NEW - Task #18: reused as-is for Preview's answer-check (pure/stateless, no side effects)
 import preview_play  # feat/admin-real-game-preview: real learner games in preview - session state only, nothing saved
 from sandbox_monitor import get_sandbox_overview, get_sandbox_run, empty_sandbox_overview  # NEW: Admin > Coding Sandbox monitoring page
+from achievements import (  # feat/mentor-achievements: Mentor > Achievements page (mentor-made badges)
+    get_achievements_data, empty_achievements_data, create_badge, update_badge, set_badge_archived,
+    BADGE_LIMITS, BADGE_COLOR_SWATCHES,
+)
+from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
+from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo
+from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
+from recommendations import get_recommendations_data, empty_recommendations_data  # feat/mentor-recommendations: Mentor > Recommendations page
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
@@ -344,6 +352,8 @@ def get_current_admin():
             (admin_id,)
         )
         row = cursor.fetchone()
+        # feat/profile-photo: the header photo (None = the default avatar.png)
+        avatar_url = get_avatar_url(cursor, admin_id) if row else None
         cursor.close()
 
         if not row:
@@ -357,6 +367,7 @@ def get_current_admin():
             "acc_id": row["acc_id"],
             "full_name": full_name,
             "role": row.get("role") or "Administrator",
+            "avatar_url": avatar_url,
         }
 
     except Error as e:
@@ -3384,14 +3395,166 @@ def analytics():
     return render_placeholder("Analytics")
 
 
+# ============================================================
+# ROUTE: RECOMMENDATIONS (Mentor) - feat/mentor-recommendations
+# Read-only: the lesson parts each learner is told to re-read, made
+# from their missed items by weak_spots.py. Thin wrappers - the queries
+# live in recommendations.py. Both endpoints are MENTOR in
+# role_permissions.py (default-deny).
+# ============================================================
 @admin_bp.route('/recommendations')
 def recommendations():
-    return render_placeholder("Recommendations")
+    """
+    Mentor > Recommendations page. The stat cards and the table are
+    loaded by admin-recommendations.js from /admin/recommendations/data
+    right after the page opens.
+    """
+    return render_template('recommendations.html')
 
 
+@admin_bp.route('/recommendations/data')
+def recommendations_data():
+    """Stat cards + one page of the table. refresh=1 (first load) re-checks learners' weak spots first."""
+    data = get_recommendations_data(
+        search_query=request.args.get('q', ''),
+        status_filter=request.args.get('status', ''),
+        date_from=request.args.get('date_from', '') or None,
+        date_to=request.args.get('date_to', '') or None,
+        page=request.args.get('page', 1, type=int),
+        refresh=request.args.get('refresh') == '1',
+    )
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load recommendations.", **empty_recommendations_data()}), 500
+
+    return jsonify({"success": True, **data}), 200
+
+
+# ============================================================
+# ROUTE: PROFILE PHOTO (Admin + Mentor) - feat/profile-photo
+# Opened from the profile area in the shared header (admin-header.html).
+# The account is ALWAYS session["admin_id"] - nothing from the request -
+# so a staff member can only change their own photo. Rules live in
+# profile_avatar.py, shared with the learner side.
+# ============================================================
+@admin_bp.route('/profile/photo', methods=['POST'])
+def profile_photo_upload():
+    payload, status = set_avatar(session.get("admin_id"), request.files.get('avatar'))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/profile/photo/remove', methods=['POST'])
+def profile_photo_remove():
+    payload, status = remove_avatar(session.get("admin_id"))
+    return jsonify(payload), status
+
+
+# ============================================================
+# ROUTE: CHANGE PASSWORD (Admin + Mentor) - feat/staff-change-password
+# Opened from "Change Password" in the header's profile dropdown. Same
+# 3 steps as the learner's Profile > Change Password. The account is
+# ALWAYS session["admin_id"] and the code always goes to that account's
+# own email - no email or id is read from the request. Rules live in
+# auth_core.py through staff_password.py.
+# ============================================================
+@admin_bp.route('/profile/change-password')
+def staff_change_password():
+    return render_template(
+        'staff-change-password.html',
+        masked_email=get_masked_email(session.get("admin_id")),
+        home_url=role_home_url(g.get("staff_role")),
+    )
+
+
+@admin_bp.route('/profile/password/send-otp', methods=['POST'])
+def staff_password_send_otp():
+    payload, status = send_change_code(session.get("admin_id"))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/profile/password/verify-otp', methods=['POST'])
+def staff_password_verify_otp():
+    data = request.get_json(silent=True) or {}
+    payload, status = verify_change_code(session.get("admin_id"), data.get("otp"))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/profile/password/reset', methods=['POST'])
+def staff_password_reset():
+    data = request.get_json(silent=True) or {}
+    payload, status = change_password(
+        session.get("admin_id"), data.get("newPassword"), data.get("confirmPassword")
+    )
+    return jsonify(payload), status
+
+
+# ============================================================
+# ROUTE: ACHIEVEMENTS (Mentor) - feat/mentor-achievements
+# Badges are made by mentors and stored in badges_tbl; learners earn
+# them automatically (badges.py). Thin wrappers - every rule lives in
+# achievements.py. Each endpoint here is listed as MENTOR in
+# role_permissions.py (default-deny).
+# ============================================================
 @admin_bp.route('/achievements')
 def achievements():
-    return render_placeholder("Achievements")
+    """
+    Mentor > Achievements page. The stat cards and both tables
+    (Badges / Earned Badges) are loaded by admin-achievements.js from
+    /admin/achievements/data right after the page opens.
+    """
+    return render_template(
+        'achievements.html',
+        requirement_types=REQUIREMENT_TYPES,
+        badge_colors=BADGE_COLOR_SWATCHES,
+        default_badge_color=DEFAULT_BADGE_COLOR,
+        badge_limits=BADGE_LIMITS,
+    )
+
+
+@admin_bp.route('/achievements/data')
+def achievements_data():
+    """Stat cards + one page of the Badges tab, the Earned Badges tab, or the View Awarded Badges modal."""
+    tab = request.args.get('tab', 'badges')
+    data = get_achievements_data(
+        tab=tab,
+        search_query=request.args.get('q', ''),
+        status_filter=request.args.get('status', ''),
+        date_from=request.args.get('date_from', '') or None,
+        date_to=request.args.get('date_to', '') or None,
+        learner=request.args.get('learner', '') or None,
+        page=request.args.get('page', 1, type=int),
+        include_learners=request.args.get('include_learners') == '1',
+    )
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load achievements.", **empty_achievements_data(tab)}), 500
+
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/achievements/badges', methods=['POST'])
+def achievements_create_badge():
+    """Create Badge modal (multipart: the fields + the uploaded icon)."""
+    payload, status = create_badge(request.form, request.files.get('icon'), session.get("admin_id"))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/achievements/badges/<int:badge_id>', methods=['POST'])
+def achievements_update_badge(badge_id):
+    """Edit Badge modal. A new icon is optional."""
+    payload, status = update_badge(badge_id, request.form, request.files.get('icon'))
+    return jsonify(payload), status
+
+
+@admin_bp.route('/achievements/badges/<int:badge_id>/archive', methods=['POST'])
+def achievements_archive_badge(badge_id):
+    """Soft archive: no longer awarded, hidden from learners who have not earned it."""
+    payload, status = set_badge_archived(badge_id, True)
+    return jsonify(payload), status
+
+
+@admin_bp.route('/achievements/badges/<int:badge_id>/restore', methods=['POST'])
+def achievements_restore_badge(badge_id):
+    payload, status = set_badge_archived(badge_id, False)
+    return jsonify(payload), status
 
 
 # ============================================================

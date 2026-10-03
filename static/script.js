@@ -590,25 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const toggleSlider = document.getElementById('toggleSlider');
 
-    // feat/login-slider: the sliding teal overlay follows the active side.
-    // .is-signup on the card slides the forms right and the overlay left.
-    let sliderTimer = null;
-    function setSliderSide(signUp) {
-        const card = document.getElementById('authCard');
-        if (!card) return;
-        const moving = card.classList.contains('is-signup') !== !!signUp;
-        card.classList.toggle('is-signup', !!signUp);
-        if (!moving || card.classList.contains('is-instant')) return;
-        // replay the form fade-in for this slide
-        card.classList.remove('is-sliding');
-        void card.offsetWidth;
-        card.classList.add('is-sliding');
-        clearTimeout(sliderTimer);
-        sliderTimer = setTimeout(() => card.classList.remove('is-sliding'), 1400);
-    }
-
     function showSignInView(direction = 'forward') {
-        setSliderSide(false);
         const sliderMoves = !!(toggleSlider && toggleSlider.classList.contains('slide-right'));
         resetSignUpForm();
         resetForgotPasswordForm();
@@ -623,7 +605,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showSignUpView() {
-        setSliderSide(true);
         resetSignInForm();
         resetForgotPasswordForm();
         resetSignUpForm();
@@ -727,23 +708,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showSignInView();
         }
     });
-    // feat/login-slider: the overlay's buttons press the same Sign In /
-    // Sign Up switch as the tabs (same unsaved-input check, same resets).
-    const overlaySignInBtn = document.getElementById('overlaySignInBtn');
-    const overlaySignUpBtn = document.getElementById('overlaySignUpBtn');
-    if (overlaySignUpBtn && signUpBtn) overlaySignUpBtn.addEventListener('click', () => signUpBtn.click());
-    if (overlaySignInBtn && signInBtn) overlaySignInBtn.addEventListener('click', () => signInBtn.click());
-    // No slide on the very first paint (e.g. opening /login?tab=signup):
-    // .is-instant turns transitions off until the page has settled.
-    // Removed two frames after the starting side is set, with a safety
-    // net so the slide can never stay switched off.
-    const sliderCard = document.getElementById('authCard');
-    if (sliderCard) {
-        const enableSlide = () => requestAnimationFrame(() =>
-            requestAnimationFrame(() => sliderCard.classList.remove('is-instant')));
-        window.addEventListener('pageshow', enableSlide, { once: true });   // after the start side is set
-        setTimeout(() => sliderCard.classList.remove('is-instant'), 1500);  // safety net
-    }
 
     if (signInBtn && signUpBtn) {
         signUpBtn.addEventListener('click', () => {

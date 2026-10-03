@@ -19,6 +19,7 @@ One row per notification in notifications_tbl. Two ways rows get made:
        - module passed / chapter completed / module needs a retake /
          lesson that should be reviewed (weak spots)
        - badges (re-checked here too, so nobody has to open the profile)
+       - course completed -> Certificate of Completion (certificates.py)
 
 Every notification has a dedupe_key, so the same event is never notified
 twice. Rows older than 30 days are deleted automatically.
@@ -281,6 +282,10 @@ def _sync_progress(connection, cursor, acc_id, backfill):
 
     connection.commit()
     award_and_list_badges(connection, acc_id, facts, notify_as_read=backfill)
+    # feat/certificate: the course is finished -> issue the certificate once
+    # (and its "course completed" notification), without opening the profile.
+    from certificates import issue_certificate_if_complete   # imported here: certificates imports this module
+    issue_certificate_if_complete(connection, acc_id, facts, notify_as_read=backfill)
 
 
 def sync_for_learner(connection, acc_id, force=False):

@@ -44,6 +44,16 @@ ENDPOINT_ROLES = {
     "admin_bp.admin_logout": BOTH,
     "admin_bp.admin_session_end_beacon": BOTH,  # also public (runs without a session)
 
+    # Profile photo in the shared header (feat/profile-photo) - own account only
+    "admin_bp.profile_photo_upload": BOTH,
+    "admin_bp.profile_photo_remove": BOTH,
+
+    # Change Password from the header dropdown (feat/staff-change-password) - own account only
+    "admin_bp.staff_change_password": BOTH,
+    "admin_bp.staff_password_send_otp": BOTH,
+    "admin_bp.staff_password_verify_otp": BOTH,
+    "admin_bp.staff_password_reset": BOTH,
+
     # Publishing - admins view only (page + read-only refresh)
     "admin_bp.publishing": BOTH,
     "admin_bp.publishing_data": BOTH,
@@ -223,7 +233,14 @@ ENDPOINT_ROLES = {
     "admin_bp.save_coding_exercise_draft": MENTOR,
 
     "admin_bp.recommendations": MENTOR,
+    "admin_bp.recommendations_data": MENTOR,  # feat/mentor-recommendations
     "admin_bp.achievements": MENTOR,
+    # Achievements (feat/mentor-achievements): mentor-made badges
+    "admin_bp.achievements_data": MENTOR,
+    "admin_bp.achievements_create_badge": MENTOR,
+    "admin_bp.achievements_update_badge": MENTOR,
+    "admin_bp.achievements_archive_badge": MENTOR,
+    "admin_bp.achievements_restore_badge": MENTOR,
 }
 
 

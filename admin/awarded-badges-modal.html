@@ -1,0 +1,64 @@
+<!-- admin/awarded-badges-modal.html - Mentor > Achievements: View Awarded Badges.
+     Every badge a learner has earned, newest first, with a learner search
+     and a learner dropdown. Read-only; filled by admin-achievements.js from
+     /admin/achievements/data?tab=earned. Hidden with .modal-hidden. -->
+<div id="awardedBadgesModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="awardedBadgesTitle">
+    <div class="ach-modal-card ach-awarded-card">
+
+        <div class="ach-modal-header">
+            <div class="ach-modal-heading">
+                <h3 id="awardedBadgesTitle">View Awarded Badges</h3>
+                <p>Track which badges each learner has earned.</p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeAwardedBadgesBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="ach-modal-body">
+            <div class="table-card ach-awarded-table-card">
+
+                <div class="table-toolbar">
+                    <div class="header-search search-override">
+                        <span class="mask-icon icon-search search-icon"></span>
+                        <input type="text" id="awardedSearchInput" placeholder="Search learner..." aria-label="Search learner">
+                    </div>
+                    <div class="toolbar-filters">
+                        <select class="custom-select" id="awardedLearnerSelect" aria-label="Learner">
+                            <option value="">All Learners</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="data-table ach-earned-table">
+                        <thead>
+                            <tr>
+                                <th>Learner ID</th>
+                                <th>Badge</th>
+                                <th>Earned At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="awardedTableBody">
+                            <tr>
+                                <td colspan="3" class="text-muted table-empty-message">Loading awarded badges...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-pagination">
+                    <span id="awardedShowingCount">Showing 0 of 0 awarded badges</span>
+                    <div class="pagination-controls">
+                        <button type="button" class="btn-pagination" id="awardedPrevBtn" disabled title="Previous Page">&lt;</button>
+                        <span id="awardedPageLabel">1 of 1</span>
+                        <button type="button" class="btn-pagination" id="awardedNextBtn" disabled title="Next Page">&gt;</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="ach-modal-footer">
+            <button type="button" class="btn-pill-light" id="closeAwardedBadgesFooterBtn">Close</button>
+        </div>
+    </div>
+</div>

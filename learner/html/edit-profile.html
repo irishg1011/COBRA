@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
     <link rel="stylesheet" href="../learner/css/account-forms.css">
+    <link rel="stylesheet" href="../learner/css/profile-photo.css">
 </head>
 <body data-auth-guard-mode="refresh">
 
@@ -52,7 +53,28 @@
 
         <section class="account-card" aria-labelledby="editTitle">
             <h1 class="account-title" id="editTitle">Edit Profile</h1>
-            <p class="account-subtitle">Update your name, username and email address.</p>
+            <p class="account-subtitle">Update your photo, name, username and email address.</p>
+
+            <!-- feat/profile-photo: saved right away, separate from Save Changes.
+                 Shown by profile-photo.js once the current photo is loaded. -->
+            <div class="photo-section" id="photoSection" hidden>
+                <div class="photo-avatar" id="photoAvatar" aria-hidden="true"><i class="fa-solid fa-user"></i></div>
+                <div class="photo-controls">
+                    <p class="photo-title">Profile photo</p>
+                    <div class="photo-actions" id="photoActions">
+                        <button type="button" class="acct-btn acct-btn-secondary" id="changePhotoBtn">Upload Photo</button>
+                        <button type="button" class="acct-btn-link" id="removePhotoBtn" hidden>Remove Photo</button>
+                    </div>
+                    <div class="photo-confirm" id="photoConfirm" hidden>
+                        <span class="photo-confirm-text">Remove your profile photo?</span>
+                        <button type="button" class="acct-btn acct-btn-secondary" id="cancelRemovePhotoBtn">Keep Photo</button>
+                        <button type="button" class="acct-btn photo-btn-danger" id="confirmRemovePhotoBtn">Remove Photo</button>
+                    </div>
+                    <p class="field-hint">JPG, PNG or WebP, up to 2 MB.</p>
+                    <p class="photo-message" id="photoMessage" role="status" hidden></p>
+                </div>
+                <input type="file" id="photoInput" class="photo-file-input" accept="image/png,image/jpeg,image/webp" tabindex="-1" aria-hidden="true">
+            </div>
 
             <p class="account-status" id="editLoading">Loading your details...</p>
 
@@ -111,6 +133,7 @@
     <!-- External Script References -->
     <script src="../learner/js/learner.js"></script>
     <script src="../learner/js/edit-profile.js"></script>
+    <script src="../learner/js/profile-photo.js"></script>
     <script src="../static/auth-guard.js"></script>
     <script src="../static/page-transitions.js"></script>
 </body>

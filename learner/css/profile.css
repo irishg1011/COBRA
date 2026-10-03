@@ -49,6 +49,18 @@
     font-size: 36px;
 }
 
+/* feat/profile-photo: the learner's uploaded photo (profile.js adds .has-photo) */
+.profile-hero-avatar.has-photo {
+    background: none;
+}
+
+.profile-hero-photo {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
 .profile-hero-main {
     flex: 1;
     min-width: 0;
@@ -398,6 +410,90 @@
     color: #10b981;
 }
 
+/* --- Certificate of Completion card (feat/certificate) --- */
+.certificate-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 20px;
+    border: 1px solid #a7f3d0;
+    background: linear-gradient(135deg, #ecfdf5, #f0f9ff);
+}
+
+.certificate-card-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #22d3ee, #10b981);
+}
+
+.certificate-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.certificate-card-title {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.certificate-card-text {
+    margin-top: 4px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.certificate-card-btn {
+    flex-shrink: 0;
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: #10b981;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.certificate-card-btn:hover {
+    background: #059669;
+}
+
+.certificate-card-btn:focus-visible {
+    outline: 2px solid #0f172a;
+    outline-offset: 2px;
+}
+
+.certificate-card-btn[hidden] {
+    display: none;
+}
+
+.certificate-card.is-locked {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
+
+.certificate-card.is-locked .certificate-card-icon {
+    background: #cbd5e1;
+}
+
+.certificate-card.is-locked .certificate-card-title {
+    color: #64748b;
+}
+
+@media (max-width: 600px) {
+    .certificate-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
 /* --- Badges --- */
 .badges-head {
     display: flex;
@@ -440,6 +536,23 @@
     background: linear-gradient(135deg, #fbbf24, #10b981);
     box-shadow: 0 0 0 5px #ffffff, 0 0 0 7px #a7f3d0;
     margin-bottom: 14px;
+}
+
+/* Mentor-made badges: the badge's own color (profile.js copies it from
+   the database into --badge-color) and its uploaded icon image. */
+.badge-medal.has-color {
+    background: var(--badge-color);
+}
+
+.badge-icon-img {
+    width: 60%;
+    height: 60%;
+    object-fit: contain;
+}
+
+.badge-empty {
+    color: #64748b;
+    font-size: 14px;
 }
 
 .badge-name {

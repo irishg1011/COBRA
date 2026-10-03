@@ -29,17 +29,32 @@ So an item can send the learner to its own lesson or to an earlier one.
 "Missed" = the same items the retake uses (activity_retakes.missed_item_ids):
 first attempt wrong or skipped, and not fixed in a retake round yet.
 
-Every time weak spots are built, this learner's unresolved rows for the
-module in lesson_recommendations_tbl are replaced with the new ones (one row
-per recommended part), so the table always reflects the current weak spots.
+RECOMMENDATIONS (lesson_recommendations_tbl - feat/mentor-recommendations)
+One row per learner + recommended part (the lesson part to re-read). Rows
+are kept up to date, never thrown away, so the mentor's Recommendations
+page (recommendations.py) can follow each one from start to finish:
 
-Pure DB helpers + two public entry points. Never touches Flask.
+    Pending      recommended, the learner has not opened the review yet
+    In Progress  the learner opened the review (viewed_at) or already
+                 fixed some of the missed items (missed_count < initial_missed)
+    Completed    every missed item behind it was fixed (resolved = 1)
+
+They are refreshed for one learner + module (_sync_module):
+  - when the lesson Summary loads            (get_review_status)
+  - when the learner opens the review        (get_weak_spots - also sets viewed_at)
+  - when a mentor opens Recommendations      (refresh_recommendations)
+A part that is still missed keeps its row and its original date; a part
+that is no longer missed is marked resolved; a newly missed part gets a
+new row.
+
+Pure DB helpers + three public entry points. Never touches Flask.
 """
 
 import html
 from collections import Counter
 import math
 import re
+import time
 
 from mysql.connector import Error
 from cobradb import get_db_connection
@@ -55,6 +70,27 @@ from activity_retakes import (
 from module_performance import lesson_performance, module_performance, module_lesson_ids
 
 RECOMMENDATIONS_TABLE = "lesson_recommendations_tbl"
+PROGRESS_TABLE = "learner_resource_progress_tbl"
+TOPIC_MAX = 150
+
+# Columns added to the original lesson_recommendations_tbl (name, DDL).
+# Added one by one only when missing, so this is safe on any database.
+_RECOMMENDATION_COLUMNS = [
+    ("weak_topic", "VARCHAR(150) NULL"),               # the lesson part (heading) to re-read
+    ("missed_count", "INT(10) NOT NULL DEFAULT 0"),    # items still missed
+    ("initial_missed", "INT(10) NOT NULL DEFAULT 0"),  # items missed when first recommended
+    ("viewed_at", "DATETIME NULL"),                    # when the learner first opened the review
+    ("resolved_at", "DATETIME NULL"),                  # when every missed item was fixed
+]
+# Rows saved before the columns above existed only have the old reason text.
+LEGACY_REASON_RE = re.compile(r"^Review '(.*)' - \d+ missed item")
+
+REFRESH_EVERY_SECONDS = 60   # the mentor page re-checks learners at most this often
+MAX_PAIRS_PER_REFRESH = 300  # learner + module pairs re-checked in one refresh
+
+_recommendation_schema_ready = False
+_last_refresh = 0.0
+_checked_pairs = set()       # (acc_id, module_id) already checked since the server started
 
 TYPE_SHORT = {MCQ_TYPE: "MCQ", FIB_TYPE: "FIB", FLASHCARD_TYPE: "Card"}
 
@@ -305,11 +341,16 @@ def _best_section(item, candidates):
     return best_index
 
 
-def _build(cursor, acc_id, lessons_in_scope, course):
-    """Groups of {part -> missed items} for the given lessons (one course scan)."""
+def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None):
+    """
+    Groups of {part -> missed items} for the given lessons (one course scan).
+    candidates_cache: pass the same dict when building for several learners,
+    so each lesson's content is read and split only once.
+    """
     groups = {}
     order_of = {l["resource_id"]: i for i, l in enumerate(course)}
-    candidates_cache = {}
+    if candidates_cache is None:
+        candidates_cache = {}
 
     for lesson in lessons_in_scope:
         resource_id = lesson["resource_id"]
@@ -355,21 +396,136 @@ def _build(cursor, acc_id, lessons_in_scope, course):
     return out
 
 
-def _save_recommendations(cursor, acc_id, module_id, groups):
-    """Replace this learner's unresolved recommendations for the module."""
+def ensure_recommendation_schema(cursor):
+    """Adds the tracking columns to lesson_recommendations_tbl when missing."""
+    global _recommendation_schema_ready
+    if _recommendation_schema_ready:
+        return
+    cursor.execute(f"SHOW COLUMNS FROM {RECOMMENDATIONS_TABLE}")
+    existing = set()
+    for row in cursor.fetchall():
+        existing.add(next(iter(row.values())) if isinstance(row, dict) else row[0])
+    for name, ddl in _RECOMMENDATION_COLUMNS:
+        if name not in existing:
+            cursor.execute(f"ALTER TABLE {RECOMMENDATIONS_TABLE} ADD COLUMN {name} {ddl}")
+    _recommendation_schema_ready = True
+
+
+def _reason_text(group, titles):
+    """e.g. "Missed 3 items in Variables and Data Types (MCQ 2, MCQ 5, FIB 1)"."""
+    by_lesson = {}
+    for item in group["items"]:
+        by_lesson.setdefault(item["from_resource_id"], []).append(item["label"])
+    parts = [f"{titles.get(rid, 'a lesson')} ({', '.join(labels)})" for rid, labels in by_lesson.items()]
+    count = len(group["items"])
+    return f"Missed {count} item{'s' if count != 1 else ''} in {'; '.join(parts)}"[:255]
+
+
+def _save_recommendations(cursor, acc_id, module_id, groups, titles, viewed_keys=None):
+    """
+    Brings this learner's recommendations for the module in line with
+    `groups` (the parts that are missed RIGHT NOW):
+      - a part that already has an open row keeps it (and its date); its
+        count and reason are updated
+      - a part with no open row gets a new one
+      - an open row whose part is no longer missed is marked resolved
+    viewed_keys: {(resource_id, heading)} the learner is looking at now -
+    those rows get viewed_at (first time only).
+    titles: {resource_id: lesson title} for the reason text.
+    """
+    ensure_recommendation_schema(cursor)
+    viewed_keys = viewed_keys or set()
+
     cursor.execute(
-        f"DELETE FROM {RECOMMENDATIONS_TABLE} WHERE acc_id = %s AND module_id = %s AND resolved = 0",
+        f"""SELECT recommendation_id, resource_id, weak_topic, reason
+            FROM {RECOMMENDATIONS_TABLE}
+            WHERE acc_id = %s AND module_id = %s AND resolved = 0
+            ORDER BY recommendation_id""",
         (acc_id, module_id)
     )
+    open_rows, no_longer_missed = {}, []
+    for row in cursor.fetchall():
+        topic = row["weak_topic"]
+        if topic is None:   # saved before weak_topic existed
+            match = LEGACY_REASON_RE.match(row["reason"] or "")
+            topic = match.group(1) if match else ""
+        key = (row["resource_id"], topic[:TOPIC_MAX])
+        if key in open_rows:
+            no_longer_missed.append(row["recommendation_id"])   # an old duplicate
+        else:
+            open_rows[key] = row["recommendation_id"]
+
     for g in groups:
         count = len(g["items"])
-        reason = f"Review '{g['heading']}' - {count} missed item{'s' if count != 1 else ''}"[:255]
+        topic = (g["heading"] or "")[:TOPIC_MAX]
+        reason = _reason_text(g, titles)
+        viewed = (g["resource_id"], g["heading"]) in viewed_keys
+        recommendation_id = open_rows.pop((g["resource_id"], topic), None)
+
+        if recommendation_id is not None:
+            cursor.execute(
+                f"""UPDATE {RECOMMENDATIONS_TABLE}
+                    SET weak_topic = %s, reason = %s, missed_count = %s,
+                        initial_missed = GREATEST(initial_missed, %s)
+                    WHERE recommendation_id = %s""",
+                (topic, reason, count, count, recommendation_id)
+            )
+            if viewed:
+                cursor.execute(
+                    f"""UPDATE {RECOMMENDATIONS_TABLE} SET viewed_at = NOW()
+                        WHERE recommendation_id = %s AND viewed_at IS NULL""",
+                    (recommendation_id,)
+                )
+        else:
+            cursor.execute(
+                f"""INSERT INTO {RECOMMENDATIONS_TABLE}
+                        (acc_id, module_id, resource_id, reason, generated_at, resolved,
+                         weak_topic, missed_count, initial_missed)
+                    VALUES (%s, %s, %s, %s, NOW(), 0, %s, %s, %s)""",
+                (acc_id, module_id, g["resource_id"], reason, topic, count, count)
+            )
+            if viewed:
+                cursor.execute(
+                    f"""UPDATE {RECOMMENDATIONS_TABLE} SET viewed_at = NOW()
+                        WHERE acc_id = %s AND module_id = %s AND resource_id = %s
+                          AND weak_topic = %s AND resolved = 0 AND viewed_at IS NULL""",
+                    (acc_id, module_id, g["resource_id"], topic)
+                )
+
+    for recommendation_id in no_longer_missed + list(open_rows.values()):
         cursor.execute(
-            f"""INSERT INTO {RECOMMENDATIONS_TABLE}
-                (acc_id, module_id, resource_id, reason, generated_at, resolved)
-                VALUES (%s, %s, %s, %s, NOW(), 0)""",
-            (acc_id, module_id, g["resource_id"], reason)
+            f"""UPDATE {RECOMMENDATIONS_TABLE}
+                SET resolved = 1, resolved_at = NOW(), missed_count = 0
+                WHERE recommendation_id = %s""",
+            (recommendation_id,)
         )
+
+
+def _sync_module(connection, cursor, acc_id, module_id, course=None, candidates_cache=None):
+    """
+    Rebuilds and saves one learner's recommendations for one module.
+    Never raises - keeping recommendations fresh must not break the page
+    that triggered it. Returns True when saved.
+    """
+    try:
+        if course is None:
+            course = _course_lessons(cursor)
+        by_id = {l["resource_id"]: l for l in course}
+        lessons = [by_id[rid] for rid in module_lesson_ids(cursor, module_id) if rid in by_id]
+        if not lessons:
+            return True   # module not published right now - leave its rows as they are
+        groups = _build(cursor, acc_id, lessons, course, candidates_cache)
+        titles = {l["resource_id"]: l["resource_title"] for l in course}
+        _save_recommendations(cursor, acc_id, module_id, groups, titles)
+        connection.commit()
+        return True
+    except Error as e:
+        print(f"weak_spots: could not refresh recommendations for {acc_id} / module {module_id}: {e}")
+        try:
+            connection.rollback()
+        except Error:
+            pass
+        return False
 
 
 # ---------------- public entry points ----------------
@@ -400,8 +556,6 @@ def get_weak_spots(acc_id, resource_id, scope="lesson"):
         # Always build the whole module (it's what gets saved as recommendations),
         # then return the scope that was asked for.
         module_groups = _build(cursor, acc_id, [by_id[rid] for rid in module_ids], course)
-        _save_recommendations(cursor, acc_id, module_id, module_groups)
-        connection.commit()
 
         if scope == "module":
             groups = module_groups
@@ -413,6 +567,12 @@ def get_weak_spots(acc_id, resource_id, scope="lesson"):
                     groups.append({**g, "items": own})
         for g in groups:
             g["is_current_lesson"] = g["resource_id"] == int(resource_id)
+
+        # The parts shown now count as "opened by the learner" (In Progress).
+        titles = {l["resource_id"]: l["resource_title"] for l in course}
+        _save_recommendations(cursor, acc_id, module_id, module_groups, titles,
+                              viewed_keys={(g["resource_id"], g["heading"]) for g in groups})
+        connection.commit()
 
         cursor.close()
         return {
@@ -455,6 +615,9 @@ def get_review_status(acc_id, resource_id):
         lesson_ids = module_lesson_ids(cursor, module_id)
         is_last = bool(lesson_ids) and lesson_ids[-1] == int(resource_id)
         module_missed = sum((l.get("missed") or 0) for l in module["lessons"].values())
+        # The Summary is where a learner lands after activities and retakes, so
+        # this is where their recommendations are created / marked resolved.
+        _sync_module(connection, cursor, acc_id, module_id)
         cursor.close()
 
         lesson_percent = lesson["percent"]
@@ -471,6 +634,61 @@ def get_review_status(acc_id, resource_id):
     except Error as e:
         print(f"weak_spots: failed to load review status for resource_id={resource_id}: {e}")
         return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def refresh_recommendations(force=False):
+    """
+    For the mentor's Recommendations page: re-checks
+      - every learner + module that still has an open recommendation
+        (so one the learner has fixed since shows as Completed), and
+      - every learner + module with lesson progress that has not been
+        checked since the server started (so learners who never opened the
+        review still get their recommendations).
+    Runs at most once every REFRESH_EVERY_SECONDS unless forced.
+    Never raises. Returns how many learner + module pairs were re-checked.
+    """
+    global _last_refresh
+    now = time.time()
+    if not force and now - _last_refresh < REFRESH_EVERY_SECONDS:
+        return 0
+    _last_refresh = now
+
+    connection = get_db_connection()
+    if connection is None:
+        return 0
+    try:
+        ensure_retake_schema(connection)
+        cursor = connection.cursor(dictionary=True)
+        ensure_recommendation_schema(cursor)
+
+        cursor.execute(f"SELECT DISTINCT acc_id, module_id FROM {RECOMMENDATIONS_TABLE} WHERE resolved = 0")
+        pairs = {(r["acc_id"], r["module_id"]) for r in cursor.fetchall()}
+
+        cursor.execute(
+            f"""SELECT DISTINCT p.acc_id, lr.module_id
+                FROM {PROGRESS_TABLE} p
+                JOIN learning_resources_tbl lr ON lr.resource_id = p.resource_id"""
+        )
+        for r in cursor.fetchall():
+            pair = (r["acc_id"], r["module_id"])
+            if pair not in _checked_pairs:
+                pairs.add(pair)
+
+        course = _course_lessons(cursor)
+        candidates_cache = {}
+        done = 0
+        for acc_id, module_id in sorted(pairs)[:MAX_PAIRS_PER_REFRESH]:
+            if _sync_module(connection, cursor, acc_id, module_id, course, candidates_cache):
+                _checked_pairs.add((acc_id, module_id))
+                done += 1
+        cursor.close()
+        return done
+    except Error as e:
+        print(f"weak_spots: recommendation refresh failed: {e}")
+        return 0
     finally:
         if connection.is_connected():
             connection.close()

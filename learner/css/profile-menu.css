@@ -34,6 +34,25 @@
     transform: none;
 }
 
+/* --- Profile photo (feat/profile-photo): learner.js swaps the default
+   icons for the uploaded photo and adds .has-photo --- */
+.profile-menu-photo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.profile-menu-btn.has-photo {
+    padding: 4px;
+}
+
+.profile-menu-btn.has-photo .profile-menu-photo {
+    width: 30px;
+    height: 30px;
+}
+
 /* --- Dropdown --- */
 .profile-menu {
     position: relative;
@@ -95,6 +114,10 @@
     background: linear-gradient(135deg, #22d3ee, #10b981);
     color: #ffffff;
     font-size: 17px;
+}
+
+.profile-menu-avatar.has-photo {
+    background: none;
 }
 
 .profile-menu-identity-text {

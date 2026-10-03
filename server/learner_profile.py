@@ -7,6 +7,7 @@ Blueprint behind the learner header's profile dropdown:
     /profile                   - View Profile (analytics + badges)
     /profile/edit              - Edit Profile (name, username, email)
     /profile/change-password   - Change Password (OTP to email)
+    /certificate               - Certificate of Completion (view / print)
 
   APIs (all for the logged-in learner only - the account always comes
   from the session, never from the request body)
@@ -14,6 +15,9 @@ Blueprint behind the learner header's profile dropdown:
     GET  /api/profile/overview              - profile page data + badges (awards new badges)
     POST /api/profile/heartbeat             - learning-time tracker (once a minute)
     POST /api/profile/update                - save name / username / email
+    POST /api/profile/avatar                - upload / replace the profile photo
+    POST /api/profile/avatar/remove         - back to the default icon
+    GET  /api/certificate                   - the learner's certificate, or how far they are from it
     POST /api/profile/email/send-otp        - code to a NEW email address
     POST /api/profile/email/verify-otp      - verify that code
     POST /api/profile/password/send-otp     - reset code to the account's email
@@ -40,6 +44,8 @@ from module_performance import module_performance, PASS_PERCENT
 from learning_time import record_heartbeat, get_total_seconds
 from badges import award_and_list_badges
 from notifications import notify
+from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo
+from certificates import issue_certificate_if_complete, get_certificate, certificate_payload  # feat/certificate
 
 learner_profile_bp = Blueprint("learner_profile_bp", __name__)
 
@@ -133,11 +139,13 @@ def profile_me():
     try:
         cursor = connection.cursor(dictionary=True)
         row = _fetch_account(cursor, acc_id)
-        cursor.close()
         if not row:
+            cursor.close()
             return _not_logged_in()
         payload = _account_payload(row)
         payload["masked_email"] = _mask_email(row["email"])
+        payload["avatar_url"] = get_avatar_url(cursor, acc_id)  # feat/profile-photo (None = default icon)
+        cursor.close()
         return jsonify({"success": True, "profile": payload})
     except Error as e:
         return jsonify({"success": False, "message": f"Database error: {e}"}), 500
@@ -188,11 +196,13 @@ def _build_overview(cursor, acc_id, collect=None):
 
     perfect = {"mcq": 0, "fib": 0, "flashcards": 0}
     lessons_total = lessons_completed = modules_passed = chapters_completed = 0
+    chapters_total = chapters_passed = 0   # feat/certificate: chapters with lessons / with every module passed
     all_scores = []
     topics = []
 
     for index, chapter in enumerate(chapters):
         ch_total = ch_done = 0
+        ch_all_passed = True   # feat/certificate: every module of this chapter passed its gate
         ch_scores = []
         type_fracs = {"mcq": [], "fib": [], "flashcards": []}
 
@@ -202,6 +212,8 @@ def _build_overview(cursor, acc_id, collect=None):
                 collect.append({"chapter": chapter, "module": module, "perf": perf})
             if module["lessons"] and perf["passed"]:
                 modules_passed += 1
+            if module["lessons"] and not perf["passed"]:
+                ch_all_passed = False
 
             for lesson in module["lessons"]:
                 rid = lesson["resource_id"]
@@ -227,6 +239,10 @@ def _build_overview(cursor, acc_id, collect=None):
         all_scores.extend(ch_scores)
         if ch_total and ch_done == ch_total:
             chapters_completed += 1
+        if ch_total:
+            chapters_total += 1
+            if ch_all_passed:
+                chapters_passed += 1
 
         topics.append({
             "cat_id": chapter["cat_id"],
@@ -261,6 +277,11 @@ def _build_overview(cursor, acc_id, collect=None):
         "snippets_saved": _count(
             cursor, "SELECT COUNT(*) AS n FROM sandbox_snippets_tbl WHERE acc_id = %s", (acc_id,)),
         "learning_seconds": learning_seconds,
+        # feat/certificate: the whole course is finished when every published
+        # chapter is passed (same rule as the "Chapter complete" notification).
+        "chapters_total": chapters_total,
+        "chapters_passed": chapters_passed,
+        "course_completed": 1 if chapters_total and chapters_passed == chapters_total else 0,
         "login_days": _count(
             cursor,
             """SELECT COUNT(DISTINCT DATE(attempted_at)) AS n FROM login_logs_tbl
@@ -294,20 +315,99 @@ def profile_overview():
             cursor.close()
             return _not_logged_in()
         topics, areas, stats, facts = _build_overview(cursor, acc_id)
+        profile = _account_payload(row)
+        profile["avatar_url"] = get_avatar_url(cursor, acc_id)  # feat/profile-photo
         cursor.close()
 
         badges = award_and_list_badges(connection, acc_id, facts)
         stats["badges_earned"] = sum(1 for b in badges if b["earned"])
         stats["badges_total"] = len(badges)
+        certificate = issue_certificate_if_complete(connection, acc_id, facts)  # feat/certificate
 
         return jsonify({
             "success": True,
-            "profile": _account_payload(row),
+            "profile": profile,
             "stats": stats,
             "topics": topics,
             "areas_to_improve": areas,
             "pass_percent": PASS_PERCENT,
             "badges": badges,
+            "certificate": certificate_payload(certificate, facts),
+        })
+    except Error as e:
+        return jsonify({"success": False, "message": f"Database error: {e}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+# ============================================================
+# API: PROFILE PHOTO (feat/profile-photo)
+# The account is ALWAYS the logged-in learner from the session - no id
+# is read from the request - so a learner can only change their own
+# photo. Every rule (file type, size, replacing the old file) lives in
+# profile_avatar.py, shared with the staff side.
+# ============================================================
+@learner_profile_bp.route("/api/profile/avatar", methods=["POST"])
+def profile_avatar_upload():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return _not_logged_in()
+    payload, status = set_avatar(acc_id, request.files.get("avatar"))
+    return jsonify(payload), status
+
+
+@learner_profile_bp.route("/api/profile/avatar/remove", methods=["POST"])
+def profile_avatar_remove():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return _not_logged_in()
+    payload, status = remove_avatar(acc_id)
+    return jsonify(payload), status
+
+
+# ============================================================
+# CERTIFICATE OF COMPLETION (feat/certificate)
+# The account is ALWAYS the logged-in learner from the session - no id
+# is read from the request - so a learner can only open their own
+# certificate. Whether the course is finished is decided here on the
+# server (certificates.py), never by the page.
+# ============================================================
+@learner_profile_bp.route("/certificate")
+def certificate_page():
+    return _html("certificate.html")
+
+
+@learner_profile_bp.route("/api/certificate", methods=["GET"])
+def certificate_data():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return _not_logged_in()
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+    try:
+        cursor = connection.cursor(dictionary=True)
+        row = _fetch_account(cursor, acc_id)
+        if not row:
+            cursor.close()
+            return _not_logged_in()
+
+        # Already issued: nothing to work out. Otherwise check the learner's
+        # progress now and issue it if they have just finished the course.
+        certificate = get_certificate(cursor, acc_id)
+        facts = None
+        if certificate is None:
+            _, _, _, facts = _build_overview(cursor, acc_id)
+        cursor.close()
+        if certificate is None:
+            certificate = issue_certificate_if_complete(connection, acc_id, facts)
+
+        return jsonify({
+            "success": True,
+            "learner_name": _account_payload(row)["full_name"],
+            "certificate": certificate_payload(certificate, facts),
         })
     except Error as e:
         return jsonify({"success": False, "message": f"Database error: {e}"}), 500

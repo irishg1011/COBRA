@@ -1,0 +1,123 @@
+/* ==========================================================================
+   PROFILE PHOTO (feat/profile-photo) - profile-photo-modal.html
+   Loaded from admin-header.html, so it is on every admin and mentor page.
+   The header button and its dropdown are in admin-profile-menu.css.
+   Everything shared (.modal-overlay, pill buttons, .is-hidden) comes from
+   admin-style.css.
+   ========================================================================== */
+
+/* --- Popup --- */
+.photo-modal-card {
+    width: 100%;
+    max-width: 380px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.photo-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.photo-modal-header h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.photo-modal-header .modal-close-btn {
+    color: var(--admin-muted);
+    line-height: 1;
+}
+
+.photo-modal-header .modal-close-btn:hover {
+    color: var(--admin-text);
+}
+
+.photo-modal-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 20px 22px;
+    text-align: center;
+}
+
+.photo-modal-body.is-hidden {
+    display: none;
+}
+
+/* The photo: always a circle, cropped from the center, never stretched */
+.photo-modal-preview {
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #eef6f8;
+    box-shadow: 0 0 0 4px #ffffff, 0 0 0 5px var(--admin-line);
+}
+
+.photo-modal-name {
+    margin-top: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--admin-text);
+    overflow-wrap: anywhere;
+}
+
+.photo-modal-hint {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.photo-modal-confirm-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+/* Result of the last upload / remove - filled by the script */
+.photo-modal-message {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #DCF5DC;
+    color: #0F7A3D;
+    font-size: 12px;
+}
+
+.photo-modal-message.is-error {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.photo-modal-message:empty {
+    display: none;
+}
+
+.photo-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+/* The real file input is visually hidden; the button opens it */
+.photo-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
