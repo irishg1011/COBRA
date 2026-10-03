@@ -62,6 +62,9 @@
                             <input type="text" id="username" placeholder="Enter username" required>
                         </div>
 
+                        
+                        <a href="#" class="forgot-username-link" id="forgotUsernameLink">Forgot your username?</a>
+
                         <div class="input-group password-group">
                             <label for="password">Password</label>
                             <div class="password-wrapper">
@@ -241,6 +244,101 @@
                             <p>Your password has been updated. You can now sign in with your new password.</p>
                         </div>
                         <button type="button" class="btn-login back-to-login-btn auth-btn-rounded auth-btn-spaced">Back to Sign in</button>
+                    </div>
+                </div>
+
+                <!-- FORGOT USERNAME PANELS (feat/forgot-username)
+                     Same three steps as Forgot Password above - email, code, result -
+                     but the result is the account's username. Opened by the
+                     "Forgot your username?" link under the Username box (script.js). -->
+                <div id="forgotUsernamePanel" class="auth-hidden">
+                    <div class="verification-container">
+                        <div class="verification-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="10" cy="8" r="4" stroke="url(#forgot-username-gradient-1)" stroke-width="2"/>
+                                <path d="M3 20C3 16.6863 6.13401 14 10 14C11.2 14 12.3 14.25 13.3 14.7" stroke="url(#forgot-username-gradient-1)" stroke-width="2" stroke-linecap="round"/>
+                                <circle cx="18" cy="17" r="4" fill="#00D0FF"/>
+                                <path d="M17 16.5V16C17 15.4 17.4 15 18 15C18.6 15 19 15.4 19 16C19 16.6 18.4 17 18 17.5V18" stroke="#FFFFFF" stroke-width="1" stroke-linecap="round"/>
+                                <circle cx="18" cy="19.2" r="0.5" fill="#FFFFFF"/>
+                                <defs>
+                                    <linearGradient id="forgot-username-gradient-1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#00D0FF" /><stop offset="100%" stop-color="#38FF92" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                        <div class="form-header centered-header">
+                            <h2>Forgot your username?</h2>
+                            <p>No worries! Enter your email address below and we'll send you a code to confirm it's you.</p>
+                        </div>
+                        <form class="auth-form auth-form--full">
+                            <div class="input-group auth-text-left">
+                                <label for="forgotUsernameEmail">Email address</label>
+                                <input type="email" id="forgotUsernameEmail" placeholder="Enter valid email address" required>
+                            </div>
+                            <button type="button" class="btn-login auth-btn-rounded auth-btn-spaced" id="btnForgotUsernameProceed">Proceed</button>
+                        </form>
+                        <div class="footer-back-wrapper">
+                            <a href="#" class="back-to-login-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to log in</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FORGOT USERNAME OTP VERIFICATION -->
+                <div id="forgotUsernameOtpPanel" class="auth-hidden">
+                    <div class="verification-container">
+                        <div class="verification-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6M22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6M22 6L12 13L2 6" stroke="url(#forgot-username-gradient-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="19" cy="6" r="4" fill="#00D0FF" />
+                                <path d="M19 4V6L20.5 7" stroke="#FFFFFF" stroke-width="1" stroke-linecap="round"/>
+                                <defs>
+                                    <linearGradient id="forgot-username-gradient-2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#00D0FF" /><stop offset="100%" stop-color="#38FF92" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                        <div class="form-header centered-header">
+                            <h2>Verify your email</h2>
+                            <p>We sent a 6-digit verification code to <span class="dynamic-forgot-username-email auth-text-strong auth-text-dark"></span></p>
+                        </div>
+                        <div class="otp-wrapper">
+                            <div class="otp-container forgot-otp-inputs">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric">
+                            </div>
+                            <div class="show-otp-container">
+                                <input type="checkbox" id="showForgotUsernameOtp">
+                                <label for="showForgotUsernameOtp">Show OTP</label>
+                            </div>
+                        </div>
+
+                        <div class="timer-container timer-container--compact">
+                            <p class="timer-text timer-text--muted">Code expires in <span id="forgotUsernameTimerDisplay" class="auth-text-strong auth-text-dark">5:00</span></p>
+                            <a href="#" class="resend-link resend-link--regular" id="resendForgotUsernameLink">Resend code</a>
+                        </div>
+
+                        <button type="button" class="btn-login auth-btn-rounded" id="btnVerifyForgotUsernameCode">Verify Code</button>
+                        <div class="footer-back-wrapper">
+                            <a href="#" class="back-to-login-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to log in</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FORGOT USERNAME RESULT -->
+                <div id="forgotUsernameSuccessPanel" class="auth-hidden">
+                    <div class="verification-container">
+                        <div class="form-header centered-header">
+                            <h2>Here is your username</h2>
+                            <p>The username for <span class="dynamic-forgot-username-email auth-text-strong auth-text-dark"></span> is:</p>
+                        </div>
+                        <p class="recovered-username" id="recoveredUsername"></p>
+                        <button type="button" class="btn-login auth-btn-rounded auth-btn-spaced" id="btnUsernameBackToSignIn">Back to Sign in</button>
                     </div>
                 </div>
 

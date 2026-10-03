@@ -260,7 +260,7 @@ def _find_account_by_email(email):
         cursor = connection.cursor(dictionary=True)
         ensure_mentor_user_type(connection)
         cursor.execute(
-            f"""SELECT a.acc_id, a.password, a.is_deleted, a.u_type, ut.u_type AS role
+            f"""SELECT a.acc_id, a.username, a.password, a.is_deleted, a.u_type, ut.u_type AS role
                 FROM {ACCOUNT_TABLE} a
                 LEFT JOIN {USERTYPE_TABLE} ut ON a.u_type = ut.ut_id
                 WHERE a.email = %s""",
@@ -340,6 +340,98 @@ def verify_reset_code(email, otp, portal):
     record["verified"] = True
     record["expires_at"] = time.time() + RESET_WINDOW_SECONDS
     return {"success": True, "message": "OTP verified successfully."}, 200
+
+
+# ============================================================
+# FORGOT USERNAME (feat/forgot-username)
+# The same two steps as the start of Forgot Password - a 6-digit code
+# to the account's email, then the code is checked - but the reward is
+# the USERNAME instead of a new password. It reuses the same pieces:
+# _find_account_by_email, the shared otp_storage, generate_otp,
+# send_email and OTP_TTL_SECONDS. Its codes are stored under their own
+# key, so a username code can never be used to reset a password.
+# ============================================================
+def _username_key(portal, email):
+    return f"username_{portal}_{email}"
+
+
+def send_username_code(email, portal):
+    """Returns (payload, status). Same account checks as send_reset_code."""
+    portal = _portal(portal)
+    email = (email or "").strip().lower()
+    if not email:
+        return {"success": False, "message": "Please enter your email address."}, 400
+
+    account, err = _find_account_by_email(email)
+    if err:
+        return err
+
+    wanted = PORTAL_ROLES[portal]
+    if portal == "admin":
+        if not account or account.get("role") not in wanted:
+            return {"success": False, "message": "No staff account found with this email address."}, 404
+    else:
+        if not account:
+            # 404 -> the learner page offers "Sign up with this email"
+            return {"success": False, "message": "No account found with this email address."}, 404
+        if account.get("role") not in wanted:
+            return {"success": False, "message": "Staff accounts sign in at the staff login page.",
+                    "admin_login_url": ADMIN_LOGIN_URL}, 403
+
+    if account.get("is_deleted"):
+        return {"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}, 403
+
+    otp_code = generate_otp()
+    otp_storage[_username_key(portal, email)] = {
+        "otp": otp_code,
+        "expires_at": time.time() + OTP_TTL_SECONDS,
+        "verified": False,
+    }
+    sent = send_email(
+        to_email=email,
+        subject="CobraByte - Username Recovery Code",
+        body_text=(f"Your 6-digit username recovery code is: {otp_code}\n"
+                   "This code expires in 5 minutes.\n\n"
+                   "If you did not ask for this, you can ignore this email.")
+    )
+    if sent:
+        return {"success": True, "message": "Verification code sent to your email."}, 200
+    return {"success": False, "message": "Failed to send email. Please try again."}, 500
+
+
+def verify_username_code(email, otp, portal):
+    """
+    Returns (payload, status). On success the payload carries the
+    account's username, and the code is used up (it works once).
+    """
+    portal = _portal(portal)
+    email = (email or "").strip().lower()
+    otp = (otp or "").strip()
+    if not email or not otp:
+        return {"success": False, "message": "Email and OTP code are required."}, 400
+
+    key = _username_key(portal, email)
+    record = otp_storage.get(key)
+    if not record:
+        return {"success": False, "message": "No verification code found. Please request a new code."}, 400
+    if time.time() > record["expires_at"]:
+        otp_storage.pop(key, None)
+        return {"success": False, "message": "Verification code has expired. Please click 'Resend code'."}, 400
+    if record["otp"] != otp:
+        return {"success": False, "message": "Invalid verification code."}, 400
+
+    account, err = _find_account_by_email(email)
+    if err:
+        return err
+    if not account or account.get("role") not in PORTAL_ROLES[portal]:
+        otp_storage.pop(key, None)
+        return {"success": False, "message": "No account found with this email address."}, 404
+    if account.get("is_deleted"):
+        otp_storage.pop(key, None)
+        return {"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}, 403
+
+    otp_storage.pop(key, None)
+    return {"success": True, "message": "Email verified.", "username": account["username"]}, 200
 
 
 def reset_password(email, new_password, confirm_password, portal, via="forgot"):
