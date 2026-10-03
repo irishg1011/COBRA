@@ -943,7 +943,9 @@ def lesson_activities_data():
     if not resource_id:
         return jsonify({"success": False, "message": "resource_id is required."}), 400
 
-    activities = get_published_activities_for_resource(resource_id)
+    # feat/learner-shuffle: acc_id -> this learner's own question order
+    # (and shuffled Multiple Choice choices); see learner_shuffle.py.
+    activities = get_published_activities_for_resource(resource_id, acc_id)
 
     connection = get_db_connection()
     completed_ids = set()

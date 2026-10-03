@@ -49,6 +49,7 @@ from lesson_activities import (
 from activity_retakes import (  # Module 85% gate: retake rounds
     FLASHCARD_TYPE, open_retake, retake_progress, complete_retake, retake_payload,
 )
+from learner_shuffle import order_rows, activity_scope  # feat/learner-shuffle
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
@@ -214,7 +215,8 @@ def _open(cursor, acc_id, la_id):
     type_id = _published_type_id(cursor, la_id)
     if type_id is None:
         return None
-    cards = _load_cards(cursor, la_id)
+    # feat/learner-shuffle: this learner's own card order (stable for them).
+    cards = order_rows(acc_id, activity_scope(la_id), _load_cards(cursor, la_id), "flashcard_id")
     card_ids = [c["flashcard_id"] for c in cards]
 
     # Lock order everywhere: lives pool first, then the session row.

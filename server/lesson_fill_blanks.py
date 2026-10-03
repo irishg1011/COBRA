@@ -47,6 +47,7 @@ from lesson_activities import (
 from activity_retakes import (  # Module 85% gate: retake rounds
     FIB_TYPE, open_retake, retake_progress, complete_retake, retake_payload,
 )
+from learner_shuffle import order_rows, activity_scope  # feat/learner-shuffle
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
@@ -315,7 +316,10 @@ def _open(cursor, acc_id, la_id):
     activity_type_id = _published_fib_type_id(cursor, la_id)
     if activity_type_id is None:
         return None
-    items = _load_items(cursor, la_id)
+    # feat/learner-shuffle: this learner's own item order (stable for them).
+    # The current item is always "the first one not solved yet" in that
+    # order, so nothing already solved is asked again.
+    items = order_rows(acc_id, activity_scope(la_id), _load_items(cursor, la_id), "fib_id")
     fib_ids = [r["fib_id"] for r in items]
     solved, first_try = _answer_summary(cursor, acc_id, fib_ids)
     index = next((i for i, fid in enumerate(fib_ids) if fid not in solved), len(fib_ids))
