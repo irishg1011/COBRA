@@ -2085,9 +2085,12 @@ def publishing():
         tree_error=publishing_tree_module.last_tree_error or '',
         initial_tab=tab if tab in PUBLISHING_TABS else 'ready',
         login_key=_publishing_login_key(),
+<<<<<<< HEAD
+=======
         # feat/mentor-role: admins get a view-only page (the server still
         # refuses every action through role_permissions).
         can_edit=is_allowed('admin_bp.publishing_item_action', g.staff_role),
+>>>>>>> main
     )
 
 

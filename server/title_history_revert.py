@@ -12,7 +12,11 @@ through the SAME rules a normal rename does for that type:
     module    sentence case (format_sentence_case), 60-char limit,
               no duplicate name inside the same chapter
     lesson    format_lesson_title, 60-char limit, globally unique
+<<<<<<< HEAD
+    video     format_video_title, 60-char limit
+=======
     video     format_video_title, 100-char limit
+>>>>>>> main
     activity  only its generated "<Lesson> – <Type>" title (feat/activity-auto-title)
     exercise  validate_exercise_title (format + limit + unique)
 

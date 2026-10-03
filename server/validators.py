@@ -79,7 +79,11 @@ TITLE_LIMITS = {
     "category": 50,   # Chapter name   -> category_tbl.category_name
     "module": 60,     # Module name    -> modules_tbl.module_name
     "resource": 60,   # Lesson title   -> learning_resources_tbl.resource_title
+<<<<<<< HEAD
+    "video": 60,      # Video title    -> video_tutorials_tbl.video_title
+=======
     "video": 100,     # Video title    -> video_tutorials_tbl.video_title (varchar 255)
+>>>>>>> main
     "activity": 60 + len(ACTIVITY_TITLE_LONGEST_SUFFIX),  # 81 -> learning_activities_tbl.activity_title (varchar 255)
     "exercise": 60,   # Exercise title -> coding_exercises_tbl.exercise_title
 }
