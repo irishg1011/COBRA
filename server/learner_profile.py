@@ -465,7 +465,7 @@ def profile_email_send_otp():
     sent = send_email(
         to_email=email,
         subject="CobraByte - Verify Your New Email",
-        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 1 minute."
+        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 5 minutes."
     )
     if sent:
         return jsonify({"success": True, "message": "Verification code sent to your new email."})

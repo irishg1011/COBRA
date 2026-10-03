@@ -62,7 +62,7 @@ LEARNER_HOME_URL = "/dashboard"
 ADMIN_HOME_URL = "/admin/dashboard"
 
 MAX_FAILED_ATTEMPTS = 5
-OTP_TTL_SECONDS = 60             # matches both pages' 1:00 timers
+OTP_TTL_SECONDS = 5 * 60         # matches the pages' 5:00 timers
 RESET_WINDOW_SECONDS = 5 * 60    # time to type the new password after verifying the code
 
 ARCHIVED_ACCOUNT_MESSAGE = "This account has been archived. Please contact an administrator."
@@ -312,7 +312,7 @@ def send_reset_code(email, portal):
     sent = send_email(
         to_email=email,
         subject="CobraByte - Password Reset Code",
-        body_text=f"Your 6-digit password reset code is: {otp_code}\nThis code expires in 1 minute."
+        body_text=f"Your 6-digit password reset code is: {otp_code}\nThis code expires in 5 minutes."
     )
     if sent:
         return {"success": True, "message": "Reset code sent to your email."}, 200

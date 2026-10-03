@@ -7,7 +7,7 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
     const $ = (id) => document.getElementById(id);
-    const RESEND_SECONDS = 60;
+    const RESEND_SECONDS = 300;
     const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_,.?":{}|<>]).{8,}$/;
     const RULES = {
         length: (v) => v.length >= 8,
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const label = $('codeTimer');
         let left = RESEND_SECONDS;
         btn.disabled = true;
-        label.textContent = `(${left}s)`;
+        label.textContent = `(${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')})`;
         clearInterval(timerId);
         timerId = setInterval(() => {
             left -= 1;
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.disabled = false;
                 label.textContent = '';
             } else {
-                label.textContent = `(${left}s)`;
+                label.textContent = `(${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')})`;
             }
         }, 1000);
     }

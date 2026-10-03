@@ -19,7 +19,7 @@
 (function () {
     "use strict";
 
-    const OTP_SECONDS = 60;
+    const OTP_SECONDS = 300;
     const REDIRECT_DELAY_MS = 1800;
     const EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
     const STRONG_PASSWORD = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_,.?":{}|<>]).{8,}$/;

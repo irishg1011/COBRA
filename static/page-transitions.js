@@ -1,9 +1,20 @@
 (function () {
     "use strict";
 
-    // Fade in on load
-    document.addEventListener('DOMContentLoaded', () => {
+    function showPage() {
+        document.body.classList.remove('page-fade-out');
         document.body.classList.add('page-fade-in');
+    }
+
+    // Fade in on load
+    document.addEventListener('DOMContentLoaded', showPage);
+
+    // Fade in again when the browser brings this page back from its
+    // back/forward cache (phone Back button or swipe). DOMContentLoaded
+    // does not run again then, so without this the page stays invisible.
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) window.__cobrabyteInternalNav = false;
+        showPage();
     });
 
     // Fade out before navigating to another same-site page
@@ -36,5 +47,10 @@
         setTimeout(() => {
             window.location.href = url.href;
         }, 200);
+
+        // Safety net: if this page is still here a few seconds later (the
+        // next page is slow or failed to load, or the link only moved
+        // within this page), show it again instead of leaving it blank.
+        setTimeout(showPage, 3000);
     });
 })();

@@ -405,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (timerDisplayEl.intervalId) clearInterval(timerDisplayEl.intervalId);
 
-        let timeLeft = 60;
+        let timeLeft = 300;
         if (isSignUp) signUpOtpExpired = false;
         else forgotOtpExpired = false;
 

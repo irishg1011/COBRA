@@ -6,7 +6,7 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
     const $ = (id) => document.getElementById(id);
-    const RESEND_SECONDS = 60;
+    const RESEND_SECONDS = 300;
 
     const form = $('editForm');
     const fields = {
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const label = $('emailTimer');
         let left = RESEND_SECONDS;
         btn.disabled = true;
-        label.textContent = `(${left}s)`;
+        label.textContent = `(${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')})`;
         clearInterval(timerId);
         timerId = setInterval(() => {
             left -= 1;
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.disabled = false;
                 label.textContent = '';
             } else {
-                label.textContent = `(${left}s)`;
+                label.textContent = `(${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')})`;
             }
         }, 1000);
     }

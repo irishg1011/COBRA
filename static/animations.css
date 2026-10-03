@@ -49,16 +49,25 @@
    ========================================================================== */
 body {
     opacity: 0;
+    /* Fallback: if page-transitions.js is slow or fails to load, the page
+       still shows itself after 3 seconds instead of staying blank. */
+    animation: pageRevealFallback 0.2s ease 3s forwards;
+}
+
+@keyframes pageRevealFallback {
+    to { opacity: 1; }
 }
 
 body.page-fade-in {
     opacity: 1;
     transition: opacity 0.2s ease;
+    animation: none;
 }
 
 body.page-fade-out {
     opacity: 0;
     transition: opacity 0.2s ease;
+    animation: none;
 }
 
 /* ==========================================================================

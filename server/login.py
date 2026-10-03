@@ -207,13 +207,13 @@ def handle_send_otp():
     # Store OTP with a 60-second expiration timestamp matching frontend timer
     otp_storage[email] = {
         "otp": otp_code,
-        "expires_at": time.time() + 60
+        "expires_at": time.time() + 5 * 60
     }
 
     sent = send_email(
         to_email=email,
         subject="CobraByte - Email Verification Code",
-        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 1 minute."
+        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 5 minutes."
     )
 
     if sent:
