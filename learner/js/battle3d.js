@@ -46,7 +46,9 @@ export function createBattle(canvas, opts = {}) {
 
   /* ---------- core ---------- */
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Phones: 1.5x is plenty sharp on a small screen and keeps the frame rate up.
+  const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -300,7 +302,9 @@ export function createBattle(canvas, opts = {}) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     // pull the camera back on tall/narrow viewports so both fighters stay framed
-    const framing = Math.min(1.9, Math.max(0.62, 3.3 / camera.aspect));
+    // (up to 2.9 so a phone-width stage still shows the cobra AND the foe;
+    // desktop stages are wide enough to stay under the old 1.9 cap)
+    const framing = Math.min(2.9, Math.max(0.62, 3.3 / camera.aspect));
     camera.position.set(CAM_BASE.x, CAM_BASE.y + framing * 1.6, CAM_BASE.z * (0.72 + framing * 0.4));
     camera.userData.baseY = camera.position.y;
     camera.userData.baseZ = camera.position.z;

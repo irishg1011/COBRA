@@ -357,6 +357,7 @@
             <div class="mcq-arena-toolbar">
                 <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter, hitting a wall, or biting yourself costs a life. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.</p>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
+                <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn"><i class="fa-solid fa-compress"></i> <span>Exit full screen</span></button>
             </div>
             <div class="mcq-arena-dpad" data-ui="dpad">
                 <button type="button" class="mcq-arena-dpad-up" data-dir="up" aria-label="Up"><i class="fa-solid fa-arrow-up"></i></button>
@@ -394,6 +395,7 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            if (next === "done" || next === "error" || next === "outoflives") setFocus(false);
             ui.pauseBtn.innerHTML = next === "paused"
                 ? '<i class="fa-solid fa-play"></i> <span>Resume</span>'
                 : '<i class="fa-solid fa-pause"></i> <span>Pause</span>';
@@ -500,6 +502,7 @@
                 list.appendChild(row);
             });
             const startFromPreview = () => {
+                enterFocusIfPhone();
                 if (kind !== "next") {
                     beginPlay();
                     return;
@@ -528,7 +531,10 @@
                     </div>
                 </div>
             `);
-            overlayNode("resumeBtn").addEventListener("click", resumePlay);
+            overlayNode("resumeBtn").addEventListener("click", () => {
+                enterFocusIfPhone();
+                resumePlay();
+            });
         }
 
         function resumePlay() {
@@ -1037,7 +1043,7 @@
                 dispose();
                 return;
             }
-            const visible = root.offsetParent !== null;
+            const visible = isShown();
             if (!visible && mode === "playing") pause();
 
             const dtMs = last ? Math.min(Math.max(ts - last, 0), 100) : 16;
@@ -1099,7 +1105,7 @@
 
         // ---- input + lifecycle ----
         function onKeyDown(e) {
-            if (disposed || fallback || root.offsetParent === null) return;
+            if (disposed || fallback || !isShown()) return;
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
 
@@ -1132,10 +1138,37 @@
             }
         }
 
+        // offsetParent is always null for position: fixed (focus mode), so
+        // ask for layout boxes instead: none = hidden (display: none).
+        function isShown() {
+            return root.getClientRects().length > 0;
+        }
+
+        // ---- focus mode (phones): the arena fills the screen while playing ----
+        const touchQuery = window.matchMedia ? window.matchMedia("(hover: none) and (pointer: coarse)") : null;
+
+        function enterFocusIfPhone() {
+            const phone = touchQuery && touchQuery.matches && Math.min(window.innerWidth, window.innerHeight) <= 600;
+            if (phone && !fallback) setFocus(true);
+        }
+
+        function setFocus(on) {
+            if (root.classList.contains("is-focus") === on) return;
+            root.classList.toggle("is-focus", on);
+            document.documentElement.classList.toggle("mcq-focus-lock", on);
+            onResize();
+        }
+
         function computeLayout() {
             const width = root.clientWidth;
             if (!width) return false;
-            const narrow = width < 700;
+            // In focus mode the arena's own shape picks the grid (a phone on its
+            // side gets the wide board); otherwise the page width does.
+            const stageW = ui.arena.clientWidth, stageH = ui.arena.clientHeight;
+            const upright = window.innerHeight >= window.innerWidth;
+            const narrow = root.classList.contains("is-focus") && stageW && stageH
+                ? upright || stageW / stageH < 1.25
+                : width < 700;
             root.classList.toggle("is-narrow", narrow);
             const cols = narrow ? 20 : 40;
             const rows = narrow ? 22 : 15;
@@ -1164,13 +1197,24 @@
             document.removeEventListener("keydown", onKeyDown);
             document.removeEventListener("visibilitychange", onVisibility);
             if (resizeObserver) resizeObserver.disconnect();
+            root.classList.remove("is-focus");
+            document.documentElement.classList.remove("mcq-focus-lock");
             if (arena && arena.dispose) arena.dispose();
             arena = null;
         }
 
         ui.pauseBtn.addEventListener("click", () => {
             if (mode === "playing") pause();
-            else if (mode === "paused") resumePlay();
+            else if (mode === "paused") {
+                enterFocusIfPhone();
+                resumePlay();
+            }
+        });
+
+        ui.exitBtn.addEventListener("click", () => {
+            if (mode === "playing") pause();
+            setFocus(false);
+            root.scrollIntoView({ block: "start" });
         });
 
         ui.dpad.querySelectorAll("button[data-dir]").forEach((btn) => {

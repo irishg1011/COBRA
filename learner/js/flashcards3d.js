@@ -41,7 +41,9 @@ export function createFlashStage(canvas, opts = {}) {
 
   /* ---------- core ---------- */
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // Phones: 1.5x is plenty sharp on a small screen and keeps the frame rate up.
+  const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -415,7 +417,9 @@ export function createFlashStage(canvas, opts = {}) {
     if (!w || !h) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    const framing = Math.min(1.9, Math.max(0.62, 3.3 / camera.aspect));
+    // (up to 2.9 so a phone-width stage still shows the cobra AND the foe;
+    // desktop stages are wide enough to stay under the old 1.9 cap)
+    const framing = Math.min(2.9, Math.max(0.62, 3.3 / camera.aspect));
     camera.userData.baseY = CAM_BASE.y + framing * 1.6;
     camera.userData.baseZ = CAM_BASE.z * (0.72 + framing * 0.4);
     camera.position.set(CAM_BASE.x, camera.userData.baseY, camera.userData.baseZ);
