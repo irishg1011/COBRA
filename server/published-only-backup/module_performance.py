@@ -38,77 +38,6 @@ from activity_retakes import (
 )
 
 
-# ---------------- what a learner can see (feat/published-only) ----------------
-def live_course_rows(cursor, cat_id=None):
-    """
-    Every lesson a learner can see, in course order - one row per lesson.
-    A lesson is "live" only when the lesson, its module AND its chapter are
-    all Published (and the module / chapter are not archived). The Learning
-    Map, the Lessons page, opening a lesson, the module lock and the profile
-    all read from here, so they can never disagree about what is visible.
-    cat_id: only that chapter. Needs a dictionary cursor.
-    """
-    params = []
-    chapter_filter = ""
-    if cat_id is not None:
-        chapter_filter = "AND c.cat_id = %s"
-        params.append(cat_id)
-    cursor.execute(
-        f"""SELECT c.cat_id, c.category_name,
-                   m.module_id, m.module_name, m.description AS module_description,
-                   m.created_at AS module_created_at,
-                   lr.resource_id, lr.resource_title, lr.created_at AS resource_created_at
-            FROM learning_resources_tbl lr
-            JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
-            JOIN modules_tbl m ON lr.module_id = m.module_id
-            JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
-            JOIN category_tbl c ON m.cat_id = c.cat_id
-            JOIN category_stats_tbl cs ON c.cat_stats_id = cs.cat_stats_id
-            WHERE lrs.lr_stats_name = 'Published'
-              AND ms.module_stats_name = 'Published'
-              AND cs.cat_stats_name = 'Published'
-              AND COALESCE(m.is_archived, 0) = 0
-              AND COALESCE(c.is_archived, 0) = 0
-              {chapter_filter}
-            ORDER BY COALESCE(c.display_order, 999999), c.cat_id,
-                     COALESCE(m.display_order, 999999), m.module_id,
-                     COALESCE(lr.display_order, 999999), lr.resource_id""",
-        tuple(params)
-    )
-    return cursor.fetchall()
-
-
-def live_module_ids(cursor, cat_id):
-    """Modules of a chapter a learner can see (each has at least one live lesson), in order."""
-    ids = []
-    for row in live_course_rows(cursor, cat_id):
-        if row["module_id"] not in ids:
-            ids.append(row["module_id"])
-    return ids
-
-
-def is_live_lesson(cursor, resource_id):
-    """True when this lesson, its module and its chapter are all Published."""
-    cursor.execute(
-        """SELECT 1 AS live
-            FROM learning_resources_tbl lr
-            JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
-            JOIN modules_tbl m ON lr.module_id = m.module_id
-            JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
-            JOIN category_tbl c ON m.cat_id = c.cat_id
-            JOIN category_stats_tbl cs ON c.cat_stats_id = cs.cat_stats_id
-            WHERE lrs.lr_stats_name = 'Published'
-              AND ms.module_stats_name = 'Published'
-              AND cs.cat_stats_name = 'Published'
-              AND COALESCE(m.is_archived, 0) = 0
-              AND COALESCE(c.is_archived, 0) = 0
-              AND lr.resource_id = %s
-            LIMIT 1""",
-        (resource_id,)
-    )
-    return cursor.fetchone() is not None
-
-
 # ---------------- lessons + completion ----------------
 def module_lesson_ids(cursor, module_id):
     """Published lessons (resources) of a module, in display order."""
@@ -158,17 +87,7 @@ def lesson_complete(cursor, acc_id, resource_id):
         if cursor.fetchone()["done"] < len(la_ids):
             return False
 
-    # feat/published-only: a Draft or archived exercise never blocks the
-    # lesson - only a Published one has to be passed (learners can't even
-    # see the others).
-    cursor.execute(
-        """SELECT ce.exercise_id
-           FROM coding_exercises_tbl ce
-           JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-           WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-             AND COALESCE(ce.is_archived, 0) = 0""",
-        (resource_id,)
-    )
+    cursor.execute("SELECT exercise_id FROM coding_exercises_tbl WHERE resource_id = %s", (resource_id,))
     for ex in cursor.fetchall():
         cursor.execute(
             "SELECT status FROM learner_exercise_progress_tbl WHERE acc_id = %s AND exercise_id = %s",
@@ -291,10 +210,12 @@ def module_locked_for_learner(cursor, acc_id, module_id):
     row = cursor.fetchone()
     if not row:
         return False
-    # feat/published-only: "the module right before it" = the one before it
-    # among the modules a learner can see, so a Draft module in between can
-    # neither block nor auto-pass anything.
-    ids = live_module_ids(cursor, row["cat_id"])
+    cursor.execute(
+        "SELECT module_id FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 "
+        "ORDER BY cat_id ASC, COALESCE(display_order, 999999) ASC, module_id ASC",
+        (row["cat_id"],)
+    )
+    ids = [r["module_id"] for r in cursor.fetchall()]
     if module_id not in ids:
         return False
     index = ids.index(module_id)

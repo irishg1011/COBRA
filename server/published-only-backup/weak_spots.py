@@ -178,12 +178,8 @@ def _course_lessons(cursor):
            FROM learning_resources_tbl lr
            JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
            JOIN modules_tbl m ON lr.module_id = m.module_id
-           JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
            JOIN category_tbl c ON m.cat_id = c.cat_id
-           JOIN category_stats_tbl cs ON c.cat_stats_id = cs.cat_stats_id
            WHERE lrs.lr_stats_name = 'Published'
-             AND ms.module_stats_name = 'Published'
-             AND cs.cat_stats_name = 'Published'
              AND COALESCE(m.is_archived, 0) = 0
              AND COALESCE(c.is_archived, 0) = 0
            ORDER BY COALESCE(c.display_order, 999999), c.cat_id,

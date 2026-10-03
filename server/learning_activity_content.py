@@ -42,7 +42,7 @@ creation order (fib_id / flashcard_id) - same order learners always got.
 """
 
 from mysql.connector import Error
-from text_formatting import capitalize_first_only
+from text_formatting import capitalize_first_only, format_display_name
 
 MCQ_QUESTIONS_TABLE = "mcq_questions_tbl"
 MCQ_OPTIONS_TABLE = "mcq_options_tbl"

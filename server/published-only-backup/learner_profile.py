@@ -40,7 +40,7 @@ from auth_core import send_reset_code, verify_reset_code, reset_password, otp_st
 from validators import validate_name_field, capitalize_name, validate_email_format
 from learner_routes import get_current_learner_acc_id, LEARNER_DIR
 from learner_progress_monitor import _load_course_tree, _fetch_progress_rows, _evaluate_rows
-from module_performance import module_performance, PASS_PERCENT, live_course_rows
+from module_performance import module_performance, PASS_PERCENT
 from learning_time import record_heartbeat, get_total_seconds
 from badges import award_and_list_badges
 from notifications import notify
@@ -187,21 +187,6 @@ def _count(cursor, sql, params):
 def _build_overview(cursor, acc_id, collect=None):
     """collect: optional list - gets {"chapter", "module", "perf"} per module (used by notifications.py)."""
     chapters, _ = _load_course_tree(cursor)
-
-    # feat/published-only: keep only what the learner can see - lesson,
-    # module AND chapter all Published (same rule as the Learning Map).
-    # Stats, badges, the certificate and notifications all count from this.
-    live_ids = {row["resource_id"] for row in live_course_rows(cursor)}
-    visible_chapters = []
-    for chapter in chapters:
-        visible_modules = []
-        for module in chapter["modules"]:
-            lessons = [lesson for lesson in module["lessons"] if lesson["resource_id"] in live_ids]
-            if lessons:
-                visible_modules.append({**module, "lessons": lessons})
-        if visible_modules:
-            visible_chapters.append({**chapter, "modules": visible_modules})
-    chapters = visible_chapters
     rows = _fetch_progress_rows(cursor, acc_id=acc_id)
     evaluated = _evaluate_rows(cursor, rows)
 

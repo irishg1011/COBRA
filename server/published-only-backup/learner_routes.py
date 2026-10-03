@@ -43,7 +43,6 @@ from notifications import notify_standalone  # header bell
 import time
 from module_performance import (  # Module 85% gate
     module_performance, module_locked_for_learner, get_resource_retake_info, start_activity_retake,
-    live_course_rows, is_live_lesson,  # feat/published-only: what a learner can see
 )
 from activity_retakes import ensure_retake_schema
 from learner_progress_unlocks import has_unlock, write_unlock, get_unlocked_at  # NEW - Task #13: permanent category unlock check; get_unlocked_at added for Task #16's catch-up badge
@@ -306,18 +305,17 @@ def learning_map_data():
         # this is the first place the learner side actually reads it.
         # COALESCE falls back to cat_id for any row that somehow still
         # has a NULL display_order, so nothing breaks if one is missing.
-        # feat/published-only: the map only has chapters and modules a
-        # learner can see - lesson, module AND chapter all Published
-        # (module_performance.live_course_rows), still in Edit Order.
-        categories, modules = [], []
-        seen_categories, seen_modules = set(), set()
-        for live_row in live_course_rows(cursor):
-            if live_row["cat_id"] not in seen_categories:
-                seen_categories.add(live_row["cat_id"])
-                categories.append({"cat_id": live_row["cat_id"], "category_name": live_row["category_name"]})
-            if live_row["module_id"] not in seen_modules:
-                seen_modules.add(live_row["module_id"])
-                modules.append({"module_id": live_row["module_id"], "cat_id": live_row["cat_id"]})
+        cursor.execute(
+            "SELECT cat_id, category_name FROM category_tbl WHERE is_archived = 0 "
+            "ORDER BY COALESCE(display_order, 999999) ASC, cat_id ASC"
+        )
+        categories = cursor.fetchall()
+
+        cursor.execute(
+            "SELECT module_id, cat_id FROM modules_tbl WHERE is_archived = 0 "
+            "ORDER BY cat_id ASC, COALESCE(display_order, 999999) ASC, module_id ASC"
+        )
+        modules = cursor.fetchall()
 
         module_status_by_id = {}
 
@@ -441,14 +439,14 @@ def lessons_data():
     try:
         cursor = connection.cursor(dictionary=True)
 
-        # feat/published-only: this page only lists what a learner can see -
-        # lesson, module AND chapter all Published. A chapter with nothing
-        # live does not exist for learners.
-        live_rows = live_course_rows(cursor, cat_id)
-        if not live_rows:
+        cursor.execute(
+            "SELECT cat_id, category_name FROM category_tbl WHERE cat_id = %s AND is_archived = 0",
+            (cat_id,)
+        )
+        category = cursor.fetchone()
+        if not category:
             cursor.close()
             return jsonify({"success": False, "message": "Chapter not found."}), 404
-        category = {"cat_id": cat_id, "category_name": live_rows[0]["category_name"]}
 
         # Task #16: the learner's own unlock timestamp for THIS
         # category - anything created after this is new to them, even
@@ -458,23 +456,12 @@ def lessons_data():
         category_unlocked_at = get_unlocked_at(connection, acc_id, "category", cat_id)
         ensure_retake_schema(connection)   # Module 85% gate reads answers.retake_id
 
-        # feat/published-only: modules and their lessons come from live_rows
-        # (already in Edit Order), so Draft / Ready ones never show up.
-        raw_modules, lessons_by_module = [], {}
-        for live_row in live_rows:
-            if live_row["module_id"] not in lessons_by_module:
-                lessons_by_module[live_row["module_id"]] = []
-                raw_modules.append({
-                    "module_id": live_row["module_id"],
-                    "module_name": live_row["module_name"],
-                    "description": live_row["module_description"],
-                    "created_at": live_row["module_created_at"],
-                })
-            lessons_by_module[live_row["module_id"]].append({
-                "resource_id": live_row["resource_id"],
-                "resource_title": live_row["resource_title"],
-                "created_at": live_row["resource_created_at"],
-            })
+        cursor.execute(
+            "SELECT module_id, module_name, description, created_at FROM modules_tbl WHERE cat_id = %s AND is_archived = 0 "
+            "ORDER BY cat_id ASC, COALESCE(display_order, 999999) ASC, module_id ASC",
+            (cat_id,)
+        )
+        raw_modules = cursor.fetchall()
 
         modules_out = []
         overall_completed = 0
@@ -485,7 +472,12 @@ def lessons_data():
             module_id = module["module_id"]
             module_touched = False
 
-            resources = lessons_by_module.get(module_id, [])   # feat/published-only
+            cursor.execute(
+                "SELECT resource_id, resource_title, created_at FROM learning_resources_tbl WHERE module_id = %s "
+                "ORDER BY COALESCE(display_order, 999999) ASC, resource_id ASC",
+                (module_id,)
+            )
+            resources = cursor.fetchall()
 
             lessons_out = []
             previous_reached = True
@@ -530,15 +522,8 @@ def lessons_data():
                 )
                 activities_completed = cursor.fetchone()["done"]
 
-                # feat/published-only: only a Published exercise counts - a
-                # Draft or archived one is invisible to learners, so it must
-                # not keep the lesson from completing.
                 cursor.execute(
-                    """SELECT ce.exercise_id
-                       FROM coding_exercises_tbl ce
-                       JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-                       WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-                         AND COALESCE(ce.is_archived, 0) = 0""",
+                    "SELECT exercise_id FROM coding_exercises_tbl WHERE resource_id = %s",
                     (resource_id,)
                 )
                 exercise_rows = cursor.fetchall()
@@ -709,13 +694,6 @@ def lesson_content_data():
         if not resource:
             cursor.close()
             return jsonify({"success": False, "message": "Lesson not found."}), 404
-
-        # feat/published-only: a lesson that is not live (the lesson, its
-        # module or its chapter is not Published) can't be opened, not even
-        # by typing its URL.
-        if not is_live_lesson(cursor, resource_id):
-            cursor.close()
-            return jsonify({"success": False, "message": "This lesson is not available."}), 404
 
         # Module 85% gate (strict, live): a lesson in a locked module can't
         # be opened, not even by typing its URL.
