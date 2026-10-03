@@ -503,6 +503,47 @@
         gap: 32px;
     }
 
+    /* Learning Map / Learning Analytics / Badges & Achievements:
+       three equal tabs on one line, icon above the label */
+    .profile-page .profile-tabs {
+        flex-wrap: nowrap;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .profile-page .profile-tab-link {
+        flex: 0 0 calc((100% - 16px) / 3);
+        min-width: 0;
+    }
+
+    .profile-page .profile-tablist {
+        flex: 1 1 0;
+        flex-wrap: nowrap;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .profile-page .profile-tablist .profile-tab {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .profile-page .profile-tab {
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+        padding: 8px 4px;
+        border-radius: 14px;
+        font-size: 12px;
+        line-height: 1.2;
+        text-align: center;
+        overflow-wrap: anywhere;
+    }
+
+    .profile-page .profile-tab-link .fa-chevron-right {
+        display: none;
+    }
+
     .profile-page .badges-head {
         flex-wrap: wrap;
     }
