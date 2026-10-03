@@ -10,17 +10,21 @@ BY LESSON VIEW: one row = one learner in one lesson
 
 BY LESSON VIEW - SCORE
     The SAME Performance % the learner sees on their lesson summary.
-    The formula mirrors lesson_summary.get_lesson_performance_summary()
-    exactly - it is loaded in bulk here so a whole table costs a handful
-    of queries instead of a new connection + several queries per row.
-    If that formula ever changes, change _evaluate() here too.
+    The data is loaded in bulk here so a whole table costs a handful of
+    queries instead of a new connection + several queries per row, but
+    the grade itself comes from module_performance.lesson_grade_percent()
+    - the one place the rule is written (feat/grade-50-50).
       - activities: learner's score / item count (MCQ questions, FIB
         items, flashcards), published activities only
       - exercise (latest published, non-archived): full credit once a
         learner_exercise_progress_tbl row exists, otherwise the latest
         attempt's test_cases_passed
-      - Score % = AVERAGE of each gradeable activity's own % (each game
-        and the exercise weigh the same, whatever their item count)
+      - Score % = 50% ACTIVITIES + 50% LESSON CONTENT:
+          activities: the AVERAGE of each gradeable activity's own %
+            (each game and the exercise weigh the same, whatever their
+            item count), worth 50
+          lesson content: content read, + video watched when the lesson
+            has a published video, worth 50
       - lessons with nothing graded -> score None (shown as "—")
 
 BY LESSON VIEW - COMPLETION
@@ -41,6 +45,7 @@ BY LEARNER VIEW: see the section further down.
 from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
+from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = 80
@@ -347,13 +352,14 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
             graded_total += ex["test_total"]
             activity_percents.append(points / ex["test_total"])
 
-    score_pct = (
-        round((sum(activity_percents) / len(activity_percents)) * 100)
-        if activity_percents else None
-    )
-
     video_watched = row.get("video_watched_at") is not None
     content_read = row.get("content_read_at") is not None
+
+    # feat/grade-50-50: score = 50% activities + 50% lesson content progress
+    # (content read, + video watched when the lesson has a published video).
+    content_total = 1 + (1 if lesson["has_video"] else 0)
+    content_done = (1 if content_read else 0) + (1 if lesson["has_video"] and video_watched else 0)
+    score_pct = lesson_grade_percent(activity_percents, content_done, content_total)
 
     steps_total = 1 + len(activities) + (1 if lesson["has_video"] else 0) + (1 if ex else 0)
     steps_done = (

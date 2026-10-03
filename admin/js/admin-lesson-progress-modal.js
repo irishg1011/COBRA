@@ -154,7 +154,7 @@
             setText(
                 gradedEl,
                 rec.graded_total > 0
-                    ? `Score = ${rec.graded_points} of ${rec.graded_total} graded points across activities and the exercise - the same Performance % the learner sees.`
+                    ? `Score = 50% activities (${rec.graded_points} of ${rec.graded_total} graded points across activities and the exercise) + 50% lesson content (content read, and the video when the lesson has one) - the same Performance % the learner sees.`
                     : "Nothing in this lesson has been graded yet, so there is no score."
             );
         }

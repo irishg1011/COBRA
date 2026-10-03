@@ -45,7 +45,7 @@ from module_performance import (  # Module 85% gate
     module_performance, module_locked_for_learner, get_resource_retake_info, start_activity_retake,
     live_course_rows, is_live_lesson,  # feat/published-only: what a learner can see
 )
-from activity_retakes import ensure_retake_schema
+from activity_retakes import ensure_retake_schema, PASS_PERCENT
 from learner_progress_unlocks import has_unlock, write_unlock, get_unlocked_at  # NEW - Task #13: permanent category unlock check; get_unlocked_at added for Task #16's catch-up badge
 
 learner_bp = Blueprint('learner_bp', __name__)
@@ -726,7 +726,7 @@ def lesson_content_data():
                 "success": False,
                 "locked": True,
                 "cat_id": resource["cat_id"],
-                "message": "This lesson is locked. Pass the previous module with 85% or higher to unlock it.",
+                "message": f"This lesson is locked. Pass the previous module with {PASS_PERCENT}% or higher to unlock it.",
             }), 403
 
         cursor.execute(

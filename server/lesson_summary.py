@@ -4,9 +4,15 @@ lesson_summary.py - Learner-Side Lesson Summary & Performance Calculation
 Pure DB-access helpers backing the Summary step on lesson-content.html:
 a read-only recap of everything the learner did in this lesson (video,
 content, each activity's score, the exercise result) plus an overall
-Performance % across every GRADED item (MCQ + Fill in the Blanks +
-Flashcards + Exercise - Video/Content have no "correct answer" so they
-never count toward it).
+Performance %.
+
+Performance % (feat/grade-50-50) = 50% ACTIVITIES + 50% LESSON CONTENT:
+the average of every graded activity's own % (MCQ, Fill in the Blanks,
+Flashcards, Exercise) is worth 50, and going through the lesson content
+(reading it, and watching the video when there is one) is worth the
+other 50 - so a learner who finished the lesson never sees 0%, even
+with every answer wrong. The rule itself lives in
+module_performance.lesson_grade_percent(); nothing is calculated twice.
 
 Design call worth knowing: for the Exercise, if it's already been
 COMPLETED (learner_exercise_progress_tbl has a row), the summary always
@@ -25,7 +31,7 @@ project's existing convention.
 from mysql.connector import Error
 from cobradb import get_db_connection
 from activity_retakes import ensure_retake_schema
-from module_performance import module_performance
+from module_performance import module_performance, lesson_grade_percent, lesson_content_progress
 
 
 def get_lesson_performance_summary(acc_id, resource_id):
@@ -40,7 +46,8 @@ def get_lesson_performance_summary(acc_id, resource_id):
             "exercise": {"exercise_title", "points_earned", "points_total", "completed"} | None,
             "graded_points": float,
             "graded_total": int,
-            "performance_percent": int | None,  # None if this lesson has nothing gradeable at all
+            "performance_percent": int | None,  # 50% activities + 50% lesson content;
+                                                # None if this lesson has nothing gradeable at all
         }
     Returns None on any database error.
     """
@@ -71,9 +78,10 @@ def get_lesson_performance_summary(acc_id, resource_id):
         activities_out = []
         graded_points = 0.0
         graded_total = 0
-        # Lesson performance % = AVERAGE of each gradeable activity's own %
-        # (each game + the coding exercise weigh the same, whatever their
-        # item/test-case count) - same rule as module_performance.py.
+        # One fraction per gradeable activity (each game + the coding
+        # exercise weigh the same, whatever their item/test-case count).
+        # They become the ACTIVITY half of the grade - see
+        # module_performance.lesson_grade_percent().
         activity_percents = []
 
         for row in activity_rows:
@@ -159,10 +167,9 @@ def get_lesson_performance_summary(acc_id, resource_id):
                 graded_total += test_total
                 activity_percents.append((points_earned or 0) / test_total)
 
-        performance_percent = (
-            round((sum(activity_percents) / len(activity_percents)) * 100)
-            if activity_percents else None
-        )
+        # feat/grade-50-50: 50% activities + 50% lesson content progress
+        content_done, content_total = lesson_content_progress(cursor, acc_id, resource_id)
+        performance_percent = lesson_grade_percent(activity_percents, content_done, content_total)
 
         cursor.close()
         return {

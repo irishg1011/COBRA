@@ -14,7 +14,10 @@
  *     the timer). The HUD shows total/5, e.g. "7/5".
  *   - Wrong answer: -1 life; the correct answer is revealed and the
  *     learner picks Try again (same item) or Skip puzzle (next item,
- *     no life, no score).
+ *     no life, no score). Until they pick one, the answer is LOCKED
+ *     (feat/fib-lock-after-check): the input box / tiles and Check
+ *     answer are disabled, so a checked answer can't be edited - the
+ *     same "tryagain" step Multiple Choice has after a wrong answer.
  *   - Correct answer: Cobra strikes SyntaxBug, next item.
  *   - 0 lives: the play pauses on its item; review the lesson and come
  *     back - it resumes the same play once a life is back.
@@ -692,8 +695,10 @@
                 setTimeout(() => { if (!disposed) enterCooldown(); }, FIB_ANIM.foebite);
                 setMode("busy");
             } else {
-                setMode("playing");
-                if (slotInput) slotInput.select();
+                // feat/fib-lock-after-check: the checked answer stays on screen
+                // but locked; only Try again (or Skip puzzle) moves on.
+                setMode("tryagain");
+                ui.retryBtn.focus({ preventScroll: true });
             }
         }
 
@@ -706,7 +711,10 @@
             fromPreview = fromPreview === true;   // the feedback button passes a click event
             fromBar = fromBar === true;
             const costsLife = fromPreview || (fromBar && !wrongOnCurrent);
-            if (disposed || mode !== (fromPreview ? "ready" : "playing")) return;
+            // feat/fib-lock-after-check: the feedback row's Skip is pressed
+            // while the answer is locked ("tryagain").
+            const canSkip = fromPreview ? mode === "ready" : (mode === "playing" || mode === "tryagain");
+            if (disposed || !canSkip) return;
             setMode("busy");
             let data = null;
             try {
@@ -768,7 +776,9 @@
         }
 
         function retryItem() {
-            if (mode !== "playing") return;
+            // feat/fib-lock-after-check: Try again is what unlocks the answer.
+            if (mode !== "tryagain") return;
+            setMode("playing");
             hideFeedback();
             clearSlot();
             if (slotInput) {
@@ -969,6 +979,7 @@
             } else if (e.key === "Enter") {
                 if (mode === "playing" && currentAnswer()) { e.preventDefault(); submitAnswer(); }
                 else if (mode === "review") { e.preventDefault(); advance(); }
+                else if (mode === "tryagain") { e.preventDefault(); retryItem(); }   // feat/fib-lock-after-check
             }
         }
 

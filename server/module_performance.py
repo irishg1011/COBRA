@@ -7,11 +7,23 @@ PASSED:
      in every lesson done, plus the lesson's own completion rules), and
   2. the AVERAGE of the lessons' performance % is at least PASS_PERCENT.
 
-Lesson performance % = AVERAGE of each gradeable activity's own %
-  - each game:            passed items / its items
-  - the coding exercise:  test cases passed / its test cases
-so every activity weighs the same, whatever its item count. An item is
-"passed" if its first attempt was correct OR its first
+Lesson performance % = ACTIVITY part (50) + LESSON CONTENT part (50)
+(feat/grade-50-50 - the rule itself is lesson_grade_percent() below, the
+ONE place it is written; lesson_summary.py and learner_progress_monitor.py
+call it too, so every screen shows the same number)
+
+  ACTIVITY part = the AVERAGE of each gradeable activity's own %, x 50%
+    - each game:            passed items / its items
+    - the coding exercise:  test cases passed / its test cases
+    so every activity weighs the same, whatever its item count
+    (an 80% activity average gives 40, 100% gives 50).
+  LESSON CONTENT part = content steps done / content steps, x 50%
+    - reading the lesson content, and
+    - watching the video (only if the lesson has a published video)
+    so a learner who went through the lesson never shows 0%, even with
+    every activity answered wrong.
+
+An item is "passed" if its first attempt was correct OR its first
 answer in a retake round was correct (see activity_retakes.py). Lessons
 with nothing gradeable (no items, no test cases) are left out of the
 average. A module with no published lessons passes automatically, so an
@@ -107,6 +119,66 @@ def is_live_lesson(cursor, resource_id):
         (resource_id,)
     )
     return cursor.fetchone() is not None
+
+
+# ---------------- the lesson grade rule (feat/grade-50-50) ----------------
+ACTIVITY_WEIGHT = 50   # % of a lesson's grade that comes from its activity scores
+CONTENT_WEIGHT = 50    # % that comes from lesson content progress (content read, video watched)
+
+
+def lesson_grade_percent(activity_fractions, content_done, content_total):
+    """
+    THE lesson grade. Every place that shows or uses a lesson's
+    performance % calls this - never a copy of the formula.
+
+        activity_fractions  one fraction (0..1) per gradeable activity:
+                            each game's passed items / items, and the
+                            coding exercise's test cases passed / test cases
+        content_done        content steps the learner finished
+        content_total       content steps the lesson has (content, + video if any)
+
+    Returns a whole percent 0..100, or None when the lesson has nothing
+    gradeable (no activity with items and no exercise with test cases) -
+    such a lesson has no grade, exactly as before.
+    """
+    if not activity_fractions:
+        return None
+    activity_part = (sum(activity_fractions) / len(activity_fractions)) * ACTIVITY_WEIGHT
+    content_share = (content_done / content_total) if content_total else 1
+    content_part = min(max(content_share, 0), 1) * CONTENT_WEIGHT
+    return int(activity_part + content_part + 0.5)   # halves round up
+
+
+def lesson_content_progress(cursor, acc_id, resource_id):
+    """
+    (steps done, steps total) of the lesson's CONTENT for this learner:
+    reading the content always counts; watching the video counts only when
+    the lesson has a published video.
+    """
+    cursor.execute(
+        """SELECT video_watched_at, content_read_at
+           FROM learner_resource_progress_tbl
+           WHERE acc_id = %s AND resource_id = %s""",
+        (acc_id, resource_id)
+    )
+    progress = cursor.fetchone() or {}
+
+    cursor.execute(
+        """SELECT COUNT(*) AS cnt
+           FROM video_tutorials_tbl vt
+           JOIN learning_resources_stats_tbl lrs ON vt.video_stats_id = lrs.lr_stats_id
+           WHERE vt.resource_id = %s AND lrs.lr_stats_name = 'Published'""",
+        (resource_id,)
+    )
+    has_video = (cursor.fetchone() or {}).get("cnt", 0) > 0
+
+    done = 1 if progress.get("content_read_at") is not None else 0
+    total = 1
+    if has_video:
+        total += 1
+        if progress.get("video_watched_at") is not None:
+            done += 1
+    return done, total
 
 
 # ---------------- lessons + completion ----------------
@@ -236,11 +308,11 @@ def lesson_performance(cursor, acc_id, resource_id):
     if ex_total > 0:
         activity_percents.append(ex_points / ex_total)
 
+    # feat/grade-50-50: 50% activities + 50% lesson content progress
+    content_done, content_total = lesson_content_progress(cursor, acc_id, resource_id)
+
     return {
-        "percent": (
-            round((sum(activity_percents) / len(activity_percents)) * 100)
-            if activity_percents else None
-        ),
+        "percent": lesson_grade_percent(activity_percents, content_done, content_total),
         "missed": missed_total,
         "activities": activities,
     }

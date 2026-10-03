@@ -383,6 +383,9 @@
 }
 
 .fib-slot-input:focus { outline: none; }
+/* feat/fib-lock-after-check: a checked answer is locked (disabled) until
+   Try again - keep its text fully readable in its green / red color. */
+.fib-slot-input:disabled { opacity: 1; -webkit-text-fill-color: currentColor; cursor: not-allowed; }
 .fib-slot.is-input:focus-within { border-style: solid; border-color: var(--fib-green); background: #ffffff; }
 
 .fib-slot.is-right { border-style: solid; border-color: var(--fib-green); background: #dcfce7; color: #166534; }
@@ -525,68 +528,4 @@
     .fib-feedback-actions { width: 100%; }
     .fib-feedback-actions .fib-primary-btn,
     .fib-feedback-actions .fib-ghost-btn { flex: 1 1 0; justify-content: center; }
-}
-/* ============================================================
-   Mobile version of the game
-   ============================================================ */
-
-/* The top bar is a <header>, so it picked up the site header rule in
-   static/style.css (sticky, z-index 1000) and slid over the page header
-   while scrolling. Keep it in the page flow. */
-.fib-topbar {
-    position: static;
-    z-index: auto;
-}
-
-/* Keyboard hints mean nothing on a touch screen. */
-@media (hover: none) and (pointer: coarse) {
-    .fib-keys,
-    .fib-keyhint { display: none; }
-}
-
-@media (max-width: 720px) {
-    /* Give the game the full card width instead of a card inside a card. */
-    .activity-host:has(.fib-root) {
-        padding: 0;
-        border: none;
-        background: transparent;
-    }
-
-    /* Undo the site header box (8% side padding, 88px tall, blur). */
-    .fib-topbar {
-        min-height: 0;
-        padding: 12px;
-        gap: 10px;
-        border-radius: 12px;
-        box-shadow: none;
-    }
-
-    .fib-brand-icon { width: 34px; height: 34px; font-size: 15px; }
-    .fib-brand-title { font-size: 16px; }
-
-    .fib-stats {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 6px;
-    }
-
-    .fib-stat { min-width: 0; padding: 6px 4px; text-align: center; }
-    .fib-stat b { font-size: 16px; justify-content: center; }
-    .fib-stat.is-lives b { font-size: 13px; }
-    .fib-stat i { font-size: 9.5px; letter-spacing: 0.2px; }
-    .fib-stat .fib-hearts { display: none; }
-
-    .fib-canvas { height: 240px; }
-    .fib-hpbar-name { font-size: 10px; }
-
-    /* Wrap long code lines so the blank is on screen, not off to the right. */
-    .fib-code { overflow-x: visible; }
-    .fib-code-row { min-width: 0; }
-    .fib-code-line { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .fib-slot-input { font-size: 16px; }   /* 16px+ stops iOS zooming in on focus */
-
-    /* A tall intro / results card scrolls instead of spilling out. */
-    .fib-overlay { overflow-y: auto; align-items: flex-start; padding: 16px 12px; }
-    .fib-overlay > * { margin: auto 0; }
-    .fib-tray-head { flex-wrap: wrap; }
 }
