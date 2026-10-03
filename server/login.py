@@ -72,10 +72,7 @@ app.register_blueprint(learner_notifications_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
-DB_HOST = "localhost"
-DB_USER = "root"
-DB_PASSWORD = ""
-DB_NAME = "cobra_db"
+from cobradb import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME  # single source of DB settings
 
 ACCOUNT_TABLE = "account_tbl"
 # ARCHIVED_ACCOUNT_MESSAGE moved to auth_core.py with the rest of the login rules.
