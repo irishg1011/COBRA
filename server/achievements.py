@@ -18,11 +18,11 @@ HTTP responses. The badge tables, the fixed requirement types and the
 awarding rules live in badges.py - this file never awards a badge.
 
 Badge icons are images uploaded by the mentor (PNG, JPG or WebP, 1 MB
-max). They are saved in assets/uploads/badges/ under a random file
-name; only that file name is stored in badges_tbl.icon_file.
+max). They are stored in the database (uploaded_images_tbl, see
+image_uploads.py) under a random name; badges_tbl.icon_file keeps that
+name and the browser loads the image from /media/<name>.
 """
 
-import os
 import re
 import secrets
 from datetime import datetime
@@ -31,7 +31,7 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from image_uploads import (  # ONE copy of the image checks, shared with profile_avatar.py
     has_upload, read_image_upload, save_image, delete_image, stored_name_regex,
-    ERROR_SIZE, ERROR_EMPTY,
+    ensure_image_schema, ERROR_SIZE, ERROR_EMPTY,
 )
 from badges import (
     BADGES_TABLE, LEARNER_BADGES_TABLE, REQUIREMENT_BY_KEY,
@@ -43,8 +43,6 @@ from text_formatting import format_display_name
 PROFILE_TABLE = "profile_tbl"
 DEFAULT_PER_PAGE = 8
 
-# The folder behind /assets/uploads/badges/ (served by login.py's /assets route).
-BADGE_UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../assets/uploads/badges"))
 MAX_ICON_BYTES = 1 * 1024 * 1024
 ICON_FILE_PREFIX = "badge"
 ICON_TYPE_MESSAGE = "The icon must be a PNG, JPG or WebP image."
@@ -484,14 +482,14 @@ def _read_icon(file_storage):
     return data, extension, None
 
 
-def _save_icon(data, extension):
-    """Writes the icon under a random name and returns that file name."""
-    return save_image(BADGE_UPLOAD_DIR, ICON_FILE_PREFIX, data, extension)
+def _save_icon(cursor, data, extension):
+    """Stores the icon in the database (caller's transaction) and returns its name."""
+    return save_image(cursor, ICON_FILE_PREFIX, data, extension)
 
 
-def _delete_icon(filename):
-    """Removes an icon this module saved. Never raises."""
-    delete_image(BADGE_UPLOAD_DIR, ICON_FILE_PREFIX, filename)
+def _delete_icon(cursor, filename):
+    """Removes an icon this module saved (caller's transaction)."""
+    delete_image(cursor, ICON_FILE_PREFIX, filename)
 
 
 def _has_file(file_storage):
@@ -594,10 +592,10 @@ def create_badge(form, icon_file, created_by):
     if connection is None:
         return _db_down()
 
-    saved_icon = None
     try:
         cursor = connection.cursor(dictionary=True)
         ensure_badge_schema(connection, cursor)
+        ensure_image_schema(cursor)
 
         clean, errors = _validate_badge_form(cursor, form)
 
@@ -612,7 +610,7 @@ def create_badge(form, icon_file, created_by):
             cursor.close()
             return _invalid(errors)
 
-        saved_icon = _save_icon(icon_data, icon_extension)
+        saved_icon = _save_icon(cursor, icon_data, icon_extension)
 
         cursor.execute(f"SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM {BADGES_TABLE}")
         next_order = cursor.fetchone()["next_order"]
@@ -634,10 +632,9 @@ def create_badge(form, icon_file, created_by):
     except (Error, OSError) as e:
         print(f"achievements: failed to create badge: {e}")
         try:
-            connection.rollback()
+            connection.rollback()   # also undoes the stored icon - no orphan
         except Error:
             pass
-        _delete_icon(saved_icon)
         return {"success": False, "message": "Could not save the badge. Please try again."}, 500
     finally:
         if connection.is_connected():
@@ -657,10 +654,10 @@ def update_badge(badge_id, form, icon_file):
     if connection is None:
         return _db_down()
 
-    saved_icon = None
     try:
         cursor = connection.cursor(dictionary=True)
         ensure_badge_schema(connection, cursor)
+        ensure_image_schema(cursor)
 
         cursor.execute(
             f"SELECT badge_id, icon_file, requirement_type, required_value FROM {BADGES_TABLE} WHERE badge_id = %s",
@@ -684,8 +681,7 @@ def update_badge(badge_id, form, icon_file):
             cursor.close()
             return _invalid(errors)
 
-        if icon_data:
-            saved_icon = _save_icon(icon_data, icon_extension)
+        saved_icon = _save_icon(cursor, icon_data, icon_extension) if icon_data else None
 
         cursor.execute(
             f"""UPDATE {BADGES_TABLE}
@@ -697,20 +693,19 @@ def update_badge(badge_id, form, icon_file):
              clean["required_value"], clean["criteria"],
              saved_icon or current["icon_file"], badge_id)
         )
+        if saved_icon:
+            _delete_icon(cursor, current["icon_file"])   # the replaced image is no longer used
         connection.commit()
         cursor.close()
 
-        if saved_icon:
-            _delete_icon(current["icon_file"])   # the replaced image is no longer used
         return {"success": True, "message": f'Badge "{clean["name"]}" updated.'}, 200
 
     except (Error, OSError) as e:
         print(f"achievements: failed to update badge {badge_id}: {e}")
         try:
-            connection.rollback()
+            connection.rollback()   # also undoes the stored icon - no orphan
         except Error:
             pass
-        _delete_icon(saved_icon)
         return {"success": False, "message": "Could not save the badge. Please try again."}, 500
     finally:
         if connection.is_connected():

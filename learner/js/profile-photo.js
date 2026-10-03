@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_BYTES = 2 * 1024 * 1024;
     const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
     const PHOTO_NAME = /\.(png|jpe?g|webp)$/i;
+    const PHOTO_MAX_SIDE = 512;   // px - the photo is never shown larger than this
+    const SHRUNK_EXTENSIONS = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg' };
     const DEFAULT_ICON = '<i class="fa-solid fa-user"></i>';
 
     const avatar = $('photoAvatar');
@@ -71,6 +73,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // feat/images-in-database: photos are stored in the database, and they are
+    // only ever shown small. So the picked image is scaled down here first
+    // (longest side = PHOTO_MAX_SIDE, shape and transparency kept). If the
+    // browser cannot do it, the original file is sent - the server checks
+    // every upload again either way.
+    function shrinkImage(file, maxSide) {
+        return new Promise((resolve) => {
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                try {
+                    const longest = Math.max(img.naturalWidth, img.naturalHeight);
+                    if (!longest) { resolve(file); return; }
+                    const scale = Math.min(1, maxSide / longest);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+                    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => {
+                        const extension = blob && SHRUNK_EXTENSIONS[blob.type];
+                        if (!extension || blob.size >= file.size) { resolve(file); return; }
+                        resolve(new File([blob], `image.${extension}`, { type: blob.type }));
+                    }, 'image/webp', 0.86);
+                } catch (err) {
+                    resolve(file);
+                }
+            };
+            img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+            img.src = url;
+        });
+    }
+
     async function send(url, body) {
         const response = await fetch(url, { method: 'POST', credentials: 'include', body });
         const data = await response.json().catch(() => ({}));
@@ -82,12 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!typeOk) { showMessage('Your photo must be a JPG, PNG or WebP image.', true); return; }
         if (file.size > MAX_BYTES) { showMessage('Your photo must be 2 MB or smaller.', true); return; }
 
-        const body = new FormData();
-        body.append('avatar', file);
-
         setBusy(true);
         showMessage('Uploading...');
         try {
+            const photo = await shrinkImage(file, PHOTO_MAX_SIDE);
+            const body = new FormData();
+            body.append('avatar', photo, photo.name);
+
             const { ok, data } = await send('/api/profile/avatar', body);
             if (ok) {
                 renderPhoto(data.avatar_url);

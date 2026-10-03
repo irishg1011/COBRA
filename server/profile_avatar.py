@@ -1,9 +1,9 @@
 """
 profile_avatar.py - Profile photo for every account (learner, admin, mentor)
 ----------------------------------------------------------------------------
-One profile photo per account, remembered in profile_tbl.avatar_file
-(the file NAME only - the image itself is saved in
-assets/uploads/avatars/ and served by the existing /assets route).
+One profile photo per account. profile_tbl.avatar_file keeps the image's
+NAME; the image itself is stored in the database (uploaded_images_tbl,
+see image_uploads.py) and the browser loads it from /media/<name>.
 
     get_avatar_url(cursor, acc_id)   - URL of the account's photo, or None
                                        (None = show the default icon)
@@ -15,25 +15,21 @@ learners, admin_routes.py for staff) always pass the acc_id of the
 LOGGED-IN account from the session - never an id sent by the browser -
 so nobody can change another account's photo.
 
-A new photo always gets a new random file name (image_uploads.py), so
-the browser can never keep showing the old one from its cache. The
-replaced or removed file is deleted from the folder.
+A new photo always gets a new random name (image_uploads.py), so the
+browser can never keep showing the old one from its cache. The replaced
+or removed image is deleted in the same database transaction.
 """
 
-import os
 from mysql.connector import Error
 
 from cobradb import get_db_connection
 from image_uploads import (
-    has_upload, read_image_upload, save_image, delete_image, image_exists,
-    ERROR_SIZE, ERROR_EMPTY,
+    has_upload, read_image_upload, save_image, delete_image, image_exists, image_url,
+    ensure_image_schema, ERROR_SIZE, ERROR_EMPTY,
 )
 
 PROFILE_TABLE = "profile_tbl"
 
-# The folder behind /assets/uploads/avatars/ (served by login.py's /assets route).
-AVATAR_UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../assets/uploads/avatars"))
-AVATAR_URL_PREFIX = "/assets/uploads/avatars/"
 AVATAR_FILE_PREFIX = "avatar"
 MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
@@ -50,6 +46,7 @@ def ensure_avatar_schema(cursor):
     global _schema_ready
     if _schema_ready:
         return
+    ensure_image_schema(cursor)   # DDL first, so it never interrupts a save in progress
     cursor.execute(f"SHOW COLUMNS FROM {PROFILE_TABLE}")
     columns = set()
     for row in cursor.fetchall():
@@ -57,13 +54,6 @@ def ensure_avatar_schema(cursor):
     if "avatar_file" not in columns:
         cursor.execute(f"ALTER TABLE {PROFILE_TABLE} ADD COLUMN avatar_file VARCHAR(100) NULL")
     _schema_ready = True
-
-
-def avatar_url(avatar_file):
-    """File name -> URL. None when there is no photo or its file is gone."""
-    if not image_exists(AVATAR_UPLOAD_DIR, AVATAR_FILE_PREFIX, avatar_file):
-        return None
-    return f"{AVATAR_URL_PREFIX}{avatar_file}"
 
 
 def _current_file(cursor, acc_id):
@@ -89,7 +79,9 @@ def get_avatar_url(cursor, acc_id):
     try:
         ensure_avatar_schema(cursor)
         _, avatar_file = _current_file(cursor, acc_id)
-        return avatar_url(avatar_file)
+        if not image_exists(cursor, AVATAR_FILE_PREFIX, avatar_file):
+            return None   # no photo, or its image is gone -> default icon
+        return image_url(avatar_file)
     except Error as e:
         print(f"profile_avatar: could not load the photo for {acc_id}: {e}")
         return None
@@ -118,13 +110,12 @@ def set_avatar(acc_id, file_storage):
     if connection is None:
         return _fail("Could not connect to the database.", 500)
 
-    new_file = None
     try:
         cursor = connection.cursor(dictionary=True)
         ensure_avatar_schema(cursor)
         has_profile, old_file = _current_file(cursor, acc_id)
 
-        new_file = save_image(AVATAR_UPLOAD_DIR, AVATAR_FILE_PREFIX, data, extension)
+        new_file = save_image(cursor, AVATAR_FILE_PREFIX, data, extension)
         if has_profile:
             # The existing profile row is updated - never a second one.
             cursor.execute(
@@ -136,23 +127,22 @@ def set_avatar(acc_id, file_storage):
                 f"INSERT INTO {PROFILE_TABLE} (acc_id, avatar_file) VALUES (%s, %s)",
                 (acc_id, new_file)
             )
-        connection.commit()
+        delete_image(cursor, AVATAR_FILE_PREFIX, old_file)   # the replaced photo
+        connection.commit()   # new image + reference + old image removed: all or nothing
         cursor.close()
 
-        delete_image(AVATAR_UPLOAD_DIR, AVATAR_FILE_PREFIX, old_file)   # the replaced photo
         return {
             "success": True,
             "message": "Profile photo updated.",
-            "avatar_url": f"{AVATAR_URL_PREFIX}{new_file}",
+            "avatar_url": image_url(new_file),
         }, 200
 
     except (Error, OSError) as e:
         print(f"profile_avatar: failed to save the photo for {acc_id}: {e}")
         try:
-            connection.rollback()
+            connection.rollback()   # also undoes the stored image - no orphan
         except Error:
             pass
-        delete_image(AVATAR_UPLOAD_DIR, AVATAR_FILE_PREFIX, new_file)   # no orphan file
         return _fail("Could not save your photo. Please try again.", 500)
     finally:
         if connection.is_connected():
@@ -174,10 +164,10 @@ def remove_avatar(acc_id):
         _, old_file = _current_file(cursor, acc_id)
 
         cursor.execute(f"UPDATE {PROFILE_TABLE} SET avatar_file = NULL WHERE acc_id = %s", (acc_id,))
+        delete_image(cursor, AVATAR_FILE_PREFIX, old_file)
         connection.commit()
         cursor.close()
 
-        delete_image(AVATAR_UPLOAD_DIR, AVATAR_FILE_PREFIX, old_file)
         return {"success": True, "message": "Profile photo removed.", "avatar_url": None}, 200
 
     except Error as e:

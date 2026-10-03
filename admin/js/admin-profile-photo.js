@@ -24,6 +24,7 @@
     const MAX_BYTES = 2 * 1024 * 1024;
     const PHOTO_TYPES = ["image/png", "image/jpeg", "image/webp"];
     const PHOTO_NAME = /\.(png|jpe?g|webp)$/i;
+    const PHOTO_MAX_SIDE = 512;   // px - the photo is never shown larger than this
 
     function init() {
         const modal = document.getElementById("profilePhotoModal");
@@ -112,12 +113,15 @@
             if (!typeOk) { showMessage("Your photo must be a JPG, PNG or WebP image.", true); return; }
             if (file.size > MAX_BYTES) { showMessage("Your photo must be 2 MB or smaller.", true); return; }
 
-            const body = new FormData();
-            body.append("avatar", file);
-
             setBusy(true);
             showMessage("Uploading...");
             try {
+                // Shrunk in the browser first (image-shrink.js): photos are stored in the database.
+                const shrink = window.cobraByteShrinkImage;
+                const photo = typeof shrink === "function" ? await shrink(file, PHOTO_MAX_SIDE) : file;
+                const body = new FormData();
+                body.append("avatar", photo, photo.name);
+
                 const { ok, data } = await send(UPLOAD_URL, body);
                 if (ok) {
                     renderPhoto(data.avatar_url);

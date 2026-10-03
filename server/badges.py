@@ -30,9 +30,9 @@ from notifications import notify
 BADGES_TABLE = "badges_tbl"
 LEARNER_BADGES_TABLE = "learner_badges_tbl"
 
-# Uploaded badge icons are saved in assets/uploads/badges/ (achievements.py)
-# and served by the existing /assets/<path> route in login.py.
-BADGE_ICON_URL_PREFIX = "/assets/uploads/badges/"
+# Uploaded badge icons are stored in the database (image_uploads.py) and
+# loaded by the browser from /media/<name> (learner_profile.py).
+BADGE_ICON_URL_PREFIX = "/media/"
 DEFAULT_BADGE_COLOR = "#22C55E"
 DEFAULT_BADGE_ICON = "fa-award"   # shown only when a badge has no uploaded image
 
