@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - Privacy Notice</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/legal.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="legal-header">
+        <div class="logo-container">
+            <a href="/" class="logo-link"><img src="/assets/images/logo-ad.png" alt="CobraByte home" class="logo-img"></a>
+        </div>
+    </header>
+
+    <!-- feat/terms-consent: public page. legal-popup.js also loads the
+         <article id="legalDoc"> below into the popup, so edit the text
+         here only. When the text changes, raise the version here AND
+         PRIVACY_VERSION in server/consent.py so learners are asked again. -->
+    <main class="legal-page">
+        <a href="/" class="legal-back">Back to home</a>
+
+        <div class="legal-card">
+            <article id="legalDoc" class="legal-doc">
+                <h1>CobraByte Privacy Notice</h1>
+                <p class="legal-version">Version 1.0. Effective [date].</p>
+
+                <div class="legal-short">
+                    <h2>The short version</h2>
+                    <ul>
+                        <li>We keep your name, birthdate, gender, email, username and your learning progress so CobraByte can work for you.</li>
+                        <li>Your mentors and the admins can see your progress and the code you run in the sandbox.</li>
+                        <li>We do not sell your information and we do not show ads.</li>
+                        <li>You can ask to see, fix or delete your information at any time.</li>
+                        <li>If you are under 18, show this page to your parent or guardian. They need to agree too.</li>
+                    </ul>
+                </div>
+
+                <h2>1. Who we are</h2>
+                <p>CobraByte is run by [group or school name], [address]. Our contact person for privacy matters is [name], [contact email].</p>
+
+                <h2>2. What we collect</h2>
+                <div class="legal-table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>What</th><th>Details</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Account details</td><td>First name, last name, birthdate, gender, email address, username, password (stored hashed), optional profile photo</td></tr>
+                            <tr><td>Learning record</td><td>Lessons opened, answers, scores, retakes, time spent, lives, badges, certificate</td></tr>
+                            <tr><td>Sandbox code</td><td>Snippets you save, and the code and output of each run</td></tr>
+                            <tr><td>Security records</td><td>Date and time of sign-in attempts, whether they succeeded, the IP address used, lockouts, password reset dates</td></tr>
+                            <tr><td>Consent record</td><td>Which version of the Terms and this notice you accepted, and when</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h2>3. Why we collect it</h2>
+                <p>To create and secure your account, send verification and reset codes, show your lessons and track progress, recommend what to review, award badges and the certificate, let mentors and admins support learners, produce reports about how the course is used, and protect the system from misuse.</p>
+
+                <h2>4. Our basis for using it</h2>
+                <p>Your consent, given when you tick the box at sign-up or on the consent screen. For learners under 18, the consent of a parent or guardian, which the learner confirms by ticking the parent or guardian box. You may withdraw consent at any time; we will then close your account, because CobraByte cannot work without this data.</p>
+
+                <h2>5. Cookies, login token and browser storage</h2>
+                <p>When you sign in, we place a session cookie containing a random session token in your browser. It keeps you signed in and ends when you log out or after a period of inactivity. Your browser also stores a signed-in flag for the open tab and display preferences such as the theme. We do not use advertising or tracking cookies.</p>
+
+                <h2>6. Who can see your data</h2>
+                <p>You. Mentors and admins of CobraByte, for teaching, support and security. We do not sell or rent personal data, and we do not share it with anyone else unless the law requires it.</p>
+
+                <h2>7. Outside services</h2>
+                <p>Verification emails are sent through Gmail, which receives your email address and the code. Lesson videos play from YouTube, which may set its own cookies and receives your IP address. Fonts, icons and the in-browser Python engine load from Google Fonts, cdnjs and jsDelivr, which receive your IP address. The site runs on a server from [hosting provider], located in [country].</p>
+
+                <h2>8. How we protect it</h2>
+                <p>Passwords are stored hashed. Access to learner data is limited to mentor and admin accounts. Accounts lock for a short time after repeated failed sign-ins. [The site uses HTTPS so data is encrypted in transit. Include this sentence only once it is true.]</p>
+
+                <h2>9. How long we keep it</h2>
+                <p>Account and learning data: while your account is active, and deleted or made anonymous [2 years] after your last sign-in. Security records: [1 year]. When you ask us to delete your account, we delete it within [30 days], except records we must keep by law.</p>
+
+                <h2>10. Your rights</h2>
+                <p>Under the Data Privacy Act of 2012 you have the right to be informed, to object, to access your data, to correct it, to have it erased or blocked, to get a copy in a common electronic format, to claim damages, and to file a complaint with the National Privacy Commission. To use any of these, write to [contact email]. We will reply within [15 days].</p>
+
+                <h2>11. Children</h2>
+                <p>CobraByte accepts learners from age 13. Learners under 18 confirm that a parent or guardian has read and agreed to the Terms and this notice. If a data breach affects a learner under 18, we will notify both the learner and the parent or guardian where we can reach them.</p>
+
+                <h2>12. If something goes wrong</h2>
+                <p>If a breach puts your data at real risk of serious harm, we will notify you and the National Privacy Commission within 72 hours of learning about it.</p>
+
+                <h2>13. Changes to this notice</h2>
+                <p>If this notice changes, we will show you the new version and ask you to agree again before you continue.</p>
+
+                <h2>14. Contact and complaints</h2>
+                <p>[Contact person], [contact email]. You may also contact the National Privacy Commission at privacy.gov.ph.</p>
+            </article>
+        </div>
+
+        <p class="legal-other">See also the <a href="/terms">Terms and Conditions</a>.</p>
+    </main>
+
+</body>
+</html>

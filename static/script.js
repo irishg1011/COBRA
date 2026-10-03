@@ -466,6 +466,69 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.getElementById('password');
 
     // =========================================================================
+    // --- feat/terms-consent: SIGN-UP CONSENT CHECKBOXES (step 2) ---
+    // =========================================================================
+    // "I agree to the Terms and Privacy Notice" is always required. Under 18
+    // (from the birthdate typed on step 1) a second box is shown and
+    // required too. The server checks both again on /signup.
+    const ADULT_AGE = 18;
+    const agreeTermsInput = document.getElementById('agreeTerms');
+    const guardianRow = document.getElementById('guardianConsentRow');
+    const guardianAgreesInput = document.getElementById('guardianAgrees');
+    const consentError = document.getElementById('consentError');
+
+    function signUpIsMinor() {
+        const age = calculateAge(birthdateInput ? birthdateInput.value : '');
+        return age !== null && age < ADULT_AGE;
+    }
+
+    function refreshGuardianRow() {
+        if (!guardianRow) return;
+        const minor = signUpIsMinor();
+        guardianRow.hidden = !minor;
+        if (!minor && guardianAgreesInput) guardianAgreesInput.checked = false;
+    }
+
+    function clearConsentError() {
+        if (!consentError) return;
+        consentError.textContent = '';
+        consentError.hidden = true;
+    }
+
+    // true when the needed boxes are ticked; otherwise shows why under them
+    function checkSignUpConsent() {
+        refreshGuardianRow();
+        let message = '';
+        if (!agreeTermsInput || !agreeTermsInput.checked) {
+            message = 'Please agree to the Terms and Conditions and the Privacy Notice to continue.';
+        } else if (signUpIsMinor() && (!guardianAgreesInput || !guardianAgreesInput.checked)) {
+            message = 'Please confirm that your parent or guardian agrees.';
+        }
+        if (!message) {
+            clearConsentError();
+            return true;
+        }
+        if (consentError) {
+            consentError.textContent = message;
+            consentError.hidden = false;
+        }
+        return false;
+    }
+
+    if (birthdateInput) birthdateInput.addEventListener('change', refreshGuardianRow);
+    [agreeTermsInput, guardianAgreesInput].forEach((box) => {
+        if (box) box.addEventListener('change', clearConsentError);
+    });
+    // resetSignUpForm() resets this form, which also unticks the boxes
+    const signUpStep2Form = document.querySelector('#signUpStep2Panel form');
+    if (signUpStep2Form) {
+        signUpStep2Form.addEventListener('reset', () => {
+            clearConsentError();
+            if (guardianRow) guardianRow.hidden = true;
+        });
+    }
+
+    // =========================================================================
     // --- FEATURE 1: MINIMUM AGE (13+) RESTRICTION FOR SIGN UP ---
     // =========================================================================
     const MIN_SIGNUP_AGE = 13;
@@ -761,6 +824,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // feat/terms-consent: nothing is sent until the boxes are ticked
+            if (!checkSignUpConsent()) return;
+
             let hasError = false;
 
             // Strict Email Format Regex Check
@@ -918,7 +984,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         username: regUsernameInput?.value.trim(),
                         password: createPasswordInput?.value.trim(),
                         confirmPassword: confirmPasswordInput?.value.trim(),
-                        otp: otpCode
+                        otp: otpCode,
+                        agreeTerms: !!(agreeTermsInput && agreeTermsInput.checked),
+                        guardianAgrees: !!(guardianAgreesInput && guardianAgreesInput.checked)
                     })
                 });
                 const result = await response.json();

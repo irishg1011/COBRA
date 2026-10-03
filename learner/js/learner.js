@@ -102,6 +102,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <i class="fa-solid fa-lock" aria-hidden="true"></i> Change Password
                 </a>
                 <div class="profile-menu-divider" role="separator"></div>
+                <a href="/terms" target="_blank" rel="noopener" class="profile-menu-item" role="menuitem">
+                    <i class="fa-solid fa-file-lines" aria-hidden="true"></i> Terms and Conditions
+                </a>
+                <a href="/privacy" target="_blank" rel="noopener" class="profile-menu-item" role="menuitem">
+                    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Privacy Notice
+                </a>
+                <div class="profile-menu-divider" role="separator"></div>
                 <button type="button" class="profile-menu-item profile-menu-logout" role="menuitem" data-pm="logout">
                     <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i> Logout
                 </button>

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="../static/style.css">
     <link rel="stylesheet" href="../static/animations.css">
     <link rel="stylesheet" href="../static/auth-responsive.css">
+    <link rel="stylesheet" href="../static/legal.css">
 </head>
 <body>
 
@@ -329,6 +330,19 @@
                             </div>
                             <p id="confirmPassword-match" class="password-match auth-hidden"></p>
                         </div>
+                        <!-- feat/terms-consent: required before an account is created.
+                             script.js checks the boxes; legal-popup.js opens the documents. -->
+                        <div class="consent-group">
+                            <div class="consent-row">
+                                <input type="checkbox" id="agreeTerms">
+                                <label for="agreeTerms">I have read and agree to the <button type="button" class="legal-link" data-legal-doc="terms">Terms and Conditions</button> and the <button type="button" class="legal-link" data-legal-doc="privacy">Privacy Notice</button>.</label>
+                            </div>
+                            <div class="consent-row" id="guardianConsentRow" hidden>
+                                <input type="checkbox" id="guardianAgrees">
+                                <label for="guardianAgrees">I am under 18. My parent or guardian has read these and agrees.</label>
+                            </div>
+                            <p class="consent-error" id="consentError" role="alert" hidden></p>
+                        </div>
                         <div class="button-wrapper">
                             <button type="submit" class="btn-login btn-next">Proceed</button>
                         </div>
@@ -432,6 +446,7 @@
         </div>
     </div>
 
+    <script src="../static/legal-popup.js"></script>
     <script src="../static/script.js"></script>
     <script src="../static/page-transitions.js"></script>
 </body>

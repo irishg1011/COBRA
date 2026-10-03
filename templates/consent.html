@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - Before You Continue</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/legal.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="legal-header">
+        <div class="logo-container">
+            <a href="/" class="logo-link"><img src="/assets/images/logo-ad.png" alt="CobraByte home" class="logo-img"></a>
+        </div>
+    </header>
+
+    <!-- feat/terms-consent: shown after login to a learner who has not
+         accepted the current Terms and Privacy Notice (server/consent.py).
+         consent.js talks to /api/consent/status and /api/consent/accept;
+         legal-popup.js opens the two documents. -->
+    <main class="consent-page">
+        <section class="consent-card" aria-labelledby="consentTitle">
+            <h1 class="consent-title" id="consentTitle">Before you continue</h1>
+            <p class="consent-lead">CobraByte now has Terms and Conditions and a Privacy Notice. Please read them and agree to keep using your account.</p>
+
+            <div class="consent-short">
+                <h2>The short version</h2>
+                <ul>
+                    <li>We keep your name, birthdate, gender, email, username and learning progress so CobraByte can work for you.</li>
+                    <li>Your mentors and the admins can see your progress and the code you run in the sandbox.</li>
+                    <li>We do not sell your information and we do not show ads.</li>
+                    <li>You can ask to see, fix or delete your information at any time.</li>
+                </ul>
+            </div>
+
+            <div class="consent-docs">
+                <button type="button" class="consent-doc-btn" data-legal-doc="terms">Read the Terms and Conditions</button>
+                <button type="button" class="consent-doc-btn" data-legal-doc="privacy">Read the Privacy Notice</button>
+            </div>
+
+            <div class="consent-group">
+                <div class="consent-row">
+                    <input type="checkbox" id="consentAgree">
+                    <label for="consentAgree">I have read and agree to the Terms and Conditions and the Privacy Notice.</label>
+                </div>
+                <div class="consent-row" id="consentGuardianRow" hidden>
+                    <input type="checkbox" id="consentGuardian">
+                    <label for="consentGuardian">I am under 18. My parent or guardian has read these and agrees.</label>
+                </div>
+                <p class="consent-error" id="consentPageError" role="alert" hidden></p>
+            </div>
+
+            <div class="consent-actions">
+                <button type="button" class="consent-agree-btn" id="consentAgreeBtn">Agree and continue</button>
+                <button type="button" class="consent-decline-btn" id="consentDeclineBtn">Decline and log out</button>
+            </div>
+
+            <p class="consent-note">Version 1.0. You will be asked again only if these documents change.</p>
+        </section>
+    </main>
+
+    <script src="/static/legal-popup.js"></script>
+    <script src="/static/consent.js"></script>
+</body>
+</html>

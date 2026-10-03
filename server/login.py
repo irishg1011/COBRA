@@ -69,6 +69,13 @@ app.register_blueprint(learner_fib_bp)
 app.register_blueprint(learner_flashcard_bp)
 app.register_blueprint(learner_profile_bp)
 app.register_blueprint(learner_notifications_bp)
+
+# feat/terms-consent: Terms + Privacy Notice consent for learners (consent.py)
+from consent import (
+    consent_bp, check_signup_consent, guardian_flag, record_consent,
+    has_current_consent, CONSENT_PAGE_URL,
+)
+app.register_blueprint(consent_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
@@ -263,6 +270,13 @@ def signup():
             "message": "You must be 60 years old or younger to create an account."
         }), 400
 
+    # feat/terms-consent: no account without consent; under 18 also needs
+    # the parent or guardian box. Also makes sure consent_tbl exists before
+    # the sign-up transaction starts.
+    consent_error = check_signup_consent(data, age)
+    if consent_error:
+        return jsonify({"success": False, "message": consent_error}), 400
+
     if password != confirm_password:
         return jsonify({"success": False, "message": "Passwords do not match."}), 400
 
@@ -328,7 +342,10 @@ def signup():
             (new_acc_id, first_name, last_name, gender, birthdate)
         )
 
-        # 3. Welcome notification for the header bell
+        # 3. feat/terms-consent: save the consent given at sign-up
+        record_consent(cursor, new_acc_id, guardian_declared=guardian_flag(data, age))
+
+        # 4. Welcome notification for the header bell
         notify(cursor, new_acc_id, "welcome",
                f"Welcome to CobraByte, **{first_name}**!",
                "Start with Chapter 1 on your Learning Map. Your progress, badges and lives show up here.",
@@ -368,6 +385,9 @@ def login():
         session.clear()
         if login_info["session_token"]:
             session["session_token"] = login_info["session_token"]
+        # feat/terms-consent: current versions not accepted yet -> consent screen first
+        if has_current_consent(login_info["acc_id"]) is False:
+            payload["redirect"] = CONSENT_PAGE_URL
     return jsonify(payload), status
 
 

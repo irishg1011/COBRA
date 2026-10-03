@@ -130,6 +130,16 @@
         return;
     }
 
+    // feat/terms-consent: a learner who has not accepted the current Terms
+    // and Privacy Notice is sent to the consent screen. The server refuses
+    // their data requests anyway (consent.py); this just shows the screen.
+    fetch(`${API_BASE_URL}/api/consent/status`, { credentials: "include" })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data && data.needs_consent) window.location.replace("/consent");
+        })
+        .catch(function () { /* offline or not signed in - the other checks handle it */ });
+
     // Push a sentinel history entry on top of the current one. This is
     // what makes the very next Back press resolve to a 'popstate' event
     // on THIS page/URL, instead of immediately leaving it.
