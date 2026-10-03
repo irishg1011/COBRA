@@ -1,0 +1,53 @@
+<!-- admin/message-detail-modal.html - Admin > Messages: one message (feat/contact-messages).
+     Opened by the table's eye button (js/admin-messages.js). Shows the full
+     message, the replies already sent, and a reply box. Sending a reply
+     emails it to the visitor and saves it. Opening a message marks it read.
+     Hidden with .modal-hidden. -->
+<div id="messageDetailModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="messageDetailTitle">
+    <div class="msg-detail-card">
+
+        <div class="msg-detail-header">
+            <div>
+                <h3 id="messageDetailTitle">Message</h3>
+                <p class="msg-detail-subtitle">
+                    From <strong id="messageDetailName">—</strong>
+                    <span class="msg-detail-dot">&middot;</span>
+                    <span id="messageDetailEmail">—</span>
+                </p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeMessageDetailBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <p class="msg-detail-error" id="messageDetailError" role="alert"></p>
+
+        <div class="msg-detail-body">
+            <div class="msg-detail-meta">
+                <span>Received <strong id="messageDetailReceived">—</strong></span>
+                <span id="messageDetailStatus"></span>
+            </div>
+
+            <section class="msg-detail-section">
+                <h4>Message</h4>
+                <p class="msg-detail-text" id="messageDetailText"></p>
+            </section>
+
+            <section class="msg-detail-section">
+                <h4>Replies</h4>
+                <div id="messageDetailReplies"></div>
+            </section>
+
+            <section class="msg-detail-section">
+                <label class="msg-reply-label" for="messageReplyInput">Your reply</label>
+                <textarea id="messageReplyInput" class="msg-reply-input" rows="5" maxlength="{{ reply_max }}" placeholder="Write your reply. It will be emailed to the sender."></textarea>
+                <p class="msg-reply-note" id="messageReplyNote" role="status"></p>
+            </section>
+        </div>
+
+        <div class="msg-detail-footer">
+            <button type="button" class="btn-pill-light" id="closeMessageDetailFooterBtn">Close</button>
+            <button type="button" class="btn-pill-green" id="sendMessageReplyBtn">
+                <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Send Reply
+            </button>
+        </div>
+    </div>
+</div>

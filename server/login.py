@@ -76,6 +76,10 @@ from consent import (
     has_current_consent, CONSENT_PAGE_URL,
 )
 app.register_blueprint(consent_bp)
+
+# feat/contact-messages: the landing page's "Send Us a Message" form (public)
+from contact_routes import contact_bp
+app.register_blueprint(contact_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================

@@ -1,0 +1,322 @@
+/* ==========================================================================
+   ADMIN > MESSAGES (messages.html + message-detail-modal.html)
+   feat/contact-messages. Page-only styles. Everything shared (.table-card,
+   .metric-card, toolbar, badges, pagination, .modal-overlay) comes from
+   admin-style.css. Script: js/admin-messages.js.
+   ========================================================================== */
+
+/* --- Stat cards: 4 across, no icons (same as Learner Progress) --- */
+.metrics-grid.msg-metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.msg-metrics-grid .metric-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "title"
+        "value";
+    padding: 16px 18px;
+}
+
+.msg-metrics-grid .metric-value-good {
+    color: #0F7A3D;
+}
+
+.msg-metrics-grid .metric-value-bad {
+    color: #C62828;
+}
+
+@media (max-width: 1100px) {
+    .metrics-grid.msg-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid.msg-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Toolbar --- */
+.msg-date-separator {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+/* Shown by the page JS when From is after To */
+.date-filter-error.is-visible {
+    display: block;
+}
+
+/* --- Table --- */
+.table-card .msg-table th:nth-child(3),
+.table-card .msg-table td:nth-child(3) {
+    text-align: left;
+}
+
+.msg-table td:nth-child(1),
+.msg-table td:nth-child(2),
+.msg-table td:nth-child(3) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.msg-table td:nth-child(3) {
+    min-width: 220px;
+    max-width: 420px;
+    color: #374151;
+}
+
+/* An unread message stands out: bold name + a dot */
+.msg-row-unread td:first-child {
+    font-weight: 600;
+}
+
+.msg-unread-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: #C62828;
+    vertical-align: middle;
+}
+
+/* Status pills */
+.msg-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.msg-status-unread {
+    background: #FBD9D9;
+    color: #A61B1B;
+}
+
+.msg-status-read {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.msg-status-replied {
+    background: #C8F2D2;
+    color: #0F7A3D;
+}
+
+/* Eye button (same look as Learner Progress) */
+.msg-view-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 6px;
+    color: var(--admin-text);
+    transition: background 0.2s, color 0.2s;
+}
+
+.msg-view-btn:hover {
+    background: #f3f4f6;
+    color: var(--admin-blue);
+}
+
+.msg-view-btn:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 1px;
+}
+
+.msg-view-btn .mask-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* ==========================================================================
+   MESSAGE MODAL
+   ========================================================================== */
+.msg-detail-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 680px;
+    max-height: 90vh;
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.msg-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 18px 22px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.msg-detail-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.msg-detail-subtitle {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--admin-muted);
+    overflow-wrap: anywhere;
+}
+
+.msg-detail-subtitle strong {
+    color: var(--admin-text);
+    font-weight: 500;
+}
+
+.msg-detail-dot {
+    margin: 0 6px;
+}
+
+.msg-detail-header .modal-close-btn {
+    color: var(--admin-muted);
+    line-height: 1;
+}
+
+.msg-detail-header .modal-close-btn:hover {
+    color: var(--admin-text);
+}
+
+.msg-detail-error {
+    margin: 12px 22px 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+.msg-detail-error:empty {
+    display: none;
+}
+
+.msg-detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 22px 20px;
+    overflow-y: auto;
+}
+
+.msg-detail-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.msg-detail-meta strong {
+    color: var(--admin-text);
+    font-weight: 500;
+}
+
+.msg-detail-section h4,
+.msg-reply-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+/* The visitor's text keeps its own line breaks */
+.msg-detail-text,
+.msg-reply-text {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #1f2937;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.msg-detail-text {
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.msg-reply-item {
+    padding: 10px 14px;
+    border-left: 3px solid #09B300;
+    border-radius: 0 8px 8px 0;
+    background: #f0fdf4;
+}
+
+.msg-reply-item + .msg-reply-item {
+    margin-top: 8px;
+}
+
+.msg-reply-by {
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.msg-detail-empty {
+    padding: 10px 12px;
+    border: 1px dashed var(--admin-line);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+.msg-reply-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #9ca3af;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--admin-text);
+    resize: vertical;
+    outline: none;
+}
+
+.msg-reply-input:focus {
+    border-color: var(--admin-blue);
+}
+
+/* Result of sending a reply - filled by the script */
+.msg-reply-note {
+    margin-top: 6px;
+    font-size: 12.5px;
+    color: #0F7A3D;
+}
+
+.msg-reply-note.is-error {
+    color: #b91c1c;
+}
+
+.msg-reply-note:empty {
+    display: none;
+}
+
+.msg-detail-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid #e5e7eb;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .msg-view-btn {
+        transition: none;
+    }
+}

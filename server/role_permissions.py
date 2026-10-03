@@ -124,6 +124,12 @@ ENDPOINT_ROLES = {
     "admin_bp.reports": ADMIN,
     "admin_bp.reports_data": ADMIN,
 
+    # Messages (feat/contact-messages): landing page "Send Us a Message" inbox + replies
+    "admin_bp.messages": ADMIN,
+    "admin_bp.messages_data": ADMIN,
+    "admin_bp.messages_detail": ADMIN,
+    "admin_bp.messages_reply": ADMIN,
+
     # ------------------------------------------------------------
     # Mentor only - content and publishing actions
     # ------------------------------------------------------------

@@ -22,14 +22,19 @@ def generate_otp():
     return str(random.randint(0, 999999)).zfill(6)
 
 
-def send_email(to_email, subject, body_text):
+def send_email(to_email, subject, body_text, reply_to=None):
     """
     Sends a plain-text email via Gmail's SMTP server using TLS encryption.
+    reply_to (optional): where a "Reply" in the inbox should go - used for
+    landing page messages, so replying reaches the visitor (feat/contact-messages).
+    Returns True when the email was sent, False otherwise.
     """
     message = MIMEMultipart()
     message["From"] = GMAIL_ADDRESS
     message["To"] = to_email
     message["Subject"] = subject
+    if reply_to:
+        message["Reply-To"] = reply_to
     message.attach(MIMEText(body_text, "plain"))
 
     try:
