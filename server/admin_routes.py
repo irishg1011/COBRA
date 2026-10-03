@@ -105,6 +105,10 @@ from recommendations import get_recommendations_data, empty_recommendations_data
 from contact_messages import (  # feat/contact-messages: Admin > Messages (landing page "Send Us a Message")
     get_messages_data, empty_messages_data, get_message, send_reply, REPLY_MAX,
 )
+from urllib.parse import quote  # feat/staff-search: ?q= on the result links
+from werkzeug.routing import BuildError
+from staff_search import search_everything  # feat/staff-search: the header's "Search anything..." box
+from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
@@ -3572,6 +3576,79 @@ def _read_report_filters():
         "module_id": request.args.get('module_id', '') or None,
         "search": request.args.get('q', ''),
     }
+
+
+# ============================================================
+# ROUTE: HEADER SEARCH (Admin + Mentor) - feat/staff-search
+# The "Search anything..." box in the shared header. staff_search.py
+# finds matches for every role; THIS route keeps only the results whose
+# page the logged-in role may open (the same role_permissions map that
+# guards the pages), and turns each one into a link.
+# ============================================================
+@admin_bp.route('/search')
+def staff_search():
+    role = g.get("staff_role")
+    groups = []
+    for group in search_everything(request.args.get('q', '')):
+        items = []
+        for item in group["items"]:
+            if not is_allowed(item["endpoint"], role):
+                continue
+            try:
+                url = url_for(item["endpoint"])
+            except BuildError:
+                continue
+            if item.get("q"):
+                url += "?q=" + quote(item["q"])
+            items.append({"title": item["title"], "subtitle": item["subtitle"], "url": url})
+        if items:
+            groups.append({"label": group["label"], "items": items})
+    return jsonify({"success": True, "groups": groups}), 200
+
+
+# ============================================================
+# ROUTE: HEADER BELL (Admin) - feat/admin-bell
+# The logged-in admin's own notifications (new landing page message,
+# account locked, learner signed up, learner finished the course).
+# The account is ALWAYS session["admin_id"] - never an id from the
+# request. Rules live in staff_notifications.py. ADMIN only: mentors
+# have no bell.
+# ============================================================
+@admin_bp.route('/notifications')
+def staff_notifications_list():
+    data = list_notifications(
+        session.get("admin_id"),
+        only_unread=request.args.get("filter") == "unread",
+        before_id=request.args.get("before_id", type=int),
+        limit=request.args.get("limit", default=12, type=int),
+    )
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load notifications."}), 500
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/notifications/count')
+def staff_notifications_count():
+    count = unread_count(session.get("admin_id"))
+    if count is None:
+        return jsonify({"success": False}), 500
+    return jsonify({"success": True, "unread_count": count}), 200
+
+
+@admin_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+def staff_notifications_read(notif_id):
+    count = mark_read(session.get("admin_id"), notif_id)
+    if count is None:
+        return jsonify({"success": False}), 500
+    return jsonify({"success": True, "unread_count": count}), 200
+
+
+@admin_bp.route('/notifications/read-all', methods=['POST'])
+def staff_notifications_read_all():
+    count = mark_read(session.get("admin_id"))
+    if count is None:
+        return jsonify({"success": False}), 500
+    return jsonify({"success": True, "unread_count": count}), 200
 
 
 # ============================================================

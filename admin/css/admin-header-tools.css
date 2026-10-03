@@ -1,0 +1,381 @@
+/* ==========================================================================
+   STAFF HEADER TOOLS - search box results + notification bell
+   feat/staff-search + feat/admin-bell   (admin-header.html)
+   Loaded from admin-header.html, so it is on every admin and mentor page.
+   Scripts: js/admin-search.js, js/admin-notifications.js.
+   The bell follows the learner bell's look (learner/css/profile-menu.css).
+   ========================================================================== */
+
+/* ---------------- Search ---------------- */
+.admin-header .header-search.staff-search {
+    position: relative;
+}
+
+.admin-header .header-search.staff-search:focus-within {
+    border-color: var(--admin-blue);
+    box-shadow: 0 0 0 3px rgba(11, 100, 208, 0.12);
+}
+
+.staff-search-results {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    max-height: min(520px, 70vh);
+    overflow-y: auto;
+    padding: 6px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+    z-index: 1500;
+}
+
+.staff-search-results[hidden] {
+    display: none;
+}
+
+.staff-search-group-label {
+    padding: 8px 10px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--admin-muted);
+}
+
+.staff-search-item {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--admin-text);
+}
+
+.staff-search-item:hover,
+.staff-search-item.is-active {
+    background: #eef4ff;
+}
+
+.staff-search-item:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: -2px;
+}
+
+.staff-search-title {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.staff-search-subtitle {
+    font-size: 12px;
+    color: var(--admin-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.staff-search-empty {
+    padding: 14px 10px;
+    font-size: 13px;
+    color: var(--admin-muted);
+    text-align: center;
+}
+
+/* ---------------- Bell ---------------- */
+.staff-notif {
+    position: relative;
+}
+
+.staff-notif .notification-btn {
+    position: relative;
+    padding: 8px;
+    border-radius: 999px;
+    transition: background 0.2s;
+}
+
+.staff-notif .notification-btn:hover,
+.staff-notif .notification-btn[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.staff-notif .notification-btn:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+.staff-notif-count {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #e41e3f;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 19px;
+    text-align: center;
+    box-shadow: 0 0 0 2px #ffffff;
+    pointer-events: none;
+}
+
+.staff-notif-count[hidden] {
+    display: none;
+}
+
+.staff-notif-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: -60px;
+    width: 380px;
+    max-width: calc(100vw - 24px);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+    z-index: 1500;
+    color: var(--admin-text);
+    animation: staffNotifIn 0.14s ease-out;
+}
+
+.staff-notif-panel[hidden] {
+    display: none;
+}
+
+@keyframes staffNotifIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.staff-notif-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 6px;
+}
+
+.staff-notif-head h2 {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.staff-notif-readall {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--admin-blue);
+    cursor: pointer;
+}
+
+.staff-notif-readall:hover,
+.staff-notif-readall:focus-visible {
+    background: #eef4ff;
+    outline: none;
+}
+
+.staff-notif-readall:disabled {
+    color: #9ca3af;
+    cursor: default;
+    background: none;
+}
+
+.staff-notif-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 4px 16px 8px;
+}
+
+.staff-notif-tab {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+}
+
+.staff-notif-tab:hover {
+    background: #f1f5f9;
+}
+
+.staff-notif-tab.is-active {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.staff-notif-tab:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+.staff-notif-scroll {
+    max-height: min(520px, 68vh);
+    overflow-y: auto;
+    padding: 0 8px 10px;
+}
+
+.staff-notif-status {
+    padding: 18px 12px;
+    font-size: 13.5px;
+    color: var(--admin-muted);
+    text-align: center;
+}
+
+.staff-notif-status[hidden] {
+    display: none;
+}
+
+.staff-notif-section {
+    margin: 8px 8px 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.staff-notif-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.staff-notif-item:hover,
+.staff-notif-item:focus-visible {
+    background: #f1f5f9;
+    outline: none;
+}
+
+/* round type icon; the two tone variables come from the type's class */
+.staff-notif-avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    font-size: 18px;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--tone-a, #2dd4bf), var(--tone-b, #0d9488));
+}
+
+.staff-tone-blue  { --tone-a: #60a5fa; --tone-b: #1d4ed8; }
+.staff-tone-red   { --tone-a: #fb7185; --tone-b: #e11d48; }
+.staff-tone-green { --tone-a: #4ade80; --tone-b: #16a34a; }
+.staff-tone-gold  { --tone-a: #fde047; --tone-b: #ca8a04; }
+.staff-tone-teal  { --tone-a: #2dd4bf; --tone-b: #0d9488; }
+
+.staff-notif-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.staff-notif-title {
+    font-size: 13.5px;
+    line-height: 1.4;
+    color: #1e293b;
+    overflow-wrap: anywhere;
+}
+
+.staff-notif-title strong {
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.staff-notif-detail {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--admin-muted);
+    overflow-wrap: anywhere;
+}
+
+.staff-notif-time {
+    font-size: 11.5px;
+    color: var(--admin-muted);
+}
+
+.staff-notif-item.is-unread .staff-notif-time {
+    color: #0284c7;
+    font-weight: 500;
+}
+
+.staff-notif-dot {
+    flex-shrink: 0;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+}
+
+.staff-notif-item.is-unread .staff-notif-dot {
+    background: #0ea5e9;
+}
+
+.staff-notif-older {
+    display: block;
+    width: calc(100% - 16px);
+    margin: 8px auto 2px;
+    padding: 9px;
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.staff-notif-older:hover {
+    background: #e2e8f0;
+}
+
+.staff-notif-older[hidden] {
+    display: none;
+}
+
+@media (max-width: 700px) {
+    .staff-notif-panel {
+        position: fixed;
+        top: 76px;
+        right: 12px;
+        left: 12px;
+        width: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .staff-notif-panel {
+        animation: none;
+    }
+
+    .staff-notif .notification-btn {
+        transition: none;
+    }
+}

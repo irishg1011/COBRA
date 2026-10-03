@@ -355,6 +355,16 @@ def signup():
                "Start with Chapter 1 on your Learning Map. Your progress, badges and lives show up here.",
                "/learning-map", "welcome")
 
+        # 5. feat/admin-bell: the admins' header bell hears about the new learner
+        #    (imported here: only this route needs it)
+        from urllib.parse import quote
+        from staff_notifications import notify_admins
+        notify_admins(cursor, "signup",
+                      f"**{first_name} {last_name}** signed up",
+                      f"New learner account {new_acc_id}.",
+                      f"/admin/account-security.html?q={quote(email)}",
+                      f"signup:{new_acc_id}")
+
         connection.commit()
         cursor.close()
 

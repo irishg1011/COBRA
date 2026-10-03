@@ -30,10 +30,12 @@ Tables (created lazily; same DDL as sql/contact_messages.sql):
 import re
 import time
 from datetime import datetime
+from urllib.parse import quote
 from mysql.connector import Error
 
 from cobradb import get_db_connection
 from api import send_email, GMAIL_ADDRESS
+from staff_notifications import notify_admins  # feat/admin-bell
 
 MESSAGES_TABLE = "contact_messages_tbl"
 REPLIES_TABLE = "contact_replies_tbl"
@@ -213,6 +215,12 @@ def submit_contact_message(name, email, message, client_key=None, trap=None):
             (clean["name"], clean["email"], clean["message"])
         )
         message_id = cursor.lastrowid
+        # feat/admin-bell: every admin's header bell, saved together with the message
+        notify_admins(cursor, "message",
+                      f"New message from **{clean['name']}**",
+                      _preview(clean["message"], 120),
+                      f"/admin/messages?q={quote(clean['email'])}",
+                      f"contact:{message_id}")
         connection.commit()
         cursor.close()
     except Error as e:

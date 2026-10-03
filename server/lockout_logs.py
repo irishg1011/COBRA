@@ -22,7 +22,7 @@ password_reset_logs.py gives password resets.
 
 USAGE
     - login.py: log_lockout_event(acc_id) is called exactly once per
-      lockout EVENT - i.e. the moment failed_attempts hits 5 and the
+      lockout EVENT (it also notifies the admins' header bell - feat/admin-bell) - i.e. the moment failed_attempts hits 5 and the
       account transitions into a locked state - never once per failed
       attempt, and never repeated while the account is already locked.
     - admin_routes.py: get_lockouts_today_count(connection) backs the
@@ -103,6 +103,23 @@ def log_lockout_event(acc_id):
         cursor.execute(
             f"INSERT INTO {LOCKOUT_LOGS_TABLE} (acc_id) VALUES (%s)",
             (acc_id,)
+        )
+        lockout_id = cursor.lastrowid
+        connection.commit()
+
+        # feat/admin-bell: tell the admins. Done AFTER the lockout row is
+        # committed, and it never raises - a notification problem must not
+        # undo the log entry or reach the login flow.
+        # (imported here: staff_notifications loads the Flask notification module)
+        from urllib.parse import quote
+        from staff_notifications import notify_admins, account_summary
+        name, email = account_summary(cursor, acc_id)
+        notify_admins(
+            cursor, "lockout",
+            f"**{name}** was locked out",
+            "5 failed login attempts. The account unlocks by itself after 1 minute.",
+            f"/admin/login-logs.html?q={quote(email or str(acc_id))}",
+            f"lockout:{lockout_id}",
         )
         connection.commit()
         cursor.close()
