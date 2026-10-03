@@ -9,11 +9,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
+    <link rel="stylesheet" href="../learner/css/learner-responsive.css">
 </head>
 <body data-auth-guard-mode="refresh">
 
     <!-- Logged In Header -->
-    <header>
+    <header class="learner-header">
         <div class="logo-container">
             <img src="../assets/images/logo-ad.png" alt="CobraByte Logo" class="logo-img">
         </div>
@@ -21,20 +22,15 @@
         <!-- Center Navigation -->
         <nav class="dashboard-nav">
             <a href="/dashboard" class="dashboard-nav-link active">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                    <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                    <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-                    <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-                </svg>
+                <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i>
                 Dashboard
             </a>
-            <a href="/learning-map" class="dashboard-nav-link">Lessons</a>
+            <a href="/learning-map" class="dashboard-nav-link">
+                <i class="fa-solid fa-book-open" aria-hidden="true"></i>
+                Lessons
+            </a>
             <a href="/sandbox" class="dashboard-nav-link">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <polyline points="16 18 22 12 16 6"></polyline>
-                    <polyline points="8 6 2 12 8 18"></polyline>
-                </svg>
+                <i class="fa-solid fa-code" aria-hidden="true"></i>
                 Sandbox
             </a>
         </nav>

@@ -1,0 +1,557 @@
+/* ==========================================================================
+   learner-responsive.css - phone / tablet layout for the learner pages
+   Load it LAST in the <head> of every learner page.
+
+   - Section 1 is the only rule that applies on every screen size: it sizes
+     the Font Awesome icons in the header nav so every page matches.
+   - Everything else sits inside media queries (900px and narrower), so the
+     desktop view is not touched.
+   - Layout only. No logic depends on this file.
+   - The games (Multiple Choice arena, Fill-in-the-Blanks, Flashcards) are
+     not styled here.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. HEADER NAV ICONS (all screen sizes)
+   Same box as the old 18px SVG icons.
+   ========================================================================== */
+.learner-header .dashboard-nav-link i {
+    width: 18px;
+    font-size: 16px;
+    text-align: center;
+}
+
+
+/* ==========================================================================
+   2. HEADER (900px and narrower)
+   Row 1: logo on the left, bell / profile on the right.
+   Row 2: Dashboard / Lessons / Sandbox across the full width.
+   ========================================================================== */
+@media (max-width: 900px) {
+    .learner-header {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0;
+        min-height: 0;
+        padding: 0;
+    }
+
+    .learner-header .logo-container {
+        order: 1;
+        padding: 6px 0 6px 16px;
+    }
+
+    .learner-header .logo-img {
+        height: 44px;
+    }
+
+    .learner-header .header-controls {
+        order: 2;
+        gap: 2px;
+        padding-right: 8px;
+    }
+
+    .learner-header .header-icon-btn,
+    .learner-header .profile-menu-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .learner-header .dashboard-nav {
+        order: 3;
+        position: static;
+        transform: none;
+        flex: 0 0 100%;
+        gap: 0;
+        border-top: 1px solid rgba(0, 51, 68, 0.1);
+    }
+
+    .learner-header .dashboard-nav-link {
+        flex: 1 1 0;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 4px;
+        font-size: 14px;
+        border-bottom: 3px solid transparent;
+    }
+
+    .learner-header .dashboard-nav-link.active {
+        border-bottom-color: #10b981;
+    }
+
+    /* Dropdowns open under the whole two-row header and stay on screen.
+       They are positioned from the header instead of from their own button. */
+    .learner-header .notif-menu,
+    .learner-header .profile-menu {
+        position: static;
+    }
+
+    .learner-header .notif-panel,
+    .learner-header .profile-menu-panel {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 8px;
+        left: auto;
+    }
+
+    .learner-header .notif-panel {
+        width: 380px;
+        max-width: calc(100% - 16px);
+    }
+
+    .learner-header .notif-scroll {
+        max-height: min(560px, max(160px, calc(100vh - 260px)));
+    }
+}
+
+@media (max-width: 600px) {
+    .learner-header .notif-panel {
+        left: 8px;
+        width: auto;
+        max-width: none;
+    }
+}
+
+/* Phone held sideways: the header scrolls away instead of covering the page */
+@media (max-width: 900px) and (max-height: 480px) {
+    .learner-header {
+        position: relative;
+    }
+}
+
+
+/* ==========================================================================
+   3. DASHBOARD
+   ========================================================================== */
+@media (max-width: 900px) {
+    .dashboard-container {
+        padding: 28px 20px 48px;
+    }
+
+    .dashboard-container .dashboard-intro {
+        margin-bottom: 28px;
+    }
+
+    .dashboard-container .dashboard-intro h1 {
+        margin-bottom: 0;
+    }
+
+    .dashboard-container .paths-grid {
+        gap: 24px;
+    }
+
+    .dashboard-container .card-link {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 600px) {
+    .dashboard-container {
+        padding: 24px 16px 40px;
+    }
+
+    .dashboard-container .dashboard-intro h1 {
+        font-size: 38px;
+    }
+
+    .dashboard-container .card-image-wrapper {
+        height: 180px;
+    }
+
+    .dashboard-container .card-body {
+        padding: 20px;
+    }
+
+    .dashboard-container .card-body h2 {
+        font-size: 22px;
+    }
+}
+
+
+/* ==========================================================================
+   4. LEARNING MAP
+   ========================================================================== */
+@media (max-width: 900px) {
+    .map-page {
+        padding: 24px 16px 60px;
+    }
+
+    .map-page .map-title-row {
+        margin-bottom: 20px;
+    }
+
+    .map-page .map-title-row h1 {
+        font-size: 28px;
+    }
+
+    .map-page .map-title-row p {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 600px) {
+    /* keep the left / right zig-zag, but give the cards more width */
+    .map-page .map-node-row.align-left {
+        padding-left: 0;
+        padding-right: 10%;
+    }
+
+    .map-page .map-node-row.align-right {
+        padding-right: 0;
+        padding-left: 10%;
+    }
+
+    .map-page .map-node {
+        gap: 12px;
+        padding: 14px 16px;
+    }
+}
+
+
+/* ==========================================================================
+   5. LESSONS LIST
+   ========================================================================== */
+@media (max-width: 900px) {
+    .lessons-page {
+        padding: 24px 16px 60px;
+    }
+
+    .lessons-page .lessons-back-link {
+        min-height: 44px;
+        margin-bottom: 8px;
+    }
+
+    .lessons-page .lessons-jump-pill,
+    .lessons-page .lesson-action-btn {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 600px) {
+    .lessons-page .lessons-card {
+        padding: 20px 16px;
+    }
+
+    .lessons-page .lessons-header-row h1 {
+        font-size: 24px;
+    }
+
+    .lessons-page .lessons-jump-row {
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    .lessons-page .lesson-rail-row {
+        gap: 10px;
+    }
+
+    .lessons-page .lesson-rail {
+        width: 36px;
+    }
+
+    .lessons-page .lesson-card {
+        gap: 14px;
+        padding: 14px;
+    }
+
+    .lessons-page .lesson-badges,
+    .lessons-page .lesson-mini-progress-row {
+        flex-wrap: wrap;
+    }
+
+    .lessons-page .module-gate {
+        padding: 12px;
+    }
+}
+
+
+/* ==========================================================================
+   6. LESSON PAGE (video, lesson content, coding exercise, summary)
+   The activity games inside this page are left as they are.
+   ========================================================================== */
+@media (max-width: 900px) {
+    .lesson-page {
+        padding: 24px 16px 60px;
+    }
+
+    .lesson-page .lesson-back-link {
+        min-height: 44px;
+        margin-bottom: 8px;
+    }
+
+    .lesson-page .lesson-card {
+        padding: 24px 20px;
+    }
+
+    /* stepper: the steps share the width instead of pushing the page sideways */
+    .lesson-page .lesson-stepper {
+        align-items: flex-start;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    .lesson-page .lesson-step-node {
+        flex: 0 1 100px;
+        width: auto;
+        min-width: 52px;
+    }
+
+    .lesson-page .lesson-step-line {
+        min-width: 8px;
+        margin: 14px 2px 0;
+    }
+
+    .lesson-page .lesson-step-footer {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .lesson-page .lesson-complete-row {
+        flex-wrap: wrap;
+    }
+
+    .lesson-page .lesson-step-btn,
+    .lesson-page .review-btn {
+        min-height: 44px;
+    }
+
+    .lesson-page .exercise-run-btn {
+        min-height: 36px;
+        padding: 8px 16px;
+    }
+
+    /* wide things inside the lesson text scroll in their own box */
+    .lesson-page .lesson-content-body img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    .lesson-page .lesson-content-body table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    .lesson-page .lesson-content-body pre {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .lesson-page {
+        padding: 16px 12px 48px;
+    }
+
+    .lesson-page .lesson-card {
+        padding: 20px 16px;
+    }
+
+    .lesson-page #lessonResourceTitle {
+        font-size: 22px;
+        margin-bottom: 16px;
+    }
+
+    .lesson-page .lesson-step-label {
+        font-size: 10px;
+    }
+
+    .lesson-page .lesson-content-scroll {
+        max-height: min(420px, 65vh);
+        padding: 16px;
+    }
+
+    .lesson-page .lesson-content-body h1 {
+        font-size: 22px;
+    }
+
+    .lesson-page .lesson-content-body h2 {
+        font-size: 19px;
+    }
+
+    .lesson-page .perf-banner {
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .lesson-page .summary-row {
+        gap: 12px;
+    }
+
+    .lesson-page .review-btn {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+
+    .lesson-page .stage-footer {
+        margin-top: 16px;
+    }
+
+    .lesson-page .stage-footer .lesson-step-btn {
+        width: 100%;
+    }
+}
+
+
+/* ==========================================================================
+   7. CODING SANDBOX
+   ========================================================================== */
+@media (max-width: 900px) {
+    .sandbox-container {
+        padding: 24px 16px 60px;
+    }
+
+    /* 16px text stops phones from zooming in when the field is tapped */
+    .sandbox-container .code-editor,
+    .sandbox-container .terminal-inline-input,
+    .sandbox-container .snippets-search-input {
+        font-size: 16px;
+    }
+
+    .sandbox-container .code-editor,
+    .sandbox-container .output-body {
+        padding: 16px;
+    }
+
+    .sandbox-container .btn-sandbox {
+        min-height: 44px;
+    }
+
+    .sandbox-container .btn-clear {
+        min-height: 36px;
+    }
+
+    /* also used inside the "See All" popup */
+    .snippet-action-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 600px) {
+    .sandbox-container .sandbox-heading-row {
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .sandbox-container .sandbox-icon-badge {
+        width: 48px;
+        height: 48px;
+    }
+
+    .sandbox-container .sandbox-heading-left h1 {
+        font-size: 22px;
+    }
+
+    .sandbox-container .sandbox-actions {
+        gap: 8px;
+    }
+
+    .sandbox-container .btn-sandbox {
+        padding: 12px;
+    }
+
+    .sandbox-container .sandbox-grid {
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .sandbox-container .code-panel,
+    .sandbox-container .output-panel {
+        height: 340px;
+    }
+
+    .sandbox-container .snippets-card {
+        padding: 20px 16px;
+    }
+
+    .sandbox-container .snippets-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .snippet-item {
+        padding: 10px 12px;
+    }
+}
+
+@media (max-width: 900px) and (max-height: 480px) {
+    .sandbox-container .code-panel,
+    .sandbox-container .output-panel {
+        height: 260px;
+    }
+}
+
+
+/* ==========================================================================
+   8. PROFILE
+   ========================================================================== */
+@media (max-width: 900px) {
+    .profile-page .profile-tab {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 600px) {
+    .profile-page .profile-card {
+        padding: 20px 16px;
+    }
+
+    .profile-page .profile-hero-figures {
+        gap: 32px;
+    }
+
+    .profile-page .badges-head {
+        flex-wrap: wrap;
+    }
+
+    .profile-page .badge-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .profile-page .badge-card {
+        padding: 18px 10px 14px;
+    }
+
+    .profile-page .certificate-card-btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+
+/* ==========================================================================
+   9. EDIT PROFILE
+   Title and the profile photo block are centered; the form fields stay
+   left-aligned. Display is never set here, so the photo block still stays
+   hidden until profile-photo.js shows it.
+   ========================================================================== */
+@media (max-width: 900px) {
+    .account-page #editTitle,
+    .account-page #editTitle + .account-subtitle {
+        text-align: center;
+    }
+
+    .account-page .photo-section {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .account-page .photo-avatar {
+        margin-right: auto;
+        margin-left: auto;
+    }
+
+    .account-page .photo-controls {
+        align-items: center;
+    }
+
+    .account-page .photo-actions,
+    .account-page .photo-confirm {
+        justify-content: center;
+    }
+}

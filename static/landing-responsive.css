@@ -1,0 +1,127 @@
+/* ==========================================================================
+   landing-responsive.css - phone / tablet polish for the landing page
+
+   Load it in landing_page.html AFTER landing_style.css and animations.css.
+   Every rule sits inside a media query (992px and narrower, the same
+   breakpoints landing_style.css already uses), so the desktop view is not
+   touched. Layout only - no script depends on this file.
+   ========================================================================== */
+
+@media screen and (max-width: 992px) {
+
+    /* --- Top bar: shorter, with buttons big enough to tap --- */
+    .navbar {
+        padding: 10px 16px;
+    }
+
+    .logo img {
+        height: 44px;
+    }
+
+    .nav-auth .sign-in-link,
+    .nav-auth .btn-get-started-top {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+        padding: 6px 12px;
+    }
+
+    /* anchor links stop just under the shorter top bar */
+    #home,
+    .hero-section,
+    #features,
+    #how-it-works,
+    #about,
+    #contact {
+        scroll-margin-top: 72px;
+    }
+
+    /* --- Sections: less empty space above and below --- */
+    .features-section,
+    .journey-section,
+    .experience-section,
+    .analytics-section,
+    .about-section,
+    .contact-section {
+        padding: 64px 20px;
+    }
+
+    .footer-section {
+        padding: 36px 20px 20px;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+    }
+
+    /* 16px text stops phones from zooming in when a field is tapped */
+    .form-group input,
+    .form-group textarea {
+        font-size: 16px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .hero-section {
+        padding: 28px 16px 36px;
+    }
+
+    .features-section,
+    .journey-section,
+    .experience-section,
+    .analytics-section,
+    .about-section,
+    .contact-section {
+        padding: 48px 16px;
+    }
+
+    .features-header,
+    .journey-header,
+    .experience-header,
+    .about-header-center,
+    .contact-header-center {
+        margin-bottom: 32px;
+    }
+
+    .features-header h2 {
+        font-size: 28px;
+    }
+
+    .features-header p,
+    .journey-header p,
+    .about-header-center p,
+    .contact-header-center p,
+    .analytics-content p {
+        font-size: 15px;
+    }
+
+    /* --- Cards: tighter padding so the text gets more width --- */
+    .feature-card,
+    .journey-card {
+        padding: 24px 20px;
+    }
+
+    .about-card {
+        padding: 24px 20px;
+    }
+
+    .analytics-dashboard-card {
+        padding: 20px 16px;
+    }
+
+    .contact-info-card,
+    .contact-form-card {
+        padding: 24px 20px;
+    }
+
+    .mission-banner {
+        padding: 28px 20px;
+    }
+
+    .footer-section {
+        padding: 32px 16px 20px;
+    }
+}

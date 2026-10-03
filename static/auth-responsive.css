@@ -1,0 +1,191 @@
+/* ==========================================================================
+   auth-responsive.css - phone / tablet layout for the login page
+   (sign in, sign up, verification code, forgot password, create-email popup)
+
+   Load it in login.html AFTER style.css and animations.css.
+   Every rule sits inside a media query (900px and narrower), so the
+   desktop view is not touched. Layout only - script.js is not involved.
+   ========================================================================== */
+
+@media (max-width: 900px) {
+
+    /* --- Header (header.html, loaded into #header-placeholder) --- */
+    #header-placeholder header {
+        flex-direction: row;
+        gap: 0;
+        min-height: 0;
+        padding: 8px 16px;
+    }
+
+    #header-placeholder .logo-container {
+        padding-left: 0;
+    }
+
+    #header-placeholder .logo-icon {
+        display: block;
+        width: auto;
+        height: 44px;
+    }
+
+    /* --- Page: heading and text on top, the form right under it --- */
+    .hero-container {
+        gap: 28px;
+        padding: 24px 24px 48px;
+    }
+
+    /* Two lines ("Learn Python" / "The Interactive Way") instead of five.
+       Needs the spaces after each <br> in login.html's heading. */
+    .hero-container .content-col h1 {
+        margin-bottom: 12px;
+        font-size: clamp(28px, 7.6vw, 44px);
+    }
+
+    .hero-container .content-col h1 br {
+        display: none;
+    }
+
+    .hero-container .description {
+        max-width: 520px;
+        font-size: 15px;
+    }
+
+    /* --- Card --- */
+    .auth-card {
+        padding: 32px;
+    }
+
+    .toggle-btn {
+        min-height: 44px;
+    }
+
+    /* Field labels, hints, errors and the forgot-password link line up on
+       the left like on desktop (style.css centers the whole page at this
+       width). The card's titles stay centered. */
+    .auth-card .auth-form {
+        text-align: left;
+    }
+
+    /* 16px text stops phones from zooming in when a field is tapped */
+    .input-group input,
+    .input-group select {
+        font-size: 16px;
+    }
+
+    /* --- Bigger tap areas; the spacing around them stays the same --- */
+    .forgot-link {
+        margin-bottom: 8px;
+        padding: 10px 0;
+    }
+
+    .back-link {
+        margin: -10px 0 5px;
+        padding: 10px 0;
+    }
+
+    .back-home-link,
+    .back-to-login-link {
+        margin: -12px -10px;
+        padding: 12px 10px;
+    }
+
+    .resend-link {
+        display: inline-block;
+        margin: -10px -8px;
+        padding: 10px 8px;
+    }
+
+    .toggle-password-visibility {
+        right: 3px;
+        width: 44px;
+        height: 44px;
+        padding: 11px;
+    }
+
+    .auth-modal-close {
+        top: 4px;
+        right: 6px;
+        width: 44px;
+        height: 44px;
+    }
+
+    /* --- 6-digit code boxes: share the card's width instead of forcing it wider --- */
+    .content-col,
+    .visual-col {
+        min-width: 0;
+    }
+
+    .otp-wrapper {
+        display: block;
+        width: 100%;
+        max-width: 328px;   /* 6 boxes of 48px + 5 gaps of 8px */
+    }
+
+    .otp-container {
+        gap: 8px;
+    }
+
+    .otp-input {
+        flex: 1 1 0;
+        width: 0;
+        max-width: 48px;
+    }
+}
+
+@media (max-width: 600px) {
+    .hero-container {
+        gap: 20px;
+        padding: 16px 16px 40px;
+    }
+
+    .hero-container .description {
+        font-size: 14.5px;
+    }
+
+    .auth-card {
+        padding: 24px 20px;
+    }
+
+    .auth-toggle {
+        margin-bottom: 22px;
+    }
+
+    .form-header h2 {
+        font-size: 22px;
+    }
+
+    .form-header p {
+        margin-bottom: 20px;
+    }
+
+    .centered-header h2 {
+        font-size: 24px;
+    }
+
+    .verification-icon {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 14px;
+    }
+
+    .otp-wrapper {
+        max-width: 318px;   /* 6 boxes of 48px + 5 gaps of 6px */
+    }
+
+    .otp-container {
+        gap: 6px;
+    }
+
+    .otp-input {
+        height: 52px;
+        font-size: 20px;
+    }
+
+    .button-wrapper .btn-next,
+    .btn-success-nav {
+        width: 100%;
+    }
+
+    .auth-modal-card {
+        padding: 28px 20px;
+    }
+}
