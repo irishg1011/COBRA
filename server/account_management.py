@@ -40,6 +40,7 @@ PROFILE_TABLE = "profile_tbl"
 USERTYPE_TABLE = "usertype_tbl"
 
 ADMIN_ROLE = "Admin"
+MENTOR_ROLE = "Mentor"  # feat/mentor-role
 LEARNER_ROLE = "Learner"
 RECENT_LOGINS_LIMIT = 10
 ARCHIVED_PER_PAGE = 8
@@ -260,6 +261,28 @@ def _load_content(cursor, acc_id):
     return content
 
 
+def get_account_content(acc_id):
+    """
+    Content this account uploaded (uploaded_by = acc_id), counted by status -
+    the same numbers as the Account Details "Content" tab. Used by the
+    Mentor Dashboard's "Your contributions". Returns None on a DB error.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        content = _load_content(cursor, acc_id)
+        cursor.close()
+        return content
+    except Error as e:
+        print(f"account_management: failed to load content for {acc_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 def _load_learning(acc_id):
     """Summary numbers only - the full course tree opens in the Course Progress modal."""
     detail = get_learner_course_detail(acc_id)
@@ -332,7 +355,7 @@ def get_account_detail(acc_id, current_admin_id=None):
             "content": None,
         }
 
-        if role == ADMIN_ROLE:
+        if role in (ADMIN_ROLE, MENTOR_ROLE):  # feat/mentor-role: mentors upload content too
             detail["content"] = _load_content(cursor, acc_id)
         cursor.close()
 

@@ -534,8 +534,14 @@ html.sidebar-collapsed .admin-main-content {
     color: #0F7A3D;
 }
 
+/* feat/mentor-role: Account & Security has 7 cards (Mentors added) */
+.metrics-grid.metrics-grid--seven {
+    grid-template-columns: repeat(7, 1fr);
+}
+
 @media (max-width: 1400px) {
-    .metrics-grid {
+    .metrics-grid,
+    .metrics-grid.metrics-grid--seven {
         grid-template-columns: repeat(3, 1fr);
     }
 }
@@ -4273,4 +4279,59 @@ textarea.form-control-custom {
     pointer-events: none;
     background-color: #f3f4f6 !important;
     color: #4b5563;
+}
+/* ======================================================================
+   feat/mentor-role
+   ====================================================================== */
+/* Mentor role badge (Account & Security, Login Logs, Account Details) */
+.badge-mentor,
+.table-card .badge-mentor {
+    background: #FEF3C7;
+    color: #B45309;
+}
+
+/* "You don't have access to that page." - shown under the header after
+   role_permissions redirects a staff member to their home page. */
+.access-denied-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 24px 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Create Administrator / Create Mentor modals (admin-create-admin.js):
+   form-level banner + per-field error text. */
+.js-form-banner-message {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #b91c1c;
+    background: #fee2e2;
+}
+
+.js-form-banner-message.is-success {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.create-admin-card .js-error-message {
+    color: #e02424;
+    font-size: 12px;
+    margin-top: 6px;
+}
+
+/* Create Administrator / Create Mentor: Font Awesome eye icon (replaces
+   the old inline SVG) - sized like the other password toggles. */
+.eye-icon.eye-icon--font {
+    width: auto;
+    height: auto;
+    font-size: 16px;
 }

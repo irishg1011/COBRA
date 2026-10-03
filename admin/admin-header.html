@@ -21,3 +21,14 @@
         </div>
     </div>
 </header>
+
+{# feat/mentor-role: role_permissions sends a staff member who opened a page
+   their role can't use back to their home page with this message. #}
+{% with access_messages = get_flashed_messages(category_filter=['access']) %}
+{% if access_messages %}
+<div class="access-denied-notice" role="alert">
+    <i class="fa-solid fa-lock" aria-hidden="true"></i>
+    <span>{{ access_messages[0] }}</span>
+</div>
+{% endif %}
+{% endwith %}

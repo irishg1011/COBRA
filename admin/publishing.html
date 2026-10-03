@@ -42,13 +42,25 @@
                         {% else %}
                         <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
                         {% endif %}
+                        {% if can_edit %}
                         <p class="welcome-subtext">Review content in the order learners see it, then publish it live.</p>
+                        {% else %}
+                        <p class="welcome-subtext">Review content in the order learners see it.</p>
+                        {% endif %}
                     </div>
                     <div class="dashboard-datetime-badge">
                         <strong id="current-time"></strong>
                         <small id="current-date"></small>
                     </div>
                 </div>
+
+                {% if not can_edit %}
+                {# feat/mentor-role: admins see Publishing read-only #}
+                <div class="publishing-view-only-note" role="note">
+                    <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                    <span>View only &mdash; content is managed by Mentors.</span>
+                </div>
+                {% endif %}
 
                 <div class="publishing-toolbar">
                     <!-- feat/publishing-tree: Draft tab added; admin-publishing.js sets the active tab -->
@@ -64,11 +76,15 @@
                         </button>
                     </div>
                     <div class="publishing-toolbar-buttons">
+                        {% if can_edit %}
                         <button type="button" id="pubAddChapterBtn" class="btn btn-editorder-custom"><i class="fa-solid fa-plus"></i> Chapter</button>
+                        {% endif %}
                         <button type="button" id="pubPreviewBtn" class="btn btn-editorder-custom">Preview</button>
+                        {% if can_edit %}
                         <div class="publishing-order-actions" id="pubOrderActions">
                             <button type="button" id="pubEditOrderBtn" class="btn btn-editorder-custom">Edit Order</button>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -77,7 +93,11 @@
                 </div>
 
                 <div class="publishing-card">
+<<<<<<< HEAD
                     <div id="publishingTreeRoot" data-tree='{{ tree_json | safe }}' data-initial-tab="{{ initial_tab or 'ready' }}" data-tree-error="{{ tree_error or '' }}" data-login-key="{{ login_key or '' }}">
+=======
+                    <div id="publishingTreeRoot" data-tree='{{ tree_json | safe }}' data-initial-tab="{{ initial_tab or 'ready' }}" data-tree-error="{{ tree_error or '' }}" data-login-key="{{ login_key or '' }}" data-can-edit="{{ '1' if can_edit else '0' }}">
+>>>>>>> main
                         <p class="text-muted publishing-empty">Loading&hellip;</p>
                     </div>
                 </div>
@@ -92,7 +112,11 @@
                     <span class="publishing-legend-item"><span class="publishing-tag publishing-tag-leaf">E</span> Exercise</span>
                 </div>
 
+                {% if can_edit %}
                 <p class="text-muted publishing-hint" id="pubHint">Click a name to Edit, Preview, or see its name history. Use + to add something inside. Click the arrow to expand or collapse.</p>
+                {% else %}
+                <p class="text-muted publishing-hint" id="pubHint">Click a lesson, video, activity or exercise name to Preview it. Click the arrow to expand or collapse.</p>
+                {% endif %}
 
             </div>
         </main>

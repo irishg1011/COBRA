@@ -1,9 +1,19 @@
 /**
- * admin-create-admin.js - CobraByte Admin: Create Administrator Modal
+ * admin-create-admin.js - CobraByte Admin: Create Administrator / Create Mentor
  * ---------------------------------------------------------------------
- * Wires up the Create Administrator modal (admin-create-admin-modal.html)
- * to the backend's validation + account-creation endpoints
- * (admin_routes.py: create_administrator, check_account_field_availability),
+ * feat/mentor-role: ONE script for both staff-account modals. Every
+ * .js-create-account-modal on the page (admin-create-account-modal.html,
+ * included by admin-create-admin-modal.html and
+ * admin-create-mentor-modal.html) is wired by initCreateAccountModal().
+ * The account type comes from the modal itself:
+ *     data-account-type   "admin" | "mentor"  -> /admin/accounts/next-id?type=...
+ *     data-account-label  "Administrator" | "Mentor" (messages)
+ *     form action         /admin/create-administrator | /admin/create-mentor
+ * and each modal is opened by the button whose data-open-modal names it
+ * (#openCreateAdminBtn / #openCreateMentorBtn).
+ *
+ * Wires up the modal to the backend's validation + account-creation endpoints
+ * (admin_routes.py: _create_staff_account, check_account_field_availability),
  * reusing the exact same rules the Learner Sign Up form already uses -
  * live name capitalization, password strength, email/mobile format,
  * and duplicate-username/email/mobile checks - instead of a second,
@@ -38,35 +48,94 @@
     const ADMIN_MIN_SIGNUP_AGE = 20;
     const ADMIN_MAX_SIGNUP_AGE = 60;
 
+    // ------------------------------------------------------------
+    // Shared #confirmActionModal (confirm-action-modal.html) - used for
+    // the "discard what you typed?" question instead of window.confirm().
+    // Other scripts on the page (admin-account-actions.js) also listen on
+    // this modal's buttons; this one only reacts while its own question
+    // is open (pendingDiscard).
+    // ------------------------------------------------------------
+    let pendingDiscard = null;
+
+    function askDiscard(onDiscard) {
+        const modal = document.getElementById("confirmActionModal");
+        if (!modal) { onDiscard(); return; }
+        const okBtn = document.getElementById("confirmActionConfirmBtn");
+        const cancelBtn = document.getElementById("confirmActionCancelBtn");
+        const icon = modal.querySelector(".modal-confirm-icon");
+        document.getElementById("confirmActionTitle").textContent = "Discard this form?";
+        document.getElementById("confirmActionText").textContent =
+            "Are you sure you want to close this window? Your inputted data will be lost.";
+        if (okBtn) {
+            okBtn.textContent = "Discard";
+            okBtn.classList.add("modal-btn-danger");
+            okBtn.classList.remove("modal-btn-save");
+        }
+        if (icon) {
+            icon.classList.add("modal-confirm-icon-danger");
+            icon.classList.remove("modal-confirm-icon-info");
+        }
+        pendingDiscard = onDiscard;
+        modal.classList.remove("modal-hidden");
+        if (cancelBtn) cancelBtn.focus();
+    }
+
+    function settleDiscard(discard) {
+        if (!pendingDiscard) return;
+        const modal = document.getElementById("confirmActionModal");
+        if (modal) modal.classList.add("modal-hidden");
+        const action = pendingDiscard;
+        pendingDiscard = null;
+        if (discard) action();
+    }
+
+    function wireDiscardModal() {
+        const modal = document.getElementById("confirmActionModal");
+        if (!modal) return;
+        const okBtn = document.getElementById("confirmActionConfirmBtn");
+        const cancelBtn = document.getElementById("confirmActionCancelBtn");
+        if (okBtn) okBtn.addEventListener("click", () => settleDiscard(true));
+        if (cancelBtn) cancelBtn.addEventListener("click", () => settleDiscard(false));
+        modal.addEventListener("click", (e) => { if (e.target === modal) settleDiscard(false); });
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
-        const form = document.getElementById("createAdminForm");
-        if (!form) return; // modal not included on this page
+        const modals = document.querySelectorAll(".js-create-account-modal");
+        if (!modals.length) return; // no create-account modal on this page
+        wireDiscardModal();
+        modals.forEach(initCreateAccountModal);
+    });
+
+    function initCreateAccountModal(createAdminModal) {
+        const form = createAdminModal.querySelector(".js-create-account-form");
+        if (!form) return;
+
+        const accountType = createAdminModal.dataset.accountType || "admin";
+        const accountLabel = createAdminModal.dataset.accountLabel || "Administrator";
+        const idPrefix = createAdminModal.dataset.idPrefix || "admin";
+        const field = (name) => document.getElementById(`${idPrefix}_${name}`);
 
         const fields = {
-            username: document.getElementById("admin_username"),
-            password: document.getElementById("admin_password"),
-            confirmPassword: document.getElementById("admin_confirm_password"),
-            email: document.getElementById("admin_email"),
-            mobile: document.getElementById("admin_mobile"),
-            firstName: document.getElementById("admin_firstname"),
-            lastName: document.getElementById("admin_lastname"),
-            gender: document.getElementById("admin_gender"),
-            birthdate: document.getElementById("admin_birthdate"),
+            username: field("username"),
+            password: field("password"),
+            confirmPassword: field("confirm_password"),
+            email: field("email"),
+            mobile: field("mobile"),
+            firstName: field("firstname"),
+            lastName: field("lastname"),
+            gender: field("gender"),
+            birthdate: field("birthdate"),
         };
 
         const submitBtn = form.querySelector('button[type="submit"]');
-        const createAdminModal = document.getElementById("createAdminModal");
-        const modalHeaderSection = document.querySelector("#createAdminModal .modal-header-section");
+        const modalHeaderSection = createAdminModal.querySelector(".modal-header-section");
 
         // ------------------------------------------------------------
-        // NEW: Eye toggle for Password / Confirm Password - mirrors the
-        // exact same open/closed eye SVG paths and behavior already used
-        // on the Learner Sign Up form (script.js), just scoped to this
-        // modal's own form instead of the whole document.
+        // Eye toggle for Password / Confirm Password - same behavior as
+        // the Learner Sign Up form (script.js), scoped to this modal's
+        // form. feat/mentor-role: the icon is a Font Awesome <i> (no
+        // inline SVG) - fa-eye while hidden, fa-eye-slash while shown.
         // ------------------------------------------------------------
-        const openEyePath = `<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />`;
-        const closedEyePath = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 1-4.243-4.243m4.242 4.242L9.88 9.88" />`;
-
         form.addEventListener("click", (event) => {
             const toggleBtn = event.target.closest(".toggle-password-visibility");
             if (!toggleBtn) return;
@@ -75,8 +144,11 @@
             if (!passwordInput) return;
             const isPassword = passwordInput.getAttribute("type") === "password";
             passwordInput.setAttribute("type", isPassword ? "text" : "password");
-            const svgElement = toggleBtn.querySelector("svg");
-            if (svgElement) svgElement.innerHTML = isPassword ? closedEyePath : openEyePath;
+            const icon = toggleBtn.querySelector(".eye-icon");
+            if (icon) {
+                icon.classList.toggle("fa-eye", !isPassword);
+                icon.classList.toggle("fa-eye-slash", isPassword);
+            }
         });
 
         // ------------------------------------------------------------
@@ -87,14 +159,14 @@
         // Purely cosmetic: the real ID is still only ever generated
         // server-side, inside create_administrator()'s own transaction.
         // ------------------------------------------------------------
-        const accIdPreviewInput = document.getElementById("admin_acc_id");
+        const accIdPreviewInput = field("acc_id");
         const ACC_ID_PLACEHOLDER = "Auto-generated on submit";
 
         async function loadNextAdminId() {
             if (!accIdPreviewInput) return;
             accIdPreviewInput.value = "Loading...";
             try {
-                const response = await fetch("/admin/accounts/next-id", { credentials: "include" });
+                const response = await fetch(`/admin/accounts/next-id?type=${encodeURIComponent(accountType)}`, { credentials: "include" });
                 const result = await response.json();
                 accIdPreviewInput.value = result.success ? result.next_id : ACC_ID_PLACEHOLDER;
             } catch (err) {
@@ -102,10 +174,6 @@
             }
         }
 
-        // Exposed globally so admin-script.js's "open modal" click handler
-        // can trigger a fresh preview every time the modal is opened,
-        // instead of duplicating the fetch logic there.
-        window.cobraByteLoadNextAdminId = loadNextAdminId;
 
         // ------------------------------------------------------------
         // Top-of-panel banner - same purpose as the Sign Up page's
@@ -120,17 +188,11 @@
             let banner = modalHeaderSection.querySelector(".js-form-banner-message");
             if (!banner) {
                 banner = document.createElement("p");
-                banner.className = "js-form-banner-message";
-                banner.style.marginTop = "10px";
-                banner.style.padding = "10px 14px";
-                banner.style.borderRadius = "8px";
-                banner.style.fontSize = "13px";
-                banner.style.fontWeight = "600";
+                banner.className = "js-form-banner-message"; // styled in admin-style.css
                 modalHeaderSection.appendChild(banner);
             }
             banner.textContent = message;
-            banner.style.color = isError ? "#b91c1c" : "#166534";
-            banner.style.background = isError ? "#fee2e2" : "#dcfce7";
+            banner.classList.toggle("is-success", !isError);
         }
 
         function clearFormMessage() {
@@ -150,10 +212,7 @@
             let errorEl = formGroup.querySelector(".js-error-message");
             if (!errorEl) {
                 errorEl = document.createElement("p");
-                errorEl.className = "js-error-message";
-                errorEl.style.color = "#e02424";
-                errorEl.style.fontSize = "12px";
-                errorEl.style.marginTop = "6px";
+                errorEl.className = "js-error-message"; // styled in admin-style.css
                 formGroup.appendChild(errorEl);
             }
             errorEl.textContent = message;
@@ -297,11 +356,11 @@
                 return false;
             }
             if (age < ADMIN_MIN_SIGNUP_AGE) {
-                showFieldError(fields.birthdate, `Administrator must be at least ${ADMIN_MIN_SIGNUP_AGE} years old.`);
+                showFieldError(fields.birthdate, `${accountLabel} must be at least ${ADMIN_MIN_SIGNUP_AGE} years old.`);
                 return false;
             }
             if (age > ADMIN_MAX_SIGNUP_AGE) {
-                showFieldError(fields.birthdate, `Administrator must be ${ADMIN_MAX_SIGNUP_AGE} years old or younger.`);
+                showFieldError(fields.birthdate, `${accountLabel} must be ${ADMIN_MAX_SIGNUP_AGE} years old or younger.`);
                 return false;
             }
             clearFieldError(fields.birthdate);
@@ -440,13 +499,15 @@
 
                 if (result.success) {
                     // Task: "Show success feedback after a successful account creation"
-                    showFormMessage(result.message || "Administrator account created successfully.", false);
+                    showFormMessage(result.message || `${accountLabel} account created successfully.`, false);
                     // Task: "Clear the form only after the account has been successfully saved"
                     setTimeout(() => {
                         form.reset();
                         clearAllErrors();
                         clearFormMessage();
-                        if (createAdminModal) createAdminModal.style.display = "none";
+                        hideModal();
+                        // Account & Security: show the new account without a reload.
+                        if (window.CobraAccountsTable) window.CobraAccountsTable.refresh();
                     }, 1200);
                 } else if (result.errors && Object.keys(result.errors).length) {
                     // Task: "Display validation messages dynamically without
@@ -494,23 +555,43 @@
             return Object.values(fields).some((input) => input && String(input.value || "").trim() !== "");
         }
 
-        function attemptCloseModal() {
-            if (formHasData()) {
-                const confirmed = window.confirm(
-                    "Are you sure you want to close this window? Your inputted data will be lost."
-                );
-                if (!confirmed) return false; // stay open, data untouched
-            }
+        function hideModal() {
+            createAdminModal.classList.add("modal-hidden");
+        }
+
+        function discardAndClose() {
             form.reset();
             clearAllErrors();
             clearFormMessage();
-            if (createAdminModal) createAdminModal.style.display = "none";
-            return true;
+            hideModal();
         }
 
-        // Exposed globally so admin-script.js's existing close-button and
-        // outside-click handlers can reuse this EXACT logic instead of a
-        // second, divergent copy of the "unsaved changes" check.
-        window.cobraByteAttemptCloseCreateAdminModal = attemptCloseModal;
-    });
+        // Filled-in form -> ask first in the shared confirm modal (never
+        // window.confirm()); an empty form just closes.
+        function attemptCloseModal() {
+            if (formHasData()) askDiscard(discardAndClose);
+            else discardAndClose();
+        }
+
+        // ------------------------------------------------------------
+        // Open / close (moved here from admin-script.js so both modals
+        // share it): the open button names its modal in data-open-modal.
+        // ------------------------------------------------------------
+        document.querySelectorAll(`[data-open-modal="${createAdminModal.id}"]`).forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+                e.preventDefault();
+                createAdminModal.classList.remove("modal-hidden");
+                // Fresh "next Account ID" preview (AD... / MT...) on every open.
+                loadNextAdminId();
+            });
+        });
+
+        const closeBtn = createAdminModal.querySelector(".modal-close-btn");
+        if (closeBtn) closeBtn.addEventListener("click", attemptCloseModal);
+
+        // Close when clicking outside the modal card
+        createAdminModal.addEventListener("click", (e) => {
+            if (e.target === createAdminModal) attemptCloseModal();
+        });
+    }
 })();

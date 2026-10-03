@@ -1,0 +1,213 @@
+/* ==========================================================================
+   reports.css - Admin > Reports (learner performance ranking)
+   Builds on admin-style.css + learner-progress.css (cards, table,
+   completion bars). Screen styles first, then the print layout.
+   ========================================================================== */
+
+/* --- Summary cards: 6 across --- */
+.metrics-grid.progress-metrics-grid.report-metrics-grid {
+    grid-template-columns: repeat(6, 1fr);
+}
+
+.report-top-performer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.report-top-name {
+    font-size: 16px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.report-top-score {
+    font-size: 12px;
+    font-weight: 600;
+    color: #0F7A3D;
+}
+
+/* --- Toolbar --- */
+.report-print-btn {
+    white-space: nowrap;
+}
+
+/* --- Table --- */
+.report-rank {
+    font-weight: 700;
+    width: 60px;
+    text-align: center;
+}
+
+.report-learner-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.report-row-unrated td {
+    color: #6b7280;
+}
+
+/* Performance level badges */
+.table-card .badge.report-level {
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.table-card .badge.level-excellent {
+    background: #C8F2D2;
+    color: #0F7A3D;
+}
+
+.table-card .badge.level-good {
+    background: #D6EEFB;
+    color: #1D6FDC;
+}
+
+.table-card .badge.level-needs-improvement {
+    background: #FBD9D9;
+    color: #C62828;
+}
+
+.table-card .badge.level-not-rated {
+    background: #E5E7EB;
+    color: #4B5563;
+}
+
+.report-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.report-legend {
+    font-size: 11px;
+}
+
+/* Print-only header: hidden on screen */
+.report-print-header {
+    display: none;
+}
+
+@media (max-width: 1400px) {
+    .metrics-grid.progress-metrics-grid.report-metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 700px) {
+    .metrics-grid.progress-metrics-grid.report-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ==========================================================================
+   PRINT - just the report: title, filters, summary, full ranking table.
+   ========================================================================== */
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 14mm 12mm;
+    }
+
+    .reports-page .admin-sidebar,
+    .reports-page .admin-header,
+    .reports-page .access-denied-notice,
+    .reports-page .dashboard-top-bar,
+    .reports-page .report-toolbar,
+    .reports-page #reportLoadError,
+    .reports-page .modal-overlay {
+        display: none !important;
+    }
+
+    /* The screen layout scrolls inside a 100vh box - undo that so every row prints. */
+    .reports-page,
+    .reports-page .admin-layout,
+    .reports-page .admin-main-content {
+        display: block;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+        margin: 0;
+        width: 100%;
+        background: #ffffff;
+    }
+
+    .reports-page .dashboard-content-area {
+        padding: 0;
+        gap: 12px;
+    }
+
+    .report-print-header {
+        display: block;
+        margin-bottom: 4px;
+    }
+
+    .report-print-header h2 {
+        font-size: 18px;
+        margin: 0 0 4px;
+        color: #111827;
+    }
+
+    .report-print-header p {
+        font-size: 11px;
+        margin: 0;
+        color: #4B5563;
+    }
+
+    .metrics-grid.progress-metrics-grid.report-metrics-grid {
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px;
+    }
+
+    .reports-page .metric-card {
+        box-shadow: none;
+        border: 1px solid #D1D5DB;
+        padding: 8px;
+        break-inside: avoid;
+    }
+
+    .reports-page .metric-value {
+        font-size: 16px;
+    }
+
+    .reports-page .table-card {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+    }
+
+    .reports-page .table-scroll {
+        overflow: visible;
+    }
+
+    .reports-page .report-table {
+        width: 100%;
+        font-size: 10px;
+    }
+
+    .reports-page .report-table thead {
+        display: table-header-group; /* repeat column headings on every page */
+    }
+
+    .reports-page .report-table tr {
+        break-inside: avoid;
+    }
+
+    .reports-page .report-table th,
+    .reports-page .report-table td {
+        padding: 5px 6px;
+        border-bottom: 1px solid #E5E7EB;
+    }
+
+    /* Keep badge / bar colors on paper */
+    .reports-page .badge,
+    .reports-page .completion-bar,
+    .reports-page .report-table th {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

@@ -58,61 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-document.addEventListener("DOMContentLoaded", () => {
-    const createAdminModal = document.getElementById("createAdminModal");
-    const openModalBtn = document.getElementById("openCreateAdminBtn"); // Using the exact ID now
-    const closeModalBtn = document.getElementById("closeCreateAdminModal");
-
-    // ------------------------------------------------------------
-    // Task: "If click outside the panel there's a notice if you want to
-    // close, else the data that have been input will erase."
-    // ------------------------------------------------------------
-    // admin-create-admin.js defines window.cobraByteAttemptCloseCreateAdminModal,
-    // which checks whether any field has been filled in and, if so, asks
-    // for confirmation before resetting the form and hiding the modal -
-    // exactly like the Sign Up page's confirmViewSwitch()/
-    // activePanelHasInputs() pattern. Both close triggers below (the X
-    // button and clicking the overlay) go through that SAME function so
-    // there's only one place this "unsaved changes" check lives. If that
-    // script hasn't loaded for some reason, fall back to closing the
-    // modal directly rather than leaving the button dead.
-    function closeCreateAdminModal() {
-        if (typeof window.cobraByteAttemptCloseCreateAdminModal === "function") {
-            window.cobraByteAttemptCloseCreateAdminModal();
-        } else if (createAdminModal) {
-            createAdminModal.style.display = "none";
-        }
-    }
-
-    if (openModalBtn && createAdminModal) {
-        openModalBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            createAdminModal.style.display = "flex";
-
-            // Fetch and display what the next Account ID will actually
-            // be (e.g. "AD2608060004") instead of leaving the static
-            // "Auto-generated on submit" placeholder showing. Defined in
-            // admin-create-admin.js - guarded in case that script hasn't
-            // loaded for some reason.
-            if (typeof window.cobraByteLoadNextAdminId === "function") {
-                window.cobraByteLoadNextAdminId();
-            }
-        });
-    }
-
-    if (closeModalBtn && createAdminModal) {
-        closeModalBtn.addEventListener("click", () => {
-            closeCreateAdminModal();
-        });
-    }
-
-    // Close when clicking outside the modal card
-    window.addEventListener("click", (e) => {
-        if (e.target === createAdminModal) {
-            closeCreateAdminModal();
-        }
-    });
-});
+// feat/mentor-role: the Create Administrator / Create Mentor modals now
+// open and close from admin-create-admin.js (one place for both).
 
 // ======================================================================
 // feat/title-char-limit

@@ -29,6 +29,11 @@
  *     Preview play the real learner game / exercise screen in a popup
  *     (admin-preview-frame.js).
  *
+ * feat/mentor-role: data-can-edit="0" (admins) = view only. No + Chapter,
+ * Edit Order, "+" buttons, status buttons or checklists, and the name menu
+ * only offers Preview. Tabs, expand/collapse, badges and Preview stay.
+ * The server refuses every action for admins anyway (role_permissions.py).
+ *
  * Edit Order mode (drag handle + arrows, Save / Cancel) shows every
  * chapter, module and lesson, whatever its status or the active tab.
  * Reuses the shared #confirmActionModal - no native alert()/confirm().
@@ -96,6 +101,9 @@
 
         let tree = [];
         try { tree = JSON.parse(root.dataset.tree || "[]"); } catch (e) { tree = []; }
+
+        // feat/mentor-role: "0" = view only (admins). Anything else = mentor.
+        const canEdit = root.dataset.canEdit !== "0";
 
         let activeTab = TAB_STATUS[root.dataset.initialTab] ? root.dataset.initialTab : "ready";
         let openMenu = null;           // { id, kind: "name" | "plus" }
@@ -416,6 +424,7 @@
 
         function actionsHtml(node) {
             if (editOrder) return orderCtrlsHtml(node.id);
+            if (!canEdit) return ""; // view only: badges show the status
             const wanted = TAB_STATUS[activeTab];
             if (node.status !== wanted) return "";
 
@@ -562,15 +571,20 @@
             }
         }
 
+        function canPreview(node) {
+            return ["res", "act", "ex", "vid"].includes(typeOf(node.id));
+        }
+
         function nameMenuHtml(node) {
-            const t = typeOf(node.id);
             const items = [];
-            items.push(`<button type="button" class="resource-edit-menu-item js-pub-edit" data-id="${node.id}"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`);
-            if (t === "res" || t === "act" || t === "ex" || t === "vid") {
+            if (canEdit) {
+                items.push(`<button type="button" class="resource-edit-menu-item js-pub-edit" data-id="${node.id}"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`);
+            }
+            if (canPreview(node)) {
                 items.push(`<button type="button" class="resource-edit-menu-item js-pub-preview" data-id="${node.id}"><i class="fa-regular fa-eye"></i> Preview</button>`);
             }
             const hist = historyTrigger(node);
-            if (hist && hist[1]) {
+            if (canEdit && hist && hist[1]) {
                 items.push(`<button type="button" class="resource-edit-menu-item js-title-history" data-scope="${hist[0]}" data-id="${hist[1]}"><i class="fa-solid fa-clock-rotate-left"></i> Name history</button>`);
             }
             return `<div class="resource-edit-menu publishing-popover" role="menu">${items.join("")}</div>`;
@@ -633,7 +647,8 @@
             const nameMenuOpen = !!(openMenu && openMenu.id === node.id && openMenu.kind === "name");
             const plusMenuOpen = !!(openMenu && openMenu.id === node.id && openMenu.kind === "plus");
 
-            const nameHtml = editOrder
+            // View only: chapters/modules have nothing in their menu -> plain text.
+            const nameHtml = editOrder || (!canEdit && !canPreview(node))
                 ? `<span class="publishing-name-static">${escapeHtml(node.name)}</span>`
                 : `<button type="button" class="publishing-name-btn js-pub-name" data-id="${node.id}" aria-haspopup="menu" aria-expanded="${nameMenuOpen}">${escapeHtml(node.name)}</button>${nameMenuOpen ? nameMenuHtml(node) : ""}`;
 
@@ -641,7 +656,7 @@
             // mark ready; Published = pick Ready children to publish. Only
             // shown where there is something to add.
             let plusMode = null;
-            if (!editOrder && ["cat", "mod", "res"].includes(t)) {
+            if (canEdit && !editOrder && ["cat", "mod", "res"].includes(t)) {
                 if (activeTab === "draft") plusMode = "create";
                 else if (activeTab === "ready" && ["Ready to Publish", "Published"].includes(node.status)
                          && kidsOf(node).some((k) => k.status === "Draft")) plusMode = "add-ready";
@@ -1186,7 +1201,7 @@
         }
 
         function setOrderActionsHtml() {
-            if (!orderActionsEl) return;
+            if (!orderActionsEl || !canEdit) return;
             if (editOrder) {
                 orderActionsEl.innerHTML = `
                     <button type="button" class="btn btn-ghost-custom" id="pubCancelOrderBtn">Cancel</button>
@@ -1454,7 +1469,7 @@
             if (editOrder || !TAB_STATUS[tab]) return;
             activeTab = tab;
             openMenu = null;
-            if (addChapterBtn) addChapterBtn.classList.toggle("is-hidden", tab !== "draft"); // creates new -> Draft tab only
+            if (addChapterBtn) addChapterBtn.classList.toggle("is-hidden", !canEdit || tab !== "draft"); // creates new -> Draft tab only
             tabButtons.forEach((b) => {
                 const on = b.dataset.tab === tab;
                 b.classList.toggle("active", on);

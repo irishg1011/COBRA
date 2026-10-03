@@ -51,10 +51,7 @@ learner_bp = Blueprint('learner_bp', __name__)
 
 LEARNER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../learner'))
 
-DB_HOST = "localhost"
-DB_USER = "root"
-DB_PASSWORD = ""
-DB_NAME = "cobra_db"
+from cobradb import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME  # single source of DB settings
 
 
 def get_db_connection():

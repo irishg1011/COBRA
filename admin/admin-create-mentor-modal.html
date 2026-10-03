@@ -1,0 +1,10 @@
+<!-- admin/admin-create-mentor-modal.html
+     feat/mentor-role: Create New Mentor - the shared staff-account modal
+     (admin-create-account-modal.html) set up for Mentor accounts. Same
+     fields and validation as Create Administrator; the server gives the
+     account the Mentor role and an MT... ID. -->
+{% with account_type='mentor', account_label='Mentor', p='mentor',
+        modal_id='createMentorModal', form_id='createMentorForm', close_id='closeCreateMentorModal',
+        heading='Create New Mentor', form_action=url_for('admin_bp.create_mentor') %}
+{% include 'admin-create-account-modal.html' %}
+{% endwith %}

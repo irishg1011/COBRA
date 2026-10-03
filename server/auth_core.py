@@ -4,22 +4,26 @@ auth_core.py - Shared sign-in + password-reset logic (feat/admin-login-page)
 ONE copy of the login rules, used by both doors:
 
     Learner login  (/login, login.py)           portal = "learner"
-    Admin login    (/admin/login, admin_routes)  portal = "admin"
+    Staff login    (/admin/login, admin_routes)  portal = "admin"
 
 Moved here unchanged from login.py's /login + /forgot-password routes:
 inactivity sweep, 5-try lockout (1 minute), login logs, lockout logs,
 active-session row, archived-account message, password rules, reset
 logs. The only new part is WHICH ROLE each door lets in:
 
-    Admin door, learner account (or unknown username)
+    Staff door, learner account (or unknown username)
         -> the generic "Invalid username or password." (401).
-           Checked BEFORE the password, so the admin page never reveals
+           Checked BEFORE the password, so the staff page never reveals
            whether a learner password was right or a learner is locked.
-    Learner door, admin account
-        -> only after the password is correct: 403 "Administrators sign
-           in at the admin login page." + admin_login_url. A wrong
+    Learner door, staff account (Admin or Mentor)
+        -> only after the password is correct: 403 "Staff accounts sign
+           in at the staff login page." + admin_login_url. A wrong
            password counts toward the lockout as usual; a right password
            at the wrong door does NOT, and it is logged as Failed.
+
+feat/mentor-role: the staff door ("admin" portal) lets in BOTH Admin and
+Mentor accounts. Roles are matched by usertype_tbl.u_type NAME (see
+user_types.py) - the Mentor ut_id is never hardcoded.
 
 Password reset is role-scoped the same way, and (fix) resetting now
 requires a verified code: /verify-otp marks the code verified, and
@@ -44,12 +48,13 @@ from password_reset_logs import log_password_reset
 from account_status import refresh_inactive_accounts, is_account_inactive
 from session_tracker import create_session
 from validators import PASSWORD_REGEX
+from user_types import ensure_mentor_user_type, ADMIN_ROLE, LEARNER_ROLE, STAFF_ROLES
 
 ACCOUNT_TABLE = "account_tbl"
+USERTYPE_TABLE = "usertype_tbl"
 
-ADMIN_U_TYPE = 1
-LEARNER_U_TYPE = 2
-PORTAL_U_TYPES = {"learner": LEARNER_U_TYPE, "admin": ADMIN_U_TYPE}
+# Role names each door accepts (matched against usertype_tbl.u_type).
+PORTAL_ROLES = {"learner": (LEARNER_ROLE,), "admin": STAFF_ROLES}
 
 LEARNER_LOGIN_URL = "/login"
 ADMIN_LOGIN_URL = "/admin/login"
@@ -62,7 +67,7 @@ RESET_WINDOW_SECONDS = 5 * 60    # time to type the new password after verifying
 
 ARCHIVED_ACCOUNT_MESSAGE = "This account has been archived. Please contact an administrator."
 INVALID_LOGIN_MESSAGE = "Invalid username or password."
-ADMIN_ELSEWHERE_MESSAGE = "Administrators sign in at the admin login page."
+ADMIN_ELSEWHERE_MESSAGE = "Staff accounts sign in at the staff login page."
 PASSWORD_RULE_MESSAGE = (
     "Password must be at least 8 characters long and include an uppercase letter, "
     "lowercase letter, number, and special character."
@@ -74,7 +79,7 @@ otp_storage = {}
 
 
 def _portal(portal):
-    return portal if portal in PORTAL_U_TYPES else "learner"
+    return portal if portal in PORTAL_ROLES else "learner"
 
 
 # ============================================================
@@ -83,8 +88,9 @@ def _portal(portal):
 def authenticate(username, password, portal, ip_address):
     """
     Returns (payload: dict, status_code: int, login: dict | None).
-    `login` is only set on success: {"acc_id", "u_type", "is_admin",
-    "session_token"} - the route stores it in Flask's session.
+    `login` is only set on success: {"acc_id", "u_type", "role",
+    "is_admin", "is_staff", "session_token"} - the route stores the
+    acc_id in Flask's session (never the role).
     """
     portal = _portal(portal)
     username = (username or "").strip().lower()
@@ -99,13 +105,16 @@ def authenticate(username, password, portal, ip_address):
 
     # Inactivity sweep for every account (best-effort, see account_status.py)
     refresh_inactive_accounts(connection)
+    ensure_mentor_user_type(connection)
 
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            f"""SELECT acc_id, password, status, last_login, failed_attempts,
-                       lockout_until, is_deleted, u_type
-                FROM {ACCOUNT_TABLE} WHERE username = %s""",
+            f"""SELECT a.acc_id, a.password, a.status, a.last_login, a.failed_attempts,
+                       a.lockout_until, a.is_deleted, a.u_type, ut.u_type AS role
+                FROM {ACCOUNT_TABLE} a
+                LEFT JOIN {USERTYPE_TABLE} ut ON a.u_type = ut.ut_id
+                WHERE a.username = %s""",
             (username,)
         )
         account = cursor.fetchone()
@@ -115,10 +124,12 @@ def authenticate(username, password, portal, ip_address):
             log_login_attempt(acc_id=None, ip_address=ip_address, attempt_status="Failed")
             return {"success": False, "message": INVALID_LOGIN_MESSAGE}, 401, None
 
-        is_admin = account.get("u_type") == ADMIN_U_TYPE
+        role = account.get("role")
+        is_staff = role in STAFF_ROLES
+        is_admin = role == ADMIN_ROLE
 
-        # Admin door: a learner account looks exactly like an unknown username.
-        if portal == "admin" and not is_admin:
+        # Staff door: a learner account looks exactly like an unknown username.
+        if portal == "admin" and not is_staff:
             cursor.close()
             log_login_attempt(acc_id=account["acc_id"], ip_address=ip_address, attempt_status="Failed")
             return {"success": False, "message": INVALID_LOGIN_MESSAGE}, 401, None
@@ -185,9 +196,9 @@ def authenticate(username, password, portal, ip_address):
                 "message": f"Incorrect password. {MAX_FAILED_ATTEMPTS - failed_attempts} attempt(s) remaining.",
             }, 401, None
 
-        # Right password, wrong door (learner page, admin account).
+        # Right password, wrong door (learner page, staff account).
         # Not a failed attempt (no lockout count), but no session either.
-        if portal == "learner" and is_admin:
+        if portal == "learner" and is_staff:
             cursor.close()
             log_login_attempt(acc_id=account["acc_id"], ip_address=ip_address, attempt_status="Failed")
             return {
@@ -213,12 +224,16 @@ def authenticate(username, password, portal, ip_address):
             "message": "Login successful. Redirecting...",
             "acc_id": account["acc_id"],
             "u_type": account["u_type"],
-            "role": "Admin" if is_admin else "Learner",
-            "redirect": ADMIN_HOME_URL if is_admin else LEARNER_HOME_URL,
+            "role": role or LEARNER_ROLE,
+            # Staff: the staff login page sends each role to its own home
+            # (admin_routes.admin_login_submit fills in the exact URL).
+            "redirect": ADMIN_HOME_URL if is_admin else (ADMIN_LOGIN_URL if is_staff else LEARNER_HOME_URL),
         }, 200, {
             "acc_id": account["acc_id"],
             "u_type": account["u_type"],
+            "role": role,
             "is_admin": is_admin,
+            "is_staff": is_staff,
             "session_token": session_token,
         }
 
@@ -243,8 +258,12 @@ def _find_account_by_email(email):
         return None, ({"success": False, "message": "Could not connect to database."}, 500)
     try:
         cursor = connection.cursor(dictionary=True)
+        ensure_mentor_user_type(connection)
         cursor.execute(
-            f"SELECT acc_id, password, is_deleted, u_type FROM {ACCOUNT_TABLE} WHERE email = %s",
+            f"""SELECT a.acc_id, a.password, a.is_deleted, a.u_type, ut.u_type AS role
+                FROM {ACCOUNT_TABLE} a
+                LEFT JOIN {USERTYPE_TABLE} ut ON a.u_type = ut.ut_id
+                WHERE a.email = %s""",
             (email,)
         )
         row = cursor.fetchone()
@@ -268,17 +287,17 @@ def send_reset_code(email, portal):
     if err:
         return err
 
-    wanted = PORTAL_U_TYPES[portal]
+    wanted = PORTAL_ROLES[portal]
     if portal == "admin":
-        # Admin door: learner emails look the same as unknown ones.
-        if not account or account.get("u_type") != wanted:
-            return {"success": False, "message": "No administrator account found with this email address."}, 404
+        # Staff door: learner emails look the same as unknown ones.
+        if not account or account.get("role") not in wanted:
+            return {"success": False, "message": "No staff account found with this email address."}, 404
     else:
         if not account:
             # 404 -> the learner page offers "Sign up with this email"
             return {"success": False, "message": "No account found with this email address."}, 404
-        if account.get("u_type") != wanted:
-            return {"success": False, "message": "Administrators reset their password from the admin login page.",
+        if account.get("role") not in wanted:
+            return {"success": False, "message": "Staff accounts reset their password from the staff login page.",
                     "admin_login_url": ADMIN_LOGIN_URL}, 403
 
     if account.get("is_deleted"):
@@ -349,10 +368,15 @@ def reset_password(email, new_password, confirm_password, portal, via="forgot"):
 
     try:
         cursor = connection.cursor(dictionary=True)
+        roles = PORTAL_ROLES[portal]
+        placeholders = ", ".join(["%s"] * len(roles))
         cursor.execute(
-            f"""SELECT acc_id, password FROM {ACCOUNT_TABLE}
-                WHERE email = %s AND u_type = %s AND (is_deleted = 0 OR is_deleted IS NULL)""",
-            (email, PORTAL_U_TYPES[portal])
+            f"""SELECT a.acc_id, a.password
+                FROM {ACCOUNT_TABLE} a
+                JOIN {USERTYPE_TABLE} ut ON a.u_type = ut.ut_id
+                WHERE a.email = %s AND ut.u_type IN ({placeholders})
+                  AND (a.is_deleted = 0 OR a.is_deleted IS NULL)""",
+            (email, *roles)
         )
         account = cursor.fetchone()
         if not account:

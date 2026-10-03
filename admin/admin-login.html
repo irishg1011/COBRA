@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CobraByte Admin - Sign In</title>
+    <title>CobraByte - Staff Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap">
@@ -12,7 +12,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='animations.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-login.css') }}">
 </head>
-<!-- feat/admin-login-page: admin-only sign in (no Sign Up). Every panel
+<!-- feat/admin-login-page: staff sign in for Admin and Mentor accounts
+     (feat/mentor-role; no Sign Up). Every panel
      starts hidden (.auth-hidden); admin-login.js shows one at a time.
      No inline styles or scripts. -->
 <body class="admin-login-page">
@@ -52,8 +53,8 @@
                     <div class="verification-container">
                         <span class="al-hero-icon al-hero-icon--ring" aria-hidden="true"><span class="al-mask al-mask--user"></span></span>
                         <div class="form-header centered-header">
-                            <h2>Welcome Back</h2>
-                            <p>Sign in to manage your CobraByte system</p>
+                            <h2>Staff Login</h2>
+                            <p>Sign in to your CobraByte staff account</p>
                         </div>
                         <form class="auth-form auth-form--full auth-text-left" id="adminSignInForm" novalidate>
                             <div class="input-group">
@@ -91,7 +92,7 @@
                         </div>
                         <div class="form-header centered-header">
                             <h2>Sign In Successful!</h2>
-                            <p>Redirecting to your dashboard...</p>
+                            <p>Redirecting to your home page...</p>
                         </div>
                     </div>
                 </div>

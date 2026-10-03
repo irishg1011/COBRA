@@ -36,7 +36,7 @@
                         {% else %}
                         <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
                         {% endif %}
-                        <p class="welcome-subtext">Manage all administrator and learner accounts, roles, and security settings.</p>
+                        <p class="welcome-subtext">Manage all administrator, mentor and learner accounts, roles, and security settings.</p>
                     </div>
                     <div class="dashboard-datetime-badge">
                         <strong id="current-time"></strong>
@@ -44,7 +44,7 @@
                     </div>
                 </div>
 
-                <!-- View switcher (plain links to the two existing routes) + Create Administrator -->
+                <!-- View switcher (plain links to the two existing routes) + Create Administrator / Create Mentor -->
                 <div class="page-actions-row">
                     <nav class="page-switcher" aria-label="Account & Security views">
                         <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link">Login Logs</a>
@@ -54,14 +54,17 @@
                         <button type="button" id="openArchivedAccountsBtn" class="btn-pill-light">
                             <span class="mask-icon icon-archive"></span> Archived Accounts
                         </button>
-                        <button type="button" id="openCreateAdminBtn" class="btn-create-admin">
+                        <button type="button" id="openCreateAdminBtn" class="btn-create-admin" data-open-modal="createAdminModal">
                             <span class="mask-icon icon-plus"></span> Create Administrator
+                        </button>
+                        <button type="button" id="openCreateMentorBtn" class="btn-create-admin" data-open-modal="createMentorModal">
+                            <span class="mask-icon icon-plus"></span> Create Mentor
                         </button>
                     </div>
                 </div>
 
                 <!-- Metrics Grid -->
-                <div class="metrics-grid">
+                <div class="metrics-grid metrics-grid--seven">
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Total Accounts</span>
@@ -89,6 +92,13 @@
                             <h2 class="metric-value" data-metric="administrators">{{ metrics.administrators }}</h2>
                         </div>
                         <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-shield-user"></span></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Mentors</span>
+                            <h2 class="metric-value" data-metric="mentors">{{ metrics.mentors }}</h2>
+                        </div>
+                        <div class="metric-icon-box metric-icon-soft"><span class="mask-icon icon-book-open"></span></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
@@ -131,6 +141,7 @@
                             <select class="custom-select" id="roleFilterSelect">
                                 <option value="">All Roles</option>
                                 <option value="Administrator">Administrator</option>
+                                <option value="Mentor">Mentor</option>
                                 <option value="Learner">Learner</option>
                             </select>
                             <select class="custom-select" id="statusFilterSelect">
@@ -171,7 +182,7 @@
                                     <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">{{ acc.username }}</span></td>
                                     <td class="text-muted"><span class="cell-truncate-1">{{ acc.email }}</span></td>
                                     <td>
-                                        <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else 'badge-learner' }}">{{ acc.role }}</span>
+                                        <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else ('badge-mentor' if acc.role == 'Mentor' else 'badge-learner') }}">{{ acc.role }}</span>
                                     </td>
                                     <td>
                                         {% if acc.is_locked %}
@@ -188,7 +199,7 @@
                                         <div class="account-actions">
                                             <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="profile" title="View profile" aria-label="View profile of {{ acc.full_name }}"><i class="fa-solid fa-eye"></i></button>
                                             <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="security" title="Security" aria-label="Security details of {{ acc.full_name }}"><i class="fa-solid fa-shield-halved"></i></button>
-                                            {% if acc.role == 'Admin' %}
+                                            {% if acc.role in ['Admin', 'Mentor'] %}
                                             <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="content" title="Content created" aria-label="Content created by {{ acc.full_name }}"><i class="fa-solid fa-book"></i></button>
                                             {% else %}
                                             <button type="button" class="account-action-btn js-account-view" data-acc-id="{{ acc.acc_id }}" data-tab="learning" title="Learning progress" aria-label="Learning progress of {{ acc.full_name }}"><i class="fa-solid fa-chart-simple"></i></button>
@@ -233,8 +244,9 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-account-actions.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-create-admin.js') }}"></script>
 
-    <!-- Include Create New Administrator Modal -->
+    <!-- Include Create New Administrator / Create New Mentor Modals -->
     {% include 'admin-create-admin-modal.html' %}
+    {% include 'admin-create-mentor-modal.html' %}
 
     {# feat/archive-accounts - order matters: later modals stack on top.
        Details -> Course Progress -> Lesson Progress -> Confirm. #}

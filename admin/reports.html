@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Reports</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-progress.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/reports.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body class="reports-page">
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+
+                <!-- Page title, greeting & live date/time -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Reports</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Learner performance ranking</p>
+                    </div>
+                    <div class="top-bar-right">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Print only: report title, filters in use, when it was printed -->
+                <div class="report-print-header" aria-hidden="true">
+                    <h2>CobraByte &mdash; Learner Performance Ranking</h2>
+                    <p id="reportPrintFilters">All chapters &middot; All modules</p>
+                    <p id="reportPrintDate"></p>
+                </div>
+
+                <!-- Summary cards (follow the Chapter / Module / search filters) -->
+                <div class="metrics-grid progress-metrics-grid report-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Total Learners</span>
+                            <h2 class="metric-value" id="reportTotalLearners">{{ summary.total_learners }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Ranked Learners</span>
+                            <h2 class="metric-value" id="reportRankedLearners">{{ summary.ranked_learners }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Average Score</span>
+                            <h2 class="metric-value metric-value-good" id="reportAverageScore">{{ '%d%%'|format(summary.average_score) if summary.average_score is not none else '—' }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Top Performer</span>
+                            <h2 class="metric-value report-top-performer" id="reportTopPerformer">
+                                {% if summary.top_performer %}
+                                <span class="report-top-name">{{ summary.top_performer.name }}</span>
+                                <small class="report-top-score">{{ summary.top_performer.avg_score }}%</small>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Excellent (90%+)</span>
+                            <h2 class="metric-value metric-value-good" id="reportExcellent">{{ summary.excellent }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Needs Improvement</span>
+                            <h2 class="metric-value metric-value-bad" id="reportNeedsImprovement">{{ summary.needs_improvement }}</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ranking table -->
+                <div class="table-card">
+
+                    <div class="table-toolbar report-toolbar">
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="reportSearchInput" placeholder="Search by learner ID or name..." value="{{ search }}">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="reportChapterSelect" aria-label="Chapter">
+                                <option value="">All Chapters</option>
+                                {% for ch in chapters %}
+                                <option value="{{ ch.cat_id }}" {{ 'selected' if cat_id == ch.cat_id|string }}>{{ ch.name }}</option>
+                                {% endfor %}
+                            </select>
+
+                            <select class="custom-select" id="reportModuleSelect" aria-label="Module" {{ 'disabled' if not cat_id }}>
+                                <option value="">All Modules</option>
+                                {% for ch in chapters %}
+                                {% for mod in ch.modules %}
+                                <option value="{{ mod.module_id }}" data-cat-id="{{ ch.cat_id }}" {{ 'selected' if module_id == mod.module_id|string }}>{{ mod.name }}</option>
+                                {% endfor %}
+                                {% endfor %}
+                            </select>
+
+                            <button type="button" class="btn-create-admin report-print-btn" id="reportPrintBtn">
+                                <i class="fa-solid fa-print" aria-hidden="true"></i> Print
+                            </button>
+                        </div>
+                    </div>
+                    <p id="reportLoadError" class="date-filter-error"></p>
+
+                    <div class="table-scroll">
+                        <table class="data-table progress-table report-table" id="reportTable">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Learner</th>
+                                    <th>Avg Score</th>
+                                    <th>Completion</th>
+                                    <th>Lessons</th>
+                                    <th>Last Active</th>
+                                    <th>Performance Level</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportTableBody">
+                                {% for l in learners %}
+                                <tr class="{{ 'report-row-unrated' if l.rank is none else '' }}">
+                                    <td class="report-rank">{{ l.rank if l.rank is not none else '—' }}</td>
+                                    <td>
+                                        <div class="report-learner-cell">
+                                            <strong>{{ l.name }}</strong>
+                                            <small class="text-muted">{{ l.acc_id }}</small>
+                                        </div>
+                                    </td>
+                                    <td>{{ '%d%%'|format(l.avg_score) if l.avg_score is not none else '—' }}</td>
+                                    <td>
+                                        <div class="completion-cell">
+                                            <progress class="completion-bar" value="{{ l.completion }}" max="100" aria-label="Completion {{ l.completion }}%"></progress>
+                                            <span class="completion-pct">{{ l.completion }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ l.lessons_completed }}/{{ l.lessons_total }}</td>
+                                    <td>{{ l.last_active }}</td>
+                                    <td>
+                                        {% set level_class = {'Excellent': 'level-excellent', 'Good': 'level-good', 'Needs Improvement': 'level-needs-improvement'}.get(l.level, 'level-not-rated') %}
+                                        <span class="badge report-level {{ level_class }}">{{ l.level }}</span>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-muted table-empty-message">No learners found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-pagination report-footer">
+                        <span id="reportShowingCount">{{ learners|length }} learner{{ '' if learners|length == 1 else 's' }}</span>
+                        <span class="text-muted report-legend">Ranked by Avg Score, then Completion, then Lessons completed. Learners with the same three values share a rank.</span>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-reports.js') }}"></script>
+</body>
+</html>
