@@ -355,7 +355,7 @@
                 <div class="mcq-arena-overlay" data-ui="overlay" hidden></div>
             </div>
             <div class="mcq-arena-toolbar">
-                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter, hitting a wall, or biting yourself costs a life. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.</p>
+                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.</p>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
                 <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn"><i class="fa-solid fa-compress"></i> <span>Exit full screen</span></button>
             </div>
@@ -996,12 +996,17 @@
         function step() {
             prevSnake = snake.map((p) => ({ ...p }));
             dir = nextDir;
-            const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+            // feat/snake-wrap: walls are passed through. A head that goes
+            // beyond any edge comes back in on the opposite side, still
+            // moving the same way (dir is not touched). The body follows by
+            // itself: each segment simply takes the place of the one ahead.
+            // Biting itself (below) is checked on these wrapped cells, so
+            // it still costs a life exactly as before.
+            const head = {
+                x: (snake[0].x + dir.x + COLS) % COLS,
+                y: (snake[0].y + dir.y + ROWS) % ROWS
+            };
 
-            if (head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS) {
-                handleCollision("You hit the wall");
-                return;
-            }
             if (snake.some((s, i) => i < snake.length - 1 && s.x === head.x && s.y === head.y)) {
                 handleCollision("The cobra bit itself");
                 return;
@@ -1021,9 +1026,25 @@
 
         function draw(alpha, dtSeconds) {
             if (!arena || snake.length === 0) return;
-            const pts = snake.map((cur, i) => {
+            // feat/snake-wrap: a segment never moves more than one cell per
+            // step, so a bigger jump means it went through a wall - it really
+            // moved one cell the other way.
+            const stepThroughWall = (delta, size) => (delta > 1 ? delta - size : (delta < -1 ? delta + size : delta));
+            // The body is handed to the arena as ONE unbroken line: every
+            // segment is placed right next to the one before it, even when
+            // that puts it past the board edge. The arena draws whatever is
+            // past an edge on the opposite side (arena3d.js).
+            const pts = [];
+            snake.forEach((cur, i) => {
                 const prev = prevSnake[Math.min(i, prevSnake.length - 1)] || cur;
-                return { x: prev.x + (cur.x - prev.x) * alpha, y: prev.y + (cur.y - prev.y) * alpha };
+                let x = prev.x + stepThroughWall(cur.x - prev.x, COLS) * alpha;
+                let y = prev.y + stepThroughWall(cur.y - prev.y, ROWS) * alpha;
+                if (i > 0) {
+                    const before = pts[i - 1];
+                    x += Math.round((before.x - x) / COLS) * COLS;
+                    y += Math.round((before.y - y) / ROWS) * ROWS;
+                }
+                pts.push({ x, y });
             });
             const head = pts[0];
             const neck = pts[1] || { x: head.x - 1, y: head.y };

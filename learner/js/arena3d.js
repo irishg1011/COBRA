@@ -13,12 +13,15 @@
            crates, and coiled ropes the cobra slithers over. The ship
            rocks gently.
 
-   Inside decorations never block the cobra. The hedge / rail sits where
-   the old rails were, so hitting it is still the wall.
+   Inside decorations never block the cobra. The hedge / rail marks the
+   edge of the board. The cobra passes THROUGH it and comes out of the
+   opposite side (feat/snake-wrap): see "passing through walls" below.
 
    createArena(canvas) -> {
      setGrid(cols, rows),
      render({ segs, headAngle, pellets, shake, dt, dead }),
+            // segs may run past the board edge while the cobra is passing
+            // through a wall - the arena draws that part on the opposite side
      burst(gx, gy, color),
      resize(),
      dispose()
@@ -38,6 +41,7 @@ export function createArena(canvas, opts = {}) {
   const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
+  renderer.localClippingEnabled = true;   // feat/snake-wrap: the cobra is cut at the board's walls
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -569,6 +573,85 @@ export function createArena(canvas, opts = {}) {
   let lastLen = 0;
   let eatFlare = 0;
 
+  /* ---------- passing through walls (feat/snake-wrap) ----------
+     The cobra no longer stops at the hedge / rail: it goes in on one side
+     and comes out of the opposite one. Its body is ONE tube, so while it
+     is half way through, the same cobra has to be seen in two places.
+
+     How: the game hands over the body as one unbroken line that simply
+     keeps going past the board edge. Here the cobra is cut off a little
+     past every wall (clipping planes), and it is drawn once for each
+     "copy of the board" the line touches - the copies are the SAME meshes
+     (shared geometry and materials, posed like the real one every frame),
+     only moved over by one board width / depth. So the part that left
+     through the right wall is exactly the part that shows up at the left
+     wall. Normally there is one copy; two while crossing a wall; up to
+     four at a corner. */
+  const WRAP_MARGIN = 0.75;   // drawn this far past the board edge: inside the hedge / just over the rail
+  const WRAP_LEAD = 1.6;      // the far side starts being drawn this many cells before the head reaches a wall
+  const MAX_IMAGES = 4;
+  const clipPlanes = [
+    new THREE.Plane(new THREE.Vector3(1, 0, 0), 0),    // left wall
+    new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0),   // right wall
+    new THREE.Plane(new THREE.Vector3(0, 0, 1), 0),    // far wall
+    new THREE.Plane(new THREE.Vector3(0, 0, -1), 0),   // near wall
+  ];
+  function updateClipPlanes() {
+    clipPlanes[0].constant = clipPlanes[1].constant = COLS / 2 + WRAP_MARGIN;
+    clipPlanes[2].constant = clipPlanes[3].constant = ROWS / 2 + WRAP_MARGIN;
+  }
+  updateClipPlanes();
+  const cobraNodes = [];
+  cobra.group.traverse(o => {
+    if (o !== cobra.group) cobraNodes.push(o);
+    (Array.isArray(o.material) ? o.material : (o.material ? [o.material] : [])).forEach(m => {
+      m.clippingPlanes = clipPlanes;
+      m.clipShadows = true;        // the cut-off part casts no shadow either
+    });
+  });
+  const cobraImages = [];          // [boardX, boardZ] of every copy needed this frame
+  const cobraGhosts = [];          // extra copies, made the first time they are needed
+  function getGhost(i) {
+    if (!cobraGhosts[i]) {
+      const root = cobra.group.clone(true);   // same geometry + materials, its own transforms
+      const nodes = [];
+      root.traverse(o => { if (o !== root) nodes.push(o); });
+      scene.add(root);
+      cobraGhosts[i] = { root, nodes };
+    }
+    return cobraGhosts[i];
+  }
+  function addCobraImage(wx, wz) {
+    const bx = Math.floor((wx + COLS / 2) / COLS);
+    const bz = Math.floor((wz + ROWS / 2) / ROWS);
+    if (cobraImages.length >= MAX_IMAGES) return;
+    if (cobraImages.some(im => im[0] === bx && im[1] === bz)) return;
+    cobraImages.push([bx, bz]);
+  }
+  // Puts the real cobra on the board copy its head is on, and a posed twin
+  // on every other copy the body (or the head, just ahead) touches.
+  function placeCobraImages() {
+    const first = cobraImages[0];
+    cobra.group.position.set(-first[0] * COLS, 0, -first[1] * ROWS);
+    for (let g = 1; g < MAX_IMAGES; g++) {
+      const image = cobraImages[g];
+      if (!image) {
+        if (cobraGhosts[g - 1]) cobraGhosts[g - 1].root.visible = false;
+        continue;
+      }
+      const ghost = getGhost(g - 1);
+      ghost.root.visible = true;
+      ghost.root.position.set(-image[0] * COLS, 0, -image[1] * ROWS);
+      for (let k = 0; k < cobraNodes.length; k++) {
+        const src = cobraNodes[k], dst = ghost.nodes[k];
+        dst.position.copy(src.position);
+        dst.quaternion.copy(src.quaternion);
+        dst.scale.copy(src.scale);
+        dst.visible = src.visible;
+      }
+    }
+  }
+
   /* ---------- pellets ---------- */
   const pelletPool = [];
   const letterCache = new Map();
@@ -719,9 +802,26 @@ export function createArena(canvas, opts = {}) {
         down: dead,
         flare: eatFlare,
       });
-      animateScenery(gx(h.x), gz(h.y), t, dt);
+
+      // feat/snake-wrap: which copies of the board the cobra is on. The
+      // head's copy comes first (the real cobra goes there); then the spot
+      // just ahead of the head, so it is already coming out of the far
+      // wall while it goes into the near one; then the rest of the body.
+      cobraImages.length = 0;
+      const headX = gx(h.x), headZ = gz(h.y);
+      addCobraImage(headX, headZ);
+      if (!dead) {
+        const a = f.headAngle || 0;
+        addCobraImage(headX + Math.cos(a) * WRAP_LEAD, headZ + Math.sin(a) * WRAP_LEAD);
+      }
+      for (let k = 0; k < count; k++) addCobraImage(path[k].x, path[k].z);
+      placeCobraImages();
+
+      // where the head is ON the board (bushes rustle around it)
+      animateScenery(headX - cobraImages[0][0] * COLS, headZ - cobraImages[0][1] * ROWS, t, dt);
     } else {
       cobra.group.visible = false;
+      cobraGhosts.forEach(ghost => { ghost.root.visible = false; });
       lastLen = 0;
     }
 
@@ -770,6 +870,7 @@ export function createArena(canvas, opts = {}) {
 
   function setGrid(cols, rows) {
     COLS = cols; ROWS = rows;
+    updateClipPlanes();   // feat/snake-wrap: the walls moved
     buildGrid();
     resize();
   }
