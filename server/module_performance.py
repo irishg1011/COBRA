@@ -7,11 +7,24 @@ PASSED:
      in every lesson done, plus the lesson's own completion rules), and
   2. the AVERAGE of the lessons' performance % is at least PASS_PERCENT.
 
-Lesson performance % = AVERAGE of each gradeable activity's own %
-  - each game:            passed items / its items
-  - the coding exercise:  test cases passed / its test cases
-so every activity weighs the same, whatever its item count. An item is
-"passed" if its first attempt was correct OR its first
+Lesson performance % = ACTIVITY part (50) + LESSON CONTENT part (50)
+(feat/grade-50-50 - the rule itself is lesson_grade_percent() below, the
+ONE place it is written; lesson_summary.py and learner_progress_monitor.py
+call it too, so every screen shows the same number)
+
+  ACTIVITY part = POOLED across the lesson's activities, x 50%
+    (adviser's rule): every correct item of every game + every passed test
+    case of the coding exercise, divided by all items + test cases. A bad
+    run in one activity can be made up in another - e.g. 9 correct out of
+    15 items over three activities is 60% of the activity part, whichever
+    activity the misses were in. (80% pooled gives 40, 100% gives 50.)
+  LESSON CONTENT part = content steps done / content steps, x 50%
+    - reading the lesson content, and
+    - watching the video (only if the lesson has a published video)
+    so a learner who went through the lesson never shows 0%, even with
+    every activity answered wrong.
+
+An item is "passed" if its first attempt was correct OR its first
 answer in a retake round was correct (see activity_retakes.py). Lessons
 with nothing gradeable (no items, no test cases) are left out of the
 average. A module with no published lessons passes automatically, so an
@@ -28,6 +41,7 @@ touches Flask.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from learner_exercise import exercise_score
 from activity_retakes import (
     PASS_PERCENT,
     GAME_TABLES,
@@ -109,6 +123,67 @@ def is_live_lesson(cursor, resource_id):
     return cursor.fetchone() is not None
 
 
+# ---------------- the lesson grade rule (feat/grade-50-50) ----------------
+ACTIVITY_WEIGHT = 50   # % of a lesson's grade that comes from its activity scores
+CONTENT_WEIGHT = 50    # % that comes from lesson content progress (content read, video watched)
+
+
+def lesson_grade_percent(points_earned, points_total, content_done, content_total):
+    """
+    THE lesson grade. Every place that shows or uses a lesson's
+    performance % calls this - never a copy of the formula.
+
+        points_earned   correct items of all the lesson's games + passed
+                        test cases of its coding exercise (POOLED)
+        points_total    all items of those games + all test cases
+        content_done    content steps the learner finished
+        content_total   content steps the lesson has (content, + video if any)
+
+    Returns a whole percent 0..100, or None when the lesson has nothing
+    gradeable (no activity with items and no exercise with test cases) -
+    such a lesson has no grade, exactly as before.
+    """
+    if not points_total:
+        return None
+    pooled = min(max((points_earned or 0) / points_total, 0), 1)
+    activity_part = pooled * ACTIVITY_WEIGHT
+    content_share = (content_done / content_total) if content_total else 1
+    content_part = min(max(content_share, 0), 1) * CONTENT_WEIGHT
+    return int(activity_part + content_part + 0.5)   # halves round up
+
+
+def lesson_content_progress(cursor, acc_id, resource_id):
+    """
+    (steps done, steps total) of the lesson's CONTENT for this learner:
+    reading the content always counts; watching the video counts only when
+    the lesson has a published video.
+    """
+    cursor.execute(
+        """SELECT video_watched_at, content_read_at
+           FROM learner_resource_progress_tbl
+           WHERE acc_id = %s AND resource_id = %s""",
+        (acc_id, resource_id)
+    )
+    progress = cursor.fetchone() or {}
+
+    cursor.execute(
+        """SELECT COUNT(*) AS cnt
+           FROM video_tutorials_tbl vt
+           JOIN learning_resources_stats_tbl lrs ON vt.video_stats_id = lrs.lr_stats_id
+           WHERE vt.resource_id = %s AND lrs.lr_stats_name = 'Published'""",
+        (resource_id,)
+    )
+    has_video = (cursor.fetchone() or {}).get("cnt", 0) > 0
+
+    done = 1 if progress.get("content_read_at") is not None else 0
+    total = 1
+    if has_video:
+        total += 1
+        if progress.get("video_watched_at") is not None:
+            done += 1
+    return done, total
+
+
 # ---------------- lessons + completion ----------------
 def module_lesson_ids(cursor, module_id):
     """Published lessons (resources) of a module, in display order."""
@@ -176,13 +251,16 @@ def lesson_complete(cursor, acc_id, resource_id):
         )
         ex_row = cursor.fetchone()
         if not ex_row or ex_row["status"] != "completed":
-            return False
+            # Skipped for now (after 3 tries) also counts as done.
+            if not exercise_score(cursor, acc_id, ex["exercise_id"], 0)["skipped"]:
+                return False
     return True
 
 
 # ---------------- performance ----------------
 def _exercise_points(cursor, acc_id, resource_id):
-    """(points_earned, points_total) for the lesson's coding exercise - same rule as lesson_summary.py."""
+    """(points_earned, points_total) for the lesson's coding exercise - learner_exercise.exercise_score()
+    (passed -> all, skipped -> best attempt, else latest attempt)."""
     cursor.execute(
         """SELECT ce.exercise_id
            FROM coding_exercises_tbl ce
@@ -198,20 +276,7 @@ def _exercise_points(cursor, acc_id, resource_id):
     exercise_id = row["exercise_id"]
     cursor.execute("SELECT COUNT(*) AS cnt FROM test_cases_tbl WHERE exercise_id = %s", (exercise_id,))
     test_total = cursor.fetchone()["cnt"]
-    cursor.execute(
-        "SELECT progress_id FROM learner_exercise_progress_tbl WHERE acc_id = %s AND exercise_id = %s",
-        (acc_id, exercise_id)
-    )
-    if cursor.fetchone() is not None:
-        return test_total, test_total
-    cursor.execute(
-        """SELECT test_cases_passed FROM exercise_submissions_tbl
-           WHERE acc_id = %s AND exercise_id = %s
-           ORDER BY attempt_number DESC LIMIT 1""",
-        (acc_id, exercise_id)
-    )
-    latest = cursor.fetchone()
-    return (latest["test_cases_passed"] if latest else 0), test_total
+    return exercise_score(cursor, acc_id, exercise_id, test_total)["earned"], test_total
 
 
 def lesson_performance(cursor, acc_id, resource_id):
@@ -220,7 +285,8 @@ def lesson_performance(cursor, acc_id, resource_id):
     percent is None when the lesson has nothing gradeable.
     """
     missed_total = 0
-    activity_percents = []  # one fraction (0..1) per gradeable activity
+    points_earned = 0   # pooled: correct items + passed test cases
+    points_total = 0
     activities = {}
     for act in _published_activities(cursor, resource_id):
         activity_type = act.get("activity_type_name") or ""
@@ -230,17 +296,19 @@ def lesson_performance(cursor, acc_id, resource_id):
         activities[act["la_id"]] = {"type": activity_type, "missed": len(missed), "total": item_total}
         missed_total += len(missed)
         if item_total > 0:
-            activity_percents.append((item_total - len(missed)) / item_total)
+            points_earned += item_total - len(missed)
+            points_total += item_total
 
     ex_points, ex_total = _exercise_points(cursor, acc_id, resource_id)
     if ex_total > 0:
-        activity_percents.append(ex_points / ex_total)
+        points_earned += ex_points
+        points_total += ex_total
+
+    # feat/grade-50-50: 50% activities + 50% lesson content progress
+    content_done, content_total = lesson_content_progress(cursor, acc_id, resource_id)
 
     return {
-        "percent": (
-            round((sum(activity_percents) / len(activity_percents)) * 100)
-            if activity_percents else None
-        ),
+        "percent": lesson_grade_percent(points_earned, points_total, content_done, content_total),
         "missed": missed_total,
         "activities": activities,
     }
@@ -279,6 +347,30 @@ def module_performance(cursor, acc_id, module_id):
         "pass_percent": PASS_PERCENT,
         "lessons": lessons,
     }
+
+
+def lesson_locked_for_learner(cursor, acc_id, resource_id):
+    """
+    Lesson order inside a module - the SAME rule the Lessons page uses:
+    the first lesson of a module is open; any other lesson opens once the
+    lesson before it is COMPLETED (the learner reached its Summary).
+    Retakes never block it. A lesson the learner already started is never
+    locked again. True = locked.
+    """
+    cursor.execute("SELECT module_id FROM learning_resources_tbl WHERE resource_id = %s", (resource_id,))
+    row = cursor.fetchone()
+    if not row:
+        return False
+    ids = module_lesson_ids(cursor, row["module_id"])
+    if resource_id not in ids or ids.index(resource_id) == 0:
+        return False
+    cursor.execute(
+        "SELECT 1 AS started FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s LIMIT 1",
+        (acc_id, resource_id)
+    )
+    if cursor.fetchone():
+        return False
+    return not lesson_complete(cursor, acc_id, ids[ids.index(resource_id) - 1])
 
 
 def module_locked_for_learner(cursor, acc_id, module_id):
@@ -329,6 +421,7 @@ def get_resource_retake_info(acc_id, resource_id):
             retake = open_retake(cursor, acc_id, la_id, lock=False)
             activities[la_id] = {
                 "missed": info["missed"],
+                "total": info["total"],
                 "open": retake is not None,
                 "round": retake["round_no"] if retake else None,
             }
@@ -336,6 +429,8 @@ def get_resource_retake_info(acc_id, resource_id):
         return {
             "module_needs_retake": module["needs_retake"],
             "module_percent": module["percent"],
+            "module_id": row["module_id"],
+            "pass_percent": module["pass_percent"],
             "lesson_percent": perf["percent"],
             "activities": activities,
         }

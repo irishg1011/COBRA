@@ -18,6 +18,7 @@ Blueprint behind the learner header's profile dropdown:
     POST /api/profile/avatar                - upload / replace the profile photo
     POST /api/profile/avatar/remove         - back to the default icon
     GET  /api/certificate                   - the learner's certificate, or how far they are from it
+    GET  /media/<name>                      - an uploaded image (profile photo / badge icon) from the database
     POST /api/profile/email/send-otp        - code to a NEW email address
     POST /api/profile/email/verify-otp      - verify that code
     POST /api/profile/password/send-otp     - reset code to the account's email
@@ -31,7 +32,7 @@ import os
 import re
 import time
 from datetime import datetime
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, Response, jsonify, request, send_from_directory
 from mysql.connector import Error
 
 from cobradb import get_db_connection
@@ -40,12 +41,13 @@ from auth_core import send_reset_code, verify_reset_code, reset_password, otp_st
 from validators import validate_name_field, capitalize_name, validate_email_format
 from learner_routes import get_current_learner_acc_id, LEARNER_DIR
 from learner_progress_monitor import _load_course_tree, _fetch_progress_rows, _evaluate_rows
-from module_performance import module_performance, PASS_PERCENT, live_course_rows
+from module_performance import module_performance, PASS_PERCENT
 from learning_time import record_heartbeat, get_total_seconds
 from badges import award_and_list_badges
 from notifications import notify
 from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo
 from certificates import issue_certificate_if_complete, get_certificate, certificate_payload  # feat/certificate
+from image_uploads import get_image  # feat/images-in-database: serves /media/<name>
 
 learner_profile_bp = Blueprint("learner_profile_bp", __name__)
 
@@ -187,21 +189,6 @@ def _count(cursor, sql, params):
 def _build_overview(cursor, acc_id, collect=None):
     """collect: optional list - gets {"chapter", "module", "perf"} per module (used by notifications.py)."""
     chapters, _ = _load_course_tree(cursor)
-
-    # feat/published-only: keep only what the learner can see - lesson,
-    # module AND chapter all Published (same rule as the Learning Map).
-    # Stats, badges, the certificate and notifications all count from this.
-    live_ids = {row["resource_id"] for row in live_course_rows(cursor)}
-    visible_chapters = []
-    for chapter in chapters:
-        visible_modules = []
-        for module in chapter["modules"]:
-            lessons = [lesson for lesson in module["lessons"] if lesson["resource_id"] in live_ids]
-            if lessons:
-                visible_modules.append({**module, "lessons": lessons})
-        if visible_modules:
-            visible_chapters.append({**chapter, "modules": visible_modules})
-    chapters = visible_chapters
     rows = _fetch_progress_rows(cursor, acc_id=acc_id)
     evaluated = _evaluate_rows(cursor, rows)
 
@@ -357,6 +344,26 @@ def profile_overview():
 
 
 # ============================================================
+# UPLOADED IMAGES (feat/images-in-database)
+# Profile photos and badge icons are stored in the database
+# (image_uploads.py). This is the URL the browser loads them from, on
+# the learner AND the staff side. Public, like /assets: an image name
+# is 24 random characters, and names are never reused - so the browser
+# may keep an image forever (a new upload always gets a new name).
+# ============================================================
+@learner_profile_bp.route("/media/<name>")
+def uploaded_image(name):
+    image = get_image(name)
+    if image is None:
+        return "", 404
+    data, mime_type = image
+    response = Response(data, mimetype=mime_type)
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+# ============================================================
 # API: PROFILE PHOTO (feat/profile-photo)
 # The account is ALWAYS the logged-in learner from the session - no id
 # is read from the request - so a learner can only change their own
@@ -480,7 +487,7 @@ def profile_email_send_otp():
     sent = send_email(
         to_email=email,
         subject="CobraByte - Verify Your New Email",
-        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 5 minutes."
+        body_text=f"Your 6-digit verification code is: {otp_code}\nThis code expires in 1 minute."
     )
     if sent:
         return jsonify({"success": True, "message": "Verification code sent to your new email."})

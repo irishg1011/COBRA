@@ -154,6 +154,7 @@ body {
 .hero-content h1 .highlight {
     background: linear-gradient(135deg, #46D97D 0%, #24C7B7 55%, #18B8E6 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -1402,6 +1403,60 @@ body {
 .submit-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(36, 199, 183, 0.3);
+}
+
+/* --- "Send Us a Message" feedback (feat/contact-messages, landing_script.js) --- */
+.submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.form-group input.is-invalid,
+.form-group textarea.is-invalid {
+    border-color: #dc2626;
+    background: #ffffff;
+}
+
+/* Message under a field - filled by the script, empty otherwise */
+.contact-field-error {
+    display: block;
+    margin-top: 5px;
+    font-size: 12.5px;
+    color: #b91c1c;
+}
+
+.contact-field-error:empty {
+    display: none;
+}
+
+/* Result of sending - filled by the script */
+.contact-form-status {
+    margin-top: 4px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.contact-form-status.is-error {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.contact-form-status:empty {
+    display: none;
+}
+
+/* Trap field for bots: off-screen, never visible or reachable for people */
+.contact-trap {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
 }
 
 /* ==========================================

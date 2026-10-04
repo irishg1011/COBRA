@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     configureOtpInputs('#signUpStep3Panel', 'showSignUpOtp');
     configureOtpInputs('#forgotOtpPanel', 'showForgotOtp');
+    configureOtpInputs('#forgotUsernameOtpPanel', 'showForgotUsernameOtp');   // feat/forgot-username
 
     window.setOtpBoxesState = function(containerSelector, isCorrect, shouldClear = false) {
         const inputs = document.querySelectorAll(`${containerSelector} .otp-input`);
@@ -399,14 +400,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- COUNTDOWN TIMERS ---
     let signUpOtpExpired = false;
     let forgotOtpExpired = false;
+    let forgotUsernameOtpExpired = false;   // feat/forgot-username
 
+    // isSignUp: true = sign-up code, false = forgot-password code,
+    // 'username' = forgot-username code (feat/forgot-username).
     function startOtpCountdown(timerDisplayEl, resendLinkEl, isSignUp = true) {
         if (!timerDisplayEl) return;
 
         if (timerDisplayEl.intervalId) clearInterval(timerDisplayEl.intervalId);
 
         let timeLeft = 300;
-        if (isSignUp) signUpOtpExpired = false;
+        if (isSignUp === 'username') forgotUsernameOtpExpired = false;
+        else if (isSignUp) signUpOtpExpired = false;
         else forgotOtpExpired = false;
 
         if (resendLinkEl) resendLinkEl.classList.add('resend-link--disabled');
@@ -419,7 +424,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (timeLeft <= 0) {
                 clearInterval(timerDisplayEl.intervalId);
-                if (isSignUp) signUpOtpExpired = true;
+                if (isSignUp === 'username') forgotUsernameOtpExpired = true;
+                else if (isSignUp) signUpOtpExpired = true;
                 else forgotOtpExpired = true;
 
                 if (resendLinkEl) resendLinkEl.classList.remove('resend-link--disabled');
@@ -444,6 +450,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const forgotOtpPanel = document.getElementById('forgotOtpPanel');
     const setNewPasswordPanel = document.getElementById('setNewPasswordPanel');
     const forgotSuccessPanel = document.getElementById('forgotSuccessPanel');
+
+    // feat/forgot-username: the three "Forgot your username?" screens
+    const forgotUsernamePanel = document.getElementById('forgotUsernamePanel');
+    const forgotUsernameOtpPanel = document.getElementById('forgotUsernameOtpPanel');
+    const forgotUsernameSuccessPanel = document.getElementById('forgotUsernameSuccessPanel');
 
     const goToStep2 = document.getElementById('goToStep2');
     const proceedToStep3 = document.querySelector('#signUpStep2Panel .btn-next');
@@ -591,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- TASK 10: UNIVERSAL UNSAVED CHANGES CHECK ---
     function activePanelHasInputs() {
         const allPanels = document.querySelectorAll(
-            '#signInPanel, #signUpPanel, #signUpStep2Panel, #signUpStep3Panel, #forgotPasswordPanel, #forgotOtpPanel, #setNewPasswordPanel'
+            '#signInPanel, #signUpPanel, #signUpStep2Panel, #signUpStep3Panel, #forgotPasswordPanel, #forgotOtpPanel, #setNewPasswordPanel, #forgotUsernamePanel, #forgotUsernameOtpPanel'
         );
 
         for (const panel of allPanels) {
@@ -646,7 +657,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function hideAllPanels() {
         const panels = [signInPanel, signUpPanel, signUpStep2Panel, signUpStep3Panel, signUpStep4Panel,
-                        forgotPasswordPanel, forgotOtpPanel, setNewPasswordPanel, forgotSuccessPanel];
+                        forgotPasswordPanel, forgotOtpPanel, setNewPasswordPanel, forgotSuccessPanel,
+                        forgotUsernamePanel, forgotUsernameOtpPanel, forgotUsernameSuccessPanel];
         panels.forEach(p => { if (p) p.style.display = 'none'; });
         if (document.getElementById('signInSuccessPanel')) document.getElementById('signInSuccessPanel').style.display = 'none';
     }
@@ -657,6 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sliderMoves = !!(toggleSlider && toggleSlider.classList.contains('slide-right'));
         resetSignUpForm();
         resetForgotPasswordForm();
+        resetForgotUsernameForm();
         resetSignInForm();
         hideAllPanels();
         if (authToggleBar) authToggleBar.style.display = 'flex';
@@ -670,6 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showSignUpView() {
         resetSignInForm();
         resetForgotPasswordForm();
+        resetForgotUsernameForm();
         resetSignUpForm();
         hideAllPanels();
         if (authToggleBar) authToggleBar.style.display = 'flex';
@@ -761,6 +775,22 @@ document.addEventListener('DOMContentLoaded', () => {
             forgotMatchIndicator.classList.add('auth-hidden');
             forgotMatchIndicator.textContent = '';
         }
+    }
+
+    // feat/forgot-username: clears the "Forgot your username?" screens.
+    function resetForgotUsernameForm() {
+        const emailInp = document.getElementById('forgotUsernameEmail');
+        if (emailInp) {
+            emailInp.value = '';
+            clearInlineError(emailInp);
+        }
+        clearOtpInputs('#forgotUsernameOtpPanel', 'showForgotUsernameOtp');
+
+        const timerEl = document.getElementById('forgotUsernameTimerDisplay');
+        if (timerEl && timerEl.intervalId) clearInterval(timerEl.intervalId);
+
+        const shown = document.getElementById('recoveredUsername');
+        if (shown) shown.textContent = '';
     }
 
     window.addEventListener('pageshow', () => {
@@ -1034,6 +1064,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     setupOtpJumping('#signUpStep3Panel');
     setupOtpJumping('#forgotOtpPanel');
+    setupOtpJumping('#forgotUsernameOtpPanel');   // feat/forgot-username
 
     const signInFormElement = document.querySelector('#signInPanel form');
     if (signInFormElement) {
@@ -1193,6 +1224,195 @@ if (result.success) {
                 resetButtonLoading(submitBtn);
                 showInlineError(passwordInput.closest('.password-wrapper'), 'Could not reach server.');
             }
+        });
+    }
+
+    // =========================================================================
+    // --- FORGOT USERNAME (feat/forgot-username) ---
+    // Same steps as Forgot Password below: email -> 6-digit code -> result.
+    // The result is the account's username, shown on the last screen and
+    // filled into the Sign In form when the learner goes back.
+    //   POST /forgot-username/send-otp    { email }
+    //   POST /forgot-username/verify-otp  { email, otp } -> { username }
+    // =========================================================================
+    const forgotUsernameLink = document.getElementById('forgotUsernameLink');
+    const forgotUsernameEmailInput = document.getElementById('forgotUsernameEmail');
+    const btnForgotUsernameProceed = document.getElementById('btnForgotUsernameProceed');
+    const resendForgotUsernameLink = document.getElementById('resendForgotUsernameLink');
+    const btnVerifyForgotUsernameCode = document.getElementById('btnVerifyForgotUsernameCode');
+    const btnUsernameBackToSignIn = document.getElementById('btnUsernameBackToSignIn');
+    const recoveredUsernameEl = document.getElementById('recoveredUsername');
+
+    if (forgotUsernameLink && forgotUsernamePanel) {
+        forgotUsernameLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!confirmViewSwitch()) return;
+            hideAllPanels();
+            if (authToggleBar) authToggleBar.style.display = 'none';
+            showPanel(forgotUsernamePanel);
+        });
+    }
+
+    if (btnForgotUsernameProceed) {
+        btnForgotUsernameProceed.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            clearInlineError(forgotUsernameEmailInput);
+
+            if (!validateRequiredFields([forgotUsernameEmailInput])) return;
+
+            const userEmail = forgotUsernameEmailInput.value.trim();
+
+            // Same strict email format check as Forgot Password
+            const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+            if (!emailRegex.test(userEmail)) {
+                showInlineError(forgotUsernameEmailInput, 'Please enter a valid email address (e.g., name@example.com).');
+                return;
+            }
+
+            setButtonLoading(btnForgotUsernameProceed, "Verifying...");
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/forgot-username/send-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.querySelectorAll('.dynamic-forgot-username-email').forEach(el => {
+                        el.textContent = userEmail;
+                    });
+
+                    hideAllPanels();
+                    showPanel(forgotUsernameOtpPanel);
+
+                    clearOtpInputs('#forgotUsernameOtpPanel', 'showForgotUsernameOtp');
+                    startOtpCountdown(
+                        document.getElementById('forgotUsernameTimerDisplay'),
+                        resendForgotUsernameLink,
+                        'username'
+                    );
+                } else {
+                    showInlineError(forgotUsernameEmailInput, result.message);
+
+                    // 404 = no account uses this email -> offer Sign Up with it filled in.
+                    if (response.status === 404) {
+                        showSignUpHint(forgotUsernameEmailInput, 'Want to make one?', 'Sign up with this email', userEmail);
+                    }
+                    // staff email -> they sign in on the staff page
+                    if (result.admin_login_url) {
+                        showAdminLoginHint(forgotUsernameEmailInput, result.admin_login_url);
+                    }
+                }
+            } catch (err) {
+                alert('Could not reach the server. Make sure your Flask backend is running.');
+            } finally {
+                resetButtonLoading(btnForgotUsernameProceed);
+            }
+        });
+    }
+
+    if (resendForgotUsernameLink) {
+        resendForgotUsernameLink.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (resendForgotUsernameLink.classList.contains('resend-link--disabled') || resendForgotUsernameLink.dataset.sending === "true") return;
+
+            resendForgotUsernameLink.dataset.sending = "true";
+            resendForgotUsernameLink.classList.add('resend-link--disabled');
+            const originalText = resendForgotUsernameLink.textContent;
+            resendForgotUsernameLink.textContent = 'Sending code...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/forgot-username/send-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: forgotUsernameEmailInput.value.trim() })
+                });
+                const result = await response.json();
+
+                resendForgotUsernameLink.textContent = originalText;
+
+                if (result.success) {
+                    alert('New verification code sent!');
+                    clearOtpInputs('#forgotUsernameOtpPanel', 'showForgotUsernameOtp');
+                    startOtpCountdown(document.getElementById('forgotUsernameTimerDisplay'), resendForgotUsernameLink, 'username');
+                } else {
+                    alert(result.message);
+                    resendForgotUsernameLink.classList.remove('resend-link--disabled');
+                }
+            } catch (err) {
+                resendForgotUsernameLink.textContent = originalText;
+                alert('Could not resend code.');
+                resendForgotUsernameLink.classList.remove('resend-link--disabled');
+            } finally {
+                resendForgotUsernameLink.dataset.sending = "false";
+            }
+        });
+    }
+
+    if (btnVerifyForgotUsernameCode) {
+        btnVerifyForgotUsernameCode.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            if (forgotUsernameOtpExpired) {
+                alert("Your verification code has expired. Please click 'Resend code' to get a new one.");
+                setOtpBoxesState('#forgotUsernameOtpPanel', false, true);
+                return;
+            }
+
+            if (!validateOtpComplete('#forgotUsernameOtpPanel')) return;
+
+            const otpInputs = document.querySelectorAll('#forgotUsernameOtpPanel .otp-input');
+            const otpCode = Array.from(otpInputs).map(i => i.value).join('');
+            const userEmail = forgotUsernameEmailInput ? forgotUsernameEmailInput.value.trim() : '';
+
+            setButtonLoading(btnVerifyForgotUsernameCode, "Verifying Code...");
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/forgot-username/verify-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, otp: otpCode })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    setOtpBoxesState('#forgotUsernameOtpPanel', true, false);
+                    if (recoveredUsernameEl) recoveredUsernameEl.textContent = result.username;
+                    const timerEl = document.getElementById('forgotUsernameTimerDisplay');
+                    if (timerEl && timerEl.intervalId) clearInterval(timerEl.intervalId);
+                    setTimeout(() => {
+                        hideAllPanels();
+                        showPanel(forgotUsernameSuccessPanel);
+                    }, 400);
+                } else {
+                    setOtpBoxesState('#forgotUsernameOtpPanel', false, true);
+                    alert(result.message);
+                }
+            } catch (err) {
+                setOtpBoxesState('#forgotUsernameOtpPanel', false, true);
+                alert('Could not verify code. Ensure server is running.');
+            } finally {
+                resetButtonLoading(btnVerifyForgotUsernameCode);
+            }
+        });
+    }
+
+    // Back to Sign in from the result screen: the username is already typed
+    // in for them, and the cursor waits in the Password box.
+    if (btnUsernameBackToSignIn) {
+        btnUsernameBackToSignIn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const recovered = recoveredUsernameEl ? recoveredUsernameEl.textContent.trim() : '';
+            showSignInView('back');   // this also clears every form
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            if (usernameInput && recovered) usernameInput.value = recovered;
+            if (passwordInput) passwordInput.focus();
         });
     }
 
@@ -1448,7 +1668,7 @@ if (result.success) {
         e.preventDefault();
 
         const visiblePanel = activeElement.closest(
-            '#signInPanel, #signUpPanel, #signUpStep2Panel, #signUpStep3Panel, #forgotPasswordPanel, #forgotOtpPanel, #setNewPasswordPanel'
+            '#signInPanel, #signUpPanel, #signUpStep2Panel, #signUpStep3Panel, #forgotPasswordPanel, #forgotOtpPanel, #setNewPasswordPanel, #forgotUsernamePanel, #forgotUsernameOtpPanel'
         );
         if (!visiblePanel) return;
 
@@ -1497,6 +1717,15 @@ if (result.success) {
         else if (panelId === 'setNewPasswordPanel') {
             const resetBtn = document.getElementById('btnResetPassword');
             if (resetBtn) resetBtn.click();
+        }
+        // feat/forgot-username
+        else if (panelId === 'forgotUsernamePanel') {
+            const proceedBtn = document.getElementById('btnForgotUsernameProceed');
+            if (proceedBtn) proceedBtn.click();
+        }
+        else if (panelId === 'forgotUsernameOtpPanel') {
+            const verifyBtn = document.getElementById('btnVerifyForgotUsernameCode');
+            if (verifyBtn) verifyBtn.click();
         }
     });
 

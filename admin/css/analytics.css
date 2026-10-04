@@ -1,0 +1,409 @@
+/* ==========================================================================
+   Admin > Analytics (Learning Analytics) - analytics.html / admin-analytics.js
+   Cards follow the Figma "Learning Analytics" layout: 2 x 2 charts, then a
+   full-width Topic Strength card.
+   ========================================================================== */
+
+.analytics-page {
+    --an-card: #fffef4;
+    --an-border: #ece9d8;
+    --an-good: #09B300;
+    --an-bad: #dc2626;
+    --an-track: #e7e5dc;
+}
+
+.analytics-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.analytics-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.analytics-scope {
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+.analytics-error {
+    display: none;
+    color: var(--an-bad);
+    font-size: 13px;
+    margin-top: -12px;
+}
+
+.analytics-error.is-visible {
+    display: block;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.analytics-card {
+    background: var(--an-card);
+    border: 1px solid var(--an-border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.analytics-card-wide {
+    grid-column: 1 / -1;
+}
+
+.analytics-card-head h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.analytics-card-head h3 span {
+    font-weight: 400;
+}
+
+.analytics-card-head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.analytics-card-note {
+    font-size: 12px;
+    color: var(--admin-muted);
+    margin-top: 2px;
+}
+
+.analytics-chart {
+    position: relative;
+    height: 260px;
+}
+
+/* "No data yet" replaces a chart that has nothing to show */
+.analytics-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 100%;
+    min-height: 120px;
+    color: var(--admin-muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.analytics-empty i {
+    font-size: 22px;
+    color: #c4c2b8;
+}
+
+/* ---------- Score distribution donut ---------- */
+.analytics-donut-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    min-height: 260px;
+}
+
+.analytics-donut {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    flex-shrink: 0;
+}
+
+.analytics-donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.analytics-donut-center strong {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--admin-text);
+    line-height: 1;
+}
+
+.analytics-donut-center small {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.analytics-legend {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.analytics-legend li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--admin-text);
+}
+
+.analytics-legend .swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.analytics-legend li span {
+    white-space: nowrap;
+}
+
+.analytics-legend .count {
+    margin-left: auto;
+    color: var(--admin-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Trend toggle ---------- */
+.analytics-toggle {
+    display: inline-flex;
+    border: 1px solid var(--admin-line);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.analytics-toggle button {
+    border: none;
+    background: #ffffff;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--admin-muted);
+    cursor: pointer;
+}
+
+.analytics-toggle button.is-active {
+    background: var(--an-good);
+    color: #ffffff;
+}
+
+/* ---------- Topic strength ---------- */
+.analytics-topics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px;
+}
+
+.analytics-topics-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.analytics-topics-label.is-strong { color: var(--an-good); }
+.analytics-topics-label.is-weak { color: var(--an-bad); }
+
+.analytics-topic-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.analytics-topic-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--admin-text);
+    margin-bottom: 5px;
+}
+
+.analytics-topic-row small {
+    color: var(--admin-muted);
+    margin-left: 6px;
+}
+
+.analytics-topic-row strong {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.analytics-topic-track {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--an-track);
+    overflow: hidden;
+}
+
+.analytics-topic-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--an-good);
+}
+
+.analytics-topic-list.is-weak .analytics-topic-fill {
+    background: var(--an-bad);
+}
+
+.analytics-topic-empty {
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+/* ---------- "View data" tables ---------- */
+.analytics-data summary {
+    font-size: 12px;
+    color: var(--admin-blue);
+    cursor: pointer;
+    width: fit-content;
+}
+
+.analytics-data table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.analytics-data th,
+.analytics-data td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--an-border);
+}
+
+.analytics-data td.num,
+.analytics-data th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.analytics-print-header {
+    display: none;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+    .analytics-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .analytics-donut-row,
+    .analytics-topics {
+        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .analytics-donut {
+        margin: 0 auto;
+    }
+}
+
+/* ---------- Print Dashboard ---------- */
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 12mm;
+    }
+
+    .analytics-page .admin-sidebar,
+    .analytics-page .admin-header,
+    .analytics-page .access-denied-notice,
+    .analytics-page .dashboard-top-bar,
+    .analytics-page .analytics-toolbar,
+    .analytics-page .analytics-toggle,
+    .analytics-page .analytics-data,
+    .analytics-page #analyticsLoadError,
+    .analytics-page .modal-overlay {
+        display: none !important;
+    }
+
+    .analytics-page,
+    .analytics-page .admin-layout,
+    .analytics-page .admin-main-content {
+        display: block;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+        margin: 0;
+        width: 100%;
+        background: #ffffff;
+    }
+
+    .analytics-page .dashboard-content-area {
+        padding: 0;
+        gap: 10px;
+    }
+
+    .analytics-print-header {
+        display: block;
+    }
+
+    .analytics-print-header h2 {
+        font-size: 18px;
+        color: #111111;
+    }
+
+    .analytics-print-header p {
+        font-size: 11px;
+        color: #555555;
+    }
+
+    .analytics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .analytics-card {
+        break-inside: avoid;
+        background: #ffffff;
+        padding: 10px 12px;
+    }
+
+    .analytics-chart,
+    .analytics-donut-row {
+        height: 210px;
+        min-height: 0;
+    }
+
+    .analytics-donut {
+        width: 170px;
+        height: 170px;
+    }
+
+    /* Chart.js sizes canvases in px for the screen - scale them to the card on paper */
+    .analytics-chart canvas,
+    .analytics-donut canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    .analytics-page * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

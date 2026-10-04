@@ -1,23 +1,56 @@
 <!-- admin/admin-header.html -->
-{# feat/profile-photo + feat/staff-profile-menu: this header is the one file
-   every admin and mentor page includes, so the profile dropdown and the
-   profile photo popup (their stylesheets, markup and scripts) are attached
-   here instead of being repeated in every page. #}
+{# feat/profile-photo + feat/staff-profile-menu + feat/staff-search + feat/admin-bell:
+   this header is the one file every admin and mentor page includes, so the
+   search box, the bell, the profile dropdown and the profile photo popup
+   (their stylesheets, markup and scripts) are attached here instead of
+   being repeated in every page. #}
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-profile-menu.css') }}">
+<link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-header-tools.css') }}">
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-profile-photo.css') }}">
 {% set staff_photo_src = current_admin.avatar_url if current_admin and current_admin.avatar_url else '/assets/images/avatar.png' %}
 <header class="admin-header">
     <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle sidebar" aria-controls="adminSidebar" aria-expanded="true">
         <span class="mask-icon icon-menu"></span>
     </button>
-    <div class="header-search">
+    {# feat/staff-search: one search for the whole staff side. Results (pages
+       and records the logged-in role may open) are listed under the box by
+       js/admin-search.js from /admin/search. #}
+    <div class="header-search staff-search" id="staffSearch" role="search">
         <img src="/assets/images/search-interface-symbol.png" class="header-icon search-icon-img" alt="">
-        <input type="text" placeholder="Search anything...">
+        <input type="text" id="staffSearchInput" placeholder="Search anything..." autocomplete="off"
+               role="combobox" aria-label="Search pages and records" aria-autocomplete="list"
+               aria-expanded="false" aria-controls="staffSearchResults">
+        <div class="staff-search-results" id="staffSearchResults" role="listbox" aria-label="Search results" hidden></div>
     </div>
     <div class="header-right">
-        <button type="button" class="notification-btn" aria-label="Notifications">
-            <img src="/assets/images/notif-bell-1.png" class="header-icon" alt="">
-        </button>
+        {# feat/admin-bell: the admin's notifications (new landing page message,
+           account locked, learner signed up, learner finished the course).
+           Admins only - mentors get no notifications, so no bell is shown.
+           Filled by js/admin-notifications.js from /admin/notifications. #}
+        {% if current_role == 'Admin' %}
+        <div class="staff-notif" id="staffNotif">
+            <button type="button" class="notification-btn" id="staffNotifBtn" aria-label="Notifications"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="staffNotifPanel">
+                <img src="/assets/images/notif-bell-1.png" class="header-icon" alt="">
+                <span class="staff-notif-count" id="staffNotifCount" hidden></span>
+            </button>
+            <div class="staff-notif-panel" id="staffNotifPanel" role="dialog" aria-label="Notifications" hidden>
+                <div class="staff-notif-head">
+                    <h2>Notifications</h2>
+                    <button type="button" class="staff-notif-readall" id="staffNotifReadAllBtn">Mark all as read</button>
+                </div>
+                <div class="staff-notif-tabs" role="tablist" aria-label="Show">
+                    <button type="button" class="staff-notif-tab is-active" role="tab" aria-selected="true" data-filter="all">All</button>
+                    <button type="button" class="staff-notif-tab" role="tab" aria-selected="false" data-filter="unread">Unread</button>
+                </div>
+                <div class="staff-notif-scroll">
+                    <p class="staff-notif-status" id="staffNotifStatus">Loading...</p>
+                    <div id="staffNotifList"></div>
+                    <button type="button" class="staff-notif-older" id="staffNotifOlderBtn" hidden>See previous notifications</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         {# feat/staff-profile-menu: profile dropdown, same format as the learner
            header's (identity row, items, Logout). The photo is the uploaded
            one, or the default avatar.png when the account has none. #}
@@ -69,5 +102,7 @@
 {% endwith %}
 
 {% include 'profile-photo-modal.html' %}
+<script defer src="{{ url_for('admin_bp.static', filename='js/admin-search.js') }}"></script>
+<script defer src="{{ url_for('admin_bp.static', filename='js/admin-notifications.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-menu.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-photo.js') }}"></script>

@@ -6,7 +6,7 @@
     <title>CobraByte Admin - Recommendations</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
-    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/recommendations.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/recommendation.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -110,13 +110,14 @@
                                     <th>Weak Topic</th>
                                     <th>Recommended Lesson</th>
                                     <th>Reason</th>
+                                    <th>Module Review</th>
                                     <th>Date</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="recTableBody">
                                 <tr>
-                                    <td colspan="6" class="text-muted table-empty-message">Checking learners' latest results...</td>
+                                    <td colspan="7" class="text-muted table-empty-message">Checking learners' latest results...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -138,6 +139,7 @@
                     <li><span class="rec-status rec-status-pending">Pending -</span> The learner has not opened the review yet.</li>
                     <li><span class="rec-status rec-status-in_progress">In Progress -</span> The learner opened the review or fixed some of the missed items.</li>
                     <li><span class="rec-status rec-status-completed">Completed -</span> Every missed item was fixed in a retake.</li>
+                    <li><span class="rec-review rec-review-retake">Module Review -</span> The learner's review card at the end of the module: Not ready (lessons left), Needs retake (below the pass mark, the next module stays locked) or Passed.</li>
                 </ul>
 
             </div>

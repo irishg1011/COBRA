@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Messages</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/messages.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+    <!-- admin/messages.html - Admin > Messages (feat/contact-messages).
+         Every message sent from the landing page's "Send Us a Message" form.
+         Same layout as Learner Progress: stat cards, toolbar, table, pagination.
+         The stat cards and the table are filled by js/admin-messages.js from
+         /admin/messages/data; the eye button opens message-detail-modal.html. -->
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+
+                <!-- Page title, greeting & live date/time -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Messages</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Read and reply to messages sent from the landing page.</p>
+                    </div>
+                    <div class="top-bar-right">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stat cards (follow search + dates, not status) -->
+                <div class="metrics-grid msg-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Total Messages</span>
+                            <h2 class="metric-value" id="metricMsgTotal">0</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Unread</span>
+                            <h2 class="metric-value metric-value-bad" id="metricMsgUnread">0</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Replied</span>
+                            <h2 class="metric-value metric-value-good" id="metricMsgReplied">0</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-info">
+                            <span class="metric-title">Received Today</span>
+                            <h2 class="metric-value" id="metricMsgToday">0</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Messages table -->
+                <div class="table-card">
+
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="msgSearchInput" placeholder="Search by name, email, or message..." aria-label="Search messages">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="msgStatusSelect" aria-label="Status">
+                                <option value="">All Status</option>
+                                <option value="unread">Unread</option>
+                                <option value="read">Read</option>
+                                <option value="replied">Replied</option>
+                            </select>
+
+                            <div class="date-filter-group" id="msgDateGroup">
+                                <span class="date-filter-label">Received</span>
+                                <input type="date" class="custom-select" id="msgDateFromInput" title="Received from">
+                                <span class="msg-date-separator">to</span>
+                                <input type="date" class="custom-select" id="msgDateToInput" title="Received to">
+                                <button type="button" class="icon-button-reset table-action-icon" id="clearMsgDateBtn" title="Clear Received filter" aria-label="Clear Received filter">
+                                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <p id="msgDateFilterError" class="date-filter-error"></p>
+
+                    <div class="table-scroll">
+                        <table class="data-table msg-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Message</th>
+                                    <th>Received</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="msgTableBody">
+                                <tr>
+                                    <td colspan="6" class="text-muted table-empty-message">Loading messages...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-pagination">
+                        <span id="msgShowingCount">Showing 0 of 0 messages</span>
+                        <div class="pagination-controls">
+                            <button type="button" class="btn-pagination" id="msgPrevBtn" disabled title="Previous Page">&lt;</button>
+                            <span id="msgPageLabel">1 of 1</span>
+                            <button type="button" class="btn-pagination" id="msgNextBtn" disabled title="Next Page">&gt;</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    {% include 'message-detail-modal.html' %}
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-messages.js') }}"></script>
+</body>
+</html>

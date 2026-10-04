@@ -36,6 +36,7 @@ from datetime import datetime, timedelta, timezone
 from mysql.connector import Error
 
 from notifications import notify, PH_NOW_SQL
+from staff_notifications import notify_admins, account_summary  # feat/admin-bell
 
 CERTIFICATES_TABLE = "certificates_tbl"
 COURSE_NAME = "Python Beginner Course"
@@ -113,6 +114,13 @@ def issue_certificate_if_complete(connection, acc_id, facts, notify_as_read=Fals
                    f"You completed the **{COURSE_NAME}**",
                    "Your Certificate of Completion is ready. Open it to view or print it.",
                    "/certificate", "course_done", is_read=notify_as_read)
+            # feat/admin-bell: the admins hear about it too (once per learner).
+            name, _ = account_summary(cursor, acc_id)
+            notify_admins(cursor, "course_done",
+                          f"**{name}** finished the {COURSE_NAME}",
+                          "Their Certificate of Completion was issued.",
+                          f"/admin/learner-progress/learners?q={acc_id}",
+                          f"course_done:{acc_id}")
         connection.commit()
         return get_certificate(cursor, acc_id)
     except Error:

@@ -244,14 +244,27 @@ def _current_learner():
 # ============================================================
 # PAGES
 # ============================================================
+def _back_link():
+    """Where "Back" on Terms / Privacy goes: a signed-in person returns to
+    their own dashboard (not the public landing page, which looks like
+    being logged out); a visitor goes back to the landing page."""
+    if session.get("admin_id"):
+        return "/admin/dashboard", "Back to dashboard"
+    if _current_learner():
+        return LEARNER_HOME_URL, "Back to dashboard"
+    return "/", "Back to home"
+
+
 @consent_bp.route("/terms")
 def terms_page():
-    return render_template("terms.html")
+    back_url, back_label = _back_link()
+    return render_template("terms.html", back_url=back_url, back_label=back_label)
 
 
 @consent_bp.route("/privacy")
 def privacy_page():
-    return render_template("privacy.html")
+    back_url, back_label = _back_link()
+    return render_template("privacy.html", back_url=back_url, back_label=back_label)
 
 
 @consent_bp.route(CONSENT_PAGE_URL)

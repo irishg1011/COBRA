@@ -476,6 +476,42 @@ h1 {
     text-decoration: underline;
 }
 
+
+/* "Forgot your username?" under the Username box - the same look as
+   .forgot-link above. It has its OWN class on purpose: script.js finds the
+   password link with querySelector('.forgot-link'), which takes the first
+   match on the page, and this link comes first. */
+.forgot-username-link {
+    display: inline-block;
+    font-size: 13px;
+    color: #139C38;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 22px;
+}
+
+.forgot-username-link:hover {
+    text-decoration: underline;
+}
+
+/* The recovered username on the last "Forgot your username?" screen
+   (feat/forgot-username): large, in the same grey box as the inputs so it
+   reads as "this is what you type". */
+.recovered-username {
+    width: 100%;
+    margin: 4px 0 8px;
+    padding: 16px 14px;
+    border-radius: 8px;
+    background: #EDEAE4;
+    color: #111111;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-align: center;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
 /* Action Button */
 .btn-login {
     width: 100%;

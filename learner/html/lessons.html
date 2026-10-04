@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="../static/style.css">
     <link rel="stylesheet" href="../static/animations.css">
     <link rel="stylesheet" href="../learner/css/lessons.css">
+    <link rel="stylesheet" href="../learner/css/proceed-modal.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
@@ -79,11 +80,19 @@
             <p class="lessons-error" id="lessonsError" style="display: none;">Could not load lessons. Please refresh the page.</p>
 
             <div id="modulesContainer"></div>
+
+            <!-- Shown once the chapter's last module is passed; opens the
+                 "Chapter complete!" popup (proceed-modal.js) -->
+            <div class="next-chapter-row" id="nextChapterRow" hidden>
+                <p class="next-chapter-text" id="nextChapterText"></p>
+                <button type="button" class="lesson-action-btn action-unlocked next-chapter-btn" id="nextChapterBtn">Proceed to next chapter</button>
+            </div>
         </div>
     </main>
 
 
 
+    <script src="../learner/js/proceed-modal.js"></script>
     <script src="../learner/js/lessons.js"></script>
     <script src="../learner/js/learner.js"></script>
     <script src="../static/auth-guard.js"></script>

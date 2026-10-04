@@ -329,34 +329,41 @@
             node.appendChild(text);
         }
 
-        // Wrong answer: show why, reveal the back, then Try Again (same
-        // card) or Skip card (next card - no life, no score).
-        function showTryAgain(feedback) {
+        // Wrong answer: show why, then MOVE ON (adviser's rule - the first
+        // answer counts; a missed card is fixed later in a retake round).
+        // The server already moved the play to the next card (or finished).
+        function showWrongAndNext(feedback) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
+            const last = !!(server && server.completed);
             showOverlay(`
                 <div class="fc-overlay-card">
                     <i class="fa-solid fa-circle-xmark fc-overlay-icon is-danger"></i>
                     <h4>Not quite</h4>
                     <p class="fc-tryagain-feedback" data-c="taFeedback"></p>
                     <div class="fc-reveal" data-c="taReveal" hidden></div>
-                    <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Try card ${qIndex + 1} again for the satisfaction, or skip to the next one.</p>
+                    <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} is marked wrong - you can fix it later in a retake if your module needs one.</p>
                     <div class="fc-overlay-actions">
-                        <button type="button" class="fc-ghost-btn" data-c="skipBtn"><i class="fa-solid fa-forward"></i> Skip card</button>
-                        <button type="button" class="fc-primary-btn" data-c="taBtn"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+                        <button type="button" class="fc-primary-btn" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
                     </div>
                 </div>
             `);
             overlayNode("taFeedback").textContent = feedback || "That's not what's on the back of this card.";
             fillReveal(overlayNode("taReveal"));
-            overlayNode("skipBtn").addEventListener("click", skipCard);
             const btn = overlayNode("taBtn");
             btn.addEventListener("click", () => {
+                if (disposed || mode !== "tryagain") return;
                 hideOverlay();
                 fx.glow = "";
-                setMode("playing");
-                ui.input.select();
-                ui.input.focus({ preventScroll: true });
+                if (server.completed) {
+                    setMode("busy");
+                    finish();
+                    return;
+                }
+                qIndex = Math.min(server.current_index, total - 1);
+                loadCard();
+                if (server.total_lives <= 0) enterCooldown();
+                else showPreview("next");
             });
             btn.focus({ preventScroll: true });
         }
@@ -592,7 +599,7 @@
                 return;
             }
 
-            // Wrong: reveal the back, then Try Again or Skip.
+            // Wrong: marked wrong, then Next card (no Try Again).
             wrongOnCurrent = true;
             streak = 0;
             revealedAnswer = result.answer || null;
@@ -603,18 +610,8 @@
             setMode("busy");
             setTimeout(() => {
                 if (disposed) return;
-                if (server.total_lives <= 0) enterCooldown();
-                else showTryAgain(result.feedback);
+                showWrongAndNext(result.feedback);
             }, FC_ANIM.sting);
-        }
-
-        // Skip the current card (only offered after a wrong answer): no
-        // life, no score - the server logs it as 'skipped'. The card still
-        // flips to its back and flies off, so the duel moves on.
-        async function skipCard() {
-            if (disposed || mode !== "tryagain") return;
-            setMode("busy");
-            await sendSkip(false);
         }
 
         // Skip from the answer bar while playing: free if this card was

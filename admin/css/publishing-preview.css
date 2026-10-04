@@ -509,3 +509,63 @@
     border: none;
     border-radius: 12px;
 }
+
+/* While the Activities / Exercise step runs (is-playing, set by
+   admin-publishing-preview.js) the walkthrough grows to nearly full
+   screen - full screen on phones - and the game frame fills it, so every
+   game (the Multiple Choice arena too) fits without scrolling. */
+#publishingPreviewModal.is-playing {
+    padding: 12px;
+}
+
+#publishingPreviewModal.is-playing .preview-modal-card {
+    max-width: 1320px;
+    max-height: none;
+    height: calc(100vh - 24px);
+    height: calc(100dvh - 24px);
+}
+
+#publishingPreviewModal.is-playing .preview-modal-scroll {
+    padding: 10px 14px;
+}
+
+#publishingPreviewModal.is-playing #previewLessonTitle {
+    display: none !important;
+}
+
+#publishingPreviewModal.is-playing .lesson-card {
+    padding: 0;
+    box-shadow: none;
+    background: transparent;
+}
+
+#publishingPreviewModal.is-playing #previewActivitiesContainer {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+#publishingPreviewModal.is-playing .preview-play-frame {
+    height: calc(100vh - 200px);
+    height: calc(100dvh - 200px);
+    min-height: 420px;
+}
+
+@media (max-width: 640px) {
+    #publishingPreviewModal.is-playing {
+        padding: 0;
+    }
+    #publishingPreviewModal.is-playing .preview-modal-card {
+        height: 100vh;
+        height: 100dvh;
+        border-radius: 0;
+    }
+    #publishingPreviewModal.is-playing .preview-modal-scroll {
+        padding: 6px 6px 8px;
+    }
+    #publishingPreviewModal.is-playing .preview-play-frame {
+        height: calc(100vh - 160px);
+        height: calc(100dvh - 160px);
+        min-height: 360px;
+    }
+}

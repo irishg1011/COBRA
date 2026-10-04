@@ -12,16 +12,10 @@
  * signed in. (feat/admin-login-page: admins now sign in at /admin/login,
  * served by the same Flask app on :5000 - no more Live Server / :5500.)
  *
- * PER-PAGE BACK-BUTTON MODE
- * Add data-auth-guard-mode="refresh" to a page's <body> tag to make the
- * Back button just silently reload that page (used on the main Admin
- * Dashboard, so Back never surfaces Login or the Learner dashboard):
- *
- *      <body data-auth-guard-mode="refresh"> ... Dashboard markup ... </body>
- *
- * Leave the attribute off (the default) for other admin pages (e.g.
- * Account & Security), where Back should ask "Are you sure you want to
- * log out?" instead.
+ * BACK / FORWARD BUTTONS
+ * Work normally between admin pages and never ask about logging out.
+ * Only when the previous page is the sign-in page does Back stay put.
+ * (data-auth-guard-mode is no longer used.)
  *
  * NOTE
  * The real access control is server-side: every admin_bp route checks
@@ -35,8 +29,6 @@
     // feat/admin-login-page: the admin's own login page (same origin).
     const LOGIN_PAGE_URL = "/admin/login";
     const AUTH_FLAG_KEY = "isAdminAuthenticated";
-
-    const GUARD_MODE = (document.body && document.body.dataset.authGuardMode) || "confirm-logout";
 
     function isAuthenticated() {
         return sessionStorage.getItem(AUTH_FLAG_KEY) === "true";
@@ -104,31 +96,33 @@
 
     document.addEventListener('DOMContentLoaded', wireLogoutModalButtons);
 
-    // Push a sentinel history entry on top of the current one so the very
-    // next Back press resolves to a 'popstate' on THIS page/URL instead of
-    // immediately leaving it.
-    if (!history.state || !history.state.cobrabyteAdminGuard) {
-        history.pushState({ cobrabyteAdminGuard: true }, "", location.href);
+    // Back / Forward (browser arrows, phone Back button) work normally
+    // between admin pages - no "log out?" modal. Logging out only happens
+    // through the Logout button. The one exception: when the previous page
+    // is the sign-in page (or unknown, e.g. a fresh tab), Back stays here.
+    function cameFromSignIn() {
+        if (!document.referrer) return true;
+        try {
+            const ref = new URL(document.referrer);
+            if (ref.origin !== location.origin) return true;
+            return /^\/(login|admin\/login)?\/?$/.test(ref.pathname);
+        } catch (e) {
+            return true;
+        }
     }
 
-    window.addEventListener("popstate", function () {
-        if (!isAuthenticated()) {
-            window.location.replace(LOGIN_PAGE_URL);
-            return;
+    if (cameFromSignIn()) {
+        if (!history.state || !history.state.cobrabyteAdminGuard) {
+            history.pushState({ cobrabyteAdminGuard: true }, "", location.href);
         }
-
-        // Admin Dashboard mode: Back never leaves this page - just reload it.
-        if (GUARD_MODE === "refresh") {
-            history.replaceState({ cobrabyteAdminGuard: true }, "", location.href);
-            window.location.reload();
-            return;
-        }
-
-        // Other authenticated admin pages: ask before logging out - via the
-        // custom modal (Task #14), never a browser confirm() popup.
-        history.pushState({ cobrabyteAdminGuard: true }, "", location.href);
-        openLogoutModal();
-    });
+        window.addEventListener("popstate", function () {
+            if (!isAuthenticated()) {
+                window.location.replace(LOGIN_PAGE_URL);
+                return;
+            }
+            history.pushState({ cobrabyteAdminGuard: true }, "", location.href);
+        });
+    }
 
     // Belt-and-suspenders: if this exact page is later restored from
     // bfcache (e.g. logged out in another tab, then Forward back into a

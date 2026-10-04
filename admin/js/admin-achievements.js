@@ -31,6 +31,7 @@
     const MAX_ICON_BYTES = 1024 * 1024;
     const ICON_TYPES = ["image/png", "image/jpeg", "image/webp"];
     const ICON_NAME = /\.(png|jpe?g|webp)$/i;
+    const ICON_MAX_SIDE = 256;    // px - a badge icon is never shown larger than this
     const HEX_COLOR = /^#[0-9a-f]{6}$/i;
     const DATA_URL = "/admin/achievements/data";
     const BADGES_URL = "/admin/achievements/badges";
@@ -676,7 +677,7 @@
             body.append("requirement_type", typeSelect.value);
             body.append("required_value", valueInput.value.trim());
             body.append("criteria", criteriaInput.value.trim());
-            if (iconInput.files && iconInput.files[0]) body.append("icon", iconInput.files[0]);
+            const pickedIcon = iconInput.files && iconInput.files[0];
 
             const editedId = editingBadge ? editingBadge.badge_id : null;
             const url = editedId ? `${BADGES_URL}/${encodeURIComponent(editedId)}` : BADGES_URL;
@@ -684,6 +685,12 @@
             isSaving = true;
             saveBtn.disabled = true;
             try {
+                if (pickedIcon) {
+                    // Shrunk in the browser first (image-shrink.js): icons are stored in the database.
+                    const shrink = window.cobraByteShrinkImage;
+                    const icon = typeof shrink === "function" ? await shrink(pickedIcon, ICON_MAX_SIDE) : pickedIcon;
+                    body.append("icon", icon, icon.name);
+                }
                 const response = await fetch(url, {
                     method: "POST",
                     headers: { "X-Requested-With": "XMLHttpRequest" },

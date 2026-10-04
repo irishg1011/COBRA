@@ -10,10 +10,13 @@
     <link rel="stylesheet" href="../learner/css/lesson-activities.css">
     <link rel="stylesheet" href="../learner/css/lesson-fill-blanks.css">
     <link rel="stylesheet" href="../learner/css/lesson-flashcards.css">
+    <link rel="stylesheet" href="../learner/css/proceed-modal.css">
+    <link rel="stylesheet" href="../learner/css/lesson-insights.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
     <link rel="stylesheet" href="../learner/css/learner-responsive.css">
+    <link rel="stylesheet" href="/static/code-editor.css">
 </head>
 <body>
 
@@ -63,6 +66,11 @@
 
             <h1 id="lessonResourceTitle" style="display: none;"></h1>
 
+            <!-- Shown when an unfinished lesson is opened again (resumes at its last step) -->
+            <p class="lesson-resume-note" id="lessonResumeNote" hidden>
+                <i class="fa-solid fa-bookmark"></i> <span id="lessonResumeText">You stopped here last time.</span>
+            </p>
+
             <!-- STEP: VIDEO -->
             <div id="videoStep" class="lesson-step" style="display: none;">
                 <p class="lesson-step-eyebrow">Video Tutorial</p>
@@ -111,7 +119,8 @@
             <div class="exercise-prompt">
                 <p><strong>Situation:</strong> <span id="exerciseSituation"></span></p>
                 <p><strong>Problem:</strong> <span id="exerciseProblem"></span></p>
-                <p class="exercise-clue"><i class="fa-solid fa-lightbulb"></i> <span id="exerciseClue"></span></p>
+                <p class="exercise-clue" id="exerciseClueRow" hidden><i class="fa-solid fa-lightbulb"></i> <span id="exerciseClue"></span></p>
+                <button type="button" class="exercise-hint-btn" id="exerciseHintBtn" hidden><i class="fa-solid fa-lightbulb"></i> Show hint</button>
             </div>
 
             <div class="exercise-editor-grid">
@@ -128,8 +137,20 @@
 
             <div class="exercise-result" id="exerciseResultBox" style="display: none;"></div>
 
-            <div class="lesson-step-footer">
-                <button class="lesson-step-btn" id="exerciseSubmitBtn">Submit</button>
+            <!-- Automatic "how to fix it" tips, one per failing test case (exercise_tips.py) -->
+            <div class="exercise-tips" id="exerciseTips" hidden></div>
+
+            <!-- Skipped for now (after 3 tries): still open to retry for full credit -->
+            <p class="exercise-skipped-note" id="exerciseSkippedNote" hidden>
+                <i class="fa-solid fa-forward"></i> Exercise skipped for now - you can try again any time. Your best attempt counts; passing it later gives full credit.
+            </p>
+
+            <div class="lesson-step-footer exercise-footer">
+                <span class="exercise-submit-note" id="exerciseSubmitNote" hidden><i class="fa-solid fa-pen"></i> Change your code to submit again.</span>
+                <div class="exercise-footer-btns">
+                    <button type="button" class="exercise-skip-btn" id="exerciseSkipBtn" hidden>Skip for now</button>
+                    <button class="lesson-step-btn" id="exerciseSubmitBtn">Submit</button>
+                </div>
             </div>
 
             <div class="lesson-complete-row" id="exerciseCompleteRow" style="display: none;">
@@ -151,17 +172,19 @@
 
             <div class="summary-list" id="summaryList"></div>
 
+            <!-- Strong | Needs work for this lesson (lesson-insights.js) -->
+            <div id="summaryInsights"></div>
+
             <p class="summary-gate-note" id="summaryGateNote" hidden></p>
 
-            <!-- Below the pass %: review the lesson / weak spots (this lesson, or the whole module) -->
+            <!-- Missed items: a short note only - the full list of weak spots lives in
+                 the Module Review card at the end of the module (module-review.html) -->
             <div class="summary-review" id="summaryReview" hidden>
                 <p class="summary-review-note" id="summaryReviewNote"></p>
                 <div class="summary-review-actions">
                     <button type="button" class="review-btn" id="reviewLessonBtn"><i class="fa-solid fa-book-open"></i> Review lesson</button>
-                    <button type="button" class="review-btn review-btn-accent" id="reviewWeakSpotsBtn" hidden><i class="fa-solid fa-crosshairs"></i> <span id="reviewWeakSpotsLabel">Review my weak spots</span></button>
-                    <button type="button" class="review-btn review-btn-accent" id="reviewModuleWeakSpotsBtn" hidden><i class="fa-solid fa-layer-group"></i> <span id="reviewModuleWeakSpotsLabel">Review module weak spots</span></button>
+                    <a class="review-btn review-btn-accent" id="openModuleReviewBtn" href="#" hidden><i class="fa-solid fa-clipboard-check"></i> Open Module Review</a>
                 </div>
-                <div class="weak-spots-panel" id="weakSpotsPanel" hidden></div>
             </div>
 
             <div class="stage-footer">
@@ -171,15 +194,21 @@
     </div>
 </main>
 
+    </div>
+
 
 
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
     <script src="../learner/js/lesson-fill-blanks.js"></script>
     <script src="../learner/js/lesson-flashcards.js"></script>
     <script src="../learner/js/lesson-activities.js"></script>
+    <script src="../learner/js/proceed-modal.js"></script>
+    <script src="../learner/js/lesson-insights.js"></script>
     <script src="../learner/js/lesson-content.js"></script>
     <script src="../learner/js/learner.js"></script>
     <script src="../static/auth-guard.js"></script>
     <script src="../static/page-transitions.js"></script>
+    <!-- Python code colors + auto-indent (static/code-editor.js) -->
+    <script src="/static/code-editor.js"></script>
 </body>
 </html>

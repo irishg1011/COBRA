@@ -44,6 +44,9 @@ ENDPOINT_ROLES = {
     "admin_bp.admin_logout": BOTH,
     "admin_bp.admin_session_end_beacon": BOTH,  # also public (runs without a session)
 
+    # Header search box (feat/staff-search) - results are filtered by this same map
+    "admin_bp.staff_search": BOTH,
+
     # Profile photo in the shared header (feat/profile-photo) - own account only
     "admin_bp.profile_photo_upload": BOTH,
     "admin_bp.profile_photo_remove": BOTH,
@@ -121,8 +124,21 @@ ENDPOINT_ROLES = {
     "admin_bp.learner_progress_learner_detail": ADMIN,
 
     "admin_bp.analytics": ADMIN,
+    "admin_bp.analytics_data": ADMIN,
     "admin_bp.reports": ADMIN,
     "admin_bp.reports_data": ADMIN,
+
+    # Header bell (feat/admin-bell) - the admin's own notifications; mentors have no bell
+    "admin_bp.staff_notifications_list": ADMIN,
+    "admin_bp.staff_notifications_count": ADMIN,
+    "admin_bp.staff_notifications_read": ADMIN,
+    "admin_bp.staff_notifications_read_all": ADMIN,
+
+    # Messages (feat/contact-messages): landing page "Send Us a Message" inbox + replies
+    "admin_bp.messages": ADMIN,
+    "admin_bp.messages_data": ADMIN,
+    "admin_bp.messages_detail": ADMIN,
+    "admin_bp.messages_reply": ADMIN,
 
     # ------------------------------------------------------------
     # Mentor only - content and publishing actions

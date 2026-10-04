@@ -4,9 +4,15 @@ lesson_summary.py - Learner-Side Lesson Summary & Performance Calculation
 Pure DB-access helpers backing the Summary step on lesson-content.html:
 a read-only recap of everything the learner did in this lesson (video,
 content, each activity's score, the exercise result) plus an overall
-Performance % across every GRADED item (MCQ + Fill in the Blanks +
-Flashcards + Exercise - Video/Content have no "correct answer" so they
-never count toward it).
+Performance %.
+
+Performance % (feat/grade-50-50) = 50% ACTIVITIES + 50% LESSON CONTENT:
+all correct items of every activity + passed exercise test cases, POOLED
+over all items + test cases (adviser's rule), is worth 50, and going through the lesson content
+(reading it, and watching the video when there is one) is worth the
+other 50 - so a learner who finished the lesson never sees 0%, even
+with every answer wrong. The rule itself lives in
+module_performance.lesson_grade_percent(); nothing is calculated twice.
 
 Design call worth knowing: for the Exercise, if it's already been
 COMPLETED (learner_exercise_progress_tbl has a row), the summary always
@@ -25,7 +31,8 @@ project's existing convention.
 from mysql.connector import Error
 from cobradb import get_db_connection
 from activity_retakes import ensure_retake_schema
-from module_performance import module_performance
+from module_performance import module_performance, lesson_grade_percent, lesson_content_progress
+from learner_exercise import exercise_score
 
 
 def get_lesson_performance_summary(acc_id, resource_id):
@@ -40,7 +47,8 @@ def get_lesson_performance_summary(acc_id, resource_id):
             "exercise": {"exercise_title", "points_earned", "points_total", "completed"} | None,
             "graded_points": float,
             "graded_total": int,
-            "performance_percent": int | None,  # None if this lesson has nothing gradeable at all
+            "performance_percent": int | None,  # 50% activities + 50% lesson content;
+                                                # None if this lesson has nothing gradeable at all
         }
     Returns None on any database error.
     """
@@ -71,10 +79,9 @@ def get_lesson_performance_summary(acc_id, resource_id):
         activities_out = []
         graded_points = 0.0
         graded_total = 0
-        # Lesson performance % = AVERAGE of each gradeable activity's own %
-        # (each game + the coding exercise weigh the same, whatever their
-        # item/test-case count) - same rule as module_performance.py.
-        activity_percents = []
+        # graded_points / graded_total (pooled over every game item and
+        # exercise test case) are the ACTIVITY half of the grade - see
+        # module_performance.lesson_grade_percent().
 
         for row in activity_rows:
             la_id = row["la_id"]
@@ -110,7 +117,6 @@ def get_lesson_performance_summary(acc_id, resource_id):
             if item_total > 0:
                 graded_points += score
                 graded_total += item_total
-                activity_percents.append((score or 0) / item_total)
 
         exercise_out = None
         cursor.execute(
@@ -129,43 +135,31 @@ def get_lesson_performance_summary(acc_id, resource_id):
             cursor.execute("SELECT COUNT(*) AS cnt FROM test_cases_tbl WHERE exercise_id = %s", (exercise_id,))
             test_total = cursor.fetchone()["cnt"]
 
-            cursor.execute(
-                "SELECT progress_id FROM learner_exercise_progress_tbl WHERE acc_id = %s AND exercise_id = %s",
-                (acc_id, exercise_id)
-            )
-            ex_completed = cursor.fetchone() is not None
-
-            if ex_completed:
-                points_earned = test_total
-            else:
-                cursor.execute(
-                    """SELECT test_cases_passed FROM exercise_submissions_tbl
-                       WHERE acc_id = %s AND exercise_id = %s
-                       ORDER BY attempt_number DESC LIMIT 1""",
-                    (acc_id, exercise_id)
-                )
-                latest = cursor.fetchone()
-                points_earned = latest["test_cases_passed"] if latest else 0
+            ex_score = exercise_score(cursor, acc_id, exercise_id, test_total)
+            ex_completed = ex_score["passed"]
+            points_earned = ex_score["earned"]
 
             exercise_out = {
                 "exercise_title": exercise_row["exercise_title"],
                 "points_earned": points_earned,
                 "points_total": test_total,
                 "completed": ex_completed,
+                "skipped": ex_score["skipped"],
             }
 
             if test_total > 0:
                 graded_points += points_earned
                 graded_total += test_total
-                activity_percents.append((points_earned or 0) / test_total)
 
-        performance_percent = (
-            round((sum(activity_percents) / len(activity_percents)) * 100)
-            if activity_percents else None
-        )
+        # feat/grade-50-50: 50% activities + 50% lesson content progress
+        content_done, content_total = lesson_content_progress(cursor, acc_id, resource_id)
+        performance_percent = lesson_grade_percent(graded_points, graded_total, content_done, content_total)
 
         cursor.close()
         return {
+            # Only what the lesson HAS is listed on the Summary (no "Video -
+            # Not watched" row for a lesson without a video).
+            "has_video": content_total > 1,
             "video_watched": progress.get("video_watched_at") is not None,
             "content_read": progress.get("content_read_at") is not None,
             "activities": activities_out,
@@ -198,7 +192,7 @@ def get_next_lesson_info(resource_id, acc_id=None):
         after a reorder "next" could jump to the wrong lesson.
 
     Returns one of:
-        {"type": "lesson", "resource_id": int, "resource_title": str}
+        {"type": "lesson", "resource_id": int, "resource_title": str, "new_module": bool, "module_name": str}
         {"type": "chapter", "resource_id": int, "resource_title": str, "cat_id": int, "category_name": str}
         {"type": "end"}
         {"type": "module_gate", "module_percent": int, "pass_percent": int, "all_done": bool}
@@ -214,7 +208,7 @@ def get_next_lesson_info(resource_id, acc_id=None):
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            """SELECT lr.resource_id, lr.resource_title, m.module_id, c.cat_id, c.category_name
+            """SELECT lr.resource_id, lr.resource_title, m.module_id, m.module_name, c.cat_id, c.category_name
                FROM learning_resources_tbl lr
                JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
                JOIN modules_tbl m ON lr.module_id = m.module_id
@@ -261,7 +255,14 @@ def get_next_lesson_info(resource_id, acc_id=None):
                 "cat_id": following["cat_id"],
                 "category_name": following["category_name"],
             }
-        return {"type": "lesson", "resource_id": following["resource_id"], "resource_title": following["resource_title"]}
+        return {
+            "type": "lesson",
+            "resource_id": following["resource_id"],
+            "resource_title": following["resource_title"],
+            # the "Proceed?" popup says when the next lesson starts a new module
+            "new_module": following["module_id"] != current["module_id"],
+            "module_name": following["module_name"],
+        }
     except (Error, TypeError, ValueError) as e:
         print(f"lesson_summary: failed to compute next lesson for resource_id={resource_id}: {e}")
         return None

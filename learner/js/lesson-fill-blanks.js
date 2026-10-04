@@ -14,7 +14,10 @@
  *     the timer). The HUD shows total/5, e.g. "7/5".
  *   - Wrong answer: -1 life; the correct answer is revealed and the
  *     learner picks Try again (same item) or Skip puzzle (next item,
- *     no life, no score).
+ *     no life, no score). Until they pick one, the answer is LOCKED
+ *     (feat/fib-lock-after-check): the input box / tiles and Check
+ *     answer are disabled, so a checked answer can't be edited - the
+ *     same "tryagain" step Multiple Choice has after a wrong answer.
  *   - Correct answer: Cobra strikes SyntaxBug, next item.
  *   - 0 lives: the play pauses on its item; review the lesson and come
  *     back - it resumes the same play once a life is back.
@@ -619,8 +622,9 @@
                 : result.is_close ? "Almost there" : "Not quite";
             ui.fbText.textContent = result.is_correct
                 ? (result.feedback || "")
-                : `${result.feedback || ""} SyntaxBug bites back (−1 life).`.trim();
-            // After a wrong answer: reveal the answer, then Try again or Skip.
+                : `${result.feedback || ""} SyntaxBug bites back (−1 life). This puzzle is marked wrong - you can fix it later in a retake if your module needs one.`.trim();
+            // Right or wrong, the only way forward is the next puzzle
+            // (adviser's rule: the first answer counts; no Try again).
             const reveal = !result.is_correct && !!result.correct_answer;
             ui.fbAnswer.hidden = !reveal;
             ui.fbAnswer.innerHTML = "";
@@ -630,8 +634,8 @@
                 code.textContent = result.correct_answer;
                 ui.fbAnswer.appendChild(code);
             }
-            ui.fbActions.hidden = result.is_correct || server.total_lives <= 0;
-            ui.nextBtn.hidden = !result.is_correct;
+            ui.fbActions.hidden = true;
+            ui.nextBtn.hidden = false;
             ui.nextBtn.textContent = server.completed ? "See results" : "Next puzzle";
         }
 
@@ -676,7 +680,8 @@
                 return;
             }
 
-            // Wrong: stay on this item (Try Again).
+            // Wrong: marked wrong, and the play moves on (Next puzzle) -
+            // at 0 lives the next puzzle opens paused (advance -> cooldown).
             wrongOnCurrent = true;
             streak = 0;
             bump(ui.livesStat);
@@ -688,13 +693,9 @@
                 paintSlot();
             }
             updateHUD();
-            if (server.total_lives <= 0) {
-                setTimeout(() => { if (!disposed) enterCooldown(); }, FIB_ANIM.foebite);
-                setMode("busy");
-            } else {
-                setMode("playing");
-                if (slotInput) slotInput.select();
-            }
+            // The checked answer stays on screen, locked; Next moves on.
+            setMode("review");
+            ui.nextBtn.focus({ preventScroll: true });
         }
 
         // Skip the current puzzle: no score - the server logs it as 'skipped'.
@@ -706,7 +707,10 @@
             fromPreview = fromPreview === true;   // the feedback button passes a click event
             fromBar = fromBar === true;
             const costsLife = fromPreview || (fromBar && !wrongOnCurrent);
-            if (disposed || mode !== (fromPreview ? "ready" : "playing")) return;
+            // feat/fib-lock-after-check: the feedback row's Skip is pressed
+            // while the answer is locked ("tryagain").
+            const canSkip = fromPreview ? mode === "ready" : (mode === "playing" || mode === "tryagain");
+            if (disposed || !canSkip) return;
             setMode("busy");
             let data = null;
             try {
@@ -768,7 +772,9 @@
         }
 
         function retryItem() {
-            if (mode !== "playing") return;
+            // feat/fib-lock-after-check: Try again is what unlocks the answer.
+            if (mode !== "tryagain") return;
+            setMode("playing");
             hideFeedback();
             clearSlot();
             if (slotInput) {
@@ -969,6 +975,7 @@
             } else if (e.key === "Enter") {
                 if (mode === "playing" && currentAnswer()) { e.preventDefault(); submitAnswer(); }
                 else if (mode === "review") { e.preventDefault(); advance(); }
+                else if (mode === "tryagain") { e.preventDefault(); retryItem(); }   // feat/fib-lock-after-check
             }
         }
 

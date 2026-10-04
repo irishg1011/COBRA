@@ -1,0 +1,60 @@
+/* ==========================================================================
+   "Lesson / Module / Chapter complete - proceed?" popup (proceed-modal.js)
+   Shared by the lesson Summary, the Lessons page and the Module Review.
+   ========================================================================== */
+.proceed-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.45);
+}
+.proceed-overlay[hidden] { display: none; }
+.proceed-dialog {
+    width: 100%;
+    max-width: 440px;
+    padding: 28px 26px 22px;
+    border-radius: 16px;
+    background: #fffef4;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    text-align: center;
+    animation: proceed-pop 0.18s ease-out;
+}
+@keyframes proceed-pop {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.proceed-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #dcfce7;
+    color: #16a34a;
+    font-size: 26px;
+}
+.proceed-dialog h2 { margin: 0 0 8px; font-size: 20px; color: #0f172a; }
+.proceed-dialog p { margin: 0 0 20px; font-size: 14px; line-height: 1.55; color: #475569; }
+.proceed-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.proceed-btn {
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+.proceed-btn-primary { background: #16a34a; color: #fff; }
+.proceed-btn-primary:hover { background: #15803d; }
+.proceed-btn-secondary { background: #fff; color: #0f172a; border-color: #cbd5e1; }
+.proceed-btn-secondary:hover { background: #f8fafc; }
+@media (max-width: 480px) {
+    .proceed-actions { flex-direction: column-reverse; }
+    .proceed-btn { width: 100%; }
+}

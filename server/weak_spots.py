@@ -345,11 +345,14 @@ def _best_section(item, candidates):
     return best_index
 
 
-def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None):
+def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None, include_correct=False):
     """
     Groups of {part -> missed items} for the given lessons (one course scan).
     candidates_cache: pass the same dict when building for several learners,
     so each lesson's content is read and split only once.
+    include_correct: also put each item's correct answer in the result. Only
+    module_review.py asks for it, and only once the module is PASSED (no
+    retake can be started any more, so showing it gives nothing away).
     """
     groups = {}
     order_of = {l["resource_id"]: i for i, l in enumerate(course)}
@@ -392,6 +395,7 @@ def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None):
                 # never sent to the learner; they get the feedback instead.
                 "your_answer": item["your_answer"],
                 "feedback": item["feedback"],
+                **({"correct": item["correct"]} if include_correct else {}),
             })
 
     out = sorted(groups.values(), key=lambda g: g["order"])
@@ -634,6 +638,10 @@ def get_review_status(acc_id, resource_id):
             "module_percent": module["percent"],
             "module_below": is_last and module["needs_retake"],
             "module_missed": module_missed,
+            # Module Review card (module_review.py) - shown once all lessons are done
+            "module_id": module_id,
+            "module_all_done": module["all_done"],
+            "module_passed": module["passed"],
         }
     except Error as e:
         print(f"weak_spots: failed to load review status for resource_id={resource_id}: {e}")

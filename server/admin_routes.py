@@ -99,9 +99,17 @@ from achievements import (  # feat/mentor-achievements: Mentor > Achievements pa
     BADGE_LIMITS, BADGE_COLOR_SWATCHES,
 )
 from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
-from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo
+from learning_analytics import get_learning_analytics, empty_analytics  # Admin > Analytics
+from profile_avatar import get_avatar_url, get_avatar_urls, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo + table photos
 from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
 from recommendations import get_recommendations_data, empty_recommendations_data  # feat/mentor-recommendations: Mentor > Recommendations page
+from contact_messages import (  # feat/contact-messages: Admin > Messages (landing page "Send Us a Message")
+    get_messages_data, empty_messages_data, get_message, send_reply, REPLY_MAX,
+)
+from urllib.parse import quote  # feat/staff-search: ?q= on the result links
+from werkzeug.routing import BuildError
+from staff_search import search_everything  # feat/staff-search: the header's "Search anything..." box
+from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
@@ -741,6 +749,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
 
         cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
+        avatars = get_avatar_urls(cursor, [r["acc_id"] for r in rows])  # None = default icon
         cursor.close()
 
         now = datetime.now()
@@ -762,6 +771,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "is_locked": is_locked,
                 "date_created": _fmt_date(row.get("created_at")),
                 "last_login": _fmt_datetime(row.get("last_login")),
+                "avatar_url": avatars.get(row["acc_id"]),
             })
 
         # Metrics should always reflect the FULL registry, not the
@@ -989,6 +999,7 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
 
         cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
+        avatars = get_avatar_urls(cursor, [r.get("acc_id") for r in rows])  # None = default icon
         cursor.close()
 
         for row in rows:
@@ -1005,6 +1016,7 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
                 "role": row.get("role") or "Unknown",
                 "status": row.get("attempt_status"),
                 "attempted_at": _fmt_datetime(row.get("attempted_at")),
+                "avatar_url": avatars.get(row.get("acc_id")),
             })
 
         return logs
@@ -2476,7 +2488,7 @@ def preview_play_exercise_submit():
     exercise_id = data.get("exercise_id")
     if not exercise_id:
         return jsonify({"success": False, "message": "exercise_id is required."}), 400
-    result = grade_preview_exercise(exercise_id, data.get("actual_outputs") or [])
+    result = grade_preview_exercise(exercise_id, data.get("actual_outputs") or [], data.get("submitted_code"))
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 500
     if result["status"] != "correct":
@@ -3392,7 +3404,24 @@ def learner_progress_learner_detail(acc_id):
 
 @admin_bp.route('/analytics')
 def analytics():
-    return render_placeholder("Analytics")
+    """
+    Admin > Analytics (Learning Analytics). The charts are filled by
+    admin-analytics.js from /admin/analytics/data right after the page
+    opens - the numbers live in learning_analytics.py.
+    """
+    return render_template('analytics.html')
+
+
+@admin_bp.route('/analytics/data')
+def analytics_data():
+    """Every card of the Analytics page. ?status=all|active|inactive&range=all|7d|30d|90d"""
+    status = request.args.get('status', '')
+    date_range = request.args.get('range', '')
+    data = get_learning_analytics(status, date_range)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load analytics.",
+                        **empty_analytics()}), 500
+    return jsonify({"success": True, **data}), 200
 
 
 # ============================================================
@@ -3569,6 +3598,121 @@ def _read_report_filters():
         "module_id": request.args.get('module_id', '') or None,
         "search": request.args.get('q', ''),
     }
+
+
+# ============================================================
+# ROUTE: HEADER SEARCH (Admin + Mentor) - feat/staff-search
+# The "Search anything..." box in the shared header. staff_search.py
+# finds matches for every role; THIS route keeps only the results whose
+# page the logged-in role may open (the same role_permissions map that
+# guards the pages), and turns each one into a link.
+# ============================================================
+@admin_bp.route('/search')
+def staff_search():
+    role = g.get("staff_role")
+    groups = []
+    for group in search_everything(request.args.get('q', '')):
+        items = []
+        for item in group["items"]:
+            if not is_allowed(item["endpoint"], role):
+                continue
+            try:
+                url = url_for(item["endpoint"])
+            except BuildError:
+                continue
+            if item.get("q"):
+                url += "?q=" + quote(item["q"])
+            items.append({"title": item["title"], "subtitle": item["subtitle"], "url": url})
+        if items:
+            groups.append({"label": group["label"], "items": items})
+    return jsonify({"success": True, "groups": groups}), 200
+
+
+# ============================================================
+# ROUTE: HEADER BELL (Admin) - feat/admin-bell
+# The logged-in admin's own notifications (new landing page message,
+# account locked, learner signed up, learner finished the course).
+# The account is ALWAYS session["admin_id"] - never an id from the
+# request. Rules live in staff_notifications.py. ADMIN only: mentors
+# have no bell.
+# ============================================================
+@admin_bp.route('/notifications')
+def staff_notifications_list():
+    data = list_notifications(
+        session.get("admin_id"),
+        only_unread=request.args.get("filter") == "unread",
+        before_id=request.args.get("before_id", type=int),
+        limit=request.args.get("limit", default=12, type=int),
+    )
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load notifications."}), 500
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/notifications/count')
+def staff_notifications_count():
+    count = unread_count(session.get("admin_id"))
+    if count is None:
+        return jsonify({"success": False}), 500
+    return jsonify({"success": True, "unread_count": count}), 200
+
+
+@admin_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+def staff_notifications_read(notif_id):
+    count = mark_read(session.get("admin_id"), notif_id)
+    if count is None:
+        return jsonify({"success": False}), 500
+    return jsonify({"success": True, "unread_count": count}), 200
+
+
+@admin_bp.route('/notifications/read-all', methods=['POST'])
+def staff_notifications_read_all():
+    count = mark_read(session.get("admin_id"))
+    if count is None:
+        return jsonify({"success": False}), 500
+    return jsonify({"success": True, "unread_count": count}), 200
+
+
+# ============================================================
+# ROUTE: MESSAGES (Admin) - feat/contact-messages
+# Everything visitors send from the landing page's "Send Us a Message"
+# form. Admins read them here and reply; the reply is emailed to the
+# visitor. Thin wrappers - the rules live in contact_messages.py.
+# All four endpoints are ADMIN in role_permissions.py (default-deny).
+# ============================================================
+@admin_bp.route('/messages')
+def messages():
+    """Admin > Messages page. Stat cards and the table are loaded by admin-messages.js."""
+    return render_template('messages.html', reply_max=REPLY_MAX)
+
+
+@admin_bp.route('/messages/data')
+def messages_data():
+    data = get_messages_data(
+        search_query=request.args.get('q', ''),
+        status_filter=request.args.get('status', ''),
+        date_from=request.args.get('date_from', '') or None,
+        date_to=request.args.get('date_to', '') or None,
+        page=request.args.get('page', 1, type=int),
+    )
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load messages.", **empty_messages_data()}), 500
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/messages/<int:message_id>')
+def messages_detail(message_id):
+    """One message with its replies. Opening it marks it as read."""
+    payload, status = get_message(message_id)
+    return jsonify(payload), status
+
+
+@admin_bp.route('/messages/<int:message_id>/reply', methods=['POST'])
+def messages_reply(message_id):
+    """Emails the reply to the visitor and saves it. The sender is always the logged-in admin."""
+    data = request.get_json(silent=True) or {}
+    payload, status = send_reply(message_id, data.get("reply"), session.get("admin_id"))
+    return jsonify(payload), status
 
 
 @admin_bp.route('/reports')

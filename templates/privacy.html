@@ -21,7 +21,7 @@
          here only. When the text changes, raise the version here AND
          PRIVACY_VERSION in server/consent.py so learners are asked again. -->
     <main class="legal-page">
-        <a href="/" class="legal-back">Back to home</a>
+        <a href="{{ back_url or '/' }}" class="legal-back">{{ back_label or 'Back to home' }}</a>
 
         <div class="legal-card">
             <article id="legalDoc" class="legal-doc">

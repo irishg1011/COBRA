@@ -49,6 +49,7 @@
         const closeBtn = document.getElementById("closeLearnerCourseBtn");
         const errorEl = document.getElementById("learnerCourseError");
         const nameEl = document.getElementById("learnerCourseName");
+        const avatarEl = document.getElementById("learnerCourseAvatar");
         const accIdEl = document.getElementById("learnerCourseAccId");
         const currentEl = document.getElementById("learnerCourseCurrent");
         const currentPathEl = document.getElementById("learnerCourseCurrentPath");
@@ -87,6 +88,7 @@
                 .forEach((el) => setText(el, "—"));
             setText(currentPathEl, "");
             setText(modulesEl, "");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, null);
             if (chaptersEl) chaptersEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
             hideError();
         }
@@ -143,6 +145,19 @@
             `;
         }
 
+        // Module Review (the card at the end of every module on the learner's
+        // Lessons page): not ready / needs retake / passed.
+        function reviewBadgeHtml(review) {
+            if (!review) return "";
+            if (review.state === "passed") {
+                return `<span class="badge badge-active course-review-badge" title="Module Review: passed">Review: Passed ${escapeHtml(review.percent)}%${review.missed ? ` · ${escapeHtml(review.missed)} missed` : ""}</span>`;
+            }
+            if (review.state === "needs_retake") {
+                return `<span class="badge badge-locked course-review-badge" title="Module Review: below ${escapeHtml(review.pass_percent)}%">Review: Needs retake ${escapeHtml(review.percent)}% · ${escapeHtml(review.missed)} missed</span>`;
+            }
+            return `<span class="badge badge-inactive course-review-badge" title="Module Review opens when every lesson is finished">Review: Not ready</span>`;
+        }
+
         function chaptersHtml(chapters) {
             if (!chapters || chapters.length === 0) {
                 return `<p class="progress-detail-empty">There are no published lessons in the course yet.</p>`;
@@ -163,7 +178,7 @@
                         <summary class="course-summary course-summary-module">
                             <span class="course-summary-title">
                                 <i class="fa-solid fa-chevron-right course-caret"></i>
-                                ${escapeHtml(m.name)}
+                                ${escapeHtml(m.name)} ${reviewBadgeHtml(m.review)}
                             </span>
                             <span class="course-summary-stats">${groupStatsHtml(m)}</span>
                         </summary>
@@ -188,6 +203,7 @@
 
         function fillModal(learner) {
             setText(nameEl, learner.name || "—");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, learner.avatar_url);
             setText(accIdEl, learner.acc_id || "—");
 
             if (learner.current_state === "not_started") {

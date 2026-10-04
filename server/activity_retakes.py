@@ -2,7 +2,7 @@
 activity_retakes.py - Module 85% gate: retake rounds for the three games
 ------------------------------------------------------------------------------
 A module passes when every lesson in it is completed AND the average of
-its lessons' performance % is at least PASS_PERCENT. Below that, the
+its lessons' performance % is at least PASS_PERCENT (80). Below that, the
 learner retakes only the items they missed.
 
 An item counts as PASSED when either:
@@ -28,7 +28,8 @@ idempotently (ensure_retake_schema).
 from mysql.connector import Error
 
 RETAKES_TABLE = "activity_retakes_tbl"
-PASS_PERCENT = 85
+PASS_PERCENT = 80   # the module pass mark (was 85). The ONE place it is set: the gate, the
+                    # Lessons page, the Summary and the retake prompts all read this value.
 
 MCQ_TYPE = "Multiple Choice"
 FIB_TYPE = "Fill in the Blanks"
@@ -42,7 +43,9 @@ GAME_TABLES = {
 }
 
 # Statuses that move a game past an item (the item is "done" for position).
-DONE_STATUSES = ("correct", "close", "skipped")
+# "incorrect" too (adviser's rule): a wrong answer moves on - the first
+# answer is what counts, and the miss is fixed in the next retake round.
+DONE_STATUSES = ("correct", "close", "incorrect", "skipped")
 
 _retake_schema_ensured = False
 

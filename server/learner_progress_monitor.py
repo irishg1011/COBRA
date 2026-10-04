@@ -10,17 +10,20 @@ BY LESSON VIEW: one row = one learner in one lesson
 
 BY LESSON VIEW - SCORE
     The SAME Performance % the learner sees on their lesson summary.
-    The formula mirrors lesson_summary.get_lesson_performance_summary()
-    exactly - it is loaded in bulk here so a whole table costs a handful
-    of queries instead of a new connection + several queries per row.
-    If that formula ever changes, change _evaluate() here too.
+    The data is loaded in bulk here so a whole table costs a handful of
+    queries instead of a new connection + several queries per row, but
+    the grade itself comes from module_performance.lesson_grade_percent()
+    - the one place the rule is written (feat/grade-50-50).
       - activities: learner's score / item count (MCQ questions, FIB
         items, flashcards), published activities only
       - exercise (latest published, non-archived): full credit once a
         learner_exercise_progress_tbl row exists, otherwise the latest
         attempt's test_cases_passed
-      - Score % = AVERAGE of each gradeable activity's own % (each game
-        and the exercise weigh the same, whatever their item count)
+      - Score % = 50% ACTIVITIES + 50% LESSON CONTENT:
+          activities: POOLED - all correct items + passed test cases over
+            all items + test cases of the lesson (adviser's rule), worth 50
+          lesson content: content read, + video watched when the lesson
+            has a published video, worth 50
       - lessons with nothing graded -> score None (shown as "—")
 
 BY LESSON VIEW - COMPLETION
@@ -41,6 +44,11 @@ BY LEARNER VIEW: see the section further down.
 from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
+from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
+from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
+from activity_retakes import ensure_retake_schema
+from module_review import module_review_summary  # Module Review status in the Course Progress modal
+from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = 80
@@ -276,7 +284,7 @@ def _load_exercise_results(cursor, acc_ids, exercise_ids):
     passed = {(r["acc_id"], r["exercise_id"]) for r in cursor.fetchall()}
 
     cursor.execute(
-        f"""SELECT acc_id, exercise_id, test_cases_passed
+        f"""SELECT acc_id, exercise_id, test_cases_passed, status
             FROM exercise_submissions_tbl
             WHERE acc_id IN ({_ph(acc_ids)}) AND exercise_id IN ({_ph(exercise_ids)})
             ORDER BY attempt_number ASC, submission_id ASC""",
@@ -285,9 +293,13 @@ def _load_exercise_results(cursor, acc_ids, exercise_ids):
     submissions = {}
     for r in cursor.fetchall():
         key = (r["acc_id"], r["exercise_id"])
-        entry = submissions.setdefault(key, {"attempts": 0, "latest_passed": 0})
+        entry = submissions.setdefault(key, {"attempts": 0, "latest_passed": 0, "best_passed": 0, "skipped": False})
+        if r["status"] == "skipped":   # "skip for now" marker - not an attempt
+            entry["skipped"] = True
+            continue
         entry["attempts"] += 1
         entry["latest_passed"] = int(r["test_cases_passed"] or 0)  # last row = latest attempt
+        entry["best_passed"] = max(entry["best_passed"], entry["latest_passed"])
     return passed, submissions
 
 
@@ -300,7 +312,6 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
     activities = []
     graded_points = 0.0
     graded_total = 0
-    activity_percents = []  # one fraction (0..1) per gradeable activity
     activities_done = 0
 
     for act in lesson["activities"]:
@@ -322,7 +333,6 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         if act["item_total"] > 0:
             graded_points += score
             graded_total += act["item_total"]
-            activity_percents.append(score / act["item_total"])
 
     exercise = None
     exercise_done = False
@@ -331,29 +341,38 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         key = (acc_id, ex["exercise_id"])
         passed = key in ex_passed
         sub = submissions.get(key)
-        points = ex["test_total"] if passed else (sub["latest_passed"] if sub else 0)
-        exercise_done = passed
+        skipped = bool(sub and sub["skipped"] and not passed)
+        # Same rule as learner_exercise.exercise_score(): passed -> all,
+        # skipped -> best attempt, otherwise the latest attempt.
+        if passed:
+            points = ex["test_total"]
+        elif sub:
+            points = min(sub["best_passed"] if skipped else sub["latest_passed"], ex["test_total"])
+        else:
+            points = 0
+        exercise_done = passed or skipped
 
         exercise = {
             "title": ex["title"],
             "points_earned": points,
             "points_total": ex["test_total"],
             "passed": passed,
+            "skipped": skipped,
             "attempts": sub["attempts"] if sub else 0,
         }
 
         if ex["test_total"] > 0:
             graded_points += points
             graded_total += ex["test_total"]
-            activity_percents.append(points / ex["test_total"])
-
-    score_pct = (
-        round((sum(activity_percents) / len(activity_percents)) * 100)
-        if activity_percents else None
-    )
 
     video_watched = row.get("video_watched_at") is not None
     content_read = row.get("content_read_at") is not None
+
+    # feat/grade-50-50: score = 50% activities + 50% lesson content progress
+    # (content read, + video watched when the lesson has a published video).
+    content_total = 1 + (1 if lesson["has_video"] else 0)
+    content_done = (1 if content_read else 0) + (1 if lesson["has_video"] and video_watched else 0)
+    score_pct = lesson_grade_percent(graded_points, graded_total, content_done, content_total)
 
     steps_total = 1 + len(activities) + (1 if lesson["has_video"] else 0) + (1 if ex else 0)
     steps_done = (
@@ -407,6 +426,15 @@ def _evaluate_rows(cursor, rows):
         _evaluate(row, lessons[row["resource_id"]], act_progress, ex_passed, submissions)
         for row in rows
     ]
+
+
+def _attach_avatars(connection, items):
+    """Adds avatar_url (None = default icon) to one table page, in place."""
+    cursor = connection.cursor(dictionary=True)
+    avatars = get_avatar_urls(cursor, [item.get("acc_id") for item in items])
+    cursor.close()
+    for item in items:
+        item["avatar_url"] = avatars.get(item.get("acc_id"))
 
 
 TABLE_KEYS = ("progress_id", "acc_id", "name", "lesson", "score", "completion",
@@ -465,6 +493,7 @@ def get_learner_progress_overview(search_query=None, status_filter=None,
         offset = (page - 1) * per_page
 
         records = [{key: r[key] for key in TABLE_KEYS} for r in evaluated[offset:offset + per_page]]
+        _attach_avatars(connection, records)
 
         return {
             "records": records,
@@ -496,6 +525,10 @@ def get_learner_progress_detail(progress_id):
         cursor = connection.cursor(dictionary=True)
         rows = _fetch_progress_rows(cursor, progress_id=progress_id)
         evaluated = _evaluate_rows(cursor, rows)
+        if evaluated:
+            evaluated[0]["avatar_url"] = get_avatar_url(cursor, evaluated[0]["acc_id"])
+            # Strong / Needs work for this learner in this lesson (lesson_insights.py)
+            evaluated[0]["insights"] = lesson_insights(cursor, evaluated[0]["acc_id"], rows[0]["resource_id"])
         cursor.close()
         return evaluated[0] if evaluated else None
 
@@ -842,8 +875,11 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
         page = min(max(1, page or 1), total_pages)
         offset = (page - 1) * per_page
 
+        learners = [_strip_private(s) for s in summaries[offset:offset + per_page]]
+        _attach_avatars(connection, learners)
+
         return {
-            "learners": [_strip_private(s) for s in summaries[offset:offset + per_page]],
+            "learners": learners,
             "metrics": metrics,
             "total": total,
             "page": page,
@@ -888,6 +924,14 @@ def get_learner_course_detail(acc_id):
             (acc_id,)
         )
         unlocked = {r["entity_id"] for r in cursor.fetchall()}
+        avatar_url = get_avatar_url(cursor, acc_id)
+        # Module Review status per module (same states the learner sees on
+        # the card at the end of each module).
+        ensure_retake_schema(connection)
+        reviews = {
+            module["module_id"]: module_review_summary(cursor, acc_id, module["module_id"])
+            for chapter in chapters for module in chapter["modules"]
+        }
         cursor.close()
 
         all_ids = set(lesson_path.keys())
@@ -929,6 +973,7 @@ def get_learner_course_detail(acc_id):
                 modules_out.append({
                     "module_id": module["module_id"],
                     "name": module["name"],
+                    "review": reviews.get(module["module_id"]),
                     "is_current": any(l["is_current"] for l in lessons_out),
                     **_group_stats(lessons_out),
                     "lessons": lessons_out,
@@ -958,6 +1003,7 @@ def get_learner_course_detail(acc_id):
 
         result = _strip_private(summary)
         result["chapters"] = chapters_out
+        result["avatar_url"] = avatar_url
         return result
 
     except Error as e:

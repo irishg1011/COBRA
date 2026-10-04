@@ -21,16 +21,17 @@ Rules:
   - Grading: exact match with back_text (trimmed) = "correct";
     same apart from capital letters / extra spaces = "close" (accepted,
     no life lost, the exact spelling is shown); anything else =
-    "incorrect" (-1 life; the card's back is revealed and the learner
-    chooses Try Again (SAME card) or Skip (next card, logged as status
-    'skipped' - no life, no score)).
+    "incorrect" (-1 life, and the play MOVES ON to the next card -
+    adviser's rule: the first answer counts; a missed card is fixed later
+    in a retake round).
   - Lives: 5 regular (all back 10 min after the first loss) + 5 daily
     bonus lives at 8:00 AM PH time, spent first. Shared by every
     Flashcards activity in every lesson.
   - 0 lives: the play pauses on its card; resuming continues the SAME
     play (no new session row).
   - Saved score = cards answered exactly right on attempt_number 1.
-    Completed once every card has a correct/close answer. No replay.
+    Completed once every card is answered (right or wrong) or skipped.
+    No replay.
 
 learner_flashcard_routes.py turns these into HTTP responses.
 """
@@ -49,6 +50,7 @@ from lesson_activities import (
 from activity_retakes import (  # Module 85% gate: retake rounds
     FLASHCARD_TYPE, open_retake, retake_progress, complete_retake, retake_payload,
 )
+from learner_shuffle import order_rows, activity_scope  # feat/learner-shuffle
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
@@ -172,7 +174,7 @@ def _solved_ids(cursor, acc_id, card_ids):
     placeholders = ",".join(["%s"] * len(card_ids))
     cursor.execute(
         f"""SELECT DISTINCT flashcard_id FROM {FLASHCARD_ANSWERS_TABLE}
-            WHERE acc_id = %s AND status IN ('correct', 'close', 'skipped')
+            WHERE acc_id = %s AND status IN ('correct', 'close', 'incorrect', 'skipped')
               AND flashcard_id IN ({placeholders})""",
         tuple([acc_id] + card_ids)
     )
@@ -214,7 +216,8 @@ def _open(cursor, acc_id, la_id):
     type_id = _published_type_id(cursor, la_id)
     if type_id is None:
         return None
-    cards = _load_cards(cursor, la_id)
+    # feat/learner-shuffle: this learner's own card order (stable for them).
+    cards = order_rows(acc_id, activity_scope(la_id), _load_cards(cursor, la_id), "flashcard_id")
     card_ids = [c["flashcard_id"] for c in cards]
 
     # Lock order everywhere: lives pool first, then the session row.
@@ -548,7 +551,8 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
     learner/card, so attempt 1 stays the first attempt).
 
       correct / close -> next card (or completes the activity)
-      incorrect       -> -1 life, SAME card; at 0 lives the play pauses
+      incorrect       -> -1 life and ALSO the next card (the miss is kept
+                         for the retake); at 0 lives the play pauses there
 
     back_text ("answer") is returned only once the card is passed
     (correct/close) - never after a wrong answer and never before the
@@ -596,10 +600,10 @@ def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_
         )
 
         passed = status in ("correct", "close")
-        if passed:
-            _advance(cursor, ctx, flashcard_id)
-        else:
+        if not passed:
             take_life(pool)
+        _advance(cursor, ctx, flashcard_id)   # right or wrong, move on
+        if not passed:
             _pause_if_out_of_lives(cursor, ctx)
 
         return {

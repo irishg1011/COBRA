@@ -27,22 +27,24 @@
 
         overlay = document.createElement("div");
         overlay.id = "previewFrameModalOverlay";
-        overlay.className = "modal-overlay";
+        overlay.className = "modal-overlay preview-frame-overlay";
         overlay.innerHTML = `
             <div class="preview-frame-card" role="dialog" aria-modal="true" aria-labelledby="previewFrameTitle">
                 <div class="preview-frame-head">
                     <h3 class="preview-frame-title" id="previewFrameTitle">${escapeHtml(title || "Preview")}</h3>
                     <button type="button" id="previewFrameCloseBtn" class="modal-close-btn preview-frame-close-btn" title="Close" aria-label="Close">&times;</button>
                 </div>
-                <iframe class="preview-frame-iframe" src="/admin/preview-play?${query}" title="${escapeHtml(title || "Preview")}"></iframe>
+                <iframe class="preview-frame-iframe" src="/admin/preview-play?${query}&frame=modal" title="${escapeHtml(title || "Preview")}"></iframe>
             </div>
         `;
         document.body.appendChild(overlay);
+        document.body.classList.add("preview-frame-open");   // no page scroll behind the popup
 
         const frame = overlay.querySelector(".preview-frame-iframe");
 
         function closeModal() {
             overlay.remove();
+            document.body.classList.remove("preview-frame-open");
             document.removeEventListener("keydown", onEscKey);
             window.removeEventListener("message", onFrameMessage);
         }

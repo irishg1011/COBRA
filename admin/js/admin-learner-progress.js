@@ -137,7 +137,7 @@
             tableBody.innerHTML = records.map((rec) => `
                 <tr data-progress-id="${escapeHtml(rec.progress_id)}">
                     <td>${escapeHtml(rec.acc_id)}</td>
-                    <td>${escapeHtml(rec.name)}</td>
+                    <td><div class="profile-cell">${window.CobraAvatar.html(rec.avatar_url)}<span>${escapeHtml(rec.name)}</span></div></td>
                     <td>${escapeHtml(rec.lesson)}</td>
                     <td>${scoreBadgeHtml(rec.score)}</td>
                     <td>${completionHtml(rec.completion)}</td>

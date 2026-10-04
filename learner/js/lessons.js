@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const FLAG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h14.25a1.5 1.5 0 0 1 1.06 2.56l-3.19 3.19a1.5 1.5 0 0 0 0 2.12l3.19 3.19a1.5 1.5 0 0 1-1.06 2.56H3" /></svg>`;
     const CHEVRON_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>`;
 
+    const REVIEW_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
     const RETAKE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`;
 
     // ---- Module 85% gate: module score panel under each module header ----
@@ -86,9 +87,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
         note.textContent = module.passed
             ? `Average of your lesson scores · ${pass}% needed`
-            : `You need ${pass}% to unlock the next module. Retake your missed items below (${module.missed_total} left).`;
+            : `You need ${pass}% to unlock the next module. Open your Module Review below to see your ${module.missed_total} missed item${module.missed_total === 1 ? '' : 's'} and retake them.`;
         gate.appendChild(note);
         return gate;
+    }
+
+    // ---- Module Review: one more card after the module's lessons ----
+    // (module-review.html) Where the learner's weak spots for the whole
+    // module live, grouped by lesson. Required when the module is below the
+    // pass mark, optional practice once it is passed.
+    function appendModuleReview(module, moduleIndex, rail, list) {
+        const review = module.review || { state: 'not_ready', lessons_left: module.lessons_total };
+        const pass = review.pass_percent || module.pass_percent || 80;
+        const open = !review.locked && review.state !== 'not_ready';
+
+        if (module.lessons.length) {
+            const line = document.createElement('div');
+            line.className = `lesson-rail-line ${open ? 'unlocked' : ''}`;
+            rail.appendChild(line);
+        }
+        const railIcon = document.createElement('div');
+        railIcon.className = `lesson-rail-icon module-review-rail ${open ? 'unlocked' : 'locked'}`;
+        railIcon.innerHTML = open ? REVIEW_ICON : LOCK_ICON;
+        rail.appendChild(railIcon);
+
+        let badge, text;
+        if (review.locked) {
+            badge = '<span class="lesson-badge status-locked">Locked</span>';
+            text = `Pass Module ${moduleIndex} first to unlock this module.`;
+        } else if (review.state === 'not_ready') {
+            badge = '<span class="lesson-badge status-locked">Not ready</span>';
+            const left = review.lessons_left || 0;
+            text = `Finish ${left === 1 ? 'the last lesson' : `all ${left} remaining lessons`} to see your weak spots for this module.`;
+        } else if (review.state === 'needs_retake') {
+            badge = '<span class="lesson-badge status-retake">Required</span>';
+            text = `Module score ${review.percent}% \u2022 you need ${pass}%. Review your ${review.missed} missed item${review.missed === 1 ? '' : 's'} and retake them to unlock the next module.`;
+        } else {
+            badge = '<span class="lesson-badge status-completed">Passed</span>';
+            text = review.missed > 0
+                ? `Module score ${review.percent}% \u2022 optional: look back at the ${review.missed} item${review.missed === 1 ? '' : 's'} you missed.`
+                : `Module score ${review.percent}% \u2022 no weak spots, great job!`;
+        }
+
+        const card = document.createElement('div');
+        card.className = `lesson-card module-review-card ${open ? 'unlocked' : 'locked'} is-${review.state}`;
+        card.innerHTML = `
+            <div class="lesson-card-main">
+                <div class="lesson-badges">
+                    <span class="lesson-badge number">Module ${moduleIndex + 1} Review</span>
+                    ${badge}
+                </div>
+                <h3>Module Review</h3>
+                <p class="module-review-text">${text}</p>
+            </div>
+            <button type="button" class="lesson-action-btn ${open ? (review.state === 'needs_retake' ? 'action-retake' : 'action-unlocked') : 'action-locked'}" ${open ? '' : 'disabled'}>
+                ${open ? `Open Review ${CHEVRON_ICON}` : `Locked ${LOCK_ICON}`}
+            </button>
+        `;
+        if (open) {
+            card.querySelector('.lesson-action-btn').addEventListener('click', () => {
+                window.location.href = `/module-review?module_id=${module.module_id}`;
+            });
+        }
+        list.appendChild(card);
     }
 
     function statusLabel(status) {
@@ -117,7 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const pill = document.createElement('button');
             pill.type = 'button';
             pill.className = 'lessons-jump-pill';
-            pill.innerHTML = `<span class="dot"></span> Module ${moduleIndex + 1}: ${module.module_name} ${module.lessons_completed}/${module.lessons_total}`;
+            // Short pill (the full name is in the heading it scrolls to).
+            pill.innerHTML = `<span class="dot"></span> Module ${moduleIndex + 1} · ${module.lessons_completed}/${module.lessons_total}`;
+            pill.title = module.module_name;
             pill.addEventListener('click', () => {
                 document.getElementById(`module-${module.module_id}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
@@ -165,18 +228,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const card = document.createElement('div');
                 card.className = `lesson-card ${isUnlocked ? 'unlocked' : 'locked'}`;
 
-                const baseLabel = lesson.has_exercise
-                    ? `${lesson.activities_completed}/${lesson.activities_total} activities \u2022 Exercise ${lesson.exercise_completed ? '\u2713' : ''}`
-                    : `${lesson.activities_completed}/${lesson.activities_total} activities`;
-                // Module 85% gate: the lesson's own score once it's done.
-                const activityLabel = (lesson.status === 'completed' && lesson.performance_percent !== null && lesson.performance_percent !== undefined)
-                    ? `${baseLabel} \u2022 ${lesson.performance_percent}%`
-                    : baseLabel;
+                // Only what the lesson has: no "0/0 activities" for a lesson
+                // without activities or an exercise.
+                const parts = [];
+                if (lesson.activities_total > 0) parts.push(`${lesson.activities_completed}/${lesson.activities_total} activities`);
+                if (lesson.has_exercise) parts.push(`Exercise ${lesson.exercise_completed ? '\u2713' : ''}`.trim());
+                if (!parts.length && lesson.status === 'completed') parts.push('Completed');
+                // Module gate: the lesson's own score once it's done.
+                if (lesson.status === 'completed' && lesson.performance_percent !== null && lesson.performance_percent !== undefined) {
+                    parts.push(`${lesson.performance_percent}%`);
+                }
+                const activityLabel = parts.join(' \u2022 ');
                 const needsRetake = module.needs_retake && lesson.missed > 0 && isUnlocked;
 
-                const fillPercent = lesson.activities_total > 0
-                    ? Math.round((lesson.activities_completed / lesson.activities_total) * 100)
-                    : 0;
+                // The bar = every step of the lesson (video, content, activities,
+                // exercise), so a finished lesson is always fully green.
+                const fillPercent = lesson.steps_total > 0
+                    ? Math.round((lesson.steps_done / lesson.steps_total) * 100)
+                    : (lesson.status === 'completed' ? 100 : 0);
 
                 card.innerHTML = `
                     <div class="lesson-card-main">
@@ -190,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <h3>${lesson.resource_title}</h3>
                         <div class="lesson-mini-progress-row">
                             <div class="lesson-mini-track"><div class="lesson-mini-fill" style="width:${fillPercent}%;"></div></div>
-                            <span class="lesson-mini-label">${activityLabel}</span>
+                            ${activityLabel ? `<span class="lesson-mini-label">${activityLabel}</span>` : ''}
                         </div>
                     </div>
                     ${needsRetake ? `
@@ -215,11 +284,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.appendChild(card);
             });
 
+            appendModuleReview(module, moduleIndex, rail, list);
+
             railRow.appendChild(rail);
             railRow.appendChild(list);
             block.appendChild(railRow);
             modulesContainer.appendChild(block);
         });
+    }
+
+    // "Proceed to next chapter" (once this chapter's last module is passed):
+    // the button opens the "Chapter complete!" popup.
+    function renderNextChapter(next) {
+        const row = document.getElementById('nextChapterRow');
+        if (!row) return;
+        if (!next) {
+            row.hidden = true;
+            return;
+        }
+        document.getElementById('nextChapterText').textContent =
+            `You passed every module in this chapter. Next up: ${next.category_name}.`;
+        const btn = document.getElementById('nextChapterBtn');
+        btn.textContent = `Proceed to next chapter: ${next.category_name}`;
+        btn.onclick = () => {
+            window.CobraProceed.open({
+                icon: 'fa-flag-checkered',
+                title: 'Chapter complete!',
+                text: `Proceed to the next chapter, ${next.category_name}, starting with "${next.resource_title}"?`,
+                yesLabel: 'Yes, next chapter',
+                href: `/lesson-content?resource_id=${next.resource_id}`,
+            });
+        };
+        row.hidden = false;
     }
 
     async function loadLessons() {
@@ -243,6 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             lessonsLoading.style.display = 'none';
             renderLessons(data);
+            renderNextChapter(data.next_chapter);
 
         } catch (err) {
             console.error('Error loading lessons:', err);

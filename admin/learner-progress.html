@@ -134,7 +134,7 @@
                                 {% for rec in records %}
                                 <tr data-progress-id="{{ rec.progress_id }}">
                                     <td>{{ rec.acc_id }}</td>
-                                    <td>{{ rec.name }}</td>
+                                    <td><div class="profile-cell">{% if rec.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ rec.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}<span>{{ rec.name }}</span></div></td>
                                     <td>{{ rec.lesson }}</td>
                                     <td>
                                         {% if rec.score is none %}
@@ -194,6 +194,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-progress-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-progress.js') }}"></script>
 </body>

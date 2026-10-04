@@ -358,6 +358,7 @@
         function stopPlayFrame() {
             // Removing the frame stops its game loop and any sound.
             if (playFrame) { playFrame.remove(); playFrame = null; }
+            modal.classList.remove("is-playing");
         }
 
         async function startActivitiesStep() {
@@ -383,8 +384,12 @@
             playFrame = document.createElement("iframe");
             playFrame.className = "preview-play-frame";
             playFrame.title = "Activities and exercise preview";
-            playFrame.src = `/admin/preview-play?${walkthroughQuery()}`;
+            // frame=modal: compact layout inside (this walkthrough has its own
+            // stepper); is-playing makes the walkthrough nearly full screen
+            // while a game runs, so the whole arena is always visible.
+            playFrame.src = `/admin/preview-play?${walkthroughQuery()}&frame=modal`;
             activitiesContainer.appendChild(playFrame);
+            modal.classList.add("is-playing");
         }
 
         async function onPlayFinished() {

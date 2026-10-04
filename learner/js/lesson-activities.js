@@ -44,8 +44,16 @@
         if (!response.ok) throw new Error("Request failed");
         const data = await response.json();
         if (!data.success) throw new Error("Unexpected response");
+        lessonMeta = {
+            passPercent: data.pass_percent || 80,
+            moduleNeedsRetake: !!data.module_needs_retake,
+            moduleId: data.module_id || null,
+        };
         return data.activities || [];
     }
+
+    // Module info from /api/lesson-activities (pass mark, retake state).
+    let lessonMeta = { passPercent: 80, moduleNeedsRetake: false, moduleId: null };
 
     async function checkAnswer(payload) {
         const response = await fetch(`${API_BASE_URL}/api/lesson-activities/check-answer`, {
@@ -249,8 +257,8 @@
     // question and pause/resume all live on the server:
     //   GET  /mcq/state      POST /mcq/play
     //   POST /mcq/answer     POST /mcq/lose-life
-    // Wrong answer -> -1 life, the correct option is revealed, and the
-    // learner picks Try Again (SAME question) or Skip (next question).
+    // Wrong answer -> -1 life, marked wrong, and the play moves on to the
+    // next question (the retake round fixes missed questions later).
     // Before every question a preview modal shows the question and its
     // choices; the cobra only moves after the learner presses Start.
     // Lives (shared by every Multiple Choice activity): 5 regular, all
@@ -355,7 +363,7 @@
                 <div class="mcq-arena-overlay" data-ui="overlay" hidden></div>
             </div>
             <div class="mcq-arena-toolbar">
-                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter, hitting a wall, or biting yourself costs a life. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.</p>
+                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.</p>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
                 <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn"><i class="fa-solid fa-compress"></i> <span>Exit full screen</span></button>
             </div>
@@ -563,60 +571,33 @@
             node.appendChild(text);
         }
 
-        // Wrong answer: show why, show the right answer, then let the
-        // learner Try Again (same question) or Skip to the next one.
-        function showTryAgain(option, feedback) {
+        // Wrong answer: show why, then MOVE ON (adviser's rule - the first
+        // try is what counts; a missed question is fixed later in a retake
+        // round, not by retrying it now). The server already moved the play
+        // to the next question (or finished it after the last one).
+        function showWrongAndNext(option, feedback) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
+            const last = !!(server && server.completed);
             showOverlay(`
                 <div class="mcq-arena-overlay-card">
                     <i class="fa-solid fa-circle-xmark mcq-arena-overlay-icon is-danger"></i>
                     <h4>Not quite</h4>
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
                     <div class="mcq-arena-reveal" data-ui="tryReveal" hidden></div>
-                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Try question ${qIndex + 1} again for the satisfaction, or skip to the next one.</p>
+                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} is marked wrong - you can fix it later in a retake if your module needs one.</p>
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn"><i class="fa-solid fa-forward"></i> Skip question</button>
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="tryBtn"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
                     </div>
                 </div>
             `);
             overlayNode("tryFeedback").textContent = feedback || `${option.option_letter} isn't the right answer.`;
             fillReveal(overlayNode("tryReveal"));
-            overlayNode("skipBtn").addEventListener("click", skipQuestion);
-            overlayNode("tryBtn").addEventListener("click", () => {
-                if (disposed) return;
-                startQuestion();
-                if (fallback) {
-                    hideOverlay();
-                    setMode("playing");
-                    return;
-                }
-                resumePlay();
+            overlayNode("nextBtn").addEventListener("click", () => {
+                if (disposed || mode !== "tryagain") return;
+                hideOverlay();
+                advance();
             });
-        }
-
-        // Skip the current question (only offered after a wrong answer):
-        // no life, no score - the server logs it as 'skipped'.
-        async function skipQuestion() {
-            if (disposed || mode !== "tryagain") return;
-            setMode("busy");
-            let data = null;
-            try {
-                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id });
-            } catch (err) {
-                if (!disposed) showError(err.message);
-                return;
-            }
-            if (disposed) return;
-            applyState(data.state);
-            if (!data.skipped) {
-                resyncFromState();
-                return;
-            }
-            streak = 0;
-            updateHUD();
-            advance();
         }
 
         // Skip from the question preview (the question was never played):
@@ -938,7 +919,7 @@
                 setTimeout(() => { if (!disposed) showOutOfLives(); }, 900);
                 return;
             }
-            showTryAgain(option, result.feedback);
+            showWrongAndNext(option, result.feedback);
         }
 
         function advance() {
@@ -996,12 +977,17 @@
         function step() {
             prevSnake = snake.map((p) => ({ ...p }));
             dir = nextDir;
-            const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+            // feat/snake-wrap: walls are passed through. A head that goes
+            // beyond any edge comes back in on the opposite side, still
+            // moving the same way (dir is not touched). The body follows by
+            // itself: each segment simply takes the place of the one ahead.
+            // Biting itself (below) is checked on these wrapped cells, so
+            // it still costs a life exactly as before.
+            const head = {
+                x: (snake[0].x + dir.x + COLS) % COLS,
+                y: (snake[0].y + dir.y + ROWS) % ROWS
+            };
 
-            if (head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS) {
-                handleCollision("You hit the wall");
-                return;
-            }
             if (snake.some((s, i) => i < snake.length - 1 && s.x === head.x && s.y === head.y)) {
                 handleCollision("The cobra bit itself");
                 return;
@@ -1021,9 +1007,25 @@
 
         function draw(alpha, dtSeconds) {
             if (!arena || snake.length === 0) return;
-            const pts = snake.map((cur, i) => {
+            // feat/snake-wrap: a segment never moves more than one cell per
+            // step, so a bigger jump means it went through a wall - it really
+            // moved one cell the other way.
+            const stepThroughWall = (delta, size) => (delta > 1 ? delta - size : (delta < -1 ? delta + size : delta));
+            // The body is handed to the arena as ONE unbroken line: every
+            // segment is placed right next to the one before it, even when
+            // that puts it past the board edge. The arena draws whatever is
+            // past an edge on the opposite side (arena3d.js).
+            const pts = [];
+            snake.forEach((cur, i) => {
                 const prev = prevSnake[Math.min(i, prevSnake.length - 1)] || cur;
-                return { x: prev.x + (cur.x - prev.x) * alpha, y: prev.y + (cur.y - prev.y) * alpha };
+                let x = prev.x + stepThroughWall(cur.x - prev.x, COLS) * alpha;
+                let y = prev.y + stepThroughWall(cur.y - prev.y, ROWS) * alpha;
+                if (i > 0) {
+                    const before = pts[i - 1];
+                    x += Math.round((before.x - x) / COLS) * COLS;
+                    y += Math.round((before.y - y) / ROWS) * ROWS;
+                }
+                pts.push({ x, y });
             });
             const head = pts[0];
             const neck = pts[1] || { x: head.x - 1, y: head.y };
@@ -1364,7 +1366,7 @@
         if (activity.completed) {
             container.innerHTML = "";
             const already = el("div", "activity-summary");
-            already.innerHTML = `<p><i class="fa-solid fa-circle-check"></i> You already completed "${activity.activity_title}".</p>`;
+            already.innerHTML = answeredNoteHtml(activity);
             container.appendChild(already);
 
             const continueBtn = el("button", "activity-next-btn", "Continue");
@@ -1376,6 +1378,37 @@
             return;
         }
         renderGame(activity, container, onActivityDone);
+    }
+
+    // Why an answered activity can't be played again - the same rule the
+    // server uses: only the FIRST attempt counts; the only way to fix a missed
+    // item is a retake round, which opens when the module is below the pass mark.
+    function answeredNoteHtml(activity) {
+        const title = escapeHtml(activity.activity_title);
+        const total = activity.item_total;
+        const score = activity.first_score;
+        const missed = activity.retake ? activity.retake.missed : 0;
+        const scoreText = (total && score !== null && score !== undefined)
+            ? ` You got <strong>${score}/${total}</strong> on your first try.` : "";
+        let rule;
+        if (activity.retake && activity.retake.allowed && missed > 0) {
+            rule = `Your module is below ${lessonMeta.passPercent}%, so you can retake the ${missed} item${missed === 1 ? "" : "s"} you missed`
+                + (lessonMeta.moduleId
+                    ? ` from your <a href="/module-review?module_id=${lessonMeta.moduleId}">Module Review</a> or the Retake button on the Lessons page.`
+                    : " from the Retake button on the Lessons page.");
+        } else if (missed > 0) {
+            rule = "Only your first attempt counts, so this activity can't be answered again.";
+        } else {
+            rule = "Only your first attempt counts, and you got everything right.";
+        }
+        return `<p class="answered-title"><i class="fa-solid fa-lock"></i> Already answered: "${title}"</p>`
+            + `<p class="answered-detail">${scoreText} ${rule}</p>`;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
     function renderGame(activity, container, onActivityDone) {
@@ -1427,7 +1460,7 @@
         const gate = el("div", "activities-gate");
         gate.innerHTML = opts.retake ? `
             <h3><i class="fa-solid fa-rotate-right"></i> Retake</h3>
-            <p>Replay only the items you missed. Get them right on the first try to raise your module score to 85%.</p>
+            <p>Replay only the items you missed. Get them right on the first try to raise your module score to ${lessonMeta.passPercent}%.</p>
             <button type="button" class="activities-proceed-btn">Start retake</button>
         ` : `
             <h3><i class="fa-solid fa-list-check"></i> Activities</h3>

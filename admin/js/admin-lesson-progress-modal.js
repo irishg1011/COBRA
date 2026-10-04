@@ -21,6 +21,8 @@
         const closeBtn = document.getElementById("closeProgressDetailBtn");
         const errorEl = document.getElementById("progressDetailError");
         const nameEl = document.getElementById("progressDetailName");
+        const avatarEl = document.getElementById("progressDetailAvatar");
+        const insightsEl = document.getElementById("progressDetailInsights");
         const accIdEl = document.getElementById("progressDetailAccId");
         const lessonEl = document.getElementById("progressDetailLesson");
         const scoreEl = document.getElementById("progressDetailScore");
@@ -66,25 +68,61 @@
             [nameEl, accIdEl, lessonEl, scoreEl, completionEl, startedEl, completedEl]
                 .forEach((el) => setText(el, "—"));
             setText(stepCountEl, "");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, null);
             if (stepsEl) stepsEl.innerHTML = "";
             if (activitiesEl) activitiesEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
             if (exerciseEl) exerciseEl.innerHTML = "";
+            toggleSection(activitiesEl, true);
+            toggleSection(exerciseEl, true);
+            if (insightsEl) insightsEl.innerHTML = "";
             setText(gradedEl, "");
             hideError();
         }
 
+        // Only the steps this lesson HAS (same as the learner's step bar):
+        // no Video row without a video.
         function stepsHtml(rec) {
-            const video = rec.has_video
-                ? (rec.video_watched ? badge("badge-active", "Watched") : badge("badge-inactive", "Not watched"))
-                : badge("badge-inactive", "No video");
             const content = rec.content_read
                 ? badge("badge-active", "Read")
                 : badge("badge-inactive", "Not read");
+            const video = rec.has_video
+                ? `<li class="progress-step-item"><span>Video Tutorial</span>${rec.video_watched ? badge("badge-active", "Watched") : badge("badge-inactive", "Not watched")}</li>`
+                : "";
 
             return `
-                <li class="progress-step-item"><span>Video Tutorial</span>${video}</li>
+                ${video}
                 <li class="progress-step-item"><span>Lesson Content</span>${content}</li>
             `;
+        }
+
+        // Strong | Needs work for this learner in this lesson - worked out
+        // automatically from first-try answers (server: lesson_insights.py).
+        function insightsHtml(insights) {
+            const skills = (insights && insights.skills) || [];
+            if (!skills.length) {
+                return `<p class="progress-detail-empty">No answers yet in this lesson's activities.</p>`;
+            }
+            const cell = (list, empty) => list.length
+                ? list.map((s) => `
+                    <div class="insight-cell-item">
+                        <strong>${escapeHtml(s.label)}</strong> <span class="text-muted">${escapeHtml(s.percent)}% · ${escapeHtml(s.right)}/${escapeHtml(s.total)} first try (${escapeHtml(s.source)})</span>
+                        ${!s.strong && s.parts && s.parts.length ? `<small class="insight-cell-parts">Re-read: ${s.parts.map(escapeHtml).join(", ")}</small>` : ""}
+                    </div>`).join("")
+                : `<span class="text-muted">${escapeHtml(empty)}</span>`;
+            return `
+                <table class="progress-detail-table insight-table">
+                    <thead><tr><th>Strong (${escapeHtml(insights.strong_percent)}%+)</th><th>Needs work</th></tr></thead>
+                    <tbody><tr>
+                        <td>${cell(insights.strong || [], "None yet")}</td>
+                        <td>${cell(insights.weak || [], "No weak areas")}</td>
+                    </tr></tbody>
+                </table>`;
+        }
+
+        // Hide a whole section (heading included) when the lesson has none of it.
+        function toggleSection(el, show) {
+            const section = el ? el.closest(".progress-detail-section") : null;
+            if (section) section.hidden = !show;
         }
 
         function activityStatus(act) {
@@ -119,6 +157,7 @@
             }
             let status;
             if (ex.passed) status = badge("badge-active", "Passed");
+            else if (ex.skipped) status = badge("badge-locked", "Skipped");
             else if (ex.attempts > 0) status = badge("badge-locked", "Not passed yet");
             else status = badge("badge-inactive", "Not attempted");
 
@@ -139,6 +178,7 @@
 
         function fillModal(rec) {
             setText(nameEl, rec.name || "—");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, rec.avatar_url);
             setText(accIdEl, rec.acc_id || "—");
             setText(lessonEl, rec.lesson || "—");
             setText(scoreEl, rec.score === null || rec.score === undefined ? "—" : `${rec.score}%`);
@@ -150,11 +190,15 @@
             if (stepsEl) stepsEl.innerHTML = stepsHtml(rec);
             if (activitiesEl) activitiesEl.innerHTML = activitiesHtml(rec.activities);
             if (exerciseEl) exerciseEl.innerHTML = exerciseHtml(rec.exercise);
+            toggleSection(activitiesEl, !!(rec.activities && rec.activities.length));
+            toggleSection(exerciseEl, !!rec.exercise);
+            if (insightsEl) insightsEl.innerHTML = insightsHtml(rec.insights);
+            toggleSection(insightsEl, !!(rec.activities && rec.activities.length) || !!rec.exercise);
 
             setText(
                 gradedEl,
                 rec.graded_total > 0
-                    ? `Score = ${rec.graded_points} of ${rec.graded_total} graded points across activities and the exercise - the same Performance % the learner sees.`
+                    ? `Score = 50% activities (${rec.graded_points} of ${rec.graded_total} graded points across activities and the exercise) + 50% lesson content (content read, and the video when the lesson has one) - the same Performance % the learner sees.`
                     : "Nothing in this lesson has been graded yet, so there is no score."
             );
         }

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte - Module Review</title>
+    <link rel="stylesheet" href="../static/style.css">
+    <link rel="stylesheet" href="../static/animations.css">
+    <link rel="stylesheet" href="../learner/css/lessons.css">
+    <link rel="stylesheet" href="../learner/css/lesson-content.css">
+    <link rel="stylesheet" href="../learner/css/module-review.css">
+    <link rel="stylesheet" href="../learner/css/proceed-modal.css">
+    <link rel="stylesheet" href="../learner/css/lesson-insights.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../learner/css/profile-menu.css">
+    <link rel="stylesheet" href="../learner/css/learner-responsive.css">
+    <link rel="stylesheet" href="/static/code-editor.css">
+</head>
+<body>
+
+    <!-- Logged In Header -->
+    <header class="learner-header">
+        <div class="logo-container">
+            <img src="../assets/images/logo-ad.png" alt="CobraByte Logo" class="logo-img">
+        </div>
+
+        <!-- Center Navigation -->
+        <nav class="dashboard-nav">
+            <a href="/dashboard" class="dashboard-nav-link">
+                <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i>
+                Dashboard
+            </a>
+            <a href="/learning-map" class="dashboard-nav-link active">
+                <i class="fa-solid fa-book-open" aria-hidden="true"></i>
+                Lessons
+            </a>
+            <a href="/sandbox" class="dashboard-nav-link">
+                <i class="fa-solid fa-code" aria-hidden="true"></i>
+                Sandbox
+            </a>
+        </nav>
+
+        <!-- Right side header control panel elements -->
+        <div class="header-controls">
+            <button type="button" class="icon-btn header-icon-btn" aria-label="Notifications">
+                <i class="fa-solid fa-bell" aria-hidden="true"></i>
+            </button>
+
+            <!-- Profile dropdown - built by learner.js -->
+            <div class="profile-menu" data-profile-menu></div>
+        </div>
+    </header>
+
+    <main class="lessons-page module-review-page">
+        <a href="/learning-map" class="lessons-back-link" id="reviewBackLink">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            Back to Lessons
+        </a>
+
+        <div class="lessons-card">
+            <p class="review-eyebrow" id="reviewEyebrow">Module Review</p>
+            <h1 id="reviewTitle">Module Review</h1>
+            <p class="review-subtitle" id="reviewSubtitle">Loading...</p>
+
+            <div class="review-score" id="reviewScore" hidden>
+                <div class="perf-ring" id="reviewRing" style="--pct: 0;"><span id="reviewRingLabel">0%</span></div>
+                <div class="review-score-text">
+                    <p class="review-state" id="reviewState"></p>
+                    <p class="review-explain" id="reviewExplain"></p>
+                </div>
+            </div>
+
+            <div class="review-actions" id="reviewActions" hidden></div>
+        </div>
+
+        <div class="lessons-card" id="reviewLessonsCard" hidden>
+            <h2 class="review-section-title">Your lessons</h2>
+            <p class="review-section-sub" id="reviewLessonsSub"></p>
+            <div id="reviewLessons"></div>
+        </div>
+
+        <p class="lessons-error" id="reviewError" hidden></p>
+    </main>
+
+    <script src="../learner/js/proceed-modal.js"></script>
+    <script src="../learner/js/lesson-insights.js"></script>
+    <script src="../learner/js/module-review.js"></script>
+    <script src="../learner/js/learner.js"></script>
+    <script src="../static/auth-guard.js"></script>
+    <script src="../static/page-transitions.js"></script>
+    <!-- Python code colors + auto-indent (static/code-editor.js) -->
+    <script src="/static/code-editor.js"></script>
+</body>
+</html>

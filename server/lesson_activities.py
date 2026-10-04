@@ -27,6 +27,7 @@ from cobradb import get_db_connection
 from activity_retakes import (  # Module 85% gate: retake rounds
     ensure_retake_schema, open_retake, retake_progress, complete_retake, retake_payload,
 )
+from learner_shuffle import learner_order, order_rows, shuffle_options, activity_scope  # feat/learner-shuffle
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
@@ -95,7 +96,7 @@ def get_chapter_terrain(cursor, resource_id):
     return "land" if order.index(row["cat_id"]) % 2 == 0 else "water"
 
 
-def get_published_activities_for_resource(resource_id):
+def get_published_activities_for_resource(resource_id, acc_id=None):
     """
     Returns every Published learning_activities_tbl row attached to
     `resource_id`, with Section 2 content shaped for the learner -
@@ -156,14 +157,19 @@ def get_published_activities_for_resource(resource_id):
                     f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
                     (la_id,)
                 )
-                questions = cursor.fetchall()
+                # feat/learner-shuffle: with acc_id (the learner's lesson page) the
+                # questions come in THAT learner's order - the same order the
+                # arena's server side uses (_open_mcq) - and each question's
+                # choices are shuffled and re-lettered for them. Without acc_id
+                # (staff preview) everything stays in the order it was written.
+                questions = order_rows(acc_id, activity_scope(la_id), cursor.fetchall(), "q_id")
                 for q in questions:
                     cursor.execute(
                         f"""SELECT option_id, option_letter, option_text
                             FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC""",
                         (q["q_id"],)
                     )
-                    options = cursor.fetchall()
+                    options = shuffle_options(acc_id, q["q_id"], cursor.fetchall())
                     entry["items"].append({
                         "q_id": q["q_id"],
                         "question_text": q["question_text"],
@@ -178,7 +184,7 @@ def get_published_activities_for_resource(resource_id):
                     f"SELECT fib_id, content FROM {FILL_BLANKS_TABLE} WHERE la_id = %s ORDER BY fib_id ASC",
                     (la_id,)
                 )
-                for row2 in cursor.fetchall():
+                for row2 in order_rows(acc_id, activity_scope(la_id), cursor.fetchall(), "fib_id"):
                     entry["items"].append({"fib_id": row2["fib_id"], "content": row2["content"]})
 
             elif activity_type == "Flashcards":
@@ -186,7 +192,7 @@ def get_published_activities_for_resource(resource_id):
                     f"SELECT flashcard_id, front_text, back_text FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC",
                     (la_id,)
                 )
-                for row2 in cursor.fetchall():
+                for row2 in order_rows(acc_id, activity_scope(la_id), cursor.fetchall(), "flashcard_id"):
                     entry["items"].append({
                         "flashcard_id": row2["flashcard_id"],
                         "front": row2["front_text"],
@@ -592,9 +598,10 @@ def get_activity_type_name(la_id):
 #                                         (status + first-attempt score)
 #
 # Rules:
-#   - wrong answer: -1 life; the correct option is revealed and the
-#     learner chooses Try Again (same question) or Skip (next question,
-#     logged as status 'skipped', no life, no score)
+#   - wrong answer: -1 life, logged 'incorrect' and the play MOVES ON to
+#     the next question (adviser's rule: the first try is what counts; a
+#     missed question is fixed later in a retake round, not by retrying)
+#   - skip (from the question preview): -1 life, logged 'skipped', moves on
 #   - correct answer: move to the next question
 #   - wall hit / self-bite: -1 life, nothing logged as an answer
 #   - 0 lives: the play is paused on its current question - never reset
@@ -834,6 +841,24 @@ def _first_attempt_score(cursor, acc_id, la_id):
     return cursor.fetchone()["cnt"]
 
 
+def _solved_q_ids(cursor, acc_id, q_ids):
+    """
+    Questions this learner is DONE with in the first play: answered
+    (right or wrong - a wrong answer moves on) or skipped. Retake rounds
+    keep their own list (activity_retakes.py).
+    """
+    if not q_ids:
+        return set()
+    placeholders = ",".join(["%s"] * len(q_ids))
+    cursor.execute(
+        f"""SELECT DISTINCT q_id FROM {MCQ_ANSWERS_TABLE}
+            WHERE acc_id = %s AND status IN ('correct', 'incorrect', 'skipped')
+              AND retake_id IS NULL AND q_id IN ({placeholders})""",
+        tuple([acc_id] + q_ids)
+    )
+    return {r["q_id"] for r in cursor.fetchall()}
+
+
 def _first_unsolved_index(cursor, acc_id, q_ids):
     """
     Fallback position when the stored current_q_id no longer exists
@@ -842,13 +867,7 @@ def _first_unsolved_index(cursor, acc_id, q_ids):
     """
     if not q_ids:
         return 0
-    placeholders = ",".join(["%s"] * len(q_ids))
-    cursor.execute(
-        f"""SELECT DISTINCT q_id FROM {MCQ_ANSWERS_TABLE}
-            WHERE acc_id = %s AND status IN ('correct', 'skipped') AND q_id IN ({placeholders})""",
-        tuple([acc_id] + q_ids)
-    )
-    solved = {r["q_id"] for r in cursor.fetchall()}
+    solved = _solved_q_ids(cursor, acc_id, q_ids)
     for i, q_id in enumerate(q_ids):
         if q_id not in solved:
             return i
@@ -879,7 +898,8 @@ def _open_mcq(cursor, acc_id, la_id):
         f"SELECT q_id FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
         (la_id,)
     )
-    q_ids = [r["q_id"] for r in cursor.fetchall()]
+    # feat/learner-shuffle: this learner's own question order (stable for them).
+    q_ids = learner_order(acc_id, activity_scope(la_id), [r["q_id"] for r in cursor.fetchall()])
 
     # Lock order everywhere: lives pool first, then the session row.
     pool = _load_lives(cursor, acc_id, activity["activity_type_id"])
@@ -1215,7 +1235,9 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
     per learner/question, so attempt 1 stays the first attempt).
 
       correct -> next question (or completes the activity)
-      wrong   -> -1 life, SAME question; at 0 lives the play pauses
+      wrong   -> -1 life and ALSO the next question (no retrying - the
+                 first try is what counts; retakes fix missed items);
+                 at 0 lives the play pauses on that next question
 
     The correct option is never revealed after a wrong answer.
     payload["graded"] is False when nothing was graded (no running play,
@@ -1269,11 +1291,7 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
             _advance_mcq(cursor, ctx)
         else:
             _take_life(pool)
-            if not ctx.get("retake"):
-                cursor.execute(
-                    f"UPDATE {MCQ_SESSIONS_TABLE} SET score = %s WHERE session_id = %s",
-                    (_first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]), session_row["session_id"])
-                )
+            _advance_mcq(cursor, ctx)   # move on - the miss is kept for the retake
             _pause_if_out_of_lives(cursor, ctx)
 
         payload = {
@@ -1293,13 +1311,27 @@ def _advance_mcq(cursor, ctx):
     """Moves the play to the next question, or completes it after the last."""
     session_row = ctx["session"]
     q_ids = ctx["q_ids"]
-    ctx["index"] = ctx["index"] + 1
-    if ctx["index"] >= len(q_ids):
-        _complete_mcq(cursor, ctx)
-        return
     if ctx.get("retake"):
+        ctx["index"] = ctx["index"] + 1
+        if ctx["index"] >= len(q_ids):
+            _complete_mcq(cursor, ctx)
+            return
         session_row["current_q_id"] = q_ids[ctx["index"]]
         return
+
+    # feat/learner-shuffle: go to the next question that is still UNSOLVED
+    # (wrapping to the start), and finish only when none is left - the same
+    # rule Flashcards uses. For a learner who plays straight through this is
+    # simply "the next one". It only matters when the order changed under a
+    # play already in progress (the shuffle going live mid-activity): nothing
+    # they already solved is asked again and nothing unsolved is left out.
+    solved = _solved_q_ids(cursor, ctx["acc_id"], q_ids)
+    remaining = [i for i, q in enumerate(q_ids) if q not in solved]
+    if not remaining:
+        ctx["index"] = len(q_ids)
+        _complete_mcq(cursor, ctx)
+        return
+    ctx["index"] = next((i for i in remaining if i > ctx["index"]), remaining[0])
     next_q = q_ids[ctx["index"]]
     cursor.execute(
         f"""UPDATE {MCQ_SESSIONS_TABLE}

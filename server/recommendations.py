@@ -28,6 +28,8 @@ from datetime import datetime
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from activity_retakes import ensure_retake_schema
+from module_review import module_review_summary  # Module Review status per learner + module
 from weak_spots import (
     RECOMMENDATIONS_TABLE, LEGACY_REASON_RE, ensure_recommendation_schema, refresh_recommendations,
 )
@@ -177,7 +179,7 @@ def get_recommendations_data(search_query=None, status_filter=None, date_from=No
 
         cursor.execute(
             f"""
-            SELECT r.recommendation_id, r.acc_id, r.weak_topic, r.reason,
+            SELECT r.recommendation_id, r.acc_id, r.module_id, r.weak_topic, r.reason,
                    r.missed_count, r.initial_missed, r.generated_at, r.resolved_at,
                    {STATUS_SQL} AS status,
                    lr.resource_title, m.module_name,
@@ -190,6 +192,15 @@ def get_recommendations_data(search_query=None, status_filter=None, date_from=No
             tuple(table_params + [per_page, offset])
         )
         fetched = cursor.fetchall()
+
+        # Module Review status (the card at the end of the module on the
+        # learner's Lessons page) - once per learner + module on this page.
+        ensure_retake_schema(connection)
+        reviews = {}
+        for row in fetched:
+            key = (row["acc_id"], row["module_id"])
+            if key not in reviews:
+                reviews[key] = module_review_summary(cursor, row["acc_id"], row["module_id"])
         cursor.close()
 
         rows = [{
@@ -204,6 +215,7 @@ def get_recommendations_data(search_query=None, status_filter=None, date_from=No
             "status": row["status"],
             "status_label": STATUS_LABELS.get(row["status"], "Pending"),
             "completed_on": _fmt_date(row.get("resolved_at")) if row["status"] == "completed" else "",
+            "module_review": reviews.get((row["acc_id"], row["module_id"])),
         } for row in fetched]
 
         return {

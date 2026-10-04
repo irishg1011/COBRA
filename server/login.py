@@ -33,6 +33,7 @@ from notifications import learner_notifications_bp, notify  # header bell notifi
 from session_tracker import end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
 from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /admin/login
     authenticate, send_reset_code, verify_reset_code, reset_password, otp_storage,
+    send_username_code, verify_username_code,  # feat/forgot-username
 )
 from validators import PASSWORD_REGEX, calculate_age, MIN_SIGNUP_AGE, MAX_SIGNUP_AGE  # NEW: shared validation rules (also reused by admin_routes.py's Create Administrator flow)
 from id_generator import generate_prefixed_acc_id  # NEW: shared account-ID generator (also reused by admin_routes.py)
@@ -76,6 +77,10 @@ from consent import (
     has_current_consent, CONSENT_PAGE_URL,
 )
 app.register_blueprint(consent_bp)
+
+# feat/contact-messages: the landing page's "Send Us a Message" form (public)
+from contact_routes import contact_bp
+app.register_blueprint(contact_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
@@ -351,6 +356,16 @@ def signup():
                "Start with Chapter 1 on your Learning Map. Your progress, badges and lives show up here.",
                "/learning-map", "welcome")
 
+        # 5. feat/admin-bell: the admins' header bell hears about the new learner
+        #    (imported here: only this route needs it)
+        from urllib.parse import quote
+        from staff_notifications import notify_admins
+        notify_admins(cursor, "signup",
+                      f"**{first_name} {last_name}** signed up",
+                      f"New learner account {new_acc_id}.",
+                      f"/admin/account-security.html?q={quote(email)}",
+                      f"signup:{new_acc_id}")
+
         connection.commit()
         cursor.close()
 
@@ -415,6 +430,24 @@ def forgot_password_reset():
     payload, status = reset_password(
         data.get("email"), data.get("newPassword"), data.get("confirmPassword"), "learner"
     )
+    return jsonify(payload), status
+
+
+# feat/forgot-username: "Forgot your username?" on the learner login page.
+# Same shape as the two forgot-password routes above; the rules live in
+# auth_core.py. The username is only returned after the emailed code is
+# verified.
+@app.route("/forgot-username/send-otp", methods=["POST"])
+def forgot_username_send_otp():
+    data = request.get_json(silent=True) or {}
+    payload, status = send_username_code(data.get("email"), "learner")
+    return jsonify(payload), status
+
+
+@app.route("/forgot-username/verify-otp", methods=["POST"])
+def forgot_username_verify_otp():
+    data = request.get_json(silent=True) or {}
+    payload, status = verify_username_code(data.get("email"), data.get("otp"), "learner")
     return jsonify(payload), status
 
 

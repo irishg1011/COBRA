@@ -38,11 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryReview = document.getElementById('summaryReview');
     const summaryReviewNote = document.getElementById('summaryReviewNote');
     const reviewLessonBtn = document.getElementById('reviewLessonBtn');
-    const reviewWeakSpotsBtn = document.getElementById('reviewWeakSpotsBtn');
-    const reviewWeakSpotsLabel = document.getElementById('reviewWeakSpotsLabel');
-    const reviewModuleWeakSpotsBtn = document.getElementById('reviewModuleWeakSpotsBtn');
-    const reviewModuleWeakSpotsLabel = document.getElementById('reviewModuleWeakSpotsLabel');
-    const weakSpotsPanel = document.getElementById('weakSpotsPanel');
+    const openModuleReviewBtn = document.getElementById('openModuleReviewBtn');
+    const lessonResumeNote = document.getElementById('lessonResumeNote');
+    const lessonResumeText = document.getElementById('lessonResumeText');
 
     const exerciseStep = document.getElementById('exerciseStep');
     const exerciseTitle = document.getElementById('exerciseTitle');
@@ -56,6 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const exerciseResultBox = document.getElementById('exerciseResultBox');
     const exerciseCompleteRow = document.getElementById('exerciseCompleteRow');
     const exerciseCompleteStatus = document.getElementById('exerciseCompleteStatus');
+    const exerciseClueRow = document.getElementById('exerciseClueRow');
+    const exerciseHintBtn = document.getElementById('exerciseHintBtn');
+    const exerciseTips = document.getElementById('exerciseTips');
+    const exerciseSkippedNote = document.getElementById('exerciseSkippedNote');
+    const exerciseSubmitNote = document.getElementById('exerciseSubmitNote');
+    const exerciseSkipBtn = document.getElementById('exerciseSkipBtn');
 
     const videoStep = document.getElementById('videoStep');
     const lessonVideoFrame = document.getElementById('lessonVideoFrame');
@@ -73,6 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let activeOutputBox = null;
     let lessonData = null;
+    // True only when THIS visit completed the lesson for the first time -
+    // then the Summary's Continue button asks "Proceed?" (proceed-modal.js)
+    // instead of leaving straight away.
+    let justCompleted = false;
     let stepOrder = []; // built dynamically depending on whether this lesson has a video
     let ytPlayer = null;
     let ytPollTimer = null;
@@ -102,7 +110,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let resumeNoteStep = null;   // the note only belongs to the step it was shown on
+
     function showStep(key) {
+        if (lessonResumeNote && resumeNoteStep && key !== resumeNoteStep) {
+            lessonResumeNote.hidden = true;
+            resumeNoteStep = null;
+        }
         // Leaving the video step (Continue button or the stepper): pause the
         // YouTube player - hiding the iframe alone doesn't stop playback.
         // Paused (not stopped) so it resumes where the learner left off.
@@ -197,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     videoContinueBtn.addEventListener('click', () => {
         if (videoContinueBtn.disabled) return;
-        goToStep("content");
+        goToStep(stepAfter("video") || "content");
     });
 
     // ---------------- Content step (real scroll tracking) ----------------
@@ -244,9 +258,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('resize', checkContentFits);
 
-    contentContinueBtn.addEventListener('click', () => {
+    // The step after `key` in this lesson's own step list (only the steps
+    // the mentor uploaded - see the step order built in loadLesson()).
+    function stepAfter(key) {
+        const i = stepOrder.findIndex((s) => s.key === key);
+        return i >= 0 && i + 1 < stepOrder.length ? stepOrder[i + 1].key : null;
+    }
+
+    const CONTINUE_LABELS = {
+        content: "Continue to Lesson Content",
+        activities: "Continue to Activities",
+        exercise: "Continue to Exercise",
+    };
+
+    // Content is the last step before the Summary when the lesson has no
+    // activities and no exercise - its button then finishes the lesson.
+    function updateContinueLabels() {
+        const afterContent = stepAfter("content");
+        contentContinueBtn.textContent = afterContent === "summary"
+            ? (lessonData && lessonData.is_completed ? "View Summary" : "Finish Lesson")
+            : (CONTINUE_LABELS[afterContent] || "Continue");
+        videoContinueBtn.textContent = CONTINUE_LABELS[stepAfter("video")] || "Continue";
+    }
+
+    contentContinueBtn.addEventListener('click', async () => {
         if (contentContinueBtn.disabled) return;
-        goToStep("activities");
+        const next = stepAfter("content");
+        if (next !== "summary") {
+            goToStep(next);
+            return;
+        }
+        if (lessonData.is_completed) {
+            goToStep("summary");
+            return;
+        }
+        contentContinueBtn.disabled = true;
+        await attemptCompleteLesson();
+        contentContinueBtn.disabled = false;
     });
 
     // ---------------- Step navigation ----------------
@@ -1101,20 +1149,135 @@ document.addEventListener('DOMContentLoaded', () => {
         exerciseRunBtn.textContent = "Run";
     });
 
+    // ---------------- Exercise: submit lock, fix tips, hint, skip ----------------
+    // exerciseState comes from the server (learner_exercise.get_exercise_state):
+    // {passed, skipped, attempts, failed, best, total, hint_after, skip_after}.
+    let exerciseState = null;
+    let lastFailedCode = null;   // Submit stays greyed out until the code differs from this
+
+    const codeKey = (code) => (code || '').replace(/\s+$/g, '').replace(/[ \t]+\n/g, '\n');
+
+    function updateSubmitLock() {
+        if (lessonData.exercise_completed || exerciseSubmitBtn.dataset.running === '1') return;
+        const unchanged = lastFailedCode !== null && codeKey(exerciseCodeBox.innerText) === lastFailedCode;
+        exerciseSubmitBtn.disabled = unchanged;
+        exerciseSubmitNote.hidden = !unchanged;
+    }
+    exerciseCodeBox.addEventListener('input', updateSubmitLock);
+    exerciseCodeBox.addEventListener('keyup', updateSubmitLock);
+
+    function renderTips(tips) {
+        if (!tips || !tips.length) {
+            exerciseTips.hidden = true;
+            exerciseTips.innerHTML = '';
+            return;
+        }
+        exerciseTips.innerHTML = `
+            <p class="exercise-tips-title"><i class="fa-solid fa-wrench"></i> How to fix it</p>
+            <ul>${tips.map((t) => `
+                <li><span class="exercise-tip-test">Test ${escapeHtml(t.test)}</span>${t.input ? ` (input: <span class="exercise-tip-input">${escapeHtml(t.input)}</span>)` : ''}: ${escapeHtml(t.tip)}</li>`).join('')}
+            </ul>`;
+        exerciseTips.hidden = false;
+    }
+
+    // Tips saved with an attempt (feedback_given): first line = feedback,
+    // then one "Test N: tip" line per failing test case.
+    function tipsFromSaved(text) {
+        return String(text || '').split('\n').slice(1).map((line) => {
+            const m = line.match(/^Test (\d+): (.*)$/);
+            if (!m) return null;
+            const tc = (lessonData.exercise.test_cases || []).find((c) => String(c.test_order) === m[1]);
+            return { test: m[1], input: tc ? tc.test_input : '', tip: m[2] };
+        }).filter(Boolean);
+    }
+
+    function renderExerciseState() {
+        const st = exerciseState;
+        // Admin preview: the clue is always shown and there is nothing to skip.
+        if (PREVIEW || !st) {
+            exerciseClueRow.hidden = !lessonData.exercise.clue;
+            exerciseHintBtn.hidden = true;
+            exerciseSkipBtn.hidden = true;
+            exerciseSkippedNote.hidden = true;
+            return;
+        }
+        const hintOpen = !exerciseClueRow.hidden;
+        const canHint = !!lessonData.exercise.clue && (st.passed || st.failed >= st.hint_after);
+        exerciseHintBtn.hidden = !canHint || hintOpen;
+        if (!canHint) exerciseClueRow.hidden = true;
+        exerciseSkipBtn.hidden = st.passed || st.skipped || st.failed < st.skip_after;
+        exerciseSkippedNote.hidden = !st.skipped || st.passed;
+        if (st.skipped && lessonData.is_completed) {
+            // Lesson finished by skipping: the way on to the Summary stays here.
+            exerciseCompleteRow.style.display = "flex";
+            exerciseCompleteStatus.style.display = "inline-flex";
+        }
+    }
+
+    exerciseHintBtn.addEventListener('click', () => {
+        exerciseClueRow.hidden = false;
+        exerciseHintBtn.hidden = true;
+    });
+
+    exerciseSkipBtn.addEventListener('click', () => {
+        const st = exerciseState || {};
+        const best = `${st.best || 0} of ${st.total || lessonData.exercise.test_cases.length}`;
+        const open = window.CobraProceed && window.CobraProceed.open;
+        const doSkip = () => skipExercise();
+        if (!open) { if (window.confirm('Skip this exercise for now?')) doSkip(); return; }
+        window.CobraProceed.open({
+            icon: 'fa-forward',
+            title: 'Skip this exercise for now?',
+            text: `Your best attempt (${best} test cases) will count toward your lesson score, and "Applying the lesson" will show as Needs work. `
+                + `You can finish the lesson and come back any time - passing the exercise later gives full credit.`,
+            yesLabel: 'Yes, skip for now',
+            noLabel: 'Keep trying',
+            onYes: doSkip
+        });
+    });
+
+    async function skipExercise() {
+        exerciseSkipBtn.disabled = true;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/skip`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ exercise_id: lessonData.exercise.exercise_id })
+            });
+            const result = await response.json();
+            if (result.state) exerciseState = result.state;
+            renderExerciseState();
+            if (result.success) {
+                await attemptCompleteLesson();
+            } else {
+                exerciseResultBox.style.display = 'block';
+                exerciseResultBox.className = 'exercise-result fail';
+                exerciseResultBox.textContent = result.message || 'Could not skip this exercise.';
+            }
+        } catch (err) {
+            console.error('Error skipping exercise:', err);
+        }
+        exerciseSkipBtn.disabled = false;
+    }
+
     exerciseSubmitBtn.addEventListener('click', async () => {
         const code = exerciseCodeBox.innerText;
-        if (!code.trim()) return;
+        if (!code.trim() || exerciseSubmitBtn.disabled) return;
 
         exerciseSubmitBtn.disabled = true;
+        exerciseSubmitBtn.dataset.running = '1';
+        exerciseSubmitNote.hidden = true;
         exerciseSubmitBtn.textContent = "Running tests...";
 
-        const actualOutputs = [];
-        for (const tc of lessonData.exercise.test_cases) {
-            const output = await runExerciseForGrading(code, tc.test_input);
-            actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
-        }
-
+        let failed = false;
         try {
+            const actualOutputs = [];
+            for (const tc of lessonData.exercise.test_cases) {
+                const output = await runExerciseForGrading(code, tc.test_input);
+                actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
+            }
+
             const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1129,26 +1292,68 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             exerciseResultBox.style.display = "block";
+            if (result.state) exerciseState = result.state;
+            if (result.locked) {
+                lockExercise({ passed: lessonData.exercise.test_cases.length, total: lessonData.exercise.test_cases.length });
+                return;
+            }
             if (result.success && result.status === "correct") {
                 exerciseResultBox.className = "exercise-result pass";
-                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${result.feedback} (${result.passed}/${result.total} test cases passed)`;
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(result.feedback)} (${result.passed}/${result.total} test cases passed)`;
+                renderTips([]);
                 exerciseCompleteRow.style.display = "flex";
                 exerciseCompleteStatus.style.display = "inline-flex";
-                await attemptCompleteLesson();
+                lessonData.exercise_completed = true;
+                lockExercise(result);
+                renderExerciseState();
+                // A skipped lesson is already complete - passing now just
+                // upgrades the score, so stay here instead of re-finishing.
+                if (!lessonData.is_completed) await attemptCompleteLesson();
             } else if (result.success) {
+                failed = true;
                 exerciseResultBox.className = "exercise-result fail";
-                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${result.feedback} (${result.passed}/${result.total} test cases passed)`;
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${escapeHtml(result.feedback)} (${result.passed}/${result.total} test cases passed)`;
+                renderTips(result.tips);
+                renderExerciseState();
             } else {
                 exerciseResultBox.className = "exercise-result fail";
                 exerciseResultBox.textContent = result.message || "Could not check your submission.";
             }
         } catch (err) {
             console.error('Error submitting exercise:', err);
+        } finally {
+            delete exerciseSubmitBtn.dataset.running;
         }
 
-        exerciseSubmitBtn.disabled = false;
-        exerciseSubmitBtn.textContent = "Submit";
+        if (!lessonData.exercise_completed) {
+            exerciseSubmitBtn.textContent = "Submit";
+            if (failed) lastFailedCode = codeKey(code);
+            exerciseSubmitBtn.disabled = false;
+            updateSubmitLock();
+        }
     });
+
+    // A passed exercise is locked, same rule as the activities: the result
+    // that counts is saved, so it can't be submitted again. Run still works
+    // so the learner can look at their code's output.
+    function lockExercise(result) {
+        exerciseSubmitBtn.disabled = true;
+        exerciseSubmitBtn.hidden = true;
+        exerciseCodeBox.setAttribute('contenteditable', 'false');
+        exerciseCodeBox.classList.add('is-locked');
+        let note = document.getElementById('exerciseLockedNote');
+        if (!note) {
+            note = document.createElement('p');
+            note.id = 'exerciseLockedNote';
+            note.className = 'answered-note';
+            exerciseResultBox.insertAdjacentElement('afterend', note);
+        }
+        exerciseSubmitNote.hidden = true;
+        exerciseSkipBtn.hidden = true;
+        exerciseSkippedNote.hidden = true;
+        const score = result && result.total ? ` (${result.passed}/${result.total} test cases)` : '';
+        note.innerHTML = `<i class="fa-solid fa-lock"></i> You passed this exercise${score}. Your result is saved, so it can't be submitted again.`;
+    }
 
     // ---------------- Activities step (unchanged behavior from before) ----------------
     async function attemptCompleteLesson() {
@@ -1169,7 +1374,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             if (result.success) {
+                const firstTime = !lessonData.is_completed;
                 lessonData.is_completed = true;
+                updateContinueLabels();
+                if (firstTime) {
+                    // First completion: straight to the Summary, which saves the
+                    // recommendations and then asks "Proceed to the next lesson?".
+                    justCompleted = true;
+                    goToStep("summary");
+                    return;
+                }
                 if (backToActivitiesBtn) backToActivitiesBtn.hidden = true;
                 lessonInProgressStatus.classList.remove('is-blocked');
                 lessonInProgressStatus.style.display = 'none';
@@ -1196,6 +1410,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // on a dead end: say what's left and give a way back into it.
     function showCompletionBlocked(result) {
         if (lessonData.exercise) return;   // exercise lessons finish on the Exercise step
+        if (!lessonData.has_activities) {
+            // Content-only lesson: it finishes on the Content step.
+            contentLockedNote.style.display = "inline-flex";
+            contentLockedNote.textContent = result.message || "This lesson could not be completed yet.";
+            return;
+        }
         const titles = Array.isArray(result.unfinished) ? result.unfinished : [];
         lessonCompleteRow.style.display = 'flex';
         lessonCompleteStatus.style.display = 'none';
@@ -1254,7 +1474,18 @@ document.addEventListener('DOMContentLoaded', () => {
         viewSummaryFromActivitiesBtn.addEventListener('click', () => goToStep("summary"));
     }
     if (viewSummaryFromExerciseBtn) {
-        viewSummaryFromExerciseBtn.addEventListener('click', () => goToStep("summary"));
+        // The exercise can be passed (and locked) while the lesson is not marked
+        // complete yet - e.g. the connection dropped right after passing. Then
+        // this button finishes the lesson first instead of leaving it stuck.
+        viewSummaryFromExerciseBtn.addEventListener('click', async () => {
+            if (!lessonData.is_completed && (lessonData.exercise_completed || (exerciseState && exerciseState.skipped))) {
+                await attemptCompleteLesson();
+                if (!lessonData.is_completed) return;
+                if (!justCompleted) goToStep("summary");
+                return;
+            }
+            goToStep("summary");
+        });
     }
 
     // ---------------- Summary step ----------------
@@ -1280,6 +1511,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
     function renderSummary(data) {
         if (data.performance_percent !== null && data.performance_percent !== undefined) {
             perfBanner.style.display = 'flex';
@@ -1287,189 +1524,165 @@ document.addEventListener('DOMContentLoaded', () => {
             perfRingLabel.textContent = data.performance_percent + '%';
         }
 
+        // Only what this lesson HAS: no video row without a video, no
+        // activity rows without activities, no exercise row without one.
         const rows = [];
-        rows.push(`<div class="summary-row"><span>Video Tutorial</span><span class="${data.video_watched ? 'ok' : 'pending'}">${data.video_watched ? 'Completed' : 'Not watched'}</span></div>`);
+        if (data.has_video) {
+            rows.push(`<div class="summary-row"><span>Video Tutorial</span><span class="${data.video_watched ? 'ok' : 'pending'}">${data.video_watched ? 'Completed' : 'Not watched'}</span></div>`);
+        }
         rows.push(`<div class="summary-row"><span>Lesson Content</span><span class="${data.content_read ? 'ok' : 'pending'}">${data.content_read ? 'Completed' : 'Not read'}</span></div>`);
 
         (data.activities || []).forEach(a => {
             const label = a.total > 0 ? `${a.score}/${a.total} points` : (a.completed ? 'Completed' : 'Not completed');
-            rows.push(`<div class="summary-row"><span>${a.activity_title} — ${a.activity_type}</span><span class="${a.completed ? 'ok' : 'pending'}">${label}</span></div>`);
+            rows.push(`<div class="summary-row"><span>${escapeHtml(a.activity_title)} — ${escapeHtml(a.activity_type)}</span><span class="${a.completed ? 'ok' : 'pending'}">${label}</span></div>`);
         });
 
         if (data.exercise) {
             const ex = data.exercise;
-            rows.push(`<div class="summary-row"><span>Exercise — ${ex.exercise_title}</span><span class="${ex.completed ? 'ok' : 'pending'}">${ex.points_earned}/${ex.points_total} test cases${ex.completed ? ' (Passed)' : ''}</span></div>`);
+            rows.push(`<div class="summary-row"><span>Exercise — ${escapeHtml(ex.exercise_title)}</span><span class="${ex.completed ? 'ok' : 'pending'}">${ex.points_earned}/${ex.points_total} test cases${ex.completed ? ' (Passed)' : (ex.skipped ? ' (Skipped – try again)' : '')}</span></div>`);
         }
 
         summaryList.innerHTML = rows.join('');
 
+        // Strong | Needs work, worked out from the first-try answers.
+        const insightsBox = document.getElementById('summaryInsights');
+        if (insightsBox && window.CobraInsights) insightsBox.innerHTML = window.CobraInsights.html(data.insights);
+
         const next = data.next;
+        const review = data.review || {};
+        const moduleReviewUrl = review.module_id ? `/module-review?module_id=${review.module_id}` : null;
+        const go = (url) => () => { window.location.href = url; };
+        let continueAction;
+
         if (next && next.type === "module_gate") {
-            // Module 85% gate: this module isn't passed yet, so no way forward.
+            // Module gate: this module isn't passed yet, so no way forward.
             if (summaryGateNote) {
                 summaryGateNote.textContent = next.all_done
-                    ? `Your module score is ${next.module_percent}%. You need ${next.pass_percent}% to unlock the next module - retake your missed items on the Lessons page.`
+                    ? `Your module score is ${next.module_percent}%. You need ${next.pass_percent}% to unlock the next module - open your Module Review to see what you missed and retake it.`
                     : `Finish every lesson in this module with an average of ${next.pass_percent}% or higher to unlock the next module.`;
                 summaryGateNote.hidden = false;
             }
-            summaryContinueBtn.textContent = "Back to Lessons";
-            summaryContinueBtn.disabled = false;
-            summaryContinueBtn.addEventListener('click', () => { window.location.href = backToLessonsLink.href; });
+            if (next.all_done && moduleReviewUrl) {
+                summaryContinueBtn.textContent = "Go to Module Review";
+                continueAction = go(moduleReviewUrl);
+            } else {
+                summaryContinueBtn.textContent = "Back to Lessons";
+                continueAction = go(backToLessonsLink.href);
+            }
         } else if (!next || next.type === "end") {
             summaryContinueBtn.textContent = "Back to Lessons";
-            summaryContinueBtn.disabled = false;
-            summaryContinueBtn.addEventListener('click', () => { window.location.href = backToLessonsLink.href; });
+            continueAction = go(backToLessonsLink.href);
         } else if (next.type === "chapter") {
-            summaryContinueBtn.textContent = `Continue to ${next.category_name}`;
-            summaryContinueBtn.disabled = false;
-            summaryContinueBtn.addEventListener('click', () => { window.location.href = `/lesson-content?resource_id=${next.resource_id}`; });
+            summaryContinueBtn.textContent = `Proceed to next chapter: ${next.category_name}`;
+            continueAction = go(`/lesson-content?resource_id=${next.resource_id}`);
         } else {
             summaryContinueBtn.textContent = `Continue to ${next.resource_title}`;
-            summaryContinueBtn.disabled = false;
-            summaryContinueBtn.addEventListener('click', () => { window.location.href = `/lesson-content?resource_id=${next.resource_id}`; });
+            continueAction = go(`/lesson-content?resource_id=${next.resource_id}`);
         }
+        summaryContinueBtn.disabled = false;
+        // A lesson completed on THIS visit asks "Proceed?" first (progress,
+        // score and recommendations are already saved by now); moving to a
+        // new chapter always asks. Re-opened old lessons just continue.
+        const askFirst = justCompleted || (next && next.type === "chapter");
+        summaryContinueBtn.addEventListener('click', () => {
+            if (askFirst && window.CobraProceed) {
+                window.CobraProceed.open(proceedOptions(next, moduleReviewUrl));
+            } else {
+                continueAction();
+            }
+        });
 
-        renderReview(data.review);
+        renderReview(review, moduleReviewUrl);
     }
 
-    // ---------------- Summary: review lesson + weak spots ----------------
-    // Shown when this lesson is below the pass % (review the lesson / its
-    // weak spots), and on the LAST lesson of a module that needs a retake
-    // (weak spots across the whole module).
-    const weakSpotsCache = {};
-    let weakSpotsOpenScope = null;
-
-    function renderReview(review) {
+    // ---------------- Summary: missed items -> Module Review ----------------
+    // The lesson Summary only says how many items were missed. The full list
+    // (what was answered, the feedback, the part to re-read, the retake) is
+    // in the Module Review card at the end of the module.
+    function renderReview(review, moduleReviewUrl) {
         if (!summaryReview || !review) return;
+        const missed = review.lesson_missed || 0;
         const lessonBelow = !!review.lesson_below;
-        const moduleBelow = !!review.module_below;
-        if (!lessonBelow && !moduleBelow) return;
+        if (!missed && !lessonBelow) return;
 
         summaryReview.hidden = false;
-        summaryReviewNote.textContent = lessonBelow
-            ? `This lesson is at ${review.lesson_percent}% - you need ${review.pass_percent}%. Review the lesson or go straight to the parts behind the questions you missed.`
-            : `Your module needs a retake. Review your weak spots across the module first.`;
-
-        reviewWeakSpotsBtn.hidden = !(lessonBelow && review.lesson_missed > 0);
-        reviewWeakSpotsLabel.textContent = `Review my weak spots (${review.lesson_missed})`;
-        reviewModuleWeakSpotsBtn.hidden = !(moduleBelow && review.module_missed > 0);
-        reviewModuleWeakSpotsLabel.textContent = `Review module weak spots (${review.module_missed})`;
-    }
-
-    async function toggleWeakSpots(scope) {
-        const btn = scope === "module" ? reviewModuleWeakSpotsBtn : reviewWeakSpotsBtn;
-        const otherBtn = scope === "module" ? reviewWeakSpotsBtn : reviewModuleWeakSpotsBtn;
-
-        if (weakSpotsOpenScope === scope) {            // second click closes it
-            weakSpotsPanel.hidden = true;
-            weakSpotsOpenScope = null;
-            btn.classList.remove('is-active');
-            return;
+        const parts = [];
+        if (lessonBelow) parts.push(`This lesson is at ${review.lesson_percent}% (the module needs ${review.pass_percent}%).`);
+        if (missed) {
+            parts.push(review.module_all_done
+                ? `You missed ${missed} item${missed === 1 ? '' : 's'}. See exactly what to fix in your Module Review.`
+                : `You missed ${missed} item${missed === 1 ? '' : 's'}. You'll see them in your Module Review at the end of this module.`);
         }
-        weakSpotsOpenScope = scope;
-        btn.classList.add('is-active');
-        otherBtn.classList.remove('is-active');
-        weakSpotsPanel.hidden = false;
-        weakSpotsPanel.innerHTML = '<p class="weak-spots-empty">Finding your weak spots...</p>';
+        summaryReviewNote.textContent = parts.join(' ');
 
-        try {
-            if (!weakSpotsCache[scope]) {
-                const response = await fetch(`${API_BASE_URL}/api/weak-spots?resource_id=${encodeURIComponent(resourceId)}&scope=${scope}`, {
-                    credentials: 'include'
-                });
-                const data = await response.json();
-                if (!response.ok || !data.success) throw new Error(data.message || 'Request failed');
-                weakSpotsCache[scope] = data;
-            }
-            if (weakSpotsOpenScope === scope) renderWeakSpots(weakSpotsCache[scope], scope);
-        } catch (err) {
-            console.error('Error loading weak spots:', err);
-            weakSpotsPanel.innerHTML = '<p class="weak-spots-empty">Could not load your weak spots. Please try again.</p>';
+        if (openModuleReviewBtn && moduleReviewUrl && review.module_all_done) {
+            openModuleReviewBtn.href = moduleReviewUrl;
+            openModuleReviewBtn.hidden = false;
         }
-    }
-
-    function renderWeakSpots(data, scope) {
-        weakSpotsPanel.innerHTML = "";
-        const groups = data.groups || [];
-        if (!groups.length) {
-            weakSpotsPanel.innerHTML = '<p class="weak-spots-empty">No missed items left to review.</p>';
-            return;
-        }
-
-        const title = document.createElement('p');
-        title.className = 'weak-spots-title';
-        title.textContent = scope === "module" ? "Your weak spots in this module" : "Your weak spots in this lesson";
-        const sub = document.createElement('p');
-        sub.className = 'weak-spots-sub';
-        sub.textContent = `${data.missed_total} missed item${data.missed_total === 1 ? '' : 's'}, grouped under the part of the lesson that teaches them.`;
-        weakSpotsPanel.append(title, sub);
-
-        groups.forEach((group) => {
-            const card = document.createElement('div');
-            card.className = 'weak-spot-group';
-
-            const from = document.createElement('p');
-            from.className = 'weak-spot-from' + (group.is_current_lesson ? '' : ' is-earlier');
-            from.textContent = (group.is_current_lesson && scope !== "module")
-                ? `This lesson · ${group.items.length} missed`
-                : `From ${group.lesson_title} · ${group.items.length} missed`;
-
-            const heading = document.createElement('p');
-            heading.className = 'weak-spot-heading';
-            heading.textContent = group.heading;
-
-            // The lesson part itself (admin-authored lesson HTML), made read-only
-            // exactly like the Content step.
-            const content = document.createElement('div');
-            content.className = 'weak-spot-content lesson-content-body';
-            content.innerHTML = group.html || '';
-            content.querySelectorAll('[contenteditable="true"]').forEach((el) => el.setAttribute('contenteditable', 'false'));
-            preparePageForLearner(content);
-
-            const list = document.createElement('div');
-            list.className = 'weak-spot-items';
-            group.items.forEach((item) => {
-                const row = document.createElement('div');
-                row.className = 'weak-spot-item';
-
-                const label = document.createElement('span');
-                label.className = 'weak-spot-item-label';
-                label.textContent = item.label;
-                const prompt = document.createElement('span');
-                prompt.className = 'weak-spot-item-prompt';
-                prompt.textContent = item.prompt;
-
-                const answers = document.createElement('div');
-                answers.className = 'weak-spot-item-answers';
-                const yours = document.createElement('code');
-                yours.textContent = item.your_answer || '-';
-                // Feedback only - the correct answer is never shown to learners.
-                const feedback = document.createElement('span');
-                feedback.className = 'weak-spot-item-feedback';
-                feedback.textContent = item.feedback || '-';
-                answers.append('Your answer: ', yours, '  ·  Feedback: ', feedback);
-
-                row.append(label, prompt, answers);
-                list.appendChild(row);
-            });
-
-            card.append(from, heading, content, list);
-            weakSpotsPanel.appendChild(card);
-        });
     }
 
     if (reviewLessonBtn) {
         reviewLessonBtn.addEventListener('click', () => {
-            const target = stepOrder.some((s) => s.key === "content") ? "content"
-                : (stepOrder[0] ? stepOrder[0].key : null);
+            const target = stepOrder[0] ? stepOrder[0].key : null;
             if (target) {
                 goToStep(target);
                 window.scrollTo({ top: 0, behavior: "smooth" });
             }
         });
     }
-    if (reviewWeakSpotsBtn) reviewWeakSpotsBtn.addEventListener('click', () => toggleWeakSpots("lesson"));
-    if (reviewModuleWeakSpotsBtn) reviewModuleWeakSpotsBtn.addEventListener('click', () => toggleWeakSpots("module"));
+
+    // ---------------- "Proceed?" popup content (proceed-modal.js) ----------------
+    function proceedOptions(next, moduleReviewUrl) {
+        const lessonsUrl = backToLessonsLink.href;
+        if (next && next.type === "module_gate") {
+            if (next.all_done) {
+                return {
+                    icon: "fa-clipboard-check",
+                    title: "Module finished!",
+                    text: `Your module score is ${next.module_percent}%. You need ${next.pass_percent}% to unlock the next module. Go to your Module Review to see what you missed and retake it?`,
+                    yesLabel: "Yes, go to Module Review",
+                    href: moduleReviewUrl || lessonsUrl,
+                };
+            }
+            return {
+                title: "Lesson complete!",
+                text: `Some lessons in this module are not finished yet. Finish them with an average of ${next.pass_percent}% to unlock the next module. Go back to the lessons?`,
+                yesLabel: "Yes, back to lessons",
+                href: lessonsUrl,
+            };
+        }
+        if (!next || next.type === "end") {
+            return {
+                icon: "fa-trophy",
+                title: "You finished the course!",
+                text: "Great work - that was the last lesson. Go back to your lessons?",
+                yesLabel: "Yes, back to lessons",
+                href: lessonsUrl,
+            };
+        }
+        if (next.type === "chapter") {
+            return {
+                icon: "fa-flag-checkered",
+                title: "Chapter complete!",
+                text: `Proceed to the next chapter, ${next.category_name}, starting with "${next.resource_title}"?`,
+                yesLabel: "Yes, next chapter",
+                href: `/lesson-content?resource_id=${next.resource_id}`,
+            };
+        }
+        if (next.new_module) {
+            return {
+                icon: "fa-flag",
+                title: "Module complete!",
+                text: `Proceed to the next module, ${next.module_name}, starting with "${next.resource_title}"?`,
+                href: `/lesson-content?resource_id=${next.resource_id}`,
+            };
+        }
+        return {
+            title: "Lesson complete!",
+            text: `Proceed to the next lesson, "${next.resource_title}"?`,
+            href: `/lesson-content?resource_id=${next.resource_id}`,
+        };
+    }
 
     // ---------------- Initial load ----------------
     async function loadLesson() {
@@ -1528,9 +1741,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 exerciseSituation.textContent = data.exercise.situation;
                 exerciseProblem.textContent = data.exercise.problem_question;
                 exerciseClue.textContent = data.exercise.clue;
+                exerciseState = data.exercise_state || null;
                 if (data.exercise_completed) {
                     exerciseCompleteRow.style.display = "flex";
                     exerciseCompleteStatus.style.display = "inline-flex";
+                    lockExercise({ passed: data.exercise.test_cases.length, total: data.exercise.test_cases.length });
                 }
 
                 const lastSub = data.exercise_last_submission;
@@ -1541,8 +1756,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     exerciseResultBox.style.display = "block";
                     const passed = lastSub.status === "correct";
                     exerciseResultBox.className = "exercise-result " + (passed ? "pass" : "fail");
-                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${lastSub.feedback_given || ""} (${lastSub.test_cases_passed}/${lastSub.test_cases_total} test cases passed)`;
+                    const savedFeedback = String(lastSub.feedback_given || "").split("\n")[0];
+                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${escapeHtml(savedFeedback)} (${lastSub.test_cases_passed}/${lastSub.test_cases_total} test cases passed)`;
+                    if (!passed) {
+                        renderTips(tipsFromSaved(lastSub.feedback_given));
+                        // The editor holds the code that just failed - same lock as after submitting.
+                        if (lastSub.submitted_code) lastFailedCode = codeKey(lastSub.submitted_code);
+                    }
                 }
+                renderExerciseState();
+                updateSubmitLock();
             }
 
             // Admin preview: only this preview's games and/or exercise,
@@ -1555,14 +1778,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Build step order - Video and Exercise are only included if
-            // this lesson actually has one. Summary is always last.
+            // Build step order - only the steps the mentor uploaded, so the
+            // numbering has no gaps and the learner never lands on an empty
+            // page: Video, Activities and Exercise only when the lesson has
+            // one. Content and Summary are always there.
             stepOrder = [];
             if (data.video) stepOrder.push({ key: "video", label: "Video" });
             stepOrder.push({ key: "content", label: "Content" });
-            stepOrder.push({ key: "activities", label: "Activities" });
+            if (data.has_activities) stepOrder.push({ key: "activities", label: "Activities" });
             if (data.exercise) stepOrder.push({ key: "exercise", label: "Exercise" });
             stepOrder.push({ key: "summary", label: "Summary" });
+            updateContinueLabels();
 
             // The video player is built once here regardless of watch
             // status, so reviewing it later (via the stepper) always
@@ -1574,14 +1800,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const progress = data.progress || { video_watched: false, content_read: false };
 
-            // Resume at the first incomplete step; a fully-completed
-            // lesson (re-opened for review) goes straight to Activities.
-            if (data.video && !progress.video_watched) {
-                goToStep("video");
+            // Where to start:
+            //  - retake page (?retake=1): straight to the activities
+            //  - a COMPLETED lesson (review): its first step, from the start
+            //  - an unfinished lesson: the first step not done yet, with a
+            //    "You stopped here last time" note when it was opened before
+            let startKey;
+            if (urlParams.get('retake') === '1' && data.has_activities) {
+                startKey = "activities";
+            } else if (urlParams.get('step') === 'exercise' && data.exercise && (data.is_completed || data.exercise_state && data.exercise_state.skipped)) {
+                // Module Review "Try the exercise again" on a skipped exercise.
+                startKey = "exercise";
+            } else if (data.is_completed) {
+                startKey = stepOrder[0].key;
+            } else if (data.video && !progress.video_watched) {
+                startKey = "video";
             } else if (!progress.content_read) {
-                goToStep("content");
+                startKey = "content";
+            } else if (data.has_activities) {
+                startKey = "activities";
+            } else if (data.exercise) {
+                startKey = "exercise";
             } else {
-                goToStep("activities");
+                startKey = "content";   // content-only lesson not finished yet: Finish Lesson
+            }
+            goToStep(startKey);
+
+            if (lessonResumeNote && !data.is_completed && data.started_before && urlParams.get('retake') !== '1') {
+                const label = (stepOrder.find((st) => st.key === startKey) || {}).label || "this step";
+                lessonResumeText.textContent = `You stopped here last time - continuing from ${label}.`;
+                lessonResumeNote.hidden = false;
+                resumeNoteStep = startKey;
+            } else if (lessonResumeNote && data.is_completed && urlParams.get('retake') !== '1') {
+                lessonResumeText.textContent = "You already completed this lesson - reviewing it from the start. Your answers and scores are saved.";
+                lessonResumeNote.hidden = false;
+                resumeNoteStep = startKey;
             }
 
             // Already-crossed steps show as unlocked immediately if the
