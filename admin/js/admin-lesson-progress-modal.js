@@ -21,6 +21,7 @@
         const closeBtn = document.getElementById("closeProgressDetailBtn");
         const errorEl = document.getElementById("progressDetailError");
         const nameEl = document.getElementById("progressDetailName");
+        const avatarEl = document.getElementById("progressDetailAvatar");
         const accIdEl = document.getElementById("progressDetailAccId");
         const lessonEl = document.getElementById("progressDetailLesson");
         const scoreEl = document.getElementById("progressDetailScore");
@@ -66,6 +67,7 @@
             [nameEl, accIdEl, lessonEl, scoreEl, completionEl, startedEl, completedEl]
                 .forEach((el) => setText(el, "—"));
             setText(stepCountEl, "");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, null);
             if (stepsEl) stepsEl.innerHTML = "";
             if (activitiesEl) activitiesEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
             if (exerciseEl) exerciseEl.innerHTML = "";
@@ -139,6 +141,7 @@
 
         function fillModal(rec) {
             setText(nameEl, rec.name || "—");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, rec.avatar_url);
             setText(accIdEl, rec.acc_id || "—");
             setText(lessonEl, rec.lesson || "—");
             setText(scoreEl, rec.score === null || rec.score === undefined ? "—" : `${rec.score}%`);

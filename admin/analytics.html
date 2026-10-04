@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Learning Analytics</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/analytics.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body class="analytics-page">
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+
+                <!-- Page title, greeting & live date/time -->
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Learning Analytics</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Insights into lesson performance, quiz scores, and student progress.</p>
+                    </div>
+                    <div class="top-bar-right">
+                        <div class="dashboard-datetime-badge">
+                            <strong id="current-time"></strong>
+                            <small id="current-date"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Print only: title, filters in use, when it was printed -->
+                <div class="analytics-print-header" aria-hidden="true">
+                    <h2>CobraByte &mdash; Learning Analytics</h2>
+                    <p id="analyticsPrintFilters">All learners &middot; All time</p>
+                    <p id="analyticsPrintDate"></p>
+                </div>
+
+                <!-- Filters (one row, above every chart) -->
+                <div class="analytics-toolbar">
+                    <p class="analytics-scope" id="analyticsScope">Loading&hellip;</p>
+                    <div class="analytics-toolbar-actions">
+                        <select class="custom-select" id="analyticsStatusSelect" aria-label="Learners">
+                            <option value="all">All Learners</option>
+                            <option value="active">Active Learners</option>
+                            <option value="inactive">Inactive Learners</option>
+                        </select>
+                        <select class="custom-select" id="analyticsRangeSelect" aria-label="Time range">
+                            <option value="all">All Time</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                            <option value="90d">Last 90 Days</option>
+                        </select>
+                        <button type="button" class="btn-create-admin" id="analyticsPrintBtn">
+                            <i class="fa-solid fa-print" aria-hidden="true"></i> Print Dashboard
+                        </button>
+                    </div>
+                </div>
+                <p id="analyticsLoadError" class="analytics-error" role="alert"></p>
+
+                <div class="analytics-grid">
+
+                    <!-- Lesson Performance -->
+                    <section class="analytics-card" aria-labelledby="lessonPerfTitle">
+                        <header class="analytics-card-head">
+                            <h3 id="lessonPerfTitle">Lesson Performance <span>(Avg Score)</span></h3>
+                            <p class="analytics-card-note">Average lesson score per module &middot; dashed line = 80% pass mark</p>
+                        </header>
+                        <div class="analytics-chart" id="lessonPerfWrap">
+                            <canvas id="lessonPerfChart" role="img" aria-label="Average score per module"></canvas>
+                        </div>
+                        <details class="analytics-data"><summary>View data</summary><div id="lessonPerfTable"></div></details>
+                    </section>
+
+                    <!-- Score Distribution -->
+                    <section class="analytics-card" aria-labelledby="scoreDistTitle">
+                        <header class="analytics-card-head">
+                            <h3 id="scoreDistTitle">Score Distribution</h3>
+                            <p class="analytics-card-note">Learners by their overall average score</p>
+                        </header>
+                        <div class="analytics-donut-row" id="scoreDistWrap">
+                            <div class="analytics-donut">
+                                <canvas id="scoreDistChart" role="img" aria-label="Learners per score range"></canvas>
+                                <div class="analytics-donut-center">
+                                    <strong id="scoreDistTotal">0</strong>
+                                    <small>learners</small>
+                                </div>
+                            </div>
+                            <ul class="analytics-legend" id="scoreDistLegend"></ul>
+                        </div>
+                        <details class="analytics-data"><summary>View data</summary><div id="scoreDistTable"></div></details>
+                    </section>
+
+                    <!-- Exercise Stages -->
+                    <section class="analytics-card" aria-labelledby="stagesTitle">
+                        <header class="analytics-card-head">
+                            <h3 id="stagesTitle">Exercise Stages Analysis</h3>
+                            <p class="analytics-card-note">Average score per activity type &middot; learners who completed it below each bar</p>
+                        </header>
+                        <div class="analytics-chart" id="stagesWrap">
+                            <canvas id="stagesChart" role="img" aria-label="Average score per activity type"></canvas>
+                        </div>
+                        <details class="analytics-data"><summary>View data</summary><div id="stagesTable"></div></details>
+                    </section>
+
+                    <!-- Growth & Performance Trend -->
+                    <section class="analytics-card" aria-labelledby="trendTitle">
+                        <header class="analytics-card-head analytics-card-head-row">
+                            <div>
+                                <h3 id="trendTitle">Student Growth &amp; Performance Trend</h3>
+                                <p class="analytics-card-note">Last 8 weeks (always, whatever the time range)</p>
+                            </div>
+                            <div class="analytics-toggle" role="group" aria-label="Trend measure">
+                                <button type="button" class="is-active" data-trend="active_learners" aria-pressed="true">Active Learners</button>
+                                <button type="button" data-trend="avg_score" aria-pressed="false">Avg Score</button>
+                            </div>
+                        </header>
+                        <div class="analytics-chart" id="trendWrap">
+                            <canvas id="trendChart" role="img" aria-label="Weekly trend"></canvas>
+                        </div>
+                        <details class="analytics-data"><summary>View data</summary><div id="trendTable"></div></details>
+                    </section>
+
+                    <!-- Topic Strength -->
+                    <section class="analytics-card analytics-card-wide" aria-labelledby="topicsTitle">
+                        <header class="analytics-card-head">
+                            <h3 id="topicsTitle">Topic Strength Analysis</h3>
+                            <p class="analytics-card-note">Modules ranked by average lesson score</p>
+                        </header>
+                        <div class="analytics-topics">
+                            <div>
+                                <h4 class="analytics-topics-label is-strong"><i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> Strongest Topics</h4>
+                                <ul class="analytics-topic-list" id="topicsStrong"></ul>
+                            </div>
+                            <div>
+                                <h4 class="analytics-topics-label is-weak"><i class="fa-solid fa-arrow-trend-down" aria-hidden="true"></i> Weakest Topics</h4>
+                                <ul class="analytics-topic-list" id="topicsWeak"></ul>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Chart.js v4.4.1 (MIT), served locally so the charts work without internet -->
+    <script src="{{ url_for('admin_bp.static', filename='js/chart.umd.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-analytics.js') }}"></script>
+</body>
+</html>

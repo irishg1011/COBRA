@@ -46,6 +46,7 @@ from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
 from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
+from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = 80
@@ -415,6 +416,15 @@ def _evaluate_rows(cursor, rows):
     ]
 
 
+def _attach_avatars(connection, items):
+    """Adds avatar_url (None = default icon) to one table page, in place."""
+    cursor = connection.cursor(dictionary=True)
+    avatars = get_avatar_urls(cursor, [item.get("acc_id") for item in items])
+    cursor.close()
+    for item in items:
+        item["avatar_url"] = avatars.get(item.get("acc_id"))
+
+
 TABLE_KEYS = ("progress_id", "acc_id", "name", "lesson", "score", "completion",
               "started_at", "completed_at", "is_completed")
 
@@ -471,6 +481,7 @@ def get_learner_progress_overview(search_query=None, status_filter=None,
         offset = (page - 1) * per_page
 
         records = [{key: r[key] for key in TABLE_KEYS} for r in evaluated[offset:offset + per_page]]
+        _attach_avatars(connection, records)
 
         return {
             "records": records,
@@ -502,6 +513,8 @@ def get_learner_progress_detail(progress_id):
         cursor = connection.cursor(dictionary=True)
         rows = _fetch_progress_rows(cursor, progress_id=progress_id)
         evaluated = _evaluate_rows(cursor, rows)
+        if evaluated:
+            evaluated[0]["avatar_url"] = get_avatar_url(cursor, evaluated[0]["acc_id"])
         cursor.close()
         return evaluated[0] if evaluated else None
 
@@ -848,8 +861,11 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
         page = min(max(1, page or 1), total_pages)
         offset = (page - 1) * per_page
 
+        learners = [_strip_private(s) for s in summaries[offset:offset + per_page]]
+        _attach_avatars(connection, learners)
+
         return {
-            "learners": [_strip_private(s) for s in summaries[offset:offset + per_page]],
+            "learners": learners,
             "metrics": metrics,
             "total": total,
             "page": page,
@@ -894,6 +910,7 @@ def get_learner_course_detail(acc_id):
             (acc_id,)
         )
         unlocked = {r["entity_id"] for r in cursor.fetchall()}
+        avatar_url = get_avatar_url(cursor, acc_id)
         cursor.close()
 
         all_ids = set(lesson_path.keys())
@@ -964,6 +981,7 @@ def get_learner_course_detail(acc_id):
 
         result = _strip_private(summary)
         result["chapters"] = chapters_out
+        result["avatar_url"] = avatar_url
         return result
 
     except Error as e:

@@ -148,7 +148,7 @@
                                 {% for l in learners %}
                                 <tr data-acc-id="{{ l.acc_id }}">
                                     <td>{{ l.acc_id }}</td>
-                                    <td>{{ l.name }}</td>
+                                    <td><div class="profile-cell">{% if l.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ l.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}<span>{{ l.name }}</span></div></td>
                                     <td>{{ l.current_chapter }}</td>
                                     <td>{{ l.current_module }}</td>
                                     <td>
@@ -224,6 +224,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-progress-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-course-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-progress-learners.js') }}"></script>

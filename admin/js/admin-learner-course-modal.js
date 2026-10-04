@@ -49,6 +49,7 @@
         const closeBtn = document.getElementById("closeLearnerCourseBtn");
         const errorEl = document.getElementById("learnerCourseError");
         const nameEl = document.getElementById("learnerCourseName");
+        const avatarEl = document.getElementById("learnerCourseAvatar");
         const accIdEl = document.getElementById("learnerCourseAccId");
         const currentEl = document.getElementById("learnerCourseCurrent");
         const currentPathEl = document.getElementById("learnerCourseCurrentPath");
@@ -87,6 +88,7 @@
                 .forEach((el) => setText(el, "—"));
             setText(currentPathEl, "");
             setText(modulesEl, "");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, null);
             if (chaptersEl) chaptersEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
             hideError();
         }
@@ -188,6 +190,7 @@
 
         function fillModal(learner) {
             setText(nameEl, learner.name || "—");
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, learner.avatar_url);
             setText(accIdEl, learner.acc_id || "—");
 
             if (learner.current_state === "not_started") {

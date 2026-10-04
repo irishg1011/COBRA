@@ -32,6 +32,7 @@ from datetime import date, datetime
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from profile_avatar import get_avatar_url
 from session_tracker import end_sessions_for_account, _get_timeout_minutes
 from learner_progress_monitor import get_learner_course_detail
 
@@ -351,6 +352,7 @@ def get_account_detail(acc_id, current_admin_id=None):
             "is_self": bool(current_admin_id) and acc_id == current_admin_id,
             "archive_block": archive_block,
             "security": _load_security(cursor, acc_id),
+            "avatar_url": get_avatar_url(cursor, acc_id),  # None = default icon
             "learning": None,
             "content": None,
         }

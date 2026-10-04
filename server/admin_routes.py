@@ -99,7 +99,8 @@ from achievements import (  # feat/mentor-achievements: Mentor > Achievements pa
     BADGE_LIMITS, BADGE_COLOR_SWATCHES,
 )
 from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
-from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo
+from learning_analytics import get_learning_analytics, empty_analytics  # Admin > Analytics
+from profile_avatar import get_avatar_url, get_avatar_urls, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo + table photos
 from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
 from recommendations import get_recommendations_data, empty_recommendations_data  # feat/mentor-recommendations: Mentor > Recommendations page
 from contact_messages import (  # feat/contact-messages: Admin > Messages (landing page "Send Us a Message")
@@ -748,6 +749,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
 
         cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
+        avatars = get_avatar_urls(cursor, [r["acc_id"] for r in rows])  # None = default icon
         cursor.close()
 
         now = datetime.now()
@@ -769,6 +771,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "is_locked": is_locked,
                 "date_created": _fmt_date(row.get("created_at")),
                 "last_login": _fmt_datetime(row.get("last_login")),
+                "avatar_url": avatars.get(row["acc_id"]),
             })
 
         # Metrics should always reflect the FULL registry, not the
@@ -996,6 +999,7 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
 
         cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
+        avatars = get_avatar_urls(cursor, [r.get("acc_id") for r in rows])  # None = default icon
         cursor.close()
 
         for row in rows:
@@ -1012,6 +1016,7 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
                 "role": row.get("role") or "Unknown",
                 "status": row.get("attempt_status"),
                 "attempted_at": _fmt_datetime(row.get("attempted_at")),
+                "avatar_url": avatars.get(row.get("acc_id")),
             })
 
         return logs
@@ -3399,7 +3404,24 @@ def learner_progress_learner_detail(acc_id):
 
 @admin_bp.route('/analytics')
 def analytics():
-    return render_placeholder("Analytics")
+    """
+    Admin > Analytics (Learning Analytics). The charts are filled by
+    admin-analytics.js from /admin/analytics/data right after the page
+    opens - the numbers live in learning_analytics.py.
+    """
+    return render_template('analytics.html')
+
+
+@admin_bp.route('/analytics/data')
+def analytics_data():
+    """Every card of the Analytics page. ?status=all|active|inactive&range=all|7d|30d|90d"""
+    status = request.args.get('status', '')
+    date_range = request.args.get('range', '')
+    data = get_learning_analytics(status, date_range)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load analytics.",
+                        **empty_analytics()}), 500
+    return jsonify({"success": True, **data}), 200
 
 
 # ============================================================

@@ -899,6 +899,42 @@ html.sidebar-collapsed .admin-main-content {
     mask: url('/assets/images/icons/icon-user.svg') center / contain no-repeat;
 }
 
+/* An uploaded profile photo (admin-avatar.js adds .has-photo + an <img>).
+   No photo = the default icon above stays. */
+.avatar-sm.has-photo,
+.account-profile-avatar.has-photo {
+    align-items: center;
+    background: #e5e7eb;
+}
+
+.avatar-sm.has-photo::before,
+.account-profile-avatar.has-photo::before {
+    display: none;
+}
+
+.avatar-sm img,
+.account-profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Small photo next to the learner's name in the progress modals */
+.progress-detail-subtitle .avatar-sm {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.progress-detail-subtitle .avatar-sm::before {
+    width: 17px;
+    height: 17px;
+    margin-bottom: -2px;
+}
+
 /* Custom Button Styles */
 .header-actions {
     display: flex;

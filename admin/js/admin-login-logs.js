@@ -138,7 +138,7 @@
             tableBody.innerHTML = logs.map(log => `
                 <tr>
                     <td class="profile-cell">
-                        <div class="avatar-sm">👤</div>
+                        ${window.CobraAvatar.html(log.avatar_url)}
                         <strong class="cell-truncate-1">${escapeHtml(log.full_name)}</strong>
                     </td>
                     <td class="text-muted">${escapeHtml(log.acc_id)}</td>

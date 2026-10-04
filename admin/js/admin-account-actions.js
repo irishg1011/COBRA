@@ -152,6 +152,7 @@
         const detailsCloseBtn = document.getElementById("closeAccountDetailsBtn");
         const detailsError = document.getElementById("accountDetailsError");
         const nameEl = document.getElementById("accountDetailsName");
+        const avatarEl = document.getElementById("accountProfileAvatar");
         const accIdEl = document.getElementById("accountDetailsAccId");
         const badgesEl = document.getElementById("accountDetailsBadges");
         const profileGrid = document.getElementById("accountProfileGrid");
@@ -198,6 +199,7 @@
             currentAccount = null;
             nameEl.textContent = "—";
             accIdEl.textContent = "—";
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, null);
             badgesEl.innerHTML = "";
             detailsError.textContent = "";
             detailsError.classList.remove("is-visible");
@@ -321,6 +323,7 @@
             currentAccount = acc;
             nameEl.textContent = acc.full_name;
             accIdEl.textContent = acc.acc_id;
+            window.CobraAvatar && window.CobraAvatar.set(avatarEl, acc.avatar_url);
             badgesEl.innerHTML = `${badge(roleBadgeClass(acc.role), acc.role)} ${statusBadge(acc)}`
                 + (acc.is_self ? ` ${badge("badge-inactive", "You")}` : "");
 

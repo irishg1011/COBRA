@@ -7,6 +7,7 @@ see image_uploads.py) and the browser loads it from /media/<name>.
 
     get_avatar_url(cursor, acc_id)   - URL of the account's photo, or None
                                        (None = show the default icon)
+    get_avatar_urls(cursor, acc_ids) - {acc_id: URL} for a whole table
     set_avatar(acc_id, file)         - upload / replace
     remove_avatar(acc_id)            - back to the default icon
 
@@ -85,6 +86,38 @@ def get_avatar_url(cursor, acc_id):
     except Error as e:
         print(f"profile_avatar: could not load the photo for {acc_id}: {e}")
         return None
+
+
+def get_avatar_urls(cursor, acc_ids):
+    """
+    {acc_id: photo URL} for many accounts at once (staff tables). Accounts
+    with no photo are left out, so .get(acc_id) gives None = default icon.
+    Uses the CALLER's cursor and never raises, like get_avatar_url().
+    """
+    acc_ids = sorted({a for a in acc_ids if a})
+    if not acc_ids:
+        return {}
+    try:
+        ensure_avatar_schema(cursor)
+        placeholders = ",".join(["%s"] * len(acc_ids))
+        cursor.execute(
+            f"""SELECT acc_id, avatar_file FROM {PROFILE_TABLE}
+                WHERE acc_id IN ({placeholders})
+                ORDER BY prof_id""",
+            tuple(acc_ids)
+        )
+        files = {}
+        for row in cursor.fetchall():
+            acc_id, avatar_file = (row["acc_id"], row["avatar_file"]) if isinstance(row, dict) else row
+            files.setdefault(acc_id, avatar_file)   # first profile row, same as _current_file()
+        return {
+            acc_id: image_url(avatar_file)
+            for acc_id, avatar_file in files.items()
+            if avatar_file and image_exists(cursor, AVATAR_FILE_PREFIX, avatar_file)
+        }
+    except Error as e:
+        print(f"profile_avatar: could not load photos: {e}")
+        return {}
 
 
 def _fail(message, status=400):

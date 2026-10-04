@@ -149,7 +149,7 @@
                                 {% for log in logs %}
                                 <tr>
                                     <td class="profile-cell">
-                                        <div class="avatar-sm">👤</div>
+                                        {% if log.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ log.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}
                                         <strong class="cell-truncate-1">{{ log.full_name }}</strong>
                                     </td>
                                     <td class="text-muted">{{ log.acc_id }}</td>
@@ -200,6 +200,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-login-logs.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-create-admin.js') }}"></script>
 
