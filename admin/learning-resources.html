@@ -12,6 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+    <link rel="stylesheet" href="/static/code-editor.css">
 </head>
 <body>
 
@@ -307,5 +308,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-archived-resources.js') }}"></script>
     <!-- feat/module-title-history: shared Name History modal -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-title-history.js') }}"></script>
+    <!-- Python code colors + auto-indent (static/code-editor.js) -->
+    <script src="/static/code-editor.js"></script>
 </body>
 </html>

@@ -1953,6 +1953,9 @@ function blockHasUserInput(wrapper) {
     // before its own fetch()), it copies each control's current live
     // value into the attribute that actually gets serialized.
     function syncInteractiveBlockValues() {
+        // Saved lesson HTML stays clean: drop the code-color <span>s
+        // (static/code-editor.js re-colors the boxes right after).
+        if (window.CobraCode) window.CobraCode.stripAll(editor);
         editor.querySelectorAll(".editor-code-filename").forEach((input) => {
             input.setAttribute("value", input.value || "");
         });

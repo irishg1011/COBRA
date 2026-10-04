@@ -62,6 +62,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     form.addEventListener("submit", function () {
+        if (window.CobraCode) window.CobraCode.stripAll(editor);   // no code-color spans in saved HTML
         hiddenInput.value = editor.innerHTML;
     });
 });

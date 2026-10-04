@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/preview-play.css') }}">
+    <link rel="stylesheet" href="/static/code-editor.css">
 </head>
 <body class="preview-play-body">
 
@@ -134,5 +135,7 @@
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-flashcards.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-activities.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-content.js') }}"></script>
+    <!-- Python code colors + auto-indent (static/code-editor.js) -->
+    <script src="/static/code-editor.js"></script>
 </body>
 </html>

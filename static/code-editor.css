@@ -1,0 +1,79 @@
+/* ==========================================================================
+   Python code colors (code-editor.js) - learner and admin/mentor pages.
+   Light boxes use the same palette as the Fill in the Blanks game; dark
+   boxes (terminal, Sandbox, admin "Learner's Code") use a matching dark one.
+   ========================================================================== */
+
+/* Light boxes (Console, coding exercise, anything light) */
+.cc-kw  { color: #7c3aed; font-weight: 600; }   /* if, def, for, return ... */
+.cc-fn  { color: #2563eb; }                     /* my_function( */
+.cc-bi  { color: #0369a1; }                     /* print, len, range, self ... */
+.cc-def { color: #2563eb; font-weight: 600; }   /* name after def / class */
+.cc-str { color: #15803d; }                     /* "text", f"text" */
+.cc-num { color: #c2410c; }                     /* 3, 4.5 */
+.cc-cmt { color: #94a3b8; font-style: italic; } /* # comment */
+.cc-dec { color: #b45309; }                     /* @decorator */
+
+/* Dark boxes */
+.editor-terminal-box .cc-kw,  .cc-dark .cc-kw  { color: #c792ea; }
+.editor-terminal-box .cc-fn,  .cc-dark .cc-fn  { color: #82aaff; }
+.editor-terminal-box .cc-bi,  .cc-dark .cc-bi  { color: #7dd3fc; }
+.editor-terminal-box .cc-def, .cc-dark .cc-def { color: #82aaff; }
+.editor-terminal-box .cc-str, .cc-dark .cc-str { color: #c3e88d; }
+.editor-terminal-box .cc-num, .cc-dark .cc-num { color: #f78c6c; }
+.editor-terminal-box .cc-cmt, .cc-dark .cc-cmt { color: #7f8c98; }
+.editor-terminal-box .cc-dec, .cc-dark .cc-dec { color: #ffcb6b; }
+
+/* Tabs in code look like 4 spaces everywhere */
+.editor-console-box, .editor-terminal-box, #exerciseCodeBox, [data-cobra-code] {
+    tab-size: 4;
+}
+
+/* ---------- Textarea overlay (Sandbox, admin "Learner's Code") ----------
+   The colored <pre> sits exactly behind the textarea; the textarea's own
+   text is transparent so only the colors show (the caret stays visible). */
+.cc-overlay-wrap {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+}
+
+.cc-overlay {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    border-style: solid;
+    border-color: transparent;
+    background: transparent;
+    pointer-events: none;
+    box-sizing: border-box;
+    scrollbar-gutter: stable;
+}
+
+.cc-overlay-input {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    background: transparent !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    scrollbar-gutter: stable;
+}
+
+.cc-overlay-input::placeholder {
+    -webkit-text-fill-color: #64748b;
+    color: #64748b !important;
+}
+
+.cc-overlay-input::selection {
+    background: rgba(130, 170, 255, 0.35);
+    -webkit-text-fill-color: transparent;
+}
