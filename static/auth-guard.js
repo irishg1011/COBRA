@@ -97,20 +97,41 @@
     // If this page is loaded/restored (including via bfcache) without a
     // valid auth flag, don't even set up the Back-button trap - just
     // bounce to the landing page immediately, no dialog needed.
+    // A NEW TAB (a link opened in another tab, a bookmark, a typed URL)
+    // starts with an empty sessionStorage, so the flag is missing even
+    // though the browser is still signed in. Ask the server first: a
+    // valid learner session restores the flag and the page carries on;
+    // only a real "not signed in" goes to the sign-in page. The page is
+    // hidden while asking so a signed-out visitor never sees it.
     if (!isAuthenticated()) {
-        window.location.replace(LANDING_PAGE_URL);
+        document.documentElement.style.visibility = "hidden";
+        fetch(`${API_BASE_URL}/api/consent/status`, { credentials: "include" })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (data) {
+                if (!data || !data.success) throw new Error("not signed in");
+                sessionStorage.setItem(AUTH_FLAG_KEY, "true");
+                if (data.needs_consent) { window.location.replace("/consent"); return; }
+                document.documentElement.style.visibility = "";
+                startGuard(false);
+            })
+            .catch(function () { window.location.replace(LANDING_PAGE_URL); });
         return;
     }
+    startGuard(true);
+
+    function startGuard(checkConsent) {
 
     // feat/terms-consent: a learner who has not accepted the current Terms
     // and Privacy Notice is sent to the consent screen. The server refuses
     // their data requests anyway (consent.py); this just shows the screen.
-    fetch(`${API_BASE_URL}/api/consent/status`, { credentials: "include" })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-            if (data && data.needs_consent) window.location.replace("/consent");
-        })
-        .catch(function () { /* offline or not signed in - the other checks handle it */ });
+    if (checkConsent) {
+        fetch(`${API_BASE_URL}/api/consent/status`, { credentials: "include" })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data && data.needs_consent) window.location.replace("/consent");
+            })
+            .catch(function () { /* offline or not signed in - the other checks handle it */ });
+    }
 
     // ------------------------------------------------------------
     // BACK / FORWARD BUTTONS (browser arrows and the phone's Back button)
@@ -175,6 +196,7 @@
     // reuse the exact same clear-everything-then-redirect logic instead
     // of duplicating it.
     window.cobraByteLogout = performLogout;
+    }   // startGuard
 
     // ------------------------------------------------------------
     // NEW: end the active_sessions_tbl row the INSTANT this tab closes
