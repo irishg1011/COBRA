@@ -712,9 +712,18 @@ def lessons_data():
 
         overall_percent = round((overall_completed / overall_total) * 100) if overall_total > 0 else 0
 
+        # "Proceed to next chapter" button: shown once this chapter's LAST
+        # module is passed (every module before it had to pass to unlock it).
+        next_chapter = None
+        if modules_out and modules_out[-1]["passed"] and not modules_out[-1]["locked"]:
+            after = get_next_lesson_info(live_rows[-1]["resource_id"], acc_id)
+            if after and after.get("type") == "chapter":
+                next_chapter = after
+
         cursor.close()
         return jsonify({
             "success": True,
+            "next_chapter": next_chapter,
             "category_name": category["category_name"],
             "overall_completed_lessons": overall_completed,
             "overall_total_lessons": overall_total,

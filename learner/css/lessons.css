@@ -504,3 +504,35 @@
 .lesson-rail-icon.module-review-rail.unlocked {
     border-radius: 50%;
 }
+
+/* "Proceed to next chapter" row at the end of the Lessons page */
+.next-chapter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    border: 1.5px solid #86efac;
+    background: #f0fdf4;
+}
+
+.next-chapter-row[hidden] {
+    display: none;
+}
+
+.next-chapter-text {
+    margin: 0;
+    font-size: 14px;
+    color: #14532d;
+    font-weight: 600;
+}
+
+@media (max-width: 600px) {
+    .next-chapter-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

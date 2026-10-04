@@ -145,3 +145,8 @@
     .review-score { flex-direction: column; align-items: flex-start; }
     .review-item-answers dt { min-width: 0; }
 }
+
+button.review-action {
+    cursor: pointer;
+    font-family: inherit;
+}

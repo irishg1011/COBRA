@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../learner/css/lesson-activities.css">
     <link rel="stylesheet" href="../learner/css/lesson-fill-blanks.css">
     <link rel="stylesheet" href="../learner/css/lesson-flashcards.css">
+    <link rel="stylesheet" href="../learner/css/proceed-modal.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
@@ -175,18 +176,6 @@
     </div>
 </main>
 
-    <!-- "Proceed to the next lesson?" - opened once, right after a lesson is
-         completed for the first time (after progress + recommendations are saved) -->
-    <div class="proceed-overlay" id="proceedOverlay" hidden>
-        <div class="proceed-dialog" role="dialog" aria-modal="true" aria-labelledby="proceedTitle" aria-describedby="proceedText">
-            <div class="proceed-icon" id="proceedIcon"><i class="fa-solid fa-circle-check"></i></div>
-            <h2 id="proceedTitle">Lesson complete!</h2>
-            <p id="proceedText"></p>
-            <div class="proceed-actions">
-                <button type="button" class="proceed-btn proceed-btn-secondary" id="proceedNoBtn">No, stay here</button>
-                <button type="button" class="proceed-btn proceed-btn-primary" id="proceedYesBtn">Yes, proceed</button>
-            </div>
-        </div>
     </div>
 
 
@@ -195,6 +184,7 @@
     <script src="../learner/js/lesson-fill-blanks.js"></script>
     <script src="../learner/js/lesson-flashcards.js"></script>
     <script src="../learner/js/lesson-activities.js"></script>
+    <script src="../learner/js/proceed-modal.js"></script>
     <script src="../learner/js/lesson-content.js"></script>
     <script src="../learner/js/learner.js"></script>
     <script src="../static/auth-guard.js"></script>

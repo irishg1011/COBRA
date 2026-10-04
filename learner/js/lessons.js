@@ -293,6 +293,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // "Proceed to next chapter" (once this chapter's last module is passed):
+    // the button opens the "Chapter complete!" popup.
+    function renderNextChapter(next) {
+        const row = document.getElementById('nextChapterRow');
+        if (!row) return;
+        if (!next) {
+            row.hidden = true;
+            return;
+        }
+        document.getElementById('nextChapterText').textContent =
+            `You passed every module in this chapter. Next up: ${next.category_name}.`;
+        const btn = document.getElementById('nextChapterBtn');
+        btn.textContent = `Proceed to next chapter: ${next.category_name}`;
+        btn.onclick = () => {
+            window.CobraProceed.open({
+                icon: 'fa-flag-checkered',
+                title: 'Chapter complete!',
+                text: `Proceed to the next chapter, ${next.category_name}, starting with "${next.resource_title}"?`,
+                yesLabel: 'Yes, next chapter',
+                href: `/lesson-content?resource_id=${next.resource_id}`,
+            });
+        };
+        row.hidden = false;
+    }
+
     async function loadLessons() {
         if (!catId) {
             lessonsLoading.style.display = 'none';
@@ -314,6 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             lessonsLoading.style.display = 'none';
             renderLessons(data);
+            renderNextChapter(data.next_chapter);
 
         } catch (err) {
             console.error('Error loading lessons:', err);

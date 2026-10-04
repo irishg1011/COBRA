@@ -181,7 +181,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 : `Your module score is ${data.percent}%. You got every item right on the first try - great job!`;
             const next = data.next;
             if (next && next.type === 'chapter') {
-                actions.push(actionButton(`Continue to ${next.category_name}`, `/lesson-content?resource_id=${next.resource_id}`, true, 'fa-arrow-right'));
+                // Last module of the chapter: the button opens the
+                // "Chapter complete!" popup (proceed-modal.js).
+                actions.push(`<button type="button" class="review-action is-primary" data-next-chapter><i class="fa-solid fa-flag-checkered"></i> Proceed to next chapter: ${escapeHtml(next.category_name)}</button>`);
             } else if (next && next.type === 'lesson') {
                 actions.push(actionButton(`Continue to ${next.new_module ? next.module_name : next.resource_title}`, `/lesson-content?resource_id=${next.resource_id}`, true, 'fa-arrow-right'));
             }
@@ -189,6 +191,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         actionsEl.innerHTML = actions.join('');
         actionsEl.hidden = false;
+        const chapterBtn = actionsEl.querySelector('[data-next-chapter]');
+        if (chapterBtn && data.next) {
+            chapterBtn.addEventListener('click', () => window.CobraProceed.open({
+                icon: 'fa-flag-checkered',
+                title: 'Chapter complete!',
+                text: `Proceed to the next chapter, ${data.next.category_name}, starting with "${data.next.resource_title}"?`,
+                yesLabel: 'Yes, next chapter',
+                href: `/lesson-content?resource_id=${data.next.resource_id}`,
+            }));
+        }
 
         lessonsCard.hidden = false;
         lessonsSub.textContent = data.missed_total

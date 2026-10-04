@@ -42,14 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const lessonResumeNote = document.getElementById('lessonResumeNote');
     const lessonResumeText = document.getElementById('lessonResumeText');
 
-    // "Proceed to the next lesson?" popup
-    const proceedOverlay = document.getElementById('proceedOverlay');
-    const proceedIcon = document.getElementById('proceedIcon');
-    const proceedTitle = document.getElementById('proceedTitle');
-    const proceedText = document.getElementById('proceedText');
-    const proceedYesBtn = document.getElementById('proceedYesBtn');
-    const proceedNoBtn = document.getElementById('proceedNoBtn');
-
     const exerciseStep = document.getElementById('exerciseStep');
     const exerciseTitle = document.getElementById('exerciseTitle');
     const exerciseSituation = document.getElementById('exerciseSituation');
@@ -80,7 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeOutputBox = null;
     let lessonData = null;
     // True only when THIS visit completed the lesson for the first time -
-    // that is when the "Proceed to the next lesson?" popup is shown.
+    // then the Summary's Continue button asks "Proceed?" (proceed-modal.js)
+    // instead of leaving straight away.
     let justCompleted = false;
     let stepOrder = []; // built dynamically depending on whether this lesson has a video
     let ytPlayer = null;
@@ -1440,23 +1433,26 @@ document.addEventListener('DOMContentLoaded', () => {
             summaryContinueBtn.textContent = "Back to Lessons";
             continueAction = go(backToLessonsLink.href);
         } else if (next.type === "chapter") {
-            summaryContinueBtn.textContent = `Continue to ${next.category_name}`;
+            summaryContinueBtn.textContent = `Proceed to next chapter: ${next.category_name}`;
             continueAction = go(`/lesson-content?resource_id=${next.resource_id}`);
         } else {
             summaryContinueBtn.textContent = `Continue to ${next.resource_title}`;
             continueAction = go(`/lesson-content?resource_id=${next.resource_id}`);
         }
         summaryContinueBtn.disabled = false;
-        summaryContinueBtn.addEventListener('click', continueAction);
+        // A lesson completed on THIS visit asks "Proceed?" first (progress,
+        // score and recommendations are already saved by now); moving to a
+        // new chapter always asks. Re-opened old lessons just continue.
+        const askFirst = justCompleted || (next && next.type === "chapter");
+        summaryContinueBtn.addEventListener('click', () => {
+            if (askFirst && window.CobraProceed) {
+                window.CobraProceed.open(proceedOptions(next, moduleReviewUrl));
+            } else {
+                continueAction();
+            }
+        });
 
         renderReview(review, moduleReviewUrl);
-
-        // Everything above (progress, score, recommendations) is saved by the
-        // time this runs - only now ask the learner whether to move on.
-        if (justCompleted) {
-            justCompleted = false;
-            openProceedDialog(next, review, moduleReviewUrl);
-        }
     }
 
     // ---------------- Summary: missed items -> Module Review ----------------
@@ -1495,78 +1491,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ---------------- "Proceed to the next lesson?" popup ----------------
-    let proceedYesAction = null;
-
-    function openProceedDialog(next, review, moduleReviewUrl) {
-        if (!proceedOverlay) return;
-        let icon = "fa-circle-check";
-        let title = "Lesson complete!";
-        let text;
-        let yesLabel = "Yes, proceed";
-        let noLabel = "No, stay here";
-        proceedYesAction = null;
-
+    // ---------------- "Proceed?" popup content (proceed-modal.js) ----------------
+    function proceedOptions(next, moduleReviewUrl) {
+        const lessonsUrl = backToLessonsLink.href;
         if (next && next.type === "module_gate") {
             if (next.all_done) {
-                icon = "fa-clipboard-check";
-                title = "Module finished!";
-                text = `Your module score is ${next.module_percent}%. You need ${next.pass_percent}% to unlock the next module. Go to your Module Review to see what you missed and retake it?`;
-                yesLabel = "Yes, go to Module Review";
-                proceedYesAction = moduleReviewUrl;
-            } else {
-                text = `Some lessons in this module are not finished yet. Finish them with an average of ${next.pass_percent}% to unlock the next module. Go back to the lessons?`;
-                yesLabel = "Yes, back to lessons";
-                proceedYesAction = backToLessonsLink.href;
+                return {
+                    icon: "fa-clipboard-check",
+                    title: "Module finished!",
+                    text: `Your module score is ${next.module_percent}%. You need ${next.pass_percent}% to unlock the next module. Go to your Module Review to see what you missed and retake it?`,
+                    yesLabel: "Yes, go to Module Review",
+                    href: moduleReviewUrl || lessonsUrl,
+                };
             }
-        } else if (!next || next.type === "end") {
-            icon = "fa-trophy";
-            title = "You finished the course!";
-            text = "Great work - that was the last lesson. Go back to your lessons?";
-            yesLabel = "Yes, back to lessons";
-            proceedYesAction = backToLessonsLink.href;
-        } else if (next.type === "chapter") {
-            icon = "fa-flag-checkered";
-            title = "Chapter complete!";
-            text = `Proceed to the next chapter, ${next.category_name}, starting with "${next.resource_title}"?`;
-            proceedYesAction = `/lesson-content?resource_id=${next.resource_id}`;
-        } else if (next.new_module) {
-            icon = "fa-flag";
-            title = "Module complete!";
-            text = `Proceed to the next module, ${next.module_name}, starting with "${next.resource_title}"?`;
-            proceedYesAction = `/lesson-content?resource_id=${next.resource_id}`;
-        } else {
-            text = `Proceed to the next lesson, "${next.resource_title}"?`;
-            proceedYesAction = `/lesson-content?resource_id=${next.resource_id}`;
+            return {
+                title: "Lesson complete!",
+                text: `Some lessons in this module are not finished yet. Finish them with an average of ${next.pass_percent}% to unlock the next module. Go back to the lessons?`,
+                yesLabel: "Yes, back to lessons",
+                href: lessonsUrl,
+            };
         }
-
-        proceedIcon.innerHTML = `<i class="fa-solid ${icon}"></i>`;
-        proceedTitle.textContent = title;
-        proceedText.textContent = text;
-        proceedYesBtn.textContent = yesLabel;
-        proceedNoBtn.textContent = noLabel;
-        proceedOverlay.hidden = false;
-        proceedYesBtn.focus();
-    }
-
-    function closeProceedDialog() {
-        if (proceedOverlay) proceedOverlay.hidden = true;
-        summaryContinueBtn.focus();
-    }
-
-    if (proceedYesBtn) {
-        proceedYesBtn.addEventListener('click', () => {
-            if (proceedYesAction) window.location.href = proceedYesAction;
-            else closeProceedDialog();
-        });
-    }
-    // "No" keeps the learner on the Summary - the Continue button is still there.
-    if (proceedNoBtn) proceedNoBtn.addEventListener('click', closeProceedDialog);
-    if (proceedOverlay) {
-        proceedOverlay.addEventListener('click', (e) => { if (e.target === proceedOverlay) closeProceedDialog(); });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !proceedOverlay.hidden) closeProceedDialog();
-        });
+        if (!next || next.type === "end") {
+            return {
+                icon: "fa-trophy",
+                title: "You finished the course!",
+                text: "Great work - that was the last lesson. Go back to your lessons?",
+                yesLabel: "Yes, back to lessons",
+                href: lessonsUrl,
+            };
+        }
+        if (next.type === "chapter") {
+            return {
+                icon: "fa-flag-checkered",
+                title: "Chapter complete!",
+                text: `Proceed to the next chapter, ${next.category_name}, starting with "${next.resource_title}"?`,
+                yesLabel: "Yes, next chapter",
+                href: `/lesson-content?resource_id=${next.resource_id}`,
+            };
+        }
+        if (next.new_module) {
+            return {
+                icon: "fa-flag",
+                title: "Module complete!",
+                text: `Proceed to the next module, ${next.module_name}, starting with "${next.resource_title}"?`,
+                href: `/lesson-content?resource_id=${next.resource_id}`,
+            };
+        }
+        return {
+            title: "Lesson complete!",
+            text: `Proceed to the next lesson, "${next.resource_title}"?`,
+            href: `/lesson-content?resource_id=${next.resource_id}`,
+        };
     }
 
     // ---------------- Initial load ----------------
