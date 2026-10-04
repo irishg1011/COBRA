@@ -20,9 +20,8 @@ BY LESSON VIEW - SCORE
         learner_exercise_progress_tbl row exists, otherwise the latest
         attempt's test_cases_passed
       - Score % = 50% ACTIVITIES + 50% LESSON CONTENT:
-          activities: the AVERAGE of each gradeable activity's own %
-            (each game and the exercise weigh the same, whatever their
-            item count), worth 50
+          activities: POOLED - all correct items + passed test cases over
+            all items + test cases of the lesson (adviser's rule), worth 50
           lesson content: content read, + video watched when the lesson
             has a published video, worth 50
       - lessons with nothing graded -> score None (shown as "—")
@@ -308,7 +307,6 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
     activities = []
     graded_points = 0.0
     graded_total = 0
-    activity_percents = []  # one fraction (0..1) per gradeable activity
     activities_done = 0
 
     for act in lesson["activities"]:
@@ -330,7 +328,6 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         if act["item_total"] > 0:
             graded_points += score
             graded_total += act["item_total"]
-            activity_percents.append(score / act["item_total"])
 
     exercise = None
     exercise_done = False
@@ -353,7 +350,6 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         if ex["test_total"] > 0:
             graded_points += points
             graded_total += ex["test_total"]
-            activity_percents.append(points / ex["test_total"])
 
     video_watched = row.get("video_watched_at") is not None
     content_read = row.get("content_read_at") is not None
@@ -362,7 +358,7 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
     # (content read, + video watched when the lesson has a published video).
     content_total = 1 + (1 if lesson["has_video"] else 0)
     content_done = (1 if content_read else 0) + (1 if lesson["has_video"] and video_watched else 0)
-    score_pct = lesson_grade_percent(activity_percents, content_done, content_total)
+    score_pct = lesson_grade_percent(graded_points, graded_total, content_done, content_total)
 
     steps_total = 1 + len(activities) + (1 if lesson["has_video"] else 0) + (1 if ex else 0)
     steps_done = (

@@ -12,11 +12,12 @@ Lesson performance % = ACTIVITY part (50) + LESSON CONTENT part (50)
 ONE place it is written; lesson_summary.py and learner_progress_monitor.py
 call it too, so every screen shows the same number)
 
-  ACTIVITY part = the AVERAGE of each gradeable activity's own %, x 50%
-    - each game:            passed items / its items
-    - the coding exercise:  test cases passed / its test cases
-    so every activity weighs the same, whatever its item count
-    (an 80% activity average gives 40, 100% gives 50).
+  ACTIVITY part = POOLED across the lesson's activities, x 50%
+    (adviser's rule): every correct item of every game + every passed test
+    case of the coding exercise, divided by all items + test cases. A bad
+    run in one activity can be made up in another - e.g. 9 correct out of
+    15 items over three activities is 60% of the activity part, whichever
+    activity the misses were in. (80% pooled gives 40, 100% gives 50.)
   LESSON CONTENT part = content steps done / content steps, x 50%
     - reading the lesson content, and
     - watching the video (only if the lesson has a published video)
@@ -126,24 +127,25 @@ ACTIVITY_WEIGHT = 50   # % of a lesson's grade that comes from its activity scor
 CONTENT_WEIGHT = 50    # % that comes from lesson content progress (content read, video watched)
 
 
-def lesson_grade_percent(activity_fractions, content_done, content_total):
+def lesson_grade_percent(points_earned, points_total, content_done, content_total):
     """
     THE lesson grade. Every place that shows or uses a lesson's
     performance % calls this - never a copy of the formula.
 
-        activity_fractions  one fraction (0..1) per gradeable activity:
-                            each game's passed items / items, and the
-                            coding exercise's test cases passed / test cases
-        content_done        content steps the learner finished
-        content_total       content steps the lesson has (content, + video if any)
+        points_earned   correct items of all the lesson's games + passed
+                        test cases of its coding exercise (POOLED)
+        points_total    all items of those games + all test cases
+        content_done    content steps the learner finished
+        content_total   content steps the lesson has (content, + video if any)
 
     Returns a whole percent 0..100, or None when the lesson has nothing
     gradeable (no activity with items and no exercise with test cases) -
     such a lesson has no grade, exactly as before.
     """
-    if not activity_fractions:
+    if not points_total:
         return None
-    activity_part = (sum(activity_fractions) / len(activity_fractions)) * ACTIVITY_WEIGHT
+    pooled = min(max((points_earned or 0) / points_total, 0), 1)
+    activity_part = pooled * ACTIVITY_WEIGHT
     content_share = (content_done / content_total) if content_total else 1
     content_part = min(max(content_share, 0), 1) * CONTENT_WEIGHT
     return int(activity_part + content_part + 0.5)   # halves round up
@@ -292,7 +294,8 @@ def lesson_performance(cursor, acc_id, resource_id):
     percent is None when the lesson has nothing gradeable.
     """
     missed_total = 0
-    activity_percents = []  # one fraction (0..1) per gradeable activity
+    points_earned = 0   # pooled: correct items + passed test cases
+    points_total = 0
     activities = {}
     for act in _published_activities(cursor, resource_id):
         activity_type = act.get("activity_type_name") or ""
@@ -302,17 +305,19 @@ def lesson_performance(cursor, acc_id, resource_id):
         activities[act["la_id"]] = {"type": activity_type, "missed": len(missed), "total": item_total}
         missed_total += len(missed)
         if item_total > 0:
-            activity_percents.append((item_total - len(missed)) / item_total)
+            points_earned += item_total - len(missed)
+            points_total += item_total
 
     ex_points, ex_total = _exercise_points(cursor, acc_id, resource_id)
     if ex_total > 0:
-        activity_percents.append(ex_points / ex_total)
+        points_earned += ex_points
+        points_total += ex_total
 
     # feat/grade-50-50: 50% activities + 50% lesson content progress
     content_done, content_total = lesson_content_progress(cursor, acc_id, resource_id)
 
     return {
-        "percent": lesson_grade_percent(activity_percents, content_done, content_total),
+        "percent": lesson_grade_percent(points_earned, points_total, content_done, content_total),
         "missed": missed_total,
         "activities": activities,
     }
@@ -351,6 +356,30 @@ def module_performance(cursor, acc_id, module_id):
         "pass_percent": PASS_PERCENT,
         "lessons": lessons,
     }
+
+
+def lesson_locked_for_learner(cursor, acc_id, resource_id):
+    """
+    Lesson order inside a module - the SAME rule the Lessons page uses:
+    the first lesson of a module is open; any other lesson opens once the
+    lesson before it is COMPLETED (the learner reached its Summary).
+    Retakes never block it. A lesson the learner already started is never
+    locked again. True = locked.
+    """
+    cursor.execute("SELECT module_id FROM learning_resources_tbl WHERE resource_id = %s", (resource_id,))
+    row = cursor.fetchone()
+    if not row:
+        return False
+    ids = module_lesson_ids(cursor, row["module_id"])
+    if resource_id not in ids or ids.index(resource_id) == 0:
+        return False
+    cursor.execute(
+        "SELECT 1 AS started FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s LIMIT 1",
+        (acc_id, resource_id)
+    )
+    if cursor.fetchone():
+        return False
+    return not lesson_complete(cursor, acc_id, ids[ids.index(resource_id) - 1])
 
 
 def module_locked_for_learner(cursor, acc_id, module_id):

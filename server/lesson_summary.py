@@ -7,8 +7,8 @@ content, each activity's score, the exercise result) plus an overall
 Performance %.
 
 Performance % (feat/grade-50-50) = 50% ACTIVITIES + 50% LESSON CONTENT:
-the average of every graded activity's own % (MCQ, Fill in the Blanks,
-Flashcards, Exercise) is worth 50, and going through the lesson content
+all correct items of every activity + passed exercise test cases, POOLED
+over all items + test cases (adviser's rule), is worth 50, and going through the lesson content
 (reading it, and watching the video when there is one) is worth the
 other 50 - so a learner who finished the lesson never sees 0%, even
 with every answer wrong. The rule itself lives in
@@ -78,11 +78,9 @@ def get_lesson_performance_summary(acc_id, resource_id):
         activities_out = []
         graded_points = 0.0
         graded_total = 0
-        # One fraction per gradeable activity (each game + the coding
-        # exercise weigh the same, whatever their item/test-case count).
-        # They become the ACTIVITY half of the grade - see
+        # graded_points / graded_total (pooled over every game item and
+        # exercise test case) are the ACTIVITY half of the grade - see
         # module_performance.lesson_grade_percent().
-        activity_percents = []
 
         for row in activity_rows:
             la_id = row["la_id"]
@@ -118,7 +116,6 @@ def get_lesson_performance_summary(acc_id, resource_id):
             if item_total > 0:
                 graded_points += score
                 graded_total += item_total
-                activity_percents.append((score or 0) / item_total)
 
         exercise_out = None
         cursor.execute(
@@ -165,11 +162,10 @@ def get_lesson_performance_summary(acc_id, resource_id):
             if test_total > 0:
                 graded_points += points_earned
                 graded_total += test_total
-                activity_percents.append((points_earned or 0) / test_total)
 
         # feat/grade-50-50: 50% activities + 50% lesson content progress
         content_done, content_total = lesson_content_progress(cursor, acc_id, resource_id)
-        performance_percent = lesson_grade_percent(activity_percents, content_done, content_total)
+        performance_percent = lesson_grade_percent(graded_points, graded_total, content_done, content_total)
 
         cursor.close()
         return {

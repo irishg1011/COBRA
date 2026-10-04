@@ -43,7 +43,8 @@ from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 from notifications import notify_standalone  # header bell
 import time
 from module_performance import (  # Module 85% gate
-    module_performance, module_locked_for_learner, get_resource_retake_info, start_activity_retake,
+    module_performance, module_locked_for_learner, lesson_locked_for_learner,
+    get_resource_retake_info, start_activity_retake,
     live_course_rows, is_live_lesson,  # feat/published-only: what a learner can see
 )
 from activity_retakes import ensure_retake_schema, PASS_PERCENT
@@ -658,11 +659,12 @@ def lessons_data():
                 if is_complete:
                     overall_completed += 1
 
-                # Task #14: "reached" now includes touched-but-not-yet-
-                # complete, not just fully complete - this is the line
-                # that keeps everything after an in-progress lesson from
-                # locking behind it.
-                previous_reached = is_complete or has_ever_touched
+                # Adviser's rule: the next lesson opens once this one is
+                # COMPLETED (the learner reached its Summary) - just opening
+                # it is no longer enough. Retakes never block it, and a
+                # lesson already started stays open (status above).
+                # Same rule on the server: lesson_locked_for_learner().
+                previous_reached = is_complete
 
             # Module 85% gate - STRICT, LIVE: the first module of a chapter
             # is always open; every other one is open only while the module
@@ -791,6 +793,17 @@ def lesson_content_data():
                 "locked": True,
                 "cat_id": resource["cat_id"],
                 "message": f"This lesson is locked. Pass the previous module with {PASS_PERCENT}% or higher to unlock it.",
+            }), 403
+
+        # Lesson order: the previous lesson of this module has to reach its
+        # Summary first (same rule as the Lessons page).
+        if lesson_locked_for_learner(cursor, acc_id, resource_id):
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "locked": True,
+                "cat_id": resource["cat_id"],
+                "message": "This lesson is locked. Finish the previous lesson (reach its Summary) to unlock it.",
             }), 403
 
         cursor.execute(
