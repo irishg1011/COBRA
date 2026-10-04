@@ -529,3 +529,215 @@
     .fib-feedback-actions .fib-primary-btn,
     .fib-feedback-actions .fib-ghost-btn { flex: 1 1 0; justify-content: center; }
 }
+
+/* ============================================================
+   Mobile version of the game
+   ============================================================ */
+
+/* The top bar is a <header>, so it picked up the site header rule in
+   static/style.css (sticky, z-index 1000) and floated over the page
+   header and the notification list while scrolling. Keep it in the
+   page flow - same fix as the Multiple Choice arena and Flashcards. */
+.fib-topbar {
+    position: static;
+    z-index: auto;
+}
+
+@media (max-width: 720px) {
+    /* Give the game the full card width instead of a card inside a card. */
+    .activity-host:has(.fib-root) {
+        padding: 0;
+        border: none;
+        background: transparent;
+    }
+
+    /* Undo the site header box (8% side padding, 88px tall, blur). */
+    .fib-topbar {
+        min-height: 0;
+        padding: 12px;
+        gap: 10px;
+        border-radius: 12px;
+        box-shadow: none;
+    }
+
+    .fib-brand-icon { width: 34px; height: 34px; font-size: 15px; }
+    .fib-brand-title { font-size: 16px; }
+
+    /* Four equal stat cards across the phone. The row of hearts does not
+       fit in a card this small (it spilled off the screen with 10 lives),
+       so the count ("10/5") stands in for it. */
+    .fib-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .fib-stat { min-width: 0; padding: 6px 4px; text-align: center; }
+    .fib-stat b { font-size: 16px; }
+    .fib-stat.is-lives b { justify-content: center; font-size: 13px; }
+    .fib-stat i { font-size: 9.5px; letter-spacing: 0.2px; }
+    .fib-stat.is-lives i { white-space: normal; }   /* "Lives - refill 9:59" wraps inside the card */
+    .fib-stat .fib-hearts { display: none; }
+    .fib-lives-count { margin-left: 0; }
+
+    .fib-canvas { height: 240px; }
+    .fib-hpbar-name { font-size: 10px; }
+
+    .fib-slot-input { font-size: 16px; }   /* 16px+ stops iOS zooming in on focus */
+
+    /* A tall intro / results card scrolls instead of spilling out. */
+    .fib-overlay { overflow-y: auto; align-items: flex-start; padding: 16px 12px; }
+    .fib-overlay > * { margin: auto 0; }
+}
+
+/* ============================================================
+   Full screen on phones (.is-focus)
+   lesson-fill-blanks.js adds .is-focus when a phone starts a play and removes it
+   on exit, on the results, on an error, or when lives run out -
+   the same idea as the Multiple Choice arena. While it is on, the
+   page behind cannot scroll (html.fib-focus-lock).
+   ============================================================ */
+
+/* Full screen / Exit full screen button in the top bar: phones only
+   (.can-focus), and never on the loading / out of lives / results /
+   error screens. */
+.fib-focus-btn { display: none; }
+
+.fib-root.can-focus .fib-focus-btn {
+    display: inline-flex;
+    margin-left: auto;
+    padding: 6px 12px;
+    font-size: 12.5px;
+}
+
+.fib-root[data-mode="loading"] .fib-focus-btn,
+.fib-root[data-mode="cooldown"] .fib-focus-btn,
+.fib-root[data-mode="done"] .fib-focus-btn,
+.fib-root[data-mode="error"] .fib-focus-btn { display: none; }
+
+html.fib-focus-lock,
+html.fib-focus-lock body {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+.fib-root.is-focus {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;               /* over the sticky site header (1000), under popups (2000) */
+    gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right))
+             calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+    background: #f8fafc;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+/* lesson-fill-blanks.js keeps these two values equal to the part of the screen that is
+   really visible, so the on-screen keyboard never covers the game. */
+.fib-root.is-focus.has-viewport {
+    top: var(--fib-vv-top, 0px);
+    bottom: auto;
+    height: var(--fib-vv-height, 100%);
+}
+
+/* top bar: only the four stats and the exit button, on one line */
+.fib-root.is-focus .fib-brand { display: none; }
+
+.fib-root.is-focus .fib-topbar {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 6px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+.fib-root.is-focus .fib-stats {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.fib-root.is-focus .fib-stat { min-width: 0; padding: 4px; text-align: center; }
+.fib-root.is-focus .fib-stat b { font-size: 15px; line-height: 1.2; justify-content: center; }
+.fib-root.is-focus .fib-stat.is-lives b { font-size: 13px; }
+.fib-root.is-focus .fib-stat i { font-size: 9px; letter-spacing: 0.2px; }
+.fib-root.is-focus .fib-stat.is-lives i { white-space: normal; }
+.fib-root.is-focus .fib-stat .fib-hearts { display: none; }   /* the count ("10/5") stays */
+.fib-root.is-focus .fib-lives-count { margin-left: 0; }
+
+.fib-root.is-focus .fib-focus-btn {
+    flex: 0 0 auto;
+    margin-left: 0;
+    padding: 0 12px;
+    font-size: 15px;
+}
+
+.fib-root.is-focus .fib-focus-btn span { display: none; }   /* icon only; the name is in aria-label */
+
+/* play area: the 3D stage takes the room that is left, the board
+   scrolls inside itself when it is taller than the screen */
+.fib-root.is-focus .fib-play {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+}
+
+.fib-root.is-focus .fib-stage {
+    flex: 1 1 0;
+    min-height: 120px;
+}
+
+.fib-root.is-focus .fib-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.fib-root.is-focus .fib-hpbar { top: 8px; }
+
+.fib-root.is-focus .fib-board {
+    flex: 0 1 auto;
+    min-height: 0;
+    padding: 12px;
+    gap: 10px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.fib-root.is-focus .fib-board > * { flex-shrink: 0; }   /* scroll the board, never squash its parts */
+
+.fib-root.is-focus .fib-overlay {
+    align-items: flex-start;
+    padding: 16px 12px;
+    overflow-y: auto;
+}
+
+.fib-root.is-focus .fib-overlay > * { margin: auto 0; }
+
+.fib-root.is-focus .fib-instruction { font-size: 14.5px; }
+
+/* On-screen keyboard open: the stage steps aside for the board. */
+.fib-root.is-focus.is-compact .fib-stage,
+.fib-root.is-focus.is-compact .fib-board-head { display: none; }
+
+/* Phone on its side: stage on the left, board on the right. */
+@media (orientation: landscape) and (max-height: 600px) {
+    .fib-root.is-focus .fib-play { flex-direction: row; }
+    .fib-root.is-focus .fib-stage { min-width: 0; min-height: 0; }
+    .fib-root.is-focus .fib-board { flex: 0 0 56%; }
+    .fib-root.is-focus.is-compact .fib-board { flex: 1 1 auto; }
+    /* keyboard open on a sideways phone: every pixel goes to the board */
+    .fib-root.is-focus.is-compact .fib-topbar { display: none; }
+}

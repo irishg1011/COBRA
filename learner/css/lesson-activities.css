@@ -947,3 +947,11 @@ html.mcq-focus-lock body {
     }
     .mcq-arena-root.is-focus [data-ui="fallbackFeedback"] { display: none; }
 }
+
+/* "Lives - refill 9:59" wraps inside its small card on phones instead
+   of spilling out of it (same fix as Fill in the Blanks / Flashcards). */
+@media (max-width: 720px) {
+    .mcq-arena-stat.is-lives i { white-space: normal; }
+}
+
+.mcq-arena-root.is-focus .mcq-arena-stat.is-lives i { white-space: normal; }

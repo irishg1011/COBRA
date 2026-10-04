@@ -569,3 +569,174 @@
     .fc-overlay { overflow-y: auto; align-items: flex-start; padding: 16px 12px; }
     .fc-overlay > * { margin: auto 0; }
 }
+
+/* "Lives - refill 9:59" wraps inside its small card on phones instead
+   of spilling out of it. */
+@media (max-width: 720px) {
+    .fc-stat.is-lives i { white-space: normal; }
+    .fc-lives-count { margin-left: 0; }
+}
+
+/* ============================================================
+   Full screen on phones (.is-focus)
+   lesson-flashcards.js adds .is-focus when a phone starts a play and removes it
+   on exit, on the results, on an error, or when lives run out -
+   the same idea as the Multiple Choice arena. While it is on, the
+   page behind cannot scroll (html.fc-focus-lock).
+   ============================================================ */
+
+/* Full screen / Exit full screen button in the top bar: phones only
+   (.can-focus), and never on the loading / out of lives / results /
+   error screens. */
+.fc-focus-btn { display: none; }
+
+.fc-root.can-focus .fc-focus-btn {
+    display: inline-flex;
+    margin-left: auto;
+    padding: 6px 12px;
+    font-size: 12.5px;
+}
+
+.fc-root[data-mode="loading"] .fc-focus-btn,
+.fc-root[data-mode="cooldown"] .fc-focus-btn,
+.fc-root[data-mode="done"] .fc-focus-btn,
+.fc-root[data-mode="error"] .fc-focus-btn { display: none; }
+
+html.fc-focus-lock,
+html.fc-focus-lock body {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+.fc-root.is-focus {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;               /* over the sticky site header (1000), under popups (2000) */
+    gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right))
+             calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+    background: #f8fafc;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+/* lesson-flashcards.js keeps these two values equal to the part of the screen that is
+   really visible, so the on-screen keyboard never covers the game. */
+.fc-root.is-focus.has-viewport {
+    top: var(--fc-vv-top, 0px);
+    bottom: auto;
+    height: var(--fc-vv-height, 100%);
+}
+
+/* top bar: only the four stats and the exit button, on one line */
+.fc-root.is-focus .fc-brand { display: none; }
+
+.fc-root.is-focus .fc-topbar {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 6px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+.fc-root.is-focus .fc-stats {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.fc-root.is-focus .fc-stat { min-width: 0; padding: 4px; text-align: center; }
+.fc-root.is-focus .fc-stat b { font-size: 15px; line-height: 1.2; justify-content: center; }
+.fc-root.is-focus .fc-stat.is-lives b { font-size: 13px; }
+.fc-root.is-focus .fc-stat i { font-size: 9px; letter-spacing: 0.2px; }
+.fc-root.is-focus .fc-stat.is-lives i { white-space: normal; }
+.fc-root.is-focus .fc-stat .fc-hearts { display: none; }   /* the count ("10/5") stays */
+.fc-root.is-focus .fc-lives-count { margin-left: 0; }
+
+.fc-root.is-focus .fc-focus-btn {
+    flex: 0 0 auto;
+    margin-left: 0;
+    padding: 0 12px;
+    font-size: 15px;
+}
+
+.fc-root.is-focus .fc-focus-btn span { display: none; }   /* icon only; the name is in aria-label */
+
+/* play area: the 3D stage takes the room that is left, the board
+   scrolls inside itself when it is taller than the screen */
+.fc-root.is-focus .fc-play {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+}
+
+.fc-root.is-focus .fc-stage {
+    flex: 1 1 0;
+    min-height: 120px;
+}
+
+.fc-root.is-focus .fc-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.fc-root.is-focus .fc-hpbar { top: 8px; }
+
+.fc-root.is-focus .fc-board {
+    flex: 0 1 auto;
+    min-height: 0;
+    padding: 12px;
+    gap: 10px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.fc-root.is-focus .fc-board > * { flex-shrink: 0; }   /* scroll the board, never squash its parts */
+
+.fc-root.is-focus .fc-overlay {
+    align-items: flex-start;
+    padding: 16px 12px;
+    overflow-y: auto;
+}
+
+.fc-root.is-focus .fc-overlay > * { margin: auto 0; }
+
+/* the card and the answer row, a little tighter */
+.fc-root.is-focus .fc-card { padding: 14px 16px; }
+.fc-root.is-focus .fc-card-front { font-size: 16px; }
+.fc-root.is-focus .fc-answer-row { gap: 8px; }
+.fc-root.is-focus .fc-answer-input { flex: 1 1 100%; }
+
+.fc-root.is-focus .fc-answer-row .fc-primary-btn,
+.fc-root.is-focus .fc-answer-row .fc-skip-btn {
+    flex: 1 1 0;
+    width: auto;
+    padding: 10px 12px;
+    justify-content: center;
+}
+
+/* On-screen keyboard open: the stage steps aside for the board. */
+.fc-root.is-focus.is-compact .fc-stage,
+.fc-root.is-focus.is-compact .fc-board-head { display: none; }
+
+/* Phone on its side: stage on the left, board on the right. */
+@media (orientation: landscape) and (max-height: 600px) {
+    .fc-root.is-focus .fc-play { flex-direction: row; }
+    .fc-root.is-focus .fc-stage { min-width: 0; min-height: 0; }
+    .fc-root.is-focus .fc-board { flex: 0 0 56%; }
+    .fc-root.is-focus.is-compact .fc-board { flex: 1 1 auto; }
+    /* keyboard open on a sideways phone: every pixel goes to the board */
+    .fc-root.is-focus.is-compact .fc-topbar { display: none; }
+}

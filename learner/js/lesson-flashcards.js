@@ -27,6 +27,10 @@
  * Cards come from GET /api/lesson-activities/flashcard-play (front_text
  * only - never the answer). The 3D stage (flashcards3d.js) follows
  * activity.terrain ("land" forest / "water" ship).
+ *
+ * Phones: Start / Continue / Play card opens the game full screen
+ * (.is-focus) so the page behind can't scroll while answering - same as
+ * the Multiple Choice arena. See "full screen (phones)" below.
  */
 (function () {
     "use strict";
@@ -135,6 +139,7 @@
                     <div class="fc-stat"><b data-c="streak">0</b><i>Streak</i></div>
                     <div class="fc-stat is-lives" data-c="livesStat"><b><span class="fc-hearts" data-c="lives"></span><span class="fc-lives-count" data-c="livesCount"></span></b><i data-c="livesLabel">Lives</i></div>
                 </div>
+                <button type="button" class="fc-ghost-btn fc-focus-btn" data-c="focusBtn" aria-label="Full screen"><i class="fa-solid fa-expand"></i> <span>Full screen</span></button>
             </header>
             <div class="fc-play">
                 <section class="fc-stage">
@@ -210,6 +215,8 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            // Results, an error and "out of lives" always show in the normal page.
+            if (next === "done" || next === "error" || next === "cooldown") setFocus(false);
             updateControls();
         }
 
@@ -302,6 +309,7 @@
             overlayNode("pvFront").textContent = currentCard().front_text;
             overlayNode("pvBtnText").textContent = copy.btn;
             const startFromPreview = () => {
+                enterFocusIfPhone();   // phones: the game goes full screen
                 if (kind === "next") {
                     hideOverlay();
                     setMode("playing");
@@ -770,7 +778,7 @@
             fx.flashFoe = Math.max(0, fx.flashFoe - dt * 2.4);
             fx.flashHero = Math.max(0, fx.flashHero - dt * 2.4);
 
-            if (!stage3d || root.offsetParent === null) return; // hidden: skip the GPU work
+            if (!stage3d || !isShown()) return; // hidden: skip the GPU work
             const v = frameValues();
             stage3d.render({
                 t: fx.t,
@@ -849,7 +857,7 @@
         ui.nextBtn.addEventListener("click", advance);
 
         function onKeyDown(e) {
-            if (disposed || root.offsetParent === null) return;
+            if (disposed || !isShown()) return;
             if (e.key !== "Enter") return;
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "BUTTON")) return;
@@ -867,7 +875,75 @@
         }
 
         function onResize() {
-            if (!disposed && stage3d) stage3d.resize();
+            if (disposed) return;
+            updateFocusBtn();   // a turned phone / resized window may change "is this a phone"
+            if (stage3d) stage3d.resize();
+        }
+
+        // ---- full screen (phones): the game fills the screen while playing ----
+        // Same idea as the Multiple Choice arena: Start / Resume on a phone
+        // opens the game full screen and the page behind stops scrolling.
+        // It closes by itself on the results, an error, or when lives run
+        // out, and the learner can leave / come back with the button in
+        // the top bar. Styles: .fc-root.is-focus in the CSS file.
+        const touchQuery = window.matchMedia ? window.matchMedia("(hover: none) and (pointer: coarse)") : null;
+        let focusDeclined = false;   // learner pressed "Exit full screen" - do not force it back on
+
+        function isPhone() {
+            return !!(touchQuery && touchQuery.matches && Math.min(window.innerWidth, window.innerHeight) <= 600);
+        }
+
+        // offsetParent is always null for position: fixed (full screen), so
+        // ask for layout boxes instead: none = hidden (display: none).
+        function isShown() {
+            return root.getClientRects().length > 0;
+        }
+
+        function updateFocusBtn() {
+            const on = root.classList.contains("is-focus");
+            root.classList.toggle("can-focus", on || isPhone());
+            if (ui.focusBtn.dataset.on === String(on)) return;   // label already right
+            ui.focusBtn.dataset.on = String(on);
+            ui.focusBtn.innerHTML = on
+                ? '<i class="fa-solid fa-compress"></i> <span>Exit full screen</span>'
+                : '<i class="fa-solid fa-expand"></i> <span>Full screen</span>';
+            ui.focusBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+        }
+
+        // Keeps the full-screen game inside the part of the screen that is
+        // really visible, so the on-screen keyboard never covers the answer
+        // box. While the keyboard is open the 3D stage is hidden (is-compact)
+        // to leave the room to the card and the answer box.
+        function syncViewport() {
+            const vv = window.visualViewport;
+            const usable = !!vv && root.classList.contains("is-focus") && Math.abs(vv.scale - 1) < 0.01;
+            root.classList.toggle("has-viewport", usable);
+            root.classList.toggle("is-compact", usable && vv.height < window.innerHeight - 120);
+            if (usable) {
+                root.style.setProperty("--fc-vv-top", `${vv.offsetTop}px`);
+                root.style.setProperty("--fc-vv-height", `${vv.height}px`);
+            }
+        }
+
+        function setFocus(on) {
+            if (root.classList.contains("is-focus") === on) return;
+            root.classList.toggle("is-focus", on);
+            document.documentElement.classList.toggle("fc-focus-lock", on);
+            syncViewport();
+            updateFocusBtn();
+            onResize();
+        }
+
+        function enterFocusIfPhone() {
+            if (isPhone() && !focusDeclined) setFocus(true);
+        }
+
+        function toggleFocus() {
+            if (disposed || mode === "loading" || mode === "cooldown" || mode === "done" || mode === "error") return;
+            const on = !root.classList.contains("is-focus");
+            focusDeclined = !on;
+            setFocus(on);
+            if (!on) root.scrollIntoView({ block: "start" });
         }
 
         function dispose() {
@@ -877,10 +953,18 @@
             clearInterval(countdownTimer);
             document.removeEventListener("keydown", onKeyDown);
             document.removeEventListener("visibilitychange", onVisibility);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener("resize", syncViewport);
+                window.visualViewport.removeEventListener("scroll", syncViewport);
+            }
             if (resizeObserver) resizeObserver.disconnect();
+            root.classList.remove("is-focus");
+            document.documentElement.classList.remove("fc-focus-lock");
             if (stage3d && stage3d.dispose) stage3d.dispose();
             stage3d = null;
         }
+
+        ui.focusBtn.addEventListener("click", toggleFocus);
 
         // ---- boot ----
         async function boot() {
@@ -929,6 +1013,11 @@
             booted = true;
             document.addEventListener("keydown", onKeyDown);
             document.addEventListener("visibilitychange", onVisibility);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener("resize", syncViewport);
+                window.visualViewport.addEventListener("scroll", syncViewport);
+            }
+            updateFocusBtn();
             if (resizeObserver) resizeObserver.observe(root);
             countdownTimer = setInterval(tick, 1000);
             rafId = requestAnimationFrame(loop);
