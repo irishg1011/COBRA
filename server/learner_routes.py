@@ -34,6 +34,10 @@ from learner_exercise import (
     grade_exercise_submission,
     record_exercise_progress,
     get_latest_submission,
+    get_exercise_state,
+    skip_exercise,
+    is_exercise_done,
+    exercise_score,
 )
 from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from weak_spots import get_weak_spots, get_review_status  # weak-spot recommendations
@@ -595,8 +599,10 @@ def lessons_data():
                         )
                         ex_progress = cursor.fetchone()
                         if not ex_progress or ex_progress["status"] != "completed":
-                            exercise_completed = False
-                            break
+                            # Skipped for now (after 3 tries) also lets the lesson finish.
+                            if not exercise_score(cursor, acc_id, ex["exercise_id"], 0)["skipped"]:
+                                exercise_completed = False
+                                break
 
                 activities_ok = (activities_total == 0) or (activities_completed == activities_total)
                 is_complete = resource_watched and activities_ok and exercise_completed
@@ -846,12 +852,14 @@ def lesson_content_data():
         exercise = get_published_exercise_for_resource(resource_id)
         exercise_completed = False
         exercise_last_submission = None
+        exercise_state = None
         if exercise:
             exercise_completed = is_exercise_completed(acc_id, exercise["exercise_id"])
             exercise_last_submission = (
                 get_latest_submission(acc_id, exercise["exercise_id"], correct_only=True)
                 if exercise_completed else None
             ) or get_latest_submission(acc_id, exercise["exercise_id"])
+            exercise_state = get_exercise_state(acc_id, exercise["exercise_id"])
 
         # Ensure a progress row exists (first time opening this lesson),
         # without downgrading an already-completed one.
@@ -886,6 +894,7 @@ def lesson_content_data():
             "exercise": exercise,
             "exercise_completed": exercise_completed,
             "exercise_last_submission": exercise_last_submission,
+            "exercise_state": exercise_state,
             "is_completed": progress_row["status"] == "completed",
             "progress": {
                 "video_watched": progress_row["video_watched_at"] is not None,
@@ -1032,7 +1041,7 @@ def lesson_exercise_submit():
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 500
 
-    passed, total, status, feedback = result
+    passed, total, status, feedback, tips = result
     if status == "correct":
         record_exercise_progress(acc_id, exercise_id)
 
@@ -1041,8 +1050,30 @@ def lesson_exercise_submit():
         "passed": passed,
         "total": total,
         "status": status,
-        "feedback": feedback
+        "feedback": feedback,
+        "tips": tips,
+        "state": get_exercise_state(acc_id, exercise_id),
     }), 200
+
+
+# ============================================================
+# ROUTE: SKIP THE EXERCISE FOR NOW - only after SKIP_AFTER_FAILS failed
+# tries. The lesson can then be finished; the exercise scores its best
+# attempt and stays open, so passing it later still gives full credit.
+# ============================================================
+@learner_bp.route("/api/lesson-exercise/skip", methods=["POST"])
+def lesson_exercise_skip():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    exercise_id = data.get("exercise_id")
+    if not exercise_id:
+        return jsonify({"success": False, "message": "exercise_id is required."}), 400
+
+    ok, message, state = skip_exercise(acc_id, exercise_id)
+    return jsonify({"success": ok, "message": message, "state": state}), (200 if ok else 400)
 
 
 # ============================================================
@@ -1328,10 +1359,10 @@ def mark_lesson_complete():
 
     # Same hard gate for the exercise, if this lesson has one.
     exercise = get_published_exercise_for_resource(resource_id)
-    if exercise and not is_exercise_completed(acc_id, exercise["exercise_id"]):
+    if exercise and not is_exercise_done(acc_id, exercise["exercise_id"]):
         return jsonify({
             "success": False,
-            "message": "Please pass the coding exercise before finishing this lesson."
+            "message": "Please pass (or skip) the coding exercise before finishing this lesson."
         }), 400
 
     connection = get_db_connection()

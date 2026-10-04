@@ -174,10 +174,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const ex = lesson.exercise;
             const exRow = document.createElement('p');
             exRow.className = 'review-exercise';
-            exRow.innerHTML = ex.passed
-                ? `<i class="fa-solid fa-code"></i> Coding exercise "${escapeHtml(ex.title)}": passed`
-                  + (ex.attempts > 1 ? ` after ${ex.attempts} attempts - worth practising again in the Sandbox.` : ' on the first try.')
-                : `<i class="fa-solid fa-code"></i> Coding exercise "${escapeHtml(ex.title)}": not passed yet (${plural(ex.attempts, 'attempt')}).`;
+            const tryAgain = `<a class="review-action is-retake" href="/lesson-content?resource_id=${lesson.resource_id}&step=exercise"><i class="fa-solid fa-rotate-right"></i> Try the exercise again</a>`;
+            if (ex.passed) {
+                exRow.innerHTML = `<i class="fa-solid fa-code"></i> Coding exercise "${escapeHtml(ex.title)}": passed`
+                  + (ex.attempts > 1 ? ` after ${ex.attempts} attempts - worth practising again in the Sandbox.` : ' on the first try.');
+            } else if (ex.skipped) {
+                exRow.classList.add('is-skipped');
+                exRow.innerHTML = `<span><i class="fa-solid fa-forward"></i> Coding exercise "${escapeHtml(ex.title)}": skipped for now after ${plural(ex.attempts, 'attempt')}. Passing it gives full credit.</span> ${tryAgain}`;
+            } else {
+                exRow.innerHTML = `<i class="fa-solid fa-code"></i> Coding exercise "${escapeHtml(ex.title)}": not passed yet (${plural(ex.attempts, 'attempt')}).`;
+            }
             body.appendChild(exRow);
         }
 

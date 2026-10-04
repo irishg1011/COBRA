@@ -32,6 +32,7 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from activity_retakes import ensure_retake_schema
 from module_performance import module_performance, lesson_grade_percent, lesson_content_progress
+from learner_exercise import exercise_score
 
 
 def get_lesson_performance_summary(acc_id, resource_id):
@@ -134,29 +135,16 @@ def get_lesson_performance_summary(acc_id, resource_id):
             cursor.execute("SELECT COUNT(*) AS cnt FROM test_cases_tbl WHERE exercise_id = %s", (exercise_id,))
             test_total = cursor.fetchone()["cnt"]
 
-            cursor.execute(
-                "SELECT progress_id FROM learner_exercise_progress_tbl WHERE acc_id = %s AND exercise_id = %s",
-                (acc_id, exercise_id)
-            )
-            ex_completed = cursor.fetchone() is not None
-
-            if ex_completed:
-                points_earned = test_total
-            else:
-                cursor.execute(
-                    """SELECT test_cases_passed FROM exercise_submissions_tbl
-                       WHERE acc_id = %s AND exercise_id = %s
-                       ORDER BY attempt_number DESC LIMIT 1""",
-                    (acc_id, exercise_id)
-                )
-                latest = cursor.fetchone()
-                points_earned = latest["test_cases_passed"] if latest else 0
+            ex_score = exercise_score(cursor, acc_id, exercise_id, test_total)
+            ex_completed = ex_score["passed"]
+            points_earned = ex_score["earned"]
 
             exercise_out = {
                 "exercise_title": exercise_row["exercise_title"],
                 "points_earned": points_earned,
                 "points_total": test_total,
                 "completed": ex_completed,
+                "skipped": ex_score["skipped"],
             }
 
             if test_total > 0:

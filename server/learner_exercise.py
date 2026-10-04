@@ -16,12 +16,21 @@ project's existing convention.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from exercise_tips import fix_tips, tips_text
 
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 TEST_CASES_TABLE = "test_cases_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
 SUBMISSIONS_TABLE = "exercise_submissions_tbl"
 PROGRESS_TABLE = "learner_exercise_progress_tbl"
+
+# After this many FAILED submissions the clue can be shown / the exercise
+# can be skipped. A skip is saved as a status='skipped' row in
+# exercise_submissions_tbl (never a progress row - that table only ever
+# means "passed"), so it is not counted as an attempt anywhere.
+HINT_AFTER_FAILS = 2
+SKIP_AFTER_FAILS = 3
+SKIPPED_STATUS = "skipped"
 
 
 def get_published_exercise_for_resource(resource_id):
@@ -116,7 +125,7 @@ def get_latest_submission(acc_id, exercise_id, correct_only=False):
         cursor.execute(
             f"""SELECT submitted_code, status, test_cases_passed, test_cases_total, feedback_given
                 FROM {SUBMISSIONS_TABLE}
-                WHERE acc_id = %s AND exercise_id = %s
+                WHERE acc_id = %s AND exercise_id = %s AND status <> '{SKIPPED_STATUS}'
                   {"AND status = 'correct'" if correct_only else ""}
                 ORDER BY attempt_number DESC, submission_id DESC
                 LIMIT 1""",
@@ -144,7 +153,8 @@ def grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_output
     Logs the attempt as a new row in exercise_submissions_tbl
     (append-only, attempt_number increments per (acc_id, exercise_id)).
 
-    Returns (passed: int, total: int, status: str, feedback: str) on
+    Returns (passed: int, total: int, status: str, feedback: str,
+    tips: list - see exercise_tips.fix_tips, empty when passed) on
     success, or None on failure (exercise not found, DB unreachable).
     """
     connection = get_db_connection()
@@ -154,7 +164,7 @@ def grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_output
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            f"SELECT test_case_id, expected_output FROM {TEST_CASES_TABLE} WHERE exercise_id = %s",
+            f"SELECT test_case_id, test_order, test_input, expected_output FROM {TEST_CASES_TABLE} WHERE exercise_id = %s",
             (exercise_id,)
         )
         test_case_rows = cursor.fetchall()
@@ -183,9 +193,13 @@ def grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_output
         correct_feedback = (ex_row.get("correct_feedback") if ex_row else "") or ""
 
         feedback = correct_feedback if status == "correct" else f"{passed} of {total} test cases passed. Review your code and try again."
+        tips = [] if status == "correct" else fix_tips(submitted_code, test_case_rows, actual_by_id)
+        # The tips are saved with the attempt so mentors see what the learner was told.
+        saved_feedback = feedback + ("\n" + tips_text(tips) if tips else "")
 
         cursor.execute(
-            f"SELECT COUNT(*) AS cnt FROM {SUBMISSIONS_TABLE} WHERE acc_id = %s AND exercise_id = %s",
+            f"""SELECT COUNT(*) AS cnt FROM {SUBMISSIONS_TABLE}
+                WHERE acc_id = %s AND exercise_id = %s AND status <> '{SKIPPED_STATUS}'""",
             (acc_id, exercise_id)
         )
         attempt_number = cursor.fetchone()["cnt"] + 1
@@ -195,11 +209,11 @@ def grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_output
                 (acc_id, exercise_id, submitted_code, test_cases_passed, test_cases_total,
                  attempt_number, status, source, recommendation_id, feedback_given, submitted_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, 'self', NULL, %s, NOW())""",
-            (acc_id, exercise_id, submitted_code or "", passed, total, attempt_number, status, feedback)
+            (acc_id, exercise_id, submitted_code or "", passed, total, attempt_number, status, saved_feedback)
         )
         connection.commit()
         cursor.close()
-        return passed, total, status, feedback
+        return passed, total, status, feedback, tips
     except Error as e:
         connection.rollback()
         print(f"learner_exercise: failed to grade submission for exercise_id={exercise_id}: {e}")
@@ -246,3 +260,126 @@ def record_exercise_progress(acc_id, exercise_id):
     finally:
         if connection.is_connected():
             connection.close()
+
+# ---------------- failed attempts / hint / skip ----------------
+def exercise_score(cursor, acc_id, exercise_id, test_total):
+    """
+    {"earned", "passed", "skipped", "attempts", "failed", "best"} for one
+    learner's exercise, caller's cursor. The ONE scoring rule everywhere:
+      passed  -> every test case
+      skipped -> the BEST attempt's passed test cases
+      else    -> the latest attempt's passed test cases (0 when none)
+    """
+    cursor.execute(
+        f"SELECT 1 AS ok FROM {PROGRESS_TABLE} WHERE acc_id = %s AND exercise_id = %s LIMIT 1",
+        (acc_id, exercise_id)
+    )
+    passed = cursor.fetchone() is not None
+    cursor.execute(
+        f"""SELECT status, test_cases_passed FROM {SUBMISSIONS_TABLE}
+            WHERE acc_id = %s AND exercise_id = %s
+            ORDER BY attempt_number ASC, submission_id ASC""",
+        (acc_id, exercise_id)
+    )
+    rows = cursor.fetchall()
+    attempts = [r for r in rows if r["status"] != SKIPPED_STATUS]
+    skipped = any(r["status"] == SKIPPED_STATUS for r in rows)
+    best = max((int(r["test_cases_passed"] or 0) for r in attempts), default=0)
+    latest = int(attempts[-1]["test_cases_passed"] or 0) if attempts else 0
+    if passed:
+        earned = test_total
+    elif skipped:
+        earned = min(best, test_total)
+    else:
+        earned = min(latest, test_total)
+    return {
+        "earned": earned,
+        "passed": passed,
+        "skipped": skipped and not passed,
+        "attempts": len(attempts),
+        "failed": sum(1 for r in attempts if r["status"] != "correct"),
+        "best": best,
+    }
+
+
+def get_exercise_state(acc_id, exercise_id):
+    """exercise_score() with its own connection, plus the hint/skip rules
+    the lesson page needs. None on a database error."""
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(f"SELECT COUNT(*) AS cnt FROM {TEST_CASES_TABLE} WHERE exercise_id = %s", (exercise_id,))
+        total = int(cursor.fetchone()["cnt"] or 0)
+        state = exercise_score(cursor, acc_id, exercise_id, total)
+        cursor.close()
+        state["total"] = total
+        state["hint_after"] = HINT_AFTER_FAILS
+        state["skip_after"] = SKIP_AFTER_FAILS
+        return state
+    except Error as e:
+        print(f"learner_exercise: failed to read exercise state for exercise_id={exercise_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def skip_exercise(acc_id, exercise_id):
+    """
+    Saves "skipped for now" after SKIP_AFTER_FAILS failed submissions.
+    Returns (ok: bool, message: str, state: dict | None). Skipping twice is
+    a no-op; a passed exercise can't be skipped.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return False, "Could not connect to database.", None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(f"SELECT COUNT(*) AS cnt FROM {TEST_CASES_TABLE} WHERE exercise_id = %s", (exercise_id,))
+        total = int(cursor.fetchone()["cnt"] or 0)
+        state = exercise_score(cursor, acc_id, exercise_id, total)
+        if state["passed"]:
+            cursor.close()
+            return False, "You already passed this exercise.", state
+        if state["failed"] < SKIP_AFTER_FAILS:
+            cursor.close()
+            return False, f"You can skip after {SKIP_AFTER_FAILS} tries.", state
+        if not state["skipped"]:
+            cursor.execute(
+                f"""SELECT submitted_code, test_cases_passed FROM {SUBMISSIONS_TABLE}
+                    WHERE acc_id = %s AND exercise_id = %s AND status <> '{SKIPPED_STATUS}'
+                    ORDER BY test_cases_passed DESC, attempt_number DESC LIMIT 1""",
+                (acc_id, exercise_id)
+            )
+            best = cursor.fetchone()
+            cursor.execute(
+                f"""INSERT INTO {SUBMISSIONS_TABLE}
+                    (acc_id, exercise_id, submitted_code, test_cases_passed, test_cases_total,
+                     attempt_number, status, source, recommendation_id, feedback_given, submitted_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'skip', NULL, %s, NOW())""",
+                (acc_id, exercise_id, (best or {}).get("submitted_code") or "", state["best"], total,
+                 state["attempts"], SKIPPED_STATUS,
+                 f"Skipped for now after {state['failed']} tries. Best attempt: {state['best']} of {total} test cases.")
+            )
+            connection.commit()
+            state = exercise_score(cursor, acc_id, exercise_id, total)
+        cursor.close()
+        state["total"] = total
+        return True, "Exercise skipped.", state
+    except Error as e:
+        connection.rollback()
+        print(f"learner_exercise: failed to skip exercise_id={exercise_id}: {e}")
+        return False, "Could not skip this exercise. Please try again.", None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def is_exercise_done(acc_id, exercise_id):
+    """Passed OR skipped - what finishing the lesson needs."""
+    if is_exercise_completed(acc_id, exercise_id):
+        return True
+    state = get_exercise_state(acc_id, exercise_id)
+    return bool(state and state["skipped"])

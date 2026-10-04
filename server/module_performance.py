@@ -41,6 +41,7 @@ touches Flask.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from learner_exercise import exercise_score
 from activity_retakes import (
     PASS_PERCENT,
     GAME_TABLES,
@@ -250,13 +251,16 @@ def lesson_complete(cursor, acc_id, resource_id):
         )
         ex_row = cursor.fetchone()
         if not ex_row or ex_row["status"] != "completed":
-            return False
+            # Skipped for now (after 3 tries) also counts as done.
+            if not exercise_score(cursor, acc_id, ex["exercise_id"], 0)["skipped"]:
+                return False
     return True
 
 
 # ---------------- performance ----------------
 def _exercise_points(cursor, acc_id, resource_id):
-    """(points_earned, points_total) for the lesson's coding exercise - same rule as lesson_summary.py."""
+    """(points_earned, points_total) for the lesson's coding exercise - learner_exercise.exercise_score()
+    (passed -> all, skipped -> best attempt, else latest attempt)."""
     cursor.execute(
         """SELECT ce.exercise_id
            FROM coding_exercises_tbl ce
@@ -272,20 +276,7 @@ def _exercise_points(cursor, acc_id, resource_id):
     exercise_id = row["exercise_id"]
     cursor.execute("SELECT COUNT(*) AS cnt FROM test_cases_tbl WHERE exercise_id = %s", (exercise_id,))
     test_total = cursor.fetchone()["cnt"]
-    cursor.execute(
-        "SELECT progress_id FROM learner_exercise_progress_tbl WHERE acc_id = %s AND exercise_id = %s",
-        (acc_id, exercise_id)
-    )
-    if cursor.fetchone() is not None:
-        return test_total, test_total
-    cursor.execute(
-        """SELECT test_cases_passed FROM exercise_submissions_tbl
-           WHERE acc_id = %s AND exercise_id = %s
-           ORDER BY attempt_number DESC LIMIT 1""",
-        (acc_id, exercise_id)
-    )
-    latest = cursor.fetchone()
-    return (latest["test_cases_passed"] if latest else 0), test_total
+    return exercise_score(cursor, acc_id, exercise_id, test_total)["earned"], test_total
 
 
 def lesson_performance(cursor, acc_id, resource_id):

@@ -723,6 +723,89 @@
     border: 1px solid #fca5a5;
 }
 
+/* Fix tips, hint, skip (exercise step) */
+.exercise-hint-btn {
+    margin-top: 4px;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.exercise-hint-btn:hover { background: #fef3c7; }
+.exercise-hint-btn[hidden], .exercise-clue[hidden] { display: none; }
+
+.exercise-tips {
+    margin: -6px 0 16px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    color: #78350f;
+    font-size: 13.5px;
+}
+.exercise-tips[hidden] { display: none; }
+.exercise-tips-title { margin: 0 0 8px; font-weight: 700; }
+.exercise-tips-title i { margin-right: 6px; color: #d97706; }
+.exercise-tips ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.exercise-tips li { line-height: 1.5; overflow-wrap: anywhere; }
+.exercise-tip-test { font-weight: 700; }
+.exercise-tip-input {
+    font-family: monospace;
+    background: rgba(146, 64, 14, 0.08);
+    border-radius: 4px;
+    padding: 0 4px;
+    white-space: pre-wrap;
+}
+
+.exercise-skipped-note {
+    margin: 0 0 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #fdba74;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 13.5px;
+}
+.exercise-skipped-note[hidden] { display: none; }
+.exercise-skipped-note i { margin-right: 6px; }
+
+.exercise-footer { gap: 12px; flex-wrap: wrap; }
+.exercise-footer-btns { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+.exercise-submit-note { font-size: 13px; color: #64748b; }
+.exercise-submit-note[hidden], .exercise-skip-btn[hidden] { display: none; }
+.exercise-submit-note i { margin-right: 4px; }
+
+.exercise-skip-btn {
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    background: #fff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+.exercise-skip-btn:hover { background: #f8fafc; }
+
+/* Greyed out (not invisible like other step buttons) after a failed try
+   until the code changes, and while the tests run. */
+#exerciseSubmitBtn:disabled {
+    opacity: 0.45;
+    pointer-events: auto;
+    cursor: not-allowed;
+    background: #94a3b8;
+}
+#exerciseSubmitBtn[hidden] { display: none; }
+
+@media (max-width: 560px) {
+    .exercise-footer-btns { width: 100%; }
+    .exercise-footer-btns > button { flex: 1 1 0; }
+}
+
 /* ===================== Summary step ===================== */
 .perf-banner {
     display: flex;

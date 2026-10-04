@@ -157,6 +157,7 @@
             }
             let status;
             if (ex.passed) status = badge("badge-active", "Passed");
+            else if (ex.skipped) status = badge("badge-locked", "Skipped");
             else if (ex.attempts > 0) status = badge("badge-locked", "Not passed yet");
             else status = badge("badge-inactive", "Not attempted");
 

@@ -54,6 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const exerciseResultBox = document.getElementById('exerciseResultBox');
     const exerciseCompleteRow = document.getElementById('exerciseCompleteRow');
     const exerciseCompleteStatus = document.getElementById('exerciseCompleteStatus');
+    const exerciseClueRow = document.getElementById('exerciseClueRow');
+    const exerciseHintBtn = document.getElementById('exerciseHintBtn');
+    const exerciseTips = document.getElementById('exerciseTips');
+    const exerciseSkippedNote = document.getElementById('exerciseSkippedNote');
+    const exerciseSubmitNote = document.getElementById('exerciseSubmitNote');
+    const exerciseSkipBtn = document.getElementById('exerciseSkipBtn');
 
     const videoStep = document.getElementById('videoStep');
     const lessonVideoFrame = document.getElementById('lessonVideoFrame');
@@ -1143,20 +1149,135 @@ document.addEventListener('DOMContentLoaded', () => {
         exerciseRunBtn.textContent = "Run";
     });
 
+    // ---------------- Exercise: submit lock, fix tips, hint, skip ----------------
+    // exerciseState comes from the server (learner_exercise.get_exercise_state):
+    // {passed, skipped, attempts, failed, best, total, hint_after, skip_after}.
+    let exerciseState = null;
+    let lastFailedCode = null;   // Submit stays greyed out until the code differs from this
+
+    const codeKey = (code) => (code || '').replace(/\s+$/g, '').replace(/[ \t]+\n/g, '\n');
+
+    function updateSubmitLock() {
+        if (lessonData.exercise_completed || exerciseSubmitBtn.dataset.running === '1') return;
+        const unchanged = lastFailedCode !== null && codeKey(exerciseCodeBox.innerText) === lastFailedCode;
+        exerciseSubmitBtn.disabled = unchanged;
+        exerciseSubmitNote.hidden = !unchanged;
+    }
+    exerciseCodeBox.addEventListener('input', updateSubmitLock);
+    exerciseCodeBox.addEventListener('keyup', updateSubmitLock);
+
+    function renderTips(tips) {
+        if (!tips || !tips.length) {
+            exerciseTips.hidden = true;
+            exerciseTips.innerHTML = '';
+            return;
+        }
+        exerciseTips.innerHTML = `
+            <p class="exercise-tips-title"><i class="fa-solid fa-wrench"></i> How to fix it</p>
+            <ul>${tips.map((t) => `
+                <li><span class="exercise-tip-test">Test ${escapeHtml(t.test)}</span>${t.input ? ` (input: <span class="exercise-tip-input">${escapeHtml(t.input)}</span>)` : ''}: ${escapeHtml(t.tip)}</li>`).join('')}
+            </ul>`;
+        exerciseTips.hidden = false;
+    }
+
+    // Tips saved with an attempt (feedback_given): first line = feedback,
+    // then one "Test N: tip" line per failing test case.
+    function tipsFromSaved(text) {
+        return String(text || '').split('\n').slice(1).map((line) => {
+            const m = line.match(/^Test (\d+): (.*)$/);
+            if (!m) return null;
+            const tc = (lessonData.exercise.test_cases || []).find((c) => String(c.test_order) === m[1]);
+            return { test: m[1], input: tc ? tc.test_input : '', tip: m[2] };
+        }).filter(Boolean);
+    }
+
+    function renderExerciseState() {
+        const st = exerciseState;
+        // Admin preview: the clue is always shown and there is nothing to skip.
+        if (PREVIEW || !st) {
+            exerciseClueRow.hidden = !lessonData.exercise.clue;
+            exerciseHintBtn.hidden = true;
+            exerciseSkipBtn.hidden = true;
+            exerciseSkippedNote.hidden = true;
+            return;
+        }
+        const hintOpen = !exerciseClueRow.hidden;
+        const canHint = !!lessonData.exercise.clue && (st.passed || st.failed >= st.hint_after);
+        exerciseHintBtn.hidden = !canHint || hintOpen;
+        if (!canHint) exerciseClueRow.hidden = true;
+        exerciseSkipBtn.hidden = st.passed || st.skipped || st.failed < st.skip_after;
+        exerciseSkippedNote.hidden = !st.skipped || st.passed;
+        if (st.skipped && lessonData.is_completed) {
+            // Lesson finished by skipping: the way on to the Summary stays here.
+            exerciseCompleteRow.style.display = "flex";
+            exerciseCompleteStatus.style.display = "inline-flex";
+        }
+    }
+
+    exerciseHintBtn.addEventListener('click', () => {
+        exerciseClueRow.hidden = false;
+        exerciseHintBtn.hidden = true;
+    });
+
+    exerciseSkipBtn.addEventListener('click', () => {
+        const st = exerciseState || {};
+        const best = `${st.best || 0} of ${st.total || lessonData.exercise.test_cases.length}`;
+        const open = window.CobraProceed && window.CobraProceed.open;
+        const doSkip = () => skipExercise();
+        if (!open) { if (window.confirm('Skip this exercise for now?')) doSkip(); return; }
+        window.CobraProceed.open({
+            icon: 'fa-forward',
+            title: 'Skip this exercise for now?',
+            text: `Your best attempt (${best} test cases) will count toward your lesson score, and "Applying the lesson" will show as Needs work. `
+                + `You can finish the lesson and come back any time - passing the exercise later gives full credit.`,
+            yesLabel: 'Yes, skip for now',
+            noLabel: 'Keep trying',
+            onYes: doSkip
+        });
+    });
+
+    async function skipExercise() {
+        exerciseSkipBtn.disabled = true;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/skip`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ exercise_id: lessonData.exercise.exercise_id })
+            });
+            const result = await response.json();
+            if (result.state) exerciseState = result.state;
+            renderExerciseState();
+            if (result.success) {
+                await attemptCompleteLesson();
+            } else {
+                exerciseResultBox.style.display = 'block';
+                exerciseResultBox.className = 'exercise-result fail';
+                exerciseResultBox.textContent = result.message || 'Could not skip this exercise.';
+            }
+        } catch (err) {
+            console.error('Error skipping exercise:', err);
+        }
+        exerciseSkipBtn.disabled = false;
+    }
+
     exerciseSubmitBtn.addEventListener('click', async () => {
         const code = exerciseCodeBox.innerText;
-        if (!code.trim()) return;
+        if (!code.trim() || exerciseSubmitBtn.disabled) return;
 
         exerciseSubmitBtn.disabled = true;
+        exerciseSubmitBtn.dataset.running = '1';
+        exerciseSubmitNote.hidden = true;
         exerciseSubmitBtn.textContent = "Running tests...";
 
-        const actualOutputs = [];
-        for (const tc of lessonData.exercise.test_cases) {
-            const output = await runExerciseForGrading(code, tc.test_input);
-            actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
-        }
-
+        let failed = false;
         try {
+            const actualOutputs = [];
+            for (const tc of lessonData.exercise.test_cases) {
+                const output = await runExerciseForGrading(code, tc.test_input);
+                actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
+            }
+
             const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1171,32 +1292,44 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             exerciseResultBox.style.display = "block";
+            if (result.state) exerciseState = result.state;
             if (result.locked) {
                 lockExercise({ passed: lessonData.exercise.test_cases.length, total: lessonData.exercise.test_cases.length });
                 return;
             }
             if (result.success && result.status === "correct") {
                 exerciseResultBox.className = "exercise-result pass";
-                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${result.feedback} (${result.passed}/${result.total} test cases passed)`;
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(result.feedback)} (${result.passed}/${result.total} test cases passed)`;
+                renderTips([]);
                 exerciseCompleteRow.style.display = "flex";
                 exerciseCompleteStatus.style.display = "inline-flex";
                 lessonData.exercise_completed = true;
                 lockExercise(result);
-                await attemptCompleteLesson();
+                renderExerciseState();
+                // A skipped lesson is already complete - passing now just
+                // upgrades the score, so stay here instead of re-finishing.
+                if (!lessonData.is_completed) await attemptCompleteLesson();
             } else if (result.success) {
+                failed = true;
                 exerciseResultBox.className = "exercise-result fail";
-                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${result.feedback} (${result.passed}/${result.total} test cases passed)`;
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${escapeHtml(result.feedback)} (${result.passed}/${result.total} test cases passed)`;
+                renderTips(result.tips);
+                renderExerciseState();
             } else {
                 exerciseResultBox.className = "exercise-result fail";
                 exerciseResultBox.textContent = result.message || "Could not check your submission.";
             }
         } catch (err) {
             console.error('Error submitting exercise:', err);
+        } finally {
+            delete exerciseSubmitBtn.dataset.running;
         }
 
         if (!lessonData.exercise_completed) {
-            exerciseSubmitBtn.disabled = false;
             exerciseSubmitBtn.textContent = "Submit";
+            if (failed) lastFailedCode = codeKey(code);
+            exerciseSubmitBtn.disabled = false;
+            updateSubmitLock();
         }
     });
 
@@ -1215,6 +1348,9 @@ document.addEventListener('DOMContentLoaded', () => {
             note.className = 'answered-note';
             exerciseResultBox.insertAdjacentElement('afterend', note);
         }
+        exerciseSubmitNote.hidden = true;
+        exerciseSkipBtn.hidden = true;
+        exerciseSkippedNote.hidden = true;
         const score = result && result.total ? ` (${result.passed}/${result.total} test cases)` : '';
         note.innerHTML = `<i class="fa-solid fa-lock"></i> You passed this exercise${score}. Your result is saved, so it can't be submitted again.`;
     }
@@ -1342,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // complete yet - e.g. the connection dropped right after passing. Then
         // this button finishes the lesson first instead of leaving it stuck.
         viewSummaryFromExerciseBtn.addEventListener('click', async () => {
-            if (!lessonData.is_completed && lessonData.exercise_completed) {
+            if (!lessonData.is_completed && (lessonData.exercise_completed || (exerciseState && exerciseState.skipped))) {
                 await attemptCompleteLesson();
                 if (!lessonData.is_completed) return;
                 if (!justCompleted) goToStep("summary");
@@ -1403,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (data.exercise) {
             const ex = data.exercise;
-            rows.push(`<div class="summary-row"><span>Exercise — ${escapeHtml(ex.exercise_title)}</span><span class="${ex.completed ? 'ok' : 'pending'}">${ex.points_earned}/${ex.points_total} test cases${ex.completed ? ' (Passed)' : ''}</span></div>`);
+            rows.push(`<div class="summary-row"><span>Exercise — ${escapeHtml(ex.exercise_title)}</span><span class="${ex.completed ? 'ok' : 'pending'}">${ex.points_earned}/${ex.points_total} test cases${ex.completed ? ' (Passed)' : (ex.skipped ? ' (Skipped – try again)' : '')}</span></div>`);
         }
 
         summaryList.innerHTML = rows.join('');
@@ -1605,6 +1741,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 exerciseSituation.textContent = data.exercise.situation;
                 exerciseProblem.textContent = data.exercise.problem_question;
                 exerciseClue.textContent = data.exercise.clue;
+                exerciseState = data.exercise_state || null;
                 if (data.exercise_completed) {
                     exerciseCompleteRow.style.display = "flex";
                     exerciseCompleteStatus.style.display = "inline-flex";
@@ -1619,8 +1756,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     exerciseResultBox.style.display = "block";
                     const passed = lastSub.status === "correct";
                     exerciseResultBox.className = "exercise-result " + (passed ? "pass" : "fail");
-                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${lastSub.feedback_given || ""} (${lastSub.test_cases_passed}/${lastSub.test_cases_total} test cases passed)`;
+                    const savedFeedback = String(lastSub.feedback_given || "").split("\n")[0];
+                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${escapeHtml(savedFeedback)} (${lastSub.test_cases_passed}/${lastSub.test_cases_total} test cases passed)`;
+                    if (!passed) {
+                        renderTips(tipsFromSaved(lastSub.feedback_given));
+                        // The editor holds the code that just failed - same lock as after submitting.
+                        if (lastSub.submitted_code) lastFailedCode = codeKey(lastSub.submitted_code);
+                    }
                 }
+                renderExerciseState();
+                updateSubmitLock();
             }
 
             // Admin preview: only this preview's games and/or exercise,
@@ -1663,6 +1808,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let startKey;
             if (urlParams.get('retake') === '1' && data.has_activities) {
                 startKey = "activities";
+            } else if (urlParams.get('step') === 'exercise' && data.exercise && (data.is_completed || data.exercise_state && data.exercise_state.skipped)) {
+                // Module Review "Try the exercise again" on a skipped exercise.
+                startKey = "exercise";
             } else if (data.is_completed) {
                 startKey = stepOrder[0].key;
             } else if (data.video && !progress.video_watched) {

@@ -119,7 +119,8 @@
             <div class="exercise-prompt">
                 <p><strong>Situation:</strong> <span id="exerciseSituation"></span></p>
                 <p><strong>Problem:</strong> <span id="exerciseProblem"></span></p>
-                <p class="exercise-clue"><i class="fa-solid fa-lightbulb"></i> <span id="exerciseClue"></span></p>
+                <p class="exercise-clue" id="exerciseClueRow" hidden><i class="fa-solid fa-lightbulb"></i> <span id="exerciseClue"></span></p>
+                <button type="button" class="exercise-hint-btn" id="exerciseHintBtn" hidden><i class="fa-solid fa-lightbulb"></i> Show hint</button>
             </div>
 
             <div class="exercise-editor-grid">
@@ -136,8 +137,20 @@
 
             <div class="exercise-result" id="exerciseResultBox" style="display: none;"></div>
 
-            <div class="lesson-step-footer">
-                <button class="lesson-step-btn" id="exerciseSubmitBtn">Submit</button>
+            <!-- Automatic "how to fix it" tips, one per failing test case (exercise_tips.py) -->
+            <div class="exercise-tips" id="exerciseTips" hidden></div>
+
+            <!-- Skipped for now (after 3 tries): still open to retry for full credit -->
+            <p class="exercise-skipped-note" id="exerciseSkippedNote" hidden>
+                <i class="fa-solid fa-forward"></i> Exercise skipped for now - you can try again any time. Your best attempt counts; passing it later gives full credit.
+            </p>
+
+            <div class="lesson-step-footer exercise-footer">
+                <span class="exercise-submit-note" id="exerciseSubmitNote" hidden><i class="fa-solid fa-pen"></i> Change your code to submit again.</span>
+                <div class="exercise-footer-btns">
+                    <button type="button" class="exercise-skip-btn" id="exerciseSkipBtn" hidden>Skip for now</button>
+                    <button class="lesson-step-btn" id="exerciseSubmitBtn">Submit</button>
+                </div>
             </div>
 
             <div class="lesson-complete-row" id="exerciseCompleteRow" style="display: none;">

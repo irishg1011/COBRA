@@ -38,6 +38,7 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, item_ids_for_activity
 from weak_spots import _course_lessons, _build, _published_game_activities
+from learner_exercise import exercise_score
 
 STRONG_PERCENT = 80
 EXERCISE_KEY = "exercise"
@@ -83,7 +84,7 @@ def _first_try_counts(cursor, acc_id, activity_type, item_ids):
 
 
 def _exercise_first_try(cursor, acc_id, resource_id):
-    """(test cases total, passed on the first submission, attempts) or None."""
+    """(test cases total, passed on the first submission, attempts, skipped for now) or None."""
     cursor.execute(
         """SELECT ce.exercise_id,
                   (SELECT COUNT(*) FROM test_cases_tbl tc WHERE tc.exercise_id = ce.exercise_id) AS test_total
@@ -99,14 +100,15 @@ def _exercise_first_try(cursor, acc_id, resource_id):
         return None
     cursor.execute(
         """SELECT test_cases_passed FROM exercise_submissions_tbl
-           WHERE acc_id = %s AND exercise_id = %s
+           WHERE acc_id = %s AND exercise_id = %s AND status <> 'skipped'
            ORDER BY attempt_number ASC, submission_id ASC""",
         (acc_id, row["exercise_id"])
     )
     subs = cursor.fetchall()
     if not subs:
         return None
-    return int(row["test_total"]), int(subs[0]["test_cases_passed"] or 0), len(subs)
+    skipped = exercise_score(cursor, acc_id, row["exercise_id"], 0)["skipped"]
+    return int(row["test_total"]), int(subs[0]["test_cases_passed"] or 0), len(subs), skipped
 
 
 def _weak_parts(groups, resource_id):
@@ -148,8 +150,9 @@ def lesson_insights(cursor, acc_id, resource_id, groups=None):
 
         exercise = _exercise_first_try(cursor, acc_id, resource_id)
         if exercise:
-            total, passed, attempts = exercise
-            per_type[EXERCISE_KEY] = {"total": total, "answered": total, "right": passed, "attempts": attempts}
+            total, passed, attempts, skipped = exercise
+            per_type[EXERCISE_KEY] = {"total": total, "answered": total, "right": passed,
+                                      "attempts": attempts, "skipped": skipped}
 
         if groups is None and any(t != EXERCISE_KEY for t in per_type):
             course = _course_lessons(cursor)
@@ -164,7 +167,8 @@ def lesson_insights(cursor, acc_id, resource_id, groups=None):
                 continue
             meta = SKILLS[activity_type]
             percent = round(data["right"] / data["total"] * 100)
-            strong = percent >= STRONG_PERCENT
+            # A skipped exercise is always "needs work" until it's passed.
+            strong = percent >= STRONG_PERCENT and not data.get("skipped")
             skill = {
                 **meta,
                 "right": data["right"],
@@ -176,6 +180,9 @@ def lesson_insights(cursor, acc_id, resource_id, groups=None):
             }
             if "attempts" in data:
                 skill["attempts"] = data["attempts"]
+            if data.get("skipped"):
+                skill["skipped"] = True
+                skill["text"] = "You skipped this exercise for now. Try it again - passing it gives full credit."
             skills.append(skill)
 
         return {

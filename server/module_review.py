@@ -36,6 +36,7 @@ Never touches Flask.
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from learner_exercise import exercise_score
 from activity_retakes import ensure_retake_schema
 from module_performance import (
     module_performance, module_lesson_ids, live_module_ids, module_locked_for_learner,
@@ -92,7 +93,7 @@ def _module_row(cursor, module_id):
 
 
 def _exercise_result(cursor, acc_id, resource_id):
-    """{"title", "attempts", "passed"} for the lesson's published exercise, or None."""
+    """{"title", "attempts", "passed", "skipped"} for the lesson's published exercise, or None."""
     cursor.execute(
         """SELECT ce.exercise_id, ce.exercise_title
            FROM coding_exercises_tbl ce
@@ -105,16 +106,9 @@ def _exercise_result(cursor, acc_id, resource_id):
     row = cursor.fetchone()
     if not row:
         return None
-    cursor.execute(
-        "SELECT COUNT(*) AS n FROM exercise_submissions_tbl WHERE acc_id = %s AND exercise_id = %s",
-        (acc_id, row["exercise_id"])
-    )
-    attempts = int(cursor.fetchone()["n"] or 0)
-    cursor.execute(
-        "SELECT 1 AS ok FROM learner_exercise_progress_tbl WHERE acc_id = %s AND exercise_id = %s LIMIT 1",
-        (acc_id, row["exercise_id"])
-    )
-    return {"title": row["exercise_title"], "attempts": attempts, "passed": cursor.fetchone() is not None}
+    score = exercise_score(cursor, acc_id, row["exercise_id"], 0)
+    return {"title": row["exercise_title"], "attempts": score["attempts"],
+            "passed": score["passed"], "skipped": score["skipped"]}
 
 
 def get_module_review(acc_id, module_id):

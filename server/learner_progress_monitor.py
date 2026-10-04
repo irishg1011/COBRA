@@ -284,7 +284,7 @@ def _load_exercise_results(cursor, acc_ids, exercise_ids):
     passed = {(r["acc_id"], r["exercise_id"]) for r in cursor.fetchall()}
 
     cursor.execute(
-        f"""SELECT acc_id, exercise_id, test_cases_passed
+        f"""SELECT acc_id, exercise_id, test_cases_passed, status
             FROM exercise_submissions_tbl
             WHERE acc_id IN ({_ph(acc_ids)}) AND exercise_id IN ({_ph(exercise_ids)})
             ORDER BY attempt_number ASC, submission_id ASC""",
@@ -293,9 +293,13 @@ def _load_exercise_results(cursor, acc_ids, exercise_ids):
     submissions = {}
     for r in cursor.fetchall():
         key = (r["acc_id"], r["exercise_id"])
-        entry = submissions.setdefault(key, {"attempts": 0, "latest_passed": 0})
+        entry = submissions.setdefault(key, {"attempts": 0, "latest_passed": 0, "best_passed": 0, "skipped": False})
+        if r["status"] == "skipped":   # "skip for now" marker - not an attempt
+            entry["skipped"] = True
+            continue
         entry["attempts"] += 1
         entry["latest_passed"] = int(r["test_cases_passed"] or 0)  # last row = latest attempt
+        entry["best_passed"] = max(entry["best_passed"], entry["latest_passed"])
     return passed, submissions
 
 
@@ -337,14 +341,23 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         key = (acc_id, ex["exercise_id"])
         passed = key in ex_passed
         sub = submissions.get(key)
-        points = ex["test_total"] if passed else (sub["latest_passed"] if sub else 0)
-        exercise_done = passed
+        skipped = bool(sub and sub["skipped"] and not passed)
+        # Same rule as learner_exercise.exercise_score(): passed -> all,
+        # skipped -> best attempt, otherwise the latest attempt.
+        if passed:
+            points = ex["test_total"]
+        elif sub:
+            points = min(sub["best_passed"] if skipped else sub["latest_passed"], ex["test_total"])
+        else:
+            points = 0
+        exercise_done = passed or skipped
 
         exercise = {
             "title": ex["title"],
             "points_earned": points,
             "points_total": ex["test_total"],
             "passed": passed,
+            "skipped": skipped,
             "attempts": sub["attempts"] if sub else 0,
         }
 

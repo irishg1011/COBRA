@@ -2488,7 +2488,7 @@ def preview_play_exercise_submit():
     exercise_id = data.get("exercise_id")
     if not exercise_id:
         return jsonify({"success": False, "message": "exercise_id is required."}), 400
-    result = grade_preview_exercise(exercise_id, data.get("actual_outputs") or [])
+    result = grade_preview_exercise(exercise_id, data.get("actual_outputs") or [], data.get("submitted_code"))
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 500
     if result["status"] != "correct":

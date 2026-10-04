@@ -11,7 +11,8 @@
  *       text: "Proceed to the next chapter ...?",
  *       yesLabel: "Yes, proceed",
  *       noLabel: "No, stay here",
- *       href: "/lesson-content?resource_id=12"   // where Yes goes (none = just close)
+ *       href: "/lesson-content?resource_id=12",  // where Yes goes (none = just close)
+ *       onYes: () => {...}                       // or run this on Yes (popup closes first)
  *   });
  *
  * "No", the backdrop and Escape close it and keep the learner where they are.
@@ -24,6 +25,7 @@
     let titleEl = null;
     let textEl = null;
     let yesHref = null;
+    let yesFn = null;
     let returnFocus = null;
 
     function build() {
@@ -48,8 +50,10 @@
         noBtn = overlay.querySelector('[data-p="no"]');
 
         yesBtn.addEventListener('click', () => {
-            if (yesHref) window.location.href = yesHref;
-            else close();
+            if (yesHref) { window.location.href = yesHref; return; }
+            const fn = yesFn;
+            close();
+            if (fn) fn();
         });
         noBtn.addEventListener('click', close);
         overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
@@ -63,6 +67,7 @@
         opts = opts || {};
         returnFocus = document.activeElement;
         yesHref = opts.href || null;
+        yesFn = typeof opts.onYes === 'function' ? opts.onYes : null;
         iconEl.innerHTML = `<i class="fa-solid ${opts.icon || 'fa-circle-check'}"></i>`;
         titleEl.textContent = opts.title || 'Lesson complete!';
         textEl.textContent = opts.text || '';

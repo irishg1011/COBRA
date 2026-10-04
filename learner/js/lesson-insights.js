@@ -24,7 +24,7 @@
         return `
             <li class="insight-item">
                 <div class="insight-head">
-                    <strong>${escapeHtml(skill.label)}</strong>
+                    <strong>${escapeHtml(skill.label)}${skill.skipped ? ' <span class="insight-skipped">(skipped)</span>' : ''}</strong>
                     <span class="insight-score">${skill.percent}%</span>
                 </div>
                 <p class="insight-meta">${escapeHtml(skill.source)} · ${escapeHtml(score)}</p>

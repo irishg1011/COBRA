@@ -115,6 +115,19 @@
 }
 .review-clean i { color: #16a34a; }
 .review-exercise i { color: #64748b; margin-right: 4px; }
+.review-exercise.is-skipped {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #fdba74;
+    background: #fff7ed;
+    color: #9a3412;
+}
+.review-exercise.is-skipped i { color: inherit; }
+.review-exercise.is-skipped .review-action { padding: 6px 12px; font-size: 13px; }
 
 .review-items { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 

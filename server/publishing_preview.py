@@ -31,6 +31,7 @@ so there's nothing to duplicate.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from exercise_tips import fix_tips
 
 CATEGORY_TABLE = "category_tbl"
 CATEGORY_STATS_TABLE = "category_stats_tbl"
@@ -494,7 +495,7 @@ def get_preview_exercise(resource_id):
             connection.close()
 
 
-def grade_preview_exercise(exercise_id, actual_outputs):
+def grade_preview_exercise(exercise_id, actual_outputs, submitted_code=None):
     """
     Reuses learner_exercise.grade_exercise_submission()'s exact
     comparison logic - trimmed actual vs. real expected_output per test
@@ -513,7 +514,7 @@ def grade_preview_exercise(exercise_id, actual_outputs):
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            f"SELECT test_case_id, expected_output FROM {TEST_CASES_TABLE} WHERE exercise_id = %s",
+            f"SELECT test_case_id, test_order, test_input, expected_output FROM {TEST_CASES_TABLE} WHERE exercise_id = %s",
             (exercise_id,)
         )
         rows = cursor.fetchall()
@@ -536,7 +537,8 @@ def grade_preview_exercise(exercise_id, actual_outputs):
         feedback = correct_feedback if status == "correct" else f"{passed} of {total} test cases passed."
 
         cursor.close()
-        return {"passed": passed, "total": total, "status": status, "feedback": feedback}
+        tips = [] if status == "correct" else fix_tips(submitted_code, rows, actual_by_id)
+        return {"passed": passed, "total": total, "status": status, "feedback": feedback, "tips": tips}
     except Error as e:
         print(f"publishing_preview: failed to grade preview exercise {exercise_id}: {e}")
         return None
