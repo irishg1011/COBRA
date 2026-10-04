@@ -543,3 +543,13 @@ details[open] > .course-summary .course-caret {
         display: none;
     }
 }
+/* A lesson without activities / an exercise hides that section entirely */
+.progress-detail-section[hidden] {
+    display: none;
+}
+
+/* Module Review status in the learner's Course Progress modal */
+.course-review-badge {
+    margin-left: 8px;
+    font-size: 11px;
+}

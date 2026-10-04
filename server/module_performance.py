@@ -401,6 +401,7 @@ def get_resource_retake_info(acc_id, resource_id):
             retake = open_retake(cursor, acc_id, la_id, lock=False)
             activities[la_id] = {
                 "missed": info["missed"],
+                "total": info["total"],
                 "open": retake is not None,
                 "round": retake["round_no"] if retake else None,
             }
@@ -408,6 +409,8 @@ def get_resource_retake_info(acc_id, resource_id):
         return {
             "module_needs_retake": module["needs_retake"],
             "module_percent": module["percent"],
+            "module_id": row["module_id"],
+            "pass_percent": module["pass_percent"],
             "lesson_percent": perf["percent"],
             "activities": activities,
         }

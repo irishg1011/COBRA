@@ -173,6 +173,9 @@ def get_lesson_performance_summary(acc_id, resource_id):
 
         cursor.close()
         return {
+            # Only what the lesson HAS is listed on the Summary (no "Video -
+            # Not watched" row for a lesson without a video).
+            "has_video": content_total > 1,
             "video_watched": progress.get("video_watched_at") is not None,
             "content_read": progress.get("content_read_at") is not None,
             "activities": activities_out,
@@ -205,7 +208,7 @@ def get_next_lesson_info(resource_id, acc_id=None):
         after a reorder "next" could jump to the wrong lesson.
 
     Returns one of:
-        {"type": "lesson", "resource_id": int, "resource_title": str}
+        {"type": "lesson", "resource_id": int, "resource_title": str, "new_module": bool, "module_name": str}
         {"type": "chapter", "resource_id": int, "resource_title": str, "cat_id": int, "category_name": str}
         {"type": "end"}
         {"type": "module_gate", "module_percent": int, "pass_percent": int, "all_done": bool}
@@ -221,7 +224,7 @@ def get_next_lesson_info(resource_id, acc_id=None):
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            """SELECT lr.resource_id, lr.resource_title, m.module_id, c.cat_id, c.category_name
+            """SELECT lr.resource_id, lr.resource_title, m.module_id, m.module_name, c.cat_id, c.category_name
                FROM learning_resources_tbl lr
                JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
                JOIN modules_tbl m ON lr.module_id = m.module_id
@@ -268,7 +271,14 @@ def get_next_lesson_info(resource_id, acc_id=None):
                 "cat_id": following["cat_id"],
                 "category_name": following["category_name"],
             }
-        return {"type": "lesson", "resource_id": following["resource_id"], "resource_title": following["resource_title"]}
+        return {
+            "type": "lesson",
+            "resource_id": following["resource_id"],
+            "resource_title": following["resource_title"],
+            # the "Proceed?" popup says when the next lesson starts a new module
+            "new_module": following["module_id"] != current["module_id"],
+            "module_name": following["module_name"],
+        }
     except (Error, TypeError, ValueError) as e:
         print(f"lesson_summary: failed to compute next lesson for resource_id={resource_id}: {e}")
         return None

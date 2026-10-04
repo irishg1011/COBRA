@@ -821,3 +821,95 @@
 .lesson-video-description p {
     margin: 0 0 8px;
 }
+/* ===================== Lesson flow (lesson-flow-module-review) ===================== */
+a.review-btn { text-decoration: none; }
+
+/* "You stopped here last time" / "reviewing from the start" */
+.lesson-resume-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 14px;
+}
+.lesson-resume-note[hidden] { display: none; }
+
+/* Answered activity / passed exercise: locked, with the reason */
+.answered-title { font-weight: 700; color: #0f172a; margin: 0 0 6px; }
+.answered-title i, .answered-note i { color: #64748b; margin-right: 4px; }
+.answered-detail { margin: 0; color: #334155; font-size: 14px; line-height: 1.5; }
+.answered-detail a { color: #15803d; font-weight: 600; }
+.answered-note {
+    margin: 12px 0 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 14px;
+}
+.exercise-code-box.is-locked { background: #f1f5f9; cursor: default; }
+#exerciseSubmitBtn[hidden] { display: none; }
+
+/* "Proceed to the next lesson?" popup */
+.proceed-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.45);
+}
+.proceed-overlay[hidden] { display: none; }
+.proceed-dialog {
+    width: 100%;
+    max-width: 440px;
+    padding: 28px 26px 22px;
+    border-radius: 16px;
+    background: #fffef4;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    text-align: center;
+    animation: proceed-pop 0.18s ease-out;
+}
+@keyframes proceed-pop {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.proceed-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #dcfce7;
+    color: #16a34a;
+    font-size: 26px;
+}
+.proceed-dialog h2 { margin: 0 0 8px; font-size: 20px; color: #0f172a; }
+.proceed-dialog p { margin: 0 0 20px; font-size: 14px; line-height: 1.55; color: #475569; }
+.proceed-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.proceed-btn {
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+.proceed-btn-primary { background: #16a34a; color: #fff; }
+.proceed-btn-primary:hover { background: #15803d; }
+.proceed-btn-secondary { background: #fff; color: #0f172a; border-color: #cbd5e1; }
+.proceed-btn-secondary:hover { background: #f8fafc; }
+@media (max-width: 480px) {
+    .proceed-actions { flex-direction: column-reverse; }
+    .proceed-btn { width: 100%; }
+}

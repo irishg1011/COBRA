@@ -44,8 +44,16 @@
         if (!response.ok) throw new Error("Request failed");
         const data = await response.json();
         if (!data.success) throw new Error("Unexpected response");
+        lessonMeta = {
+            passPercent: data.pass_percent || 80,
+            moduleNeedsRetake: !!data.module_needs_retake,
+            moduleId: data.module_id || null,
+        };
         return data.activities || [];
     }
+
+    // Module info from /api/lesson-activities (pass mark, retake state).
+    let lessonMeta = { passPercent: 80, moduleNeedsRetake: false, moduleId: null };
 
     async function checkAnswer(payload) {
         const response = await fetch(`${API_BASE_URL}/api/lesson-activities/check-answer`, {
@@ -1385,7 +1393,7 @@
         if (activity.completed) {
             container.innerHTML = "";
             const already = el("div", "activity-summary");
-            already.innerHTML = `<p><i class="fa-solid fa-circle-check"></i> You already completed "${activity.activity_title}".</p>`;
+            already.innerHTML = answeredNoteHtml(activity);
             container.appendChild(already);
 
             const continueBtn = el("button", "activity-next-btn", "Continue");
@@ -1397,6 +1405,37 @@
             return;
         }
         renderGame(activity, container, onActivityDone);
+    }
+
+    // Why an answered activity can't be played again - the same rule the
+    // server uses: only the FIRST attempt counts; the only way to fix a missed
+    // item is a retake round, which opens when the module is below the pass mark.
+    function answeredNoteHtml(activity) {
+        const title = escapeHtml(activity.activity_title);
+        const total = activity.item_total;
+        const score = activity.first_score;
+        const missed = activity.retake ? activity.retake.missed : 0;
+        const scoreText = (total && score !== null && score !== undefined)
+            ? ` You got <strong>${score}/${total}</strong> on your first try.` : "";
+        let rule;
+        if (activity.retake && activity.retake.allowed && missed > 0) {
+            rule = `Your module is below ${lessonMeta.passPercent}%, so you can retake the ${missed} item${missed === 1 ? "" : "s"} you missed`
+                + (lessonMeta.moduleId
+                    ? ` from your <a href="/module-review?module_id=${lessonMeta.moduleId}">Module Review</a> or the Retake button on the Lessons page.`
+                    : " from the Retake button on the Lessons page.");
+        } else if (missed > 0) {
+            rule = "Only your first attempt counts, so this activity can't be answered again.";
+        } else {
+            rule = "Only your first attempt counts, and you got everything right.";
+        }
+        return `<p class="answered-title"><i class="fa-solid fa-lock"></i> Already answered: "${title}"</p>`
+            + `<p class="answered-detail">${scoreText} ${rule}</p>`;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
     function renderGame(activity, container, onActivityDone) {
@@ -1448,7 +1487,7 @@
         const gate = el("div", "activities-gate");
         gate.innerHTML = opts.retake ? `
             <h3><i class="fa-solid fa-rotate-right"></i> Retake</h3>
-            <p>Replay only the items you missed. Get them right on the first try to raise your module score to 85%.</p>
+            <p>Replay only the items you missed. Get them right on the first try to raise your module score to ${lessonMeta.passPercent}%.</p>
             <button type="button" class="activities-proceed-btn">Start retake</button>
         ` : `
             <h3><i class="fa-solid fa-list-check"></i> Activities</h3>

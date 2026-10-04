@@ -63,6 +63,11 @@
 
             <h1 id="lessonResourceTitle" style="display: none;"></h1>
 
+            <!-- Shown when an unfinished lesson is opened again (resumes at its last step) -->
+            <p class="lesson-resume-note" id="lessonResumeNote" hidden>
+                <i class="fa-solid fa-bookmark"></i> <span id="lessonResumeText">You stopped here last time.</span>
+            </p>
+
             <!-- STEP: VIDEO -->
             <div id="videoStep" class="lesson-step" style="display: none;">
                 <p class="lesson-step-eyebrow">Video Tutorial</p>
@@ -153,15 +158,14 @@
 
             <p class="summary-gate-note" id="summaryGateNote" hidden></p>
 
-            <!-- Below the pass %: review the lesson / weak spots (this lesson, or the whole module) -->
+            <!-- Missed items: a short note only - the full list of weak spots lives in
+                 the Module Review card at the end of the module (module-review.html) -->
             <div class="summary-review" id="summaryReview" hidden>
                 <p class="summary-review-note" id="summaryReviewNote"></p>
                 <div class="summary-review-actions">
                     <button type="button" class="review-btn" id="reviewLessonBtn"><i class="fa-solid fa-book-open"></i> Review lesson</button>
-                    <button type="button" class="review-btn review-btn-accent" id="reviewWeakSpotsBtn" hidden><i class="fa-solid fa-crosshairs"></i> <span id="reviewWeakSpotsLabel">Review my weak spots</span></button>
-                    <button type="button" class="review-btn review-btn-accent" id="reviewModuleWeakSpotsBtn" hidden><i class="fa-solid fa-layer-group"></i> <span id="reviewModuleWeakSpotsLabel">Review module weak spots</span></button>
+                    <a class="review-btn review-btn-accent" id="openModuleReviewBtn" href="#" hidden><i class="fa-solid fa-clipboard-check"></i> Open Module Review</a>
                 </div>
-                <div class="weak-spots-panel" id="weakSpotsPanel" hidden></div>
             </div>
 
             <div class="stage-footer">
@@ -170,6 +174,20 @@
         </div>
     </div>
 </main>
+
+    <!-- "Proceed to the next lesson?" - opened once, right after a lesson is
+         completed for the first time (after progress + recommendations are saved) -->
+    <div class="proceed-overlay" id="proceedOverlay" hidden>
+        <div class="proceed-dialog" role="dialog" aria-modal="true" aria-labelledby="proceedTitle" aria-describedby="proceedText">
+            <div class="proceed-icon" id="proceedIcon"><i class="fa-solid fa-circle-check"></i></div>
+            <h2 id="proceedTitle">Lesson complete!</h2>
+            <p id="proceedText"></p>
+            <div class="proceed-actions">
+                <button type="button" class="proceed-btn proceed-btn-secondary" id="proceedNoBtn">No, stay here</button>
+                <button type="button" class="proceed-btn proceed-btn-primary" id="proceedYesBtn">Yes, proceed</button>
+            </div>
+        </div>
+    </div>
 
 
 

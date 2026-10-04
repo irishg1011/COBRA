@@ -58,7 +58,7 @@
         function emptyRow(message) {
             return `
                 <tr>
-                    <td colspan="6" class="text-muted table-empty-message">${escapeHtml(message)}</td>
+                    <td colspan="7" class="text-muted table-empty-message">${escapeHtml(message)}</td>
                 </tr>`;
         }
 
@@ -98,6 +98,19 @@
                 </span>${done}`;
         }
 
+        // The learner's Module Review for this recommendation's module:
+        // not ready (lessons left) / needs retake / passed, with the score.
+        function moduleReviewHtml(row) {
+            const r = row.module_review;
+            if (!r) return "—";
+            let label, cls;
+            if (r.state === "passed") { label = `Passed · ${r.percent}%`; cls = "rec-review-passed"; }
+            else if (r.state === "needs_retake") { label = `Needs retake · ${r.percent}%`; cls = "rec-review-retake"; }
+            else { label = `Not ready · ${r.lessons_left} lesson${r.lessons_left === 1 ? "" : "s"} left`; cls = "rec-review-pending"; }
+            return `<span class="rec-review ${cls}">${escapeHtml(label)}</span>`
+                + (row.module ? `<span class="rec-module-name">${escapeHtml(row.module)}</span>` : "");
+        }
+
         function renderRows(rows) {
             if (!rows.length) {
                 tableBody.innerHTML = emptyRow(hasFilters()
@@ -117,6 +130,7 @@
                         ${row.module ? `<span class="rec-module-name">${escapeHtml(row.module)}</span>` : ""}
                     </td>
                     <td><span class="cell-truncate">${escapeHtml(row.reason)}</span></td>
+                    <td>${moduleReviewHtml(row)}</td>
                     <td>${escapeHtml(row.date)}</td>
                     <td>${statusHtml(row)}</td>
                 </tr>`).join("");

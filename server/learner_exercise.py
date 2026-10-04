@@ -96,12 +96,15 @@ def is_exercise_completed(acc_id, exercise_id):
         if connection.is_connected():
             connection.close()
 
-def get_latest_submission(acc_id, exercise_id):
+def get_latest_submission(acc_id, exercise_id, correct_only=False):
     """
     Returns this learner's most recent exercise_submissions_tbl row for
     `exercise_id` (highest attempt_number) - used to pre-fill the code
     editor and show the last result when reviewing an exercise they've
     already attempted, rather than showing a blank slate.
+
+    correct_only: the latest PASSING attempt instead - a passed exercise is
+    locked, so its page shows the code that passed, not a later failed try.
 
     Returns None if they've never submitted, or on any database error.
     """
@@ -114,7 +117,8 @@ def get_latest_submission(acc_id, exercise_id):
             f"""SELECT submitted_code, status, test_cases_passed, test_cases_total, feedback_given
                 FROM {SUBMISSIONS_TABLE}
                 WHERE acc_id = %s AND exercise_id = %s
-                ORDER BY attempt_number DESC
+                  {"AND status = 'correct'" if correct_only else ""}
+                ORDER BY attempt_number DESC, submission_id DESC
                 LIMIT 1""",
             (acc_id, exercise_id)
         )

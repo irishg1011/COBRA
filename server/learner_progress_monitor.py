@@ -47,6 +47,8 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
 from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
+from activity_retakes import ensure_retake_schema
+from module_review import module_review_summary  # Module Review status in the Course Progress modal
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = 80
@@ -911,6 +913,13 @@ def get_learner_course_detail(acc_id):
         )
         unlocked = {r["entity_id"] for r in cursor.fetchall()}
         avatar_url = get_avatar_url(cursor, acc_id)
+        # Module Review status per module (same states the learner sees on
+        # the card at the end of each module).
+        ensure_retake_schema(connection)
+        reviews = {
+            module["module_id"]: module_review_summary(cursor, acc_id, module["module_id"])
+            for chapter in chapters for module in chapter["modules"]
+        }
         cursor.close()
 
         all_ids = set(lesson_path.keys())
@@ -952,6 +961,7 @@ def get_learner_course_detail(acc_id):
                 modules_out.append({
                     "module_id": module["module_id"],
                     "name": module["name"],
+                    "review": reviews.get(module["module_id"]),
                     "is_current": any(l["is_current"] for l in lessons_out),
                     **_group_stats(lessons_out),
                     "lessons": lessons_out,

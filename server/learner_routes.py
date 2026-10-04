@@ -37,6 +37,7 @@ from learner_exercise import (
 )
 from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from weak_spots import get_weak_spots, get_review_status  # weak-spot recommendations
+from module_review import get_module_review, module_review_summary  # Module Review card (end of every module)
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 from notifications import notify_standalone  # header bell
@@ -494,7 +495,8 @@ def lessons_data():
                 resource_id = resource["resource_id"]
 
                 cursor.execute(
-                    "SELECT status FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s",
+                    """SELECT status, video_watched_at, content_read_at
+                       FROM learner_resource_progress_tbl WHERE acc_id = %s AND resource_id = %s""",
                     (acc_id, resource_id)
                 )
                 progress_row = cursor.fetchone()
@@ -561,6 +563,27 @@ def lessons_data():
                 activities_ok = (activities_total == 0) or (activities_completed == activities_total)
                 is_complete = resource_watched and activities_ok and exercise_completed
 
+                # The card's progress bar = EVERY step of the lesson the mentor
+                # uploaded (video if any, content, each activity, the exercise
+                # if any) - so a finished lesson is always fully green, even
+                # one with no activities.
+                cursor.execute(
+                    """SELECT COUNT(*) AS cnt
+                       FROM video_tutorials_tbl vt
+                       JOIN learning_resources_stats_tbl lrs ON vt.video_stats_id = lrs.lr_stats_id
+                       WHERE vt.resource_id = %s AND lrs.lr_stats_name = 'Published'""",
+                    (resource_id,)
+                )
+                has_video = cursor.fetchone()["cnt"] > 0
+                video_done = bool(has_video and progress_row and progress_row["video_watched_at"])
+                content_done = bool(progress_row and progress_row["content_read_at"])
+                steps_total = 1 + (1 if has_video else 0) + activities_total + (1 if has_exercise else 0)
+                steps_done = ((1 if content_done else 0) + (1 if video_done else 0)
+                              + min(activities_completed, activities_total)
+                              + (1 if has_exercise and exercise_completed else 0))
+                if is_complete:
+                    steps_done = steps_total
+
                 # Task #14: a lesson the learner has ever touched is
                 # never locked, regardless of current position - only a
                 # never-touched lesson falls back to the positional
@@ -589,6 +612,9 @@ def lessons_data():
                     "activities_total": activities_total,
                     "has_exercise": has_exercise,
                     "exercise_completed": exercise_completed if has_exercise else False,
+                    "has_video": has_video,
+                    "steps_done": steps_done,
+                    "steps_total": steps_total,
                     "is_new": is_new_lesson
                 })
 
@@ -642,6 +668,8 @@ def lessons_data():
                 "needs_retake": perf["needs_retake"],
                 "pass_percent": perf["pass_percent"],
                 "missed_total": sum(l["missed"] for l in lessons_out),
+                # Module Review card after the lessons (module_review.py)
+                "review": {**module_review_summary(cursor, acc_id, module_id, perf), "locked": module_locked},
             })
 
         overall_percent = round((overall_completed / overall_total) * 100) if overall_total > 0 else 0
@@ -745,12 +773,26 @@ def lesson_content_data():
                 "description": video_row.get("description") or "",
             }
 
+        # Steps the learner sees = only what the mentor uploaded: the
+        # Activities step is shown only when there is a Published activity.
+        cursor.execute(
+            """SELECT COUNT(*) AS cnt
+               FROM learning_activities_tbl la
+               JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
+               WHERE la.resource_id = %s AND las.la_stats_name = 'Published'""",
+            (resource_id,)
+        )
+        has_activities = cursor.fetchone()["cnt"] > 0
+
         exercise = get_published_exercise_for_resource(resource_id)
         exercise_completed = False
         exercise_last_submission = None
         if exercise:
             exercise_completed = is_exercise_completed(acc_id, exercise["exercise_id"])
-            exercise_last_submission = get_latest_submission(acc_id, exercise["exercise_id"])
+            exercise_last_submission = (
+                get_latest_submission(acc_id, exercise["exercise_id"], correct_only=True)
+                if exercise_completed else None
+            ) or get_latest_submission(acc_id, exercise["exercise_id"])
 
         # Ensure a progress row exists (first time opening this lesson),
         # without downgrading an already-completed one.
@@ -760,6 +802,7 @@ def lesson_content_data():
             (acc_id, resource_id)
         )
         progress_row = cursor.fetchone()
+        started_before = progress_row is not None   # "You stopped here last time" note
         if not progress_row:
             cursor.execute(
                 """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at)
@@ -777,6 +820,9 @@ def lesson_content_data():
             "cat_id": resource["cat_id"],
             "content_html": content_html,
             "video": video,
+            "has_activities": has_activities,
+            "module_id": resource["module_id"],
+            "started_before": started_before,
             "exercise": exercise,
             "exercise_completed": exercise_completed,
             "exercise_last_submission": exercise_last_submission,
@@ -911,6 +957,15 @@ def lesson_exercise_submit():
     if not exercise_id:
         return jsonify({"success": False, "message": "exercise_id is required."}), 400
 
+    # Locked once passed - same rule as the activities (the result that
+    # counts is already saved), so a passed exercise can't be resubmitted.
+    if is_exercise_completed(acc_id, exercise_id):
+        return jsonify({
+            "success": False,
+            "locked": True,
+            "message": "You already passed this exercise. Your result is saved, so it can't be submitted again.",
+        }), 409
+
     result = grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_outputs)
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 500
@@ -949,6 +1004,7 @@ def lesson_activities_data():
 
     connection = get_db_connection()
     completed_ids = set()
+    first_scores = {}   # la_id -> score saved from the first play (the one that counts)
     if connection is not None:
         try:
             la_ids = [a["la_id"] for a in activities]
@@ -956,12 +1012,14 @@ def lesson_activities_data():
                 cursor = connection.cursor(dictionary=True)
                 placeholders = ",".join(["%s"] * len(la_ids))
                 cursor.execute(
-                    f"""SELECT la_id FROM learner_activity_progress_tbl
+                    f"""SELECT la_id, score FROM learner_activity_progress_tbl
                         WHERE acc_id = %s AND status = 'completed'
                         AND la_id IN ({placeholders})""",
                     tuple([acc_id] + la_ids)
                 )
-                completed_ids = {row["la_id"] for row in cursor.fetchall()}
+                for row in cursor.fetchall():
+                    completed_ids.add(row["la_id"])
+                    first_scores.setdefault(row["la_id"], row["score"])
                 cursor.close()
         except Error as e:
             print(f"Error checking activity completion: {e}")
@@ -975,6 +1033,9 @@ def lesson_activities_data():
     for activity in activities:
         activity["completed"] = activity["la_id"] in completed_ids
         info = retake_by_la.get(activity["la_id"])
+        # Shown on an already-answered activity ("4/5 on your first try").
+        activity["first_score"] = first_scores.get(activity["la_id"])
+        activity["item_total"] = info["total"] if info else None
         activity["retake"] = {
             "allowed": bool(retake_info.get("module_needs_retake")),
             "missed": info["missed"],
@@ -987,6 +1048,8 @@ def lesson_activities_data():
         "activities": activities,
         "module_needs_retake": bool(retake_info.get("module_needs_retake")),
         "module_percent": retake_info.get("module_percent"),
+        "module_id": retake_info.get("module_id"),
+        "pass_percent": retake_info.get("pass_percent", PASS_PERCENT),
     }), 200
 
 
@@ -1266,8 +1329,12 @@ def lesson_summary_data():
     if summary is None:
         return jsonify({"success": False, "message": "Could not load lesson summary."}), 500
 
-    next_info = get_next_lesson_info(resource_id, acc_id)   # Module 85% gate aware
-    review = get_review_status(acc_id, resource_id)          # which review buttons to show
+    # Order matters: get_review_status() saves this learner's recommendations
+    # for the module FIRST, so everything the Module Review, the mentor's
+    # Recommendations, Analytics and Learner Progress read is up to date
+    # before the page asks "Proceed to the next lesson?".
+    review = get_review_status(acc_id, resource_id)
+    next_info = get_next_lesson_info(resource_id, acc_id)   # Module gate aware
 
     return jsonify({
         "success": True,
@@ -1296,6 +1363,29 @@ def weak_spots_data():
     if data is None:
         return jsonify({"success": False, "message": "Could not load your weak spots."}), 500
     return jsonify({"success": True, **data}), 200
+
+
+# ============================================================
+# ROUTE: MODULE REVIEW - the card at the end of every module
+# (module_review.py): the learner's weak spots for the whole module,
+# grouped by lesson, with the part to re-read and the retake.
+# ============================================================
+@learner_bp.route("/module-review")
+def module_review_page():
+    learner_html_dir = os.path.join(LEARNER_DIR, 'html')
+    return send_from_directory(learner_html_dir, 'module-review.html')
+
+
+@learner_bp.route("/api/module-review", methods=["GET"])
+def module_review_data():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+    module_id = request.args.get("module_id", type=int)
+    if not module_id:
+        return jsonify({"success": False, "message": "module_id is required."}), 400
+    payload, status = get_module_review(acc_id, module_id)
+    return jsonify(payload), status
 
 
 # ============================================================

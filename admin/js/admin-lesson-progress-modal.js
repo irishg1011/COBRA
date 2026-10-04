@@ -71,22 +71,32 @@
             if (stepsEl) stepsEl.innerHTML = "";
             if (activitiesEl) activitiesEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
             if (exerciseEl) exerciseEl.innerHTML = "";
+            toggleSection(activitiesEl, true);
+            toggleSection(exerciseEl, true);
             setText(gradedEl, "");
             hideError();
         }
 
+        // Only the steps this lesson HAS (same as the learner's step bar):
+        // no Video row without a video.
         function stepsHtml(rec) {
-            const video = rec.has_video
-                ? (rec.video_watched ? badge("badge-active", "Watched") : badge("badge-inactive", "Not watched"))
-                : badge("badge-inactive", "No video");
             const content = rec.content_read
                 ? badge("badge-active", "Read")
                 : badge("badge-inactive", "Not read");
+            const video = rec.has_video
+                ? `<li class="progress-step-item"><span>Video Tutorial</span>${rec.video_watched ? badge("badge-active", "Watched") : badge("badge-inactive", "Not watched")}</li>`
+                : "";
 
             return `
-                <li class="progress-step-item"><span>Video Tutorial</span>${video}</li>
+                ${video}
                 <li class="progress-step-item"><span>Lesson Content</span>${content}</li>
             `;
+        }
+
+        // Hide a whole section (heading included) when the lesson has none of it.
+        function toggleSection(el, show) {
+            const section = el ? el.closest(".progress-detail-section") : null;
+            if (section) section.hidden = !show;
         }
 
         function activityStatus(act) {
@@ -153,6 +163,8 @@
             if (stepsEl) stepsEl.innerHTML = stepsHtml(rec);
             if (activitiesEl) activitiesEl.innerHTML = activitiesHtml(rec.activities);
             if (exerciseEl) exerciseEl.innerHTML = exerciseHtml(rec.exercise);
+            toggleSection(activitiesEl, !!(rec.activities && rec.activities.length));
+            toggleSection(exerciseEl, !!rec.exercise);
 
             setText(
                 gradedEl,

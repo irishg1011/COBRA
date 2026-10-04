@@ -471,3 +471,36 @@
         margin-left: 0;
     }
 }
+/* ===================== Module Review card (end of every module) ===================== */
+.module-review-card {
+    border-style: dashed;
+}
+
+.module-review-card.unlocked.is-passed {
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.module-review-card.unlocked.is-needs_retake {
+    background: #fff7ed;
+    border-color: #fdba74;
+}
+
+.module-review-card h3 {
+    margin-bottom: 6px;
+}
+
+.module-review-text {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.module-review-card.locked .module-review-text {
+    color: #94a3b8;
+}
+
+.lesson-rail-icon.module-review-rail.unlocked {
+    border-radius: 50%;
+}
