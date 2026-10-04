@@ -2,15 +2,19 @@
  * profile-photo.js - learner profile photo on Edit Profile (/profile/edit)
  * feat/profile-photo
  *
- * Upload / Change Photo -> POST /api/profile/avatar         (field "avatar")
- * Remove Photo          -> asks first, then POST /api/profile/avatar/remove
+ * Picking or removing a photo here only changes the PREVIEW on this page.
+ * Nothing is saved until the learner clicks Save Changes: edit-profile.js
+ * calls window.cobraByteProfilePhoto.save() after the name / username /
+ * email are saved. Cancel, Back to profile or leaving the page simply
+ * drops the waiting change - the saved photo stays as it was.
  *
- * The photo is saved right away - it is separate from the Save Changes
- * button and never touches the name / username / email fields.
+ *   waiting upload -> POST /api/profile/avatar         (field "avatar")
+ *   waiting remove -> POST /api/profile/avatar/remove
+ *
  * The server decides whose photo it is (the logged-in learner) and
  * checks the file again (profile_avatar.py); the checks here only save
- * a round trip. After a change the header icon updates through
- * window.cobraByteProfileMenu.renderAvatar() (learner.js).
+ * a round trip. The header icon changes only after a successful save,
+ * through window.cobraByteProfileMenu.renderAvatar() (learner.js).
  * Styles: learner/css/profile-photo.css
  */
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,50 +31,73 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEFAULT_ICON = '<i class="fa-solid fa-user"></i>';
 
     const avatar = $('photoAvatar');
-    const actions = $('photoActions');
-    const confirmRow = $('photoConfirm');
     const changeBtn = $('changePhotoBtn');
     const removeBtn = $('removePhotoBtn');
-    const cancelRemoveBtn = $('cancelRemovePhotoBtn');
-    const confirmRemoveBtn = $('confirmRemovePhotoBtn');
+    const undoBtn = $('undoPhotoBtn');
     const fileInput = $('photoInput');
     const message = $('photoMessage');
 
     let busy = false;
+    let savedUrl = null;   // the photo that is really saved (null = default icon)
+    // The change waiting for Save Changes:
+    //   null | { kind: 'upload', file, previewUrl } | { kind: 'remove' }
+    let pending = null;
 
-    function showMessage(text, isError) {
+    // kind: 'error' (red), 'pending' (waiting for Save Changes) or nothing (green)
+    function showMessage(text, kind) {
         message.textContent = text || '';
-        message.classList.toggle('is-error', !!isError);
+        message.classList.toggle('is-error', kind === 'error');
+        message.classList.toggle('is-pending', kind === 'pending');
         message.hidden = !text;
     }
 
     function setBusy(state) {
         busy = state;
-        [changeBtn, removeBtn, cancelRemoveBtn, confirmRemoveBtn].forEach((btn) => { btn.disabled = state; });
+        [changeBtn, removeBtn, undoBtn].forEach((btn) => { btn.disabled = state; });
     }
 
-    function showConfirm(confirming) {
-        actions.hidden = confirming;
-        confirmRow.hidden = !confirming;
+    function renderHeader(url) {
+        if (window.cobraByteProfileMenu && window.cobraByteProfileMenu.renderAvatar) {
+            window.cobraByteProfileMenu.renderAvatar(url || null);
+        }
     }
 
-    // One place that draws the current photo: here and in the header.
-    function renderPhoto(url) {
+    function dropPending() {
+        if (pending && pending.previewUrl) URL.revokeObjectURL(pending.previewUrl);
+        pending = null;
+    }
+
+    // Draws the circle on this page only: the waiting change if there is
+    // one, otherwise the saved photo. The header is not touched here.
+    function renderPreview() {
+        const showingPending = !!pending;
+        const url = pending ? (pending.previewUrl || null) : savedUrl;
+
         if (url) {
             const img = document.createElement('img');
             img.alt = '';
-            // A photo whose file is gone falls back to the default icon - no broken image.
-            img.addEventListener('error', () => renderPhoto(null), { once: true });
+            img.addEventListener('error', () => {
+                if (showingPending) {
+                    // The picked file is not a readable image: forget it.
+                    dropPending();
+                    renderPreview();
+                    showMessage('That file could not be opened as an image. Please pick another photo.', 'error');
+                } else {
+                    // A saved photo whose file is gone falls back to the default icon - no broken image.
+                    savedUrl = null;
+                    renderPreview();
+                    renderHeader(null);
+                }
+            }, { once: true });
             img.src = url;
             avatar.replaceChildren(img);
         } else {
             avatar.innerHTML = DEFAULT_ICON;
         }
+
         changeBtn.textContent = url ? 'Change Photo' : 'Upload Photo';
-        removeBtn.hidden = !url;
-        if (window.cobraByteProfileMenu && window.cobraByteProfileMenu.renderAvatar) {
-            window.cobraByteProfileMenu.renderAvatar(url || null);
-        }
+        removeBtn.hidden = showingPending || !savedUrl;
+        undoBtn.hidden = !showingPending;
     }
 
     // feat/images-in-database: photos are stored in the database, and they are
@@ -112,68 +139,98 @@ document.addEventListener('DOMContentLoaded', () => {
         return { ok: response.ok && data.success === true, data };
     }
 
-    async function upload(file) {
+    // Change / Upload Photo: check the file, then only preview it.
+    function pickPhoto(file) {
         const typeOk = file.type ? PHOTO_TYPES.includes(file.type) : PHOTO_NAME.test(file.name);
-        if (!typeOk) { showMessage('Your photo must be a JPG, PNG or WebP image.', true); return; }
-        if (file.size > MAX_BYTES) { showMessage('Your photo must be 2 MB or smaller.', true); return; }
+        if (!typeOk) { showMessage('Your photo must be a JPG, PNG or WebP image.', 'error'); return; }
+        if (file.size > MAX_BYTES) { showMessage('Your photo must be 2 MB or smaller.', 'error'); return; }
+
+        dropPending();
+        pending = { kind: 'upload', file, previewUrl: URL.createObjectURL(file) };
+        renderPreview();
+        showMessage('New photo selected. Click Save Changes to apply it.', 'pending');
+    }
+
+    // Remove Photo: only preview the default icon.
+    function markRemove() {
+        dropPending();
+        pending = { kind: 'remove' };
+        renderPreview();
+        showMessage('Your photo will be removed when you click Save Changes.', 'pending');
+        undoBtn.focus();
+    }
+
+    // Undo: back to the saved photo, nothing waiting.
+    function undoPending() {
+        dropPending();
+        renderPreview();
+        showMessage('');
+        changeBtn.focus();
+    }
+
+    // Called by edit-profile.js on Save Changes. Returns { ok, message }.
+    async function savePending() {
+        if (!pending) return { ok: true };
+
+        const isUpload = pending.kind === 'upload';
+        const failStart = isUpload ? 'Could not save your photo.' : 'Could not remove your photo.';
 
         setBusy(true);
-        showMessage('Uploading...');
+        showMessage(isUpload ? 'Saving photo...' : 'Removing photo...', 'pending');
         try {
-            const photo = await shrinkImage(file, PHOTO_MAX_SIDE);
-            const body = new FormData();
-            body.append('avatar', photo, photo.name);
-
-            const { ok, data } = await send('/api/profile/avatar', body);
-            if (ok) {
-                renderPhoto(data.avatar_url);
-                showMessage(data.message || 'Profile photo updated.');
+            let result;
+            if (isUpload) {
+                const photo = await shrinkImage(pending.file, PHOTO_MAX_SIDE);
+                const body = new FormData();
+                body.append('avatar', photo, photo.name);
+                result = await send('/api/profile/avatar', body);
             } else {
-                showMessage(data.message || 'Could not save your photo. Please try again.', true);
+                result = await send('/api/profile/avatar/remove');
             }
+
+            if (!result.ok) {
+                const text = result.data.message || `${failStart} Please try again.`;
+                showMessage(text, 'error');   // the change stays waiting, so Save Changes can retry
+                return { ok: false, message: text };
+            }
+
+            savedUrl = isUpload ? (result.data.avatar_url || null) : null;
+            dropPending();
+            renderPreview();
+            renderHeader(savedUrl);
+            showMessage('');
+            return { ok: true };
         } catch (err) {
-            showMessage('Could not save your photo. Check your connection and try again.', true);
+            const text = `${failStart} Check your connection and try again.`;
+            showMessage(text, 'error');
+            return { ok: false, message: text };
         } finally {
             setBusy(false);
         }
     }
 
-    async function removePhoto() {
-        setBusy(true);
-        try {
-            const { ok, data } = await send('/api/profile/avatar/remove');
-            showConfirm(false);
-            if (ok) {
-                renderPhoto(null);
-                showMessage(data.message || 'Profile photo removed.');
-            } else {
-                showMessage(data.message || 'Could not remove your photo. Please try again.', true);
-            }
-        } catch (err) {
-            showConfirm(false);
-            showMessage('Could not remove your photo. Check your connection and try again.', true);
-        } finally {
-            setBusy(false);
-            changeBtn.focus();
-        }
-    }
+    window.cobraByteProfilePhoto = {
+        hasPending: () => !!pending,
+        save: savePending,
+    };
 
     changeBtn.addEventListener('click', () => { if (!busy) fileInput.click(); });
     fileInput.addEventListener('change', () => {
         const file = fileInput.files && fileInput.files[0];
         fileInput.value = '';   // so picking the same file again still fires "change"
-        if (file) upload(file);
+        if (file && !busy) pickPhoto(file);
     });
-    removeBtn.addEventListener('click', () => { showMessage(''); showConfirm(true); cancelRemoveBtn.focus(); });
-    cancelRemoveBtn.addEventListener('click', () => { showConfirm(false); removeBtn.focus(); });
-    confirmRemoveBtn.addEventListener('click', removePhoto);
+    removeBtn.addEventListener('click', () => { if (!busy) markRemove(); });
+    undoBtn.addEventListener('click', () => { if (!busy) undoPending(); });
 
     // ---------------- Load ----------------
     fetch('/api/profile/me', { credentials: 'include' })
         .then((res) => res.json())
         .then((data) => {
             if (!data || !data.success) return;
-            renderPhoto(data.profile.avatar_url || null);
+            savedUrl = data.profile.avatar_url || null;
+            renderPreview();
+            renderHeader(savedUrl);
             section.hidden = false;
         })
         .catch(() => { /* the photo section stays hidden; the form still works */ });

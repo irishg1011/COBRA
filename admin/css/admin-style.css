@@ -126,6 +126,22 @@ body {
     object-fit: contain;
 }
 
+/* Clickable logo: goes to the signed-in role's dashboard. The link wraps
+   the image without changing its size (open or collapsed sidebar). */
+.brand-link {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.brand-link:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
 .sidebar-nav {
     display: flex;
     flex-direction: column;

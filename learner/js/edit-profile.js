@@ -2,6 +2,8 @@
  * edit-profile.js - learner Edit Profile page (/profile/edit)
  * First/last name, username and email. A new email must be verified
  * with a 6-digit code sent to that new address before Save works.
+ * Save Changes also saves the photo change waiting in profile-photo.js
+ * (a picked or removed photo is only a preview until then).
  * Styles: learner/css/account-forms.css
  */
 document.addEventListener('DOMContentLoaded', () => {
@@ -201,14 +203,20 @@ document.addEventListener('DOMContentLoaded', () => {
             username: fields.username.value.trim().toLowerCase(),
             email: normEmail(),
         });
-        btn.disabled = false;
 
         if (!ok) {
+            btn.disabled = false;
             const key = SERVER_FIELD[data.field];
             if (key) setError(key, data.message);
             else showMessage(data.message || 'Your changes could not be saved. Please try again.');
             return;
         }
+
+        // The photo picked / removed above the form is saved only now, after
+        // the details are in. If the details failed, the photo is not touched.
+        const photo = window.cobraByteProfilePhoto;
+        const photoResult = (photo && photo.hasPending()) ? await photo.save() : { ok: true };
+        btn.disabled = false;
 
         const profile = data.profile;
         fields.firstName.value = profile.first_name;
@@ -218,7 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
         originalEmail = profile.email;
         verifiedEmail = null;
         refreshVerifyBox();
-        showMessage('Profile updated.', true);
+        if (photoResult.ok) showMessage('Profile updated.', true);
+        else showMessage('Your details were saved, but your photo was not. See the note under your photo, then click Save Changes again.');
         if (window.cobraByteProfileMenu) window.cobraByteProfileMenu.renderName(profile);
     });
 

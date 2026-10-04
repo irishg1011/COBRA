@@ -18,7 +18,6 @@
 /* The classes above set display, so [hidden] needs its own rule */
 .photo-section[hidden],
 .photo-actions[hidden],
-.photo-confirm[hidden],
 .photo-message[hidden],
 .photo-actions [hidden] {
     display: none;
@@ -58,8 +57,7 @@
     color: #0f172a;
 }
 
-.photo-actions,
-.photo-confirm {
+.photo-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -71,22 +69,8 @@
     font-size: 14px;
 }
 
-.photo-confirm-text {
-    font-size: 14px;
-    font-weight: 600;
-    color: #0f172a;
-}
-
-.acct-btn.photo-btn-danger {
-    background: #dc2626;
-    color: #ffffff;
-}
-
-.acct-btn.photo-btn-danger:hover {
-    background: #b91c1c;
-}
-
-/* Result of the last upload / remove */
+/* Note under the buttons: a problem (red) or a change waiting for
+   Save Changes (amber) */
 .photo-message {
     font-size: 13.5px;
     padding: 8px 12px;
@@ -98,6 +82,11 @@
 .photo-message.is-error {
     background: #fef2f2;
     color: #b91c1c;
+}
+
+.photo-message.is-pending {
+    background: #fffbeb;
+    color: #92400e;
 }
 
 /* The real file input is visually hidden; the button opens it */

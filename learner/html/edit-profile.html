@@ -18,7 +18,9 @@
     <!-- Logged In Header -->
     <header class="learner-header">
         <div class="logo-container">
-            <img src="../assets/images/logo-ad.png" alt="CobraByte Logo" class="logo-img">
+            <a href="/dashboard" class="logo-link" aria-label="CobraByte - go to Dashboard">
+                <img src="../assets/images/logo-ad.png" alt="CobraByte Logo" class="logo-img">
+            </a>
         </div>
 
         <!-- Center Navigation -->
@@ -56,7 +58,8 @@
             <h1 class="account-title" id="editTitle">Edit Profile</h1>
             <p class="account-subtitle">Update your photo, name, username and email address.</p>
 
-            <!-- feat/profile-photo: saved right away, separate from Save Changes.
+            <!-- feat/profile-photo: picking or removing a photo is only a preview;
+                 it is saved together with the form by Save Changes.
                  Shown by profile-photo.js once the current photo is loaded. -->
             <div class="photo-section" id="photoSection" hidden>
                 <div class="photo-avatar" id="photoAvatar" aria-hidden="true"><i class="fa-solid fa-user"></i></div>
@@ -65,11 +68,7 @@
                     <div class="photo-actions" id="photoActions">
                         <button type="button" class="acct-btn acct-btn-secondary" id="changePhotoBtn">Upload Photo</button>
                         <button type="button" class="acct-btn-link" id="removePhotoBtn" hidden>Remove Photo</button>
-                    </div>
-                    <div class="photo-confirm" id="photoConfirm" hidden>
-                        <span class="photo-confirm-text">Remove your profile photo?</span>
-                        <button type="button" class="acct-btn acct-btn-secondary" id="cancelRemovePhotoBtn">Keep Photo</button>
-                        <button type="button" class="acct-btn photo-btn-danger" id="confirmRemovePhotoBtn">Remove Photo</button>
+                        <button type="button" class="acct-btn-link" id="undoPhotoBtn" hidden>Undo</button>
                     </div>
                     <p class="field-hint">JPG, PNG or WebP, up to 2 MB.</p>
                     <p class="photo-message" id="photoMessage" role="status" hidden></p>

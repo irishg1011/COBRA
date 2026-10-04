@@ -50,6 +50,20 @@ header {
     display: block;
 }
 
+/* Clickable logo: learner pages go to the Dashboard, login/sign-up goes to
+   the landing page. The link wraps the image without changing its size. */
+.logo-link {
+    display: flex;
+    align-items: center;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.logo-link:focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 4px;
+}
+
 nav ul {
     display: flex;
     list-style: none;

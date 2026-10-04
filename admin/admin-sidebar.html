@@ -3,8 +3,12 @@
    sidebar is the one file every admin page includes. #}
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/messages-nav.css') }}">
 <aside class="admin-sidebar" id="adminSidebar">
+    {# Clickable logo: goes to the dashboard of the signed-in role
+       (Mentor -> Mentor Dashboard, Admin -> Admin Dashboard). #}
     <div class="sidebar-brand">
-        <img src="/assets/images/logo-ad.png" class="brand-logo" alt="CobraByte">
+        <a href="{{ url_for('admin_bp.mentor_dashboard') if current_role == 'Mentor' else url_for('admin_bp.admin_dashboard') }}" class="brand-link" title="Dashboard" aria-label="CobraByte - go to Dashboard">
+            <img src="/assets/images/logo-ad.png" class="brand-logo" alt="CobraByte">
+        </a>
     </div>
 
     {# feat/mentor-role: one sidebar, links by role (current_role comes from
