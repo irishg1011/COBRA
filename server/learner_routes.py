@@ -49,11 +49,12 @@ from notifications import notify_standalone  # header bell
 import time
 from module_performance import (  # Module 85% gate
     module_performance, module_locked_for_learner, lesson_locked_for_learner,
+    chapter_locked_for_learner,  # strict, live chapter gate
     get_resource_retake_info, start_activity_retake,
     live_course_rows, is_live_lesson,  # feat/published-only: what a learner can see
 )
 from activity_retakes import ensure_retake_schema, PASS_PERCENT
-from learner_progress_unlocks import has_unlock, write_unlock, get_unlocked_at  # NEW - Task #13: permanent category unlock check; get_unlocked_at added for Task #16's catch-up badge
+from learner_progress_unlocks import write_unlock, get_unlocked_at  # when a learner first reached a chapter (Task #16's "New" badge) - no longer decides what is locked
 
 learner_bp = Blueprint('learner_bp', __name__)
 
@@ -422,28 +423,23 @@ def learning_map_data():
                 "status": chapter_status
             })
 
-        for index, chapter in enumerate(chapters):
-            cat_id = chapter["cat_id"]
+        # Chapter gate - STRICT, LIVE (same idea as the module gate): the
+        # first chapter is always open; every other one is open only while
+        # every chapter before it is completed. A saved row in
+        # learner_progress_unlocks_tbl no longer keeps a chapter open, so
+        # every learner gets the same rule. Progress inside a chapter that
+        # locks again stays saved. Same rule on the server:
+        # module_performance.chapter_locked_for_learner().
+        previous_chapters_completed = True
+        for chapter in chapters:
+            chapter["locked"] = not previous_chapters_completed
+            previous_chapters_completed = previous_chapters_completed and chapter["status"] == "completed"
 
-            # Task #13: a permanent unlock, once earned, is never
-            # revisited - skip the live recalculation entirely for a
-            # learner who's already reached this category, so nothing
-            # changed in an earlier category (a reorder, new content)
-            # can ever lock them back out.
-            if has_unlock(connection, acc_id, "category", cat_id):
-                chapter["locked"] = False
-                continue
-
-            if index == 0:
-                chapter["locked"] = False
-            else:
-                chapter["locked"] = chapters[index - 1]["status"] != "completed"
-
-            # The moment this category is first found reachable, write
-            # it down permanently - it's never recomputed again for
-            # this learner after this point.
+            # Still noted the first time a chapter is reached - only for the
+            # "New" badge on the Lessons page (get_unlocked_at), never for
+            # locking. INSERT IGNORE, so later visits change nothing.
             if not chapter["locked"]:
-                write_unlock(connection, acc_id, "category", cat_id)
+                write_unlock(connection, acc_id, "category", chapter["cat_id"])
 
         cursor.close()
         return jsonify({"success": True, "chapters": chapters}), 200
@@ -500,6 +496,10 @@ def lessons_data():
         # never fires in that case, since nothing is browsable yet).
         category_unlocked_at = get_unlocked_at(connection, acc_id, "category", cat_id)
         ensure_retake_schema(connection)   # Module 85% gate reads answers.retake_id
+
+        # Chapter gate (strict, live): in a chapter that is still locked
+        # every module is locked, even when its URL is typed in directly.
+        chapter_locked = chapter_locked_for_learner(cursor, acc_id, cat_id)
 
         # feat/published-only: modules and their lessons come from live_rows
         # (already in Edit Order), so Draft / Ready ones never show up.
@@ -681,7 +681,7 @@ def lessons_data():
             # (e.g. an admin adds an activity), this one locks again until
             # it's passed.
             perf = module_performance(cursor, acc_id, module_id)
-            module_locked = not (module_index == 0 or previous_module_passed)
+            module_locked = chapter_locked or not (module_index == 0 or previous_module_passed)
             for lesson in lessons_out:
                 lesson_perf = perf["lessons"].get(lesson["resource_id"]) or {}
                 lesson["performance_percent"] = lesson_perf.get("percent")
@@ -707,6 +707,7 @@ def lessons_data():
                 "is_new": is_new_module,
                 # Module 85% gate
                 "locked": module_locked,
+                "chapter_locked": chapter_locked,   # locked because the whole chapter is
                 "performance_percent": perf["percent"],
                 "all_done": perf["all_done"],
                 "passed": perf["passed"],
@@ -731,6 +732,7 @@ def lessons_data():
         return jsonify({
             "success": True,
             "next_chapter": next_chapter,
+            "chapter_locked": chapter_locked,
             "category_name": category["category_name"],
             "overall_completed_lessons": overall_completed,
             "overall_total_lessons": overall_total,
@@ -803,12 +805,18 @@ def lesson_content_data():
         # be opened, not even by typing its URL.
         ensure_retake_schema(connection)
         if module_locked_for_learner(cursor, acc_id, resource["module_id"]):
+            # module_locked_for_learner() is also True for every module of a
+            # locked chapter - say which of the two it is.
+            if chapter_locked_for_learner(cursor, acc_id, resource["cat_id"]):
+                locked_message = "This lesson is locked. Complete the previous chapter to unlock this chapter."
+            else:
+                locked_message = f"This lesson is locked. Pass the previous module with {PASS_PERCENT}% or higher to unlock it."
             cursor.close()
             return jsonify({
                 "success": False,
                 "locked": True,
                 "cat_id": resource["cat_id"],
-                "message": f"This lesson is locked. Pass the previous module with {PASS_PERCENT}% or higher to unlock it.",
+                "message": locked_message,
             }), 403
 
         # Lesson order: the previous lesson of this module has to reach its

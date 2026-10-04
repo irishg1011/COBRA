@@ -373,11 +373,39 @@ def lesson_locked_for_learner(cursor, acc_id, resource_id):
     return not lesson_complete(cursor, acc_id, ids[ids.index(resource_id) - 1])
 
 
+def chapter_locked_for_learner(cursor, acc_id, cat_id):
+    """
+    Strict, live chapter gate - the SAME rule the Learning Map uses:
+    the first chapter is always open; any other chapter is open only
+    while EVERY chapter before it is completed (all of its modules
+    PASSED). A saved row in learner_progress_unlocks_tbl or a lesson the
+    learner already started does NOT keep a chapter open. True = locked.
+    Needs a dictionary cursor.
+    """
+    chapter_modules = {}   # cat_id -> the modules a learner can see in it (course order)
+    for row in live_course_rows(cursor):
+        module_ids = chapter_modules.setdefault(row["cat_id"], [])
+        if row["module_id"] not in module_ids:
+            module_ids.append(row["module_id"])
+
+    chapter_ids = list(chapter_modules)
+    if cat_id not in chapter_ids:
+        return False
+    # Nearest chapter first - it is the one most likely to be unfinished.
+    for previous_cat_id in reversed(chapter_ids[:chapter_ids.index(cat_id)]):
+        for module_id in chapter_modules[previous_cat_id]:
+            if not module_performance(cursor, acc_id, module_id)["passed"]:
+                return True
+    return False
+
+
 def module_locked_for_learner(cursor, acc_id, module_id):
     """
     Strict, live Module 85% gate - the SAME rule the Lessons page uses:
-    the first module of a chapter is always open; any other module is
-    open only while the module right before it is PASSED. True = locked.
+    every module of a locked chapter is locked (chapter_locked_for_learner);
+    in an open chapter the first module is always open and any other
+    module is open only while the module right before it is PASSED.
+    True = locked.
     """
     cursor.execute("SELECT cat_id FROM modules_tbl WHERE module_id = %s", (module_id,))
     row = cursor.fetchone()
@@ -389,6 +417,9 @@ def module_locked_for_learner(cursor, acc_id, module_id):
     ids = live_module_ids(cursor, row["cat_id"])
     if module_id not in ids:
         return False
+    # Chapter gate first: nothing inside a locked chapter can be opened.
+    if chapter_locked_for_learner(cursor, acc_id, row["cat_id"]):
+        return True
     index = ids.index(module_id)
     if index == 0:
         return False

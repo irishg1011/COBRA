@@ -76,7 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
             path.setAttribute("d", d);
             path.setAttribute("fill", "none");
 
-            const isComplete = chapters[index].status === 'completed';
+            // Green only for a chapter that is open AND completed.
+            const isComplete = !chapters[index].locked && chapters[index].status === 'completed';
             path.setAttribute("stroke", isComplete ? "#0ED400" : "#64748b");
             path.setAttribute("stroke-width", "5");
             path.setAttribute("stroke-linecap", "round");
@@ -107,8 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
             row.className = `map-node-row ${index % 2 === 0 ? 'align-left' : 'align-right'}`;
 
             const node = document.createElement('div');
-            node.className = `map-node status-${chapter.status}`;
-            if (chapter.locked) node.classList.add('status-locked');
+            // A locked chapter only gets the locked look - even if the learner
+            // has old progress in it (no orange / green border on a locked card).
+            node.className = chapter.locked ? 'map-node status-locked' : `map-node status-${chapter.status}`;
             if (!chapter.locked) node.classList.add('node-clickable');
 
             node.innerHTML = `
