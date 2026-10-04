@@ -19,6 +19,13 @@
     "use strict";
 
     const params = new URLSearchParams(window.location.search);
+
+    // Opened inside a preview popup (CobraPreviewFrame adds frame=modal):
+    // compact layout - preview-play.css hides the stepper / lesson title
+    // the popup already shows, so the game itself gets the space.
+    if (params.get("frame") === "modal") {
+        document.documentElement.classList.add("preview-in-modal");
+    }
     const allowed = ["la_id", "resource_id", "activity_type", "exercise_id", "scope"];
     const query = new URLSearchParams();
     allowed.forEach((key) => {

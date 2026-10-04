@@ -31,3 +31,91 @@
         padding: 12px 16px 32px;
     }
 }
+
+/* ---------- Inside a preview popup (?frame=modal) ----------
+   The popup header already names what is previewed, so the stepper and
+   the lesson title are hidden and the padding is tight: the game gets
+   the whole popup. (!important: lesson-content.js sets style.display.) */
+.preview-in-modal .preview-play-page {
+    padding: 10px 14px 24px;
+}
+
+.preview-in-modal .preview-play-banner {
+    margin-bottom: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.preview-in-modal .lesson-stepper,
+.preview-in-modal #lessonResourceTitle {
+    display: none !important;
+}
+
+.preview-in-modal .lesson-card {
+    padding: 14px 16px;
+    border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+    .preview-in-modal .preview-play-page {
+        padding: 8px 8px 20px;
+    }
+    .preview-in-modal .lesson-card {
+        padding: 10px;
+    }
+}
+
+/* The games fill the popup: no extra frame around them */
+.preview-in-modal .activities-container {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.preview-in-modal .activity-host,
+.preview-in-modal .activity-host:has(.mcq-arena-root) {
+    padding: 0;
+    border: 0;
+}
+
+/* ---------- Multiple Choice inside the popup ----------
+   Laid out like Fill in the Blanks / Flashcards: header, then the arena.
+   While the "Read the question first" card is up, the question panel
+   above the arena (the same question) is hidden; during play it comes
+   back compact and the arena is sized to the popup's height so the
+   snake is always on screen. */
+.preview-in-modal .mcq-arena-root:has(.mcq-arena-overlay:not([hidden])) .mcq-arena-qcard {
+    display: none;
+}
+
+.preview-in-modal .mcq-arena-qcard {
+    padding: 10px 14px;
+    gap: 12px;
+}
+
+.preview-in-modal .mcq-arena-qtext {
+    font-size: 17px;
+}
+
+.preview-in-modal .mcq-arena-choice {
+    padding: 7px 10px;
+    font-size: 13.5px;
+}
+
+.preview-in-modal .mcq-arena-root:not(.is-focus) .mcq-arena-canvas {
+    height: clamp(260px, calc(100vh - 400px), 540px);
+}
+
+.preview-in-modal .mcq-arena-root.is-narrow:not(.is-focus) .mcq-arena-canvas {
+    height: clamp(240px, calc(100vh - 470px), 620px);
+}
+
+/* Start card up (no question panel): the arena takes that space too, so
+   the whole card - choices and Start button - is visible. */
+.preview-in-modal .mcq-arena-root:not(.is-focus):has(.mcq-arena-overlay:not([hidden])) .mcq-arena-canvas {
+    height: clamp(300px, calc(100vh - 250px), 640px);
+}
+
+.preview-in-modal .mcq-arena-root.is-narrow:not(.is-focus):has(.mcq-arena-overlay:not([hidden])) .mcq-arena-canvas {
+    height: clamp(300px, calc(100vh - 230px), 640px);
+}
