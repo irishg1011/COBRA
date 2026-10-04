@@ -57,60 +57,118 @@ document.addEventListener('DOMContentLoaded', () => {
         return box;
     }
 
-    function itemNode(item) {
-        const row = document.createElement('div');
-        row.className = 'review-item';
+    const RESULT_LABELS = { wrong: 'wrong', skipped: 'skipped', unanswered: 'not answered' };
 
-        const head = document.createElement('div');
-        head.className = 'review-item-head';
-        head.innerHTML = `<span class="weak-spot-item-label">${escapeHtml(item.label)}</span>`
-            + `<span class="review-item-type">${escapeHtml(item.activity_type)}</span>`;
+    // One missed item, shown when its number chip is tapped.
+    function itemDetailHtml(item) {
+        return `
+            <div class="review-item-head">
+                <span class="weak-spot-item-label">${escapeHtml(item.label)}</span>
+                <span class="review-item-type">${escapeHtml(item.activity_type)} · ${escapeHtml(RESULT_LABELS[item.result] || item.result)}</span>
+            </div>
+            <p class="review-item-prompt">${escapeHtml(item.prompt || '')}</p>
+            <dl class="review-item-answers">
+                <div><dt>Your answer</dt><dd>${item.result === 'skipped' ? '<em>Skipped</em>'
+                    : (item.your_answer ? `<code>${escapeHtml(item.your_answer)}</code>` : '<em>No answer saved</em>')}</dd></div>
+                ${item.feedback ? `<div><dt>Feedback</dt><dd>${escapeHtml(item.feedback)}</dd></div>` : ''}
+                ${item.correct ? `<div class="is-correct"><dt>Correct answer</dt><dd><code>${escapeHtml(item.correct)}</code></dd></div>` : ''}
+                <div><dt>Taught in</dt><dd>${escapeHtml(item.part_heading || '-')}</dd></div>
+            </dl>`;
+    }
 
-        const prompt = document.createElement('p');
-        prompt.className = 'review-item-prompt';
-        prompt.textContent = item.prompt || '';
+    // The missed item numbers as chips; tapping one shows that item below.
+    function missedItemsNode(lesson) {
+        const wrap = document.createElement('div');
+        wrap.className = 'review-missed';
+        wrap.innerHTML = `<p class="review-block-title">Missed items <span>tap a number to see it</span></p>`;
 
-        const answers = document.createElement('dl');
-        answers.className = 'review-item-answers';
-        answers.innerHTML = `
-            <div><dt>Your answer</dt><dd>${item.your_answer ? `<code>${escapeHtml(item.your_answer)}</code>` : '<em>No answer saved</em>'}</dd></div>
-            ${item.feedback ? `<div><dt>Feedback</dt><dd>${escapeHtml(item.feedback)}</dd></div>` : ''}
-            ${item.correct ? `<div class="is-correct"><dt>Correct answer</dt><dd><code>${escapeHtml(item.correct)}</code></dd></div>` : ''}
-        `;
+        const chips = document.createElement('div');
+        chips.className = 'review-chips';
+        const detail = document.createElement('div');
+        detail.className = 'review-item';
+        detail.hidden = true;
 
-        row.append(head, prompt, answers);
+        lesson.items.forEach((item) => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = `review-chip is-${item.result}`;
+            chip.setAttribute('aria-expanded', 'false');
+            chip.innerHTML = `${escapeHtml(item.label)} <span>${escapeHtml(RESULT_LABELS[item.result] || item.result)}</span>`;
+            chip.addEventListener('click', () => {
+                const open = chip.classList.contains('is-active');
+                chips.querySelectorAll('.review-chip').forEach((c) => {
+                    c.classList.remove('is-active');
+                    c.setAttribute('aria-expanded', 'false');
+                });
+                if (open) {
+                    detail.hidden = true;
+                    return;
+                }
+                chip.classList.add('is-active');
+                chip.setAttribute('aria-expanded', 'true');
+                detail.innerHTML = itemDetailHtml(item);
+                detail.hidden = false;
+            });
+            chips.appendChild(chip);
+        });
 
-        if (item.part) {
+        wrap.append(chips, detail);
+        return wrap;
+    }
+
+    // Each lesson part to re-read, ONCE (with the item numbers it covers).
+    // The lesson text is only built when the part is opened.
+    function partsNode(lesson) {
+        const wrap = document.createElement('div');
+        wrap.className = 'review-parts';
+        wrap.innerHTML = `<p class="review-block-title">Parts to re-read</p>`;
+        lesson.parts.forEach((part) => {
             const details = document.createElement('details');
             details.className = 'review-part';
             const summary = document.createElement('summary');
-            summary.innerHTML = `<i class="fa-solid fa-book-open"></i> Re-read: <strong>${escapeHtml(item.part.heading)}</strong>`
-                + (item.part.is_other_lesson ? ` <span class="review-part-from">from ${escapeHtml(item.part.lesson_title)}</span>` : '');
-            details.append(summary, partHtmlNode(item.part.html));
-            row.appendChild(details);
-        }
-        return row;
+            summary.innerHTML = `<i class="fa-solid fa-book-open"></i> <strong>${escapeHtml(part.heading)}</strong>`
+                + (part.is_other_lesson ? ` <span class="review-part-from">from ${escapeHtml(part.lesson_title)}</span>` : '')
+                + ` <span class="review-part-covers">covers ${escapeHtml(part.labels.join(', '))}</span>`;
+            details.appendChild(summary);
+            details.addEventListener('toggle', () => {
+                if (details.open && !details.querySelector('.weak-spot-content')) {
+                    details.appendChild(partHtmlNode(part.html));
+                }
+            });
+            wrap.appendChild(details);
+        });
+        return wrap;
     }
 
-    function lessonNode(lesson) {
-        const section = document.createElement('section');
+    function lessonNode(lesson, openByDefault) {
+        const section = document.createElement('details');
         section.className = 'review-lesson' + (lesson.missed ? '' : ' is-clean');
+        section.open = !!openByDefault;
 
-        const head = document.createElement('div');
-        head.className = 'review-lesson-head';
-        const score = lesson.percent !== null && lesson.percent !== undefined ? `${lesson.percent}%` : '—';
-        head.innerHTML = `
-            <div>
+        const graded = lesson.percent !== null && lesson.percent !== undefined;
+        const meta = graded
+            ? `Score ${lesson.percent}% \u2022 ${lesson.missed ? plural(lesson.missed, 'missed item') : 'nothing missed'}`
+            : 'No activities';
+        const summary = document.createElement('summary');
+        summary.className = 'review-lesson-head';
+        summary.innerHTML = `
+            <div class="review-lesson-title">
                 <p class="review-lesson-number">Lesson ${lesson.number}</p>
                 <h3>${escapeHtml(lesson.title)}</h3>
-                <p class="review-lesson-meta">Score ${score} • ${lesson.missed ? plural(lesson.missed, 'missed item') : 'nothing missed'}</p>
+                <p class="review-lesson-meta">${meta}</p>
             </div>
+            <span class="review-lesson-badge ${lesson.missed ? 'has-missed' : 'is-clean'}">${lesson.missed ? lesson.missed : '<i class="fa-solid fa-check"></i>'}</span>
+            <i class="fa-solid fa-chevron-down review-lesson-caret" aria-hidden="true"></i>
+        `;
+        section.appendChild(summary);
+
+        const body = document.createElement('div');
+        body.className = 'review-lesson-body';
+        body.innerHTML = `
             <div class="review-lesson-actions">
                 <a class="review-action" href="/lesson-content?resource_id=${lesson.resource_id}"><i class="fa-solid fa-book-open"></i> Review lesson</a>
                 ${lesson.can_retake ? `<a class="review-action is-retake" href="/lesson-content?resource_id=${lesson.resource_id}&retake=1"><i class="fa-solid fa-rotate-right"></i> Retake ${plural(lesson.missed, 'missed item')}</a>` : ''}
-            </div>
-        `;
-        section.appendChild(head);
+            </div>`;
 
         if (lesson.exercise) {
             const ex = lesson.exercise;
@@ -120,14 +178,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `<i class="fa-solid fa-code"></i> Coding exercise "${escapeHtml(ex.title)}": passed`
                   + (ex.attempts > 1 ? ` after ${ex.attempts} attempts - worth practising again in the Sandbox.` : ' on the first try.')
                 : `<i class="fa-solid fa-code"></i> Coding exercise "${escapeHtml(ex.title)}": not passed yet (${plural(ex.attempts, 'attempt')}).`;
-            section.appendChild(exRow);
+            body.appendChild(exRow);
+        }
+
+        // Strong | Needs work (lesson-insights.js)
+        if (window.CobraInsights && lesson.insights) {
+            const box = document.createElement('div');
+            box.innerHTML = window.CobraInsights.html(lesson.insights);
+            if (box.innerHTML.trim()) body.appendChild(box);
         }
 
         if (lesson.items.length) {
-            const list = document.createElement('div');
-            list.className = 'review-items';
-            lesson.items.forEach((item) => list.appendChild(itemNode(item)));
-            section.appendChild(list);
+            body.appendChild(missedItemsNode(lesson));
+            if (lesson.parts && lesson.parts.length) body.appendChild(partsNode(lesson));
         } else {
             const clean = document.createElement('p');
             clean.className = 'review-clean';
@@ -138,8 +201,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 clean.innerHTML = '<i class="fa-solid fa-book-open"></i> This lesson has no activities to answer - nothing to review here.';
             }
-            section.appendChild(clean);
+            body.appendChild(clean);
         }
+        section.appendChild(body);
         return section;
     }
 
@@ -204,10 +268,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lessonsCard.hidden = false;
         lessonsSub.textContent = data.missed_total
-            ? `${plural(data.missed_total, 'missed item')} across ${plural(data.lessons.filter((l) => l.missed).length, 'lesson')}. Each one links to the part of the lesson that teaches it.`
+            ? `${plural(data.missed_total, 'missed item')} across ${plural(data.lessons.filter((l) => l.missed).length, 'lesson')}. Open a lesson to see its missed items and the parts to re-read.`
             : 'Nothing missed in this module.';
         lessonsEl.innerHTML = '';
-        data.lessons.forEach((lesson) => lessonsEl.appendChild(lessonNode(lesson)));
+        // Lessons are collapsed; the first one with missed items starts open.
+        const firstMissed = data.lessons.findIndex((l) => l.missed > 0);
+        data.lessons.forEach((lesson, i) => lessonsEl.appendChild(lessonNode(lesson, i === firstMissed)));
     }
 
     async function load() {

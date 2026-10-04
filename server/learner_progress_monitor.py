@@ -48,6 +48,7 @@ from module_performance import lesson_grade_percent  # feat/grade-50-50: the one
 from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
 from activity_retakes import ensure_retake_schema
 from module_review import module_review_summary  # Module Review status in the Course Progress modal
+from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = 80
@@ -513,6 +514,8 @@ def get_learner_progress_detail(progress_id):
         evaluated = _evaluate_rows(cursor, rows)
         if evaluated:
             evaluated[0]["avatar_url"] = get_avatar_url(cursor, evaluated[0]["acc_id"])
+            # Strong / Needs work for this learner in this lesson (lesson_insights.py)
+            evaluated[0]["insights"] = lesson_insights(cursor, evaluated[0]["acc_id"], rows[0]["resource_id"])
         cursor.close()
         return evaluated[0] if evaluated else None
 

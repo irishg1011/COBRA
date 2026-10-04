@@ -42,6 +42,7 @@ from module_performance import (
 )
 from weak_spots import _course_lessons, _build, _save_recommendations, _published_game_activities
 from lesson_summary import get_next_lesson_info
+from lesson_insights import lesson_insights
 
 STATE_NOT_READY = "not_ready"
 STATE_NEEDS_RETAKE = "needs_retake"
@@ -70,6 +71,13 @@ def module_review_summary(cursor, acc_id, module_id, perf=None):
         "missed": sum((l.get("missed") or 0) for l in lessons),
         "lessons_left": sum(1 for l in lessons if not l.get("completed")),
     }
+
+
+def _item_result(your_answer):
+    """wrong | skipped | unanswered - shown next to each missed item number."""
+    if your_answer == "Skipped":
+        return "skipped"
+    return "wrong" if your_answer else "unanswered"
 
 
 def _module_row(cursor, module_id):
@@ -158,24 +166,39 @@ def get_module_review(acc_id, module_id):
                         include_correct=passed)
 
         # weak_spots groups items by the PART to re-read; the review shows
-        # them by the LESSON they were asked in, each with its part.
+        # them by the LESSON they were asked in. Each lesson lists its parts
+        # ONCE (with the item numbers they cover) - an item only points to
+        # its part by key, so the same lesson text is never repeated.
         items_by_lesson = {}
+        parts_by_lesson = {}
         for g in groups:
-            part = {
-                "resource_id": g["resource_id"],
-                "lesson_title": g["lesson_title"],
-                "heading": g["heading"],
-                "html": g["html"],
-            }
             for item in g["items"]:
-                items_by_lesson.setdefault(item["from_resource_id"], []).append({
+                rid = item["from_resource_id"]
+                parts = parts_by_lesson.setdefault(rid, [])
+                key = f'{g["resource_id"]}:{g["heading"]}'
+                part = next((p for p in parts if p["key"] == key), None)
+                if part is None:
+                    part = {
+                        "key": key,
+                        "resource_id": g["resource_id"],
+                        "lesson_title": g["lesson_title"],
+                        "heading": g["heading"],
+                        "html": g["html"],
+                        "is_other_lesson": g["resource_id"] != rid,
+                        "labels": [],
+                    }
+                    parts.append(part)
+                part["labels"].append(item["label"])
+                items_by_lesson.setdefault(rid, []).append({
                     "label": item["label"],
                     "activity_type": item["activity_type"],
                     "prompt": item["prompt"],
-                    "your_answer": item["your_answer"],
+                    "result": _item_result(item["your_answer"]),
+                    "your_answer": "" if item["your_answer"] == "Skipped" else item["your_answer"],
                     "feedback": item["feedback"],
                     "correct": item.get("correct") if passed else None,
-                    "part": {**part, "is_other_lesson": g["resource_id"] != item["from_resource_id"]},
+                    "part_key": key,
+                    "part_heading": g["heading"],
                 })
 
         # Items in activity order: MCQ 1, MCQ 2, ... (weak_spots returns them by part).
@@ -198,7 +221,10 @@ def get_module_review(acc_id, module_id):
                 "can_retake": state == STATE_NEEDS_RETAKE and len(items) > 0,
                 "has_games": bool(_published_game_activities(cursor, rid)),
                 "items": items,
+                "parts": parts_by_lesson.get(rid, []),
                 "exercise": _exercise_result(cursor, acc_id, rid),
+                # Strong / Needs work, worked out automatically (lesson_insights.py)
+                "insights": lesson_insights(cursor, acc_id, rid, groups),
             })
 
         # Opening the review = the learner looked at these recommendations.

@@ -22,6 +22,7 @@
         const errorEl = document.getElementById("progressDetailError");
         const nameEl = document.getElementById("progressDetailName");
         const avatarEl = document.getElementById("progressDetailAvatar");
+        const insightsEl = document.getElementById("progressDetailInsights");
         const accIdEl = document.getElementById("progressDetailAccId");
         const lessonEl = document.getElementById("progressDetailLesson");
         const scoreEl = document.getElementById("progressDetailScore");
@@ -73,6 +74,7 @@
             if (exerciseEl) exerciseEl.innerHTML = "";
             toggleSection(activitiesEl, true);
             toggleSection(exerciseEl, true);
+            if (insightsEl) insightsEl.innerHTML = "";
             setText(gradedEl, "");
             hideError();
         }
@@ -91,6 +93,30 @@
                 ${video}
                 <li class="progress-step-item"><span>Lesson Content</span>${content}</li>
             `;
+        }
+
+        // Strong | Needs work for this learner in this lesson - worked out
+        // automatically from first-try answers (server: lesson_insights.py).
+        function insightsHtml(insights) {
+            const skills = (insights && insights.skills) || [];
+            if (!skills.length) {
+                return `<p class="progress-detail-empty">No answers yet in this lesson's activities.</p>`;
+            }
+            const cell = (list, empty) => list.length
+                ? list.map((s) => `
+                    <div class="insight-cell-item">
+                        <strong>${escapeHtml(s.label)}</strong> <span class="text-muted">${escapeHtml(s.percent)}% · ${escapeHtml(s.right)}/${escapeHtml(s.total)} first try (${escapeHtml(s.source)})</span>
+                        ${!s.strong && s.parts && s.parts.length ? `<small class="insight-cell-parts">Re-read: ${s.parts.map(escapeHtml).join(", ")}</small>` : ""}
+                    </div>`).join("")
+                : `<span class="text-muted">${escapeHtml(empty)}</span>`;
+            return `
+                <table class="progress-detail-table insight-table">
+                    <thead><tr><th>Strong (${escapeHtml(insights.strong_percent)}%+)</th><th>Needs work</th></tr></thead>
+                    <tbody><tr>
+                        <td>${cell(insights.strong || [], "None yet")}</td>
+                        <td>${cell(insights.weak || [], "No weak areas")}</td>
+                    </tr></tbody>
+                </table>`;
         }
 
         // Hide a whole section (heading included) when the lesson has none of it.
@@ -165,6 +191,8 @@
             if (exerciseEl) exerciseEl.innerHTML = exerciseHtml(rec.exercise);
             toggleSection(activitiesEl, !!(rec.activities && rec.activities.length));
             toggleSection(exerciseEl, !!rec.exercise);
+            if (insightsEl) insightsEl.innerHTML = insightsHtml(rec.insights);
+            toggleSection(insightsEl, !!(rec.activities && rec.activities.length) || !!rec.exercise);
 
             setText(
                 gradedEl,

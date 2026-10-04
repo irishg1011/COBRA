@@ -553,3 +553,30 @@ details[open] > .course-summary .course-caret {
     margin-left: 8px;
     font-size: 11px;
 }
+
+/* Strengths & Weak Areas (lesson progress modal) */
+.insight-table td {
+    vertical-align: top;
+    width: 50%;
+}
+
+.insight-table th:first-child { color: #15803d; }
+.insight-table th:last-child { color: #c2410c; }
+
+.insight-cell-item + .insight-cell-item {
+    margin-top: 8px;
+}
+
+.insight-cell-parts {
+    display: block;
+    color: #9a3412;
+    margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+    .insight-table thead { display: none; }
+    .insight-table tr, .insight-table td,
+    .insight-table td:nth-child(2) { display: block !important; width: 100%; }
+    .insight-table td:first-child::before { content: "Strong"; display: block; font-weight: 700; color: #15803d; }
+    .insight-table td:last-child::before { content: "Needs work"; display: block; font-weight: 700; color: #c2410c; margin-top: 8px; }
+}

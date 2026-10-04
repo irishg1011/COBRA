@@ -38,6 +38,7 @@ from learner_exercise import (
 from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from weak_spots import get_weak_spots, get_review_status  # weak-spot recommendations
 from module_review import get_module_review, module_review_summary  # Module Review card (end of every module)
+from lesson_insights import get_lesson_insights  # automatic strengths / weaknesses per lesson
 from sandbox_snippets import save_snippet, get_snippets_for_learner, get_snippet, delete_snippet  # Coding Sandbox - save to account
 from sandbox_runs import log_run  # NEW: Coding Sandbox - run history log
 from notifications import notify_standalone  # header bell
@@ -1402,6 +1403,7 @@ def lesson_summary_data():
         **summary,
         "next": next_info,
         "review": review,
+        "insights": get_lesson_insights(acc_id, resource_id),   # Strong / Needs work
     }), 200
 
 

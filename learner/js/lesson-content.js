@@ -1408,6 +1408,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         summaryList.innerHTML = rows.join('');
 
+        // Strong | Needs work, worked out from the first-try answers.
+        const insightsBox = document.getElementById('summaryInsights');
+        if (insightsBox && window.CobraInsights) insightsBox.innerHTML = window.CobraInsights.html(data.insights);
+
         const next = data.next;
         const review = data.review || {};
         const moduleReviewUrl = review.module_id ? `/module-review?module_id=${review.module_id}` : null;
