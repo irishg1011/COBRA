@@ -71,6 +71,42 @@ def get_db_connection():
     return None
 
 
+_progress_schema_ready = False   # checked once per server start
+
+
+def ensure_progress_schema(connection):
+    """
+    learner_resource_progress_tbl.completed_at was NOT NULL with no default,
+    so starting a lesson (an INSERT without completed_at) failed on a MySQL
+    server in strict mode ("Field 'completed_at' doesn't have a default
+    value") - XAMPP's default mode just stored 0000-00-00 instead. Make the
+    column nullable once: an in-progress lesson simply has no completed_at.
+    Runs in a relaxed sql_mode for that one statement so existing
+    0000-00-00 rows can't block it. Never raises.
+    """
+    global _progress_schema_ready
+    if _progress_schema_ready:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SHOW COLUMNS FROM learner_resource_progress_tbl LIKE 'completed_at'")
+        row = cursor.fetchone()
+        if row and str(row[2]).upper() == "NO":   # Null = NO
+            cursor.execute("SELECT @@SESSION.sql_mode")
+            old_mode = cursor.fetchone()[0]
+            cursor.execute("SET SESSION sql_mode = ''")
+            try:
+                cursor.execute(
+                    "ALTER TABLE learner_resource_progress_tbl MODIFY completed_at DATETIME NULL DEFAULT NULL"
+                )
+            finally:
+                cursor.execute("SET SESSION sql_mode = %s", (old_mode,))
+        cursor.close()
+        _progress_schema_ready = True
+    except Error as e:
+        print(f"learner_routes: could not make completed_at nullable: {e}")
+
+
 def get_current_learner_acc_id():
     token = session.get("session_token")
     if not token:
@@ -804,6 +840,7 @@ def lesson_content_data():
         progress_row = cursor.fetchone()
         started_before = progress_row is not None   # "You stopped here last time" note
         if not progress_row:
+            ensure_progress_schema(connection)
             cursor.execute(
                 """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at)
                    VALUES (%s, %s, 'in_progress', NOW())""",
@@ -873,6 +910,7 @@ def mark_video_watched():
                     (existing["progress_id"],)
                 )
         else:
+            ensure_progress_schema(connection)
             cursor.execute(
                 """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at, video_watched_at)
                    VALUES (%s, %s, 'in_progress', NOW(), NOW())""",
@@ -923,6 +961,7 @@ def mark_content_read():
                     (existing["progress_id"],)
                 )
         else:
+            ensure_progress_schema(connection)
             cursor.execute(
                 """INSERT INTO learner_resource_progress_tbl (acc_id, resource_id, status, started_at, content_read_at)
                    VALUES (%s, %s, 'in_progress', NOW(), NOW())""",
