@@ -43,7 +43,9 @@ GAME_TABLES = {
 }
 
 # Statuses that move a game past an item (the item is "done" for position).
-DONE_STATUSES = ("correct", "close", "skipped")
+# "incorrect" too (adviser's rule): a wrong answer moves on - the first
+# answer is what counts, and the miss is fixed in the next retake round.
+DONE_STATUSES = ("correct", "close", "incorrect", "skipped")
 
 _retake_schema_ensured = False
 

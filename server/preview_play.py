@@ -441,12 +441,11 @@ def preview_mcq(store, la_id, action, data=None):
             return {"graded": False, "state": _mcq_state(play, q_ids)}, None
         is_correct, feedback, _ = check_mcq_answer(q_id, option_id)
         attempt_number = _attempt(play, q_id)
-        if is_correct:
-            if attempt_number == 1:
-                play["first_try"] += 1
-            _mcq_advance(play, q_ids)
-        elif q_id not in play["wrong"]:
+        if is_correct and attempt_number == 1:
+            play["first_try"] += 1
+        if not is_correct and q_id not in play["wrong"]:
             play["wrong"].append(q_id)
+        _mcq_advance(play, q_ids)   # right or wrong, move on (same as the learner side)
         return {
             "graded": True,
             "is_correct": is_correct,
@@ -530,14 +529,14 @@ def preview_fib(store, la_id, action, data=None):
         else:
             feedback = item.get("incorrect_feedback") or FIB_INCORRECT_FEEDBACK
         attempt_number = _attempt(play, fib_id)
-        if is_correct:
-            if attempt_number == 1:
-                play["first_try"] += 1
-            play["solved"].append(fib_id)
-            play["index"] += 1
-            play["completed"] = play["index"] >= total
-        elif fib_id not in play["wrong"]:
+        if is_correct and attempt_number == 1:
+            play["first_try"] += 1
+        if not is_correct and fib_id not in play["wrong"]:
             play["wrong"].append(fib_id)
+        # Right or wrong, move on (same as the learner side).
+        play["solved"].append(fib_id)
+        play["index"] += 1
+        play["completed"] = play["index"] >= total
         return {
             "graded": True,
             "is_correct": is_correct,
@@ -638,12 +637,11 @@ def preview_flashcards(store, la_id, action, data=None):
             feedback = card.get("incorrect_feedback") or FC_INCORRECT_FEEDBACK
         attempt_number = _attempt(play, flashcard_id)
         passed = status in ("correct", "close")
-        if passed:
-            if attempt_number == 1 and status == "correct":
-                play["first_try"] += 1
-            _fc_advance(play, card_ids, flashcard_id)
-        elif flashcard_id not in play["wrong"]:
+        if passed and attempt_number == 1 and status == "correct":
+            play["first_try"] += 1
+        if not passed and flashcard_id not in play["wrong"]:
             play["wrong"].append(flashcard_id)
+        _fc_advance(play, card_ids, flashcard_id)   # right or wrong, move on
         return {
             "graded": True,
             "status": status,

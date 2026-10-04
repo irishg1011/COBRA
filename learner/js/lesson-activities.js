@@ -257,8 +257,8 @@
     // question and pause/resume all live on the server:
     //   GET  /mcq/state      POST /mcq/play
     //   POST /mcq/answer     POST /mcq/lose-life
-    // Wrong answer -> -1 life, the correct option is revealed, and the
-    // learner picks Try Again (SAME question) or Skip (next question).
+    // Wrong answer -> -1 life, marked wrong, and the play moves on to the
+    // next question (the retake round fixes missed questions later).
     // Before every question a preview modal shows the question and its
     // choices; the cobra only moves after the learner presses Start.
     // Lives (shared by every Multiple Choice activity): 5 regular, all
@@ -571,60 +571,33 @@
             node.appendChild(text);
         }
 
-        // Wrong answer: show why, show the right answer, then let the
-        // learner Try Again (same question) or Skip to the next one.
-        function showTryAgain(option, feedback) {
+        // Wrong answer: show why, then MOVE ON (adviser's rule - the first
+        // try is what counts; a missed question is fixed later in a retake
+        // round, not by retrying it now). The server already moved the play
+        // to the next question (or finished it after the last one).
+        function showWrongAndNext(option, feedback) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
+            const last = !!(server && server.completed);
             showOverlay(`
                 <div class="mcq-arena-overlay-card">
                     <i class="fa-solid fa-circle-xmark mcq-arena-overlay-icon is-danger"></i>
                     <h4>Not quite</h4>
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
                     <div class="mcq-arena-reveal" data-ui="tryReveal" hidden></div>
-                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Try question ${qIndex + 1} again for the satisfaction, or skip to the next one.</p>
+                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} is marked wrong - you can fix it later in a retake if your module needs one.</p>
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn"><i class="fa-solid fa-forward"></i> Skip question</button>
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="tryBtn"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
                     </div>
                 </div>
             `);
             overlayNode("tryFeedback").textContent = feedback || `${option.option_letter} isn't the right answer.`;
             fillReveal(overlayNode("tryReveal"));
-            overlayNode("skipBtn").addEventListener("click", skipQuestion);
-            overlayNode("tryBtn").addEventListener("click", () => {
-                if (disposed) return;
-                startQuestion();
-                if (fallback) {
-                    hideOverlay();
-                    setMode("playing");
-                    return;
-                }
-                resumePlay();
+            overlayNode("nextBtn").addEventListener("click", () => {
+                if (disposed || mode !== "tryagain") return;
+                hideOverlay();
+                advance();
             });
-        }
-
-        // Skip the current question (only offered after a wrong answer):
-        // no life, no score - the server logs it as 'skipped'.
-        async function skipQuestion() {
-            if (disposed || mode !== "tryagain") return;
-            setMode("busy");
-            let data = null;
-            try {
-                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id });
-            } catch (err) {
-                if (!disposed) showError(err.message);
-                return;
-            }
-            if (disposed) return;
-            applyState(data.state);
-            if (!data.skipped) {
-                resyncFromState();
-                return;
-            }
-            streak = 0;
-            updateHUD();
-            advance();
         }
 
         // Skip from the question preview (the question was never played):
@@ -946,7 +919,7 @@
                 setTimeout(() => { if (!disposed) showOutOfLives(); }, 900);
                 return;
             }
-            showTryAgain(option, result.feedback);
+            showWrongAndNext(option, result.feedback);
         }
 
         function advance() {

@@ -13,15 +13,16 @@ Learner rules (same shape as the MCQ arena):
     one is lost, plus 5 bonus lives every day at 8:00 AM PH time (spent
     first, never refilled by the timer). fib_learner_lives_tbl from the
     first build is no longer used.
-  - Wrong answer: -1 life, logged, and the correct answer is revealed;
-    the learner chooses Try Again (SAME item) or Skip (next item, logged
-    as status 'skipped' - no life, no score). Correct answer: next item.
+  - Wrong answer: -1 life, logged, and the play MOVES ON to the next item
+    (adviser's rule: the first answer is what counts; a missed item is
+    fixed later in a retake round). Correct answer: next item.
   - At 0 lives the play pauses on its current item; the learner can go
     review the lesson and resumes the same play once a life is back.
   - The current item is derived from the answer log: the first item (in
-    sort order) that has no correct attempt yet. No position column.
+    sort order) not answered (right or wrong) or skipped yet. No position
+    column.
   - Saved score = first-attempt correct count (attempt_number = 1).
-    Completed once every item has a correct attempt. No replay.
+    Completed once every item is answered or skipped. No replay.
   - Every attempt is appended to fib_learner_answers_tbl.
 
 Also shared with the admin builder (learning_activity_content.py):
@@ -219,7 +220,7 @@ def _learner_item(row):
 def _answer_summary(cursor, acc_id, fib_ids):
     """
     Returns (solved_ids, first_try_correct):
-      solved_ids        fib_ids with a correct attempt or a skip
+      solved_ids        fib_ids already answered (right or wrong) or skipped
       first_try_correct items whose attempt_number = 1 is correct
     """
     if not fib_ids:
@@ -232,7 +233,7 @@ def _answer_summary(cursor, acc_id, fib_ids):
     )
     solved, first_try = set(), set()
     for r in cursor.fetchall():
-        if r["status"] in ("correct", "skipped"):
+        if r["status"] in ("correct", "incorrect", "skipped"):
             solved.add(r["fib_id"])
         if r["status"] == "correct" and r["attempt_number"] == 1:
             first_try.add(r["fib_id"])
@@ -416,10 +417,11 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
     """
     Grades one blank. Appends the attempt to fib_learner_answers_tbl.
     Wrong -> -1 life from the FIB pool (bonus lives first; losing the
-    first regular life starts the 10-minute refill) and the learner
-    stays on the same item.
-    Correct -> moves to the next item; solving the last one saves the
-    completion with score = first-attempt correct count.
+    first regular life starts the 10-minute refill) and the play moves
+    on to the next item (the miss is kept for the retake).
+    Correct -> moves to the next item.
+    Answering the last item (right or wrong) saves the completion with
+    score = first-attempt correct count.
 
     Returns (payload, error_message). payload["graded"] is False when
     nothing was graded - out of lives, already completed, or the browser
@@ -493,16 +495,16 @@ def submit_fib_answer(acc_id, la_id, fib_id, answer):
              play["retake"]["retake_id"] if play["retake"] else None)
         )
 
-        if is_correct:
-            if attempt_number == 1:
-                first_try += 1
-            solved_count += 1
-            index += 1
-            completed = index >= total
-            if completed:
-                _finish(cursor, acc_id, la_id, play, first_try)
-        else:
+        if is_correct and attempt_number == 1:
+            first_try += 1
+        if not is_correct:
             take_life(pool)
+        # Right or wrong, the play moves on (adviser's rule).
+        solved_count += 1
+        index += 1
+        completed = index >= total
+        if completed:
+            _finish(cursor, acc_id, la_id, play, first_try)
 
         retake_info = _retake_info(cursor, acc_id, play, completed)
         save_lives_pool(cursor, pool)

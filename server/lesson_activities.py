@@ -598,9 +598,10 @@ def get_activity_type_name(la_id):
 #                                         (status + first-attempt score)
 #
 # Rules:
-#   - wrong answer: -1 life; the correct option is revealed and the
-#     learner chooses Try Again (same question) or Skip (next question,
-#     logged as status 'skipped', no life, no score)
+#   - wrong answer: -1 life, logged 'incorrect' and the play MOVES ON to
+#     the next question (adviser's rule: the first try is what counts; a
+#     missed question is fixed later in a retake round, not by retrying)
+#   - skip (from the question preview): -1 life, logged 'skipped', moves on
 #   - correct answer: move to the next question
 #   - wall hit / self-bite: -1 life, nothing logged as an answer
 #   - 0 lives: the play is paused on its current question - never reset
@@ -841,13 +842,18 @@ def _first_attempt_score(cursor, acc_id, la_id):
 
 
 def _solved_q_ids(cursor, acc_id, q_ids):
-    """Questions this learner has answered correctly or skipped."""
+    """
+    Questions this learner is DONE with in the first play: answered
+    (right or wrong - a wrong answer moves on) or skipped. Retake rounds
+    keep their own list (activity_retakes.py).
+    """
     if not q_ids:
         return set()
     placeholders = ",".join(["%s"] * len(q_ids))
     cursor.execute(
         f"""SELECT DISTINCT q_id FROM {MCQ_ANSWERS_TABLE}
-            WHERE acc_id = %s AND status IN ('correct', 'skipped') AND q_id IN ({placeholders})""",
+            WHERE acc_id = %s AND status IN ('correct', 'incorrect', 'skipped')
+              AND retake_id IS NULL AND q_id IN ({placeholders})""",
         tuple([acc_id] + q_ids)
     )
     return {r["q_id"] for r in cursor.fetchall()}
@@ -1229,7 +1235,9 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
     per learner/question, so attempt 1 stays the first attempt).
 
       correct -> next question (or completes the activity)
-      wrong   -> -1 life, SAME question; at 0 lives the play pauses
+      wrong   -> -1 life and ALSO the next question (no retrying - the
+                 first try is what counts; retakes fix missed items);
+                 at 0 lives the play pauses on that next question
 
     The correct option is never revealed after a wrong answer.
     payload["graded"] is False when nothing was graded (no running play,
@@ -1283,11 +1291,7 @@ def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
             _advance_mcq(cursor, ctx)
         else:
             _take_life(pool)
-            if not ctx.get("retake"):
-                cursor.execute(
-                    f"UPDATE {MCQ_SESSIONS_TABLE} SET score = %s WHERE session_id = %s",
-                    (_first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]), session_row["session_id"])
-                )
+            _advance_mcq(cursor, ctx)   # move on - the miss is kept for the retake
             _pause_if_out_of_lives(cursor, ctx)
 
         payload = {

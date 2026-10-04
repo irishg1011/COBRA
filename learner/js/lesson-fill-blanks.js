@@ -622,8 +622,9 @@
                 : result.is_close ? "Almost there" : "Not quite";
             ui.fbText.textContent = result.is_correct
                 ? (result.feedback || "")
-                : `${result.feedback || ""} SyntaxBug bites back (−1 life).`.trim();
-            // After a wrong answer: reveal the answer, then Try again or Skip.
+                : `${result.feedback || ""} SyntaxBug bites back (−1 life). This puzzle is marked wrong - you can fix it later in a retake if your module needs one.`.trim();
+            // Right or wrong, the only way forward is the next puzzle
+            // (adviser's rule: the first answer counts; no Try again).
             const reveal = !result.is_correct && !!result.correct_answer;
             ui.fbAnswer.hidden = !reveal;
             ui.fbAnswer.innerHTML = "";
@@ -633,8 +634,8 @@
                 code.textContent = result.correct_answer;
                 ui.fbAnswer.appendChild(code);
             }
-            ui.fbActions.hidden = result.is_correct || server.total_lives <= 0;
-            ui.nextBtn.hidden = !result.is_correct;
+            ui.fbActions.hidden = true;
+            ui.nextBtn.hidden = false;
             ui.nextBtn.textContent = server.completed ? "See results" : "Next puzzle";
         }
 
@@ -679,7 +680,8 @@
                 return;
             }
 
-            // Wrong: stay on this item (Try Again).
+            // Wrong: marked wrong, and the play moves on (Next puzzle) -
+            // at 0 lives the next puzzle opens paused (advance -> cooldown).
             wrongOnCurrent = true;
             streak = 0;
             bump(ui.livesStat);
@@ -691,15 +693,9 @@
                 paintSlot();
             }
             updateHUD();
-            if (server.total_lives <= 0) {
-                setTimeout(() => { if (!disposed) enterCooldown(); }, FIB_ANIM.foebite);
-                setMode("busy");
-            } else {
-                // feat/fib-lock-after-check: the checked answer stays on screen
-                // but locked; only Try again (or Skip puzzle) moves on.
-                setMode("tryagain");
-                ui.retryBtn.focus({ preventScroll: true });
-            }
+            // The checked answer stays on screen, locked; Next moves on.
+            setMode("review");
+            ui.nextBtn.focus({ preventScroll: true });
         }
 
         // Skip the current puzzle: no score - the server logs it as 'skipped'.
