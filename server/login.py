@@ -86,7 +86,7 @@ app.register_blueprint(contact_bp)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
-from cobradb import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME  # single source of DB settings
+from cobradb import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_TIME_ZONE  # single source of DB settings
 
 ACCOUNT_TABLE = "account_tbl"
 # ARCHIVED_ACCOUNT_MESSAGE moved to auth_core.py with the rest of the login rules.
@@ -129,7 +129,8 @@ def get_db_connection():
             host=DB_HOST,
             user=DB_USER,
             password=DB_PASSWORD,
-            database=DB_NAME
+            database=DB_NAME,
+            time_zone=DB_TIME_ZONE,  # Philippine time - see cobradb.py
         )
         if connection.is_connected():
             return connection
