@@ -747,3 +747,98 @@ html.fc-focus-lock body {
     /* keyboard open on a sideways phone: every pixel goes to the board */
     .fc-root.is-focus.is-compact .fc-topbar { display: none; }
 }
+
+/* ============================================================
+   Code inside a card
+   A card's text may hold a ```python ... ``` block. lesson-flashcards.js
+   (fcRenderCard) puts the plain text in .fc-text-part and the code in
+   a <pre class="fc-code">: monospace, left-aligned, one statement per
+   line, indentation kept, same Python colours as Fill in the Blanks.
+   Used on the board's Front card, the preview card and the revealed
+   back of the card.
+   ============================================================ */
+.fc-text-part { display: block; }
+
+.fc-code {
+    margin: 0;
+    padding: 12px 14px;
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    font-size: 14.5px;
+    font-weight: 500;
+    line-height: 1.7;
+    text-align: left;
+    color: var(--fc-text);
+    background: #f8fafc;
+    border: 1.5px solid var(--fc-border);
+    border-radius: 12px;
+    white-space: pre;
+    word-break: normal;
+    overflow-x: auto;      /* a long line scrolls inside the box */
+    tab-size: 4;
+}
+
+.fc-text-part + .fc-code,
+.fc-code + .fc-text-part,
+.fc-code + .fc-code { margin-top: 12px; }
+
+.fc-code .tok-kw { color: #7c3aed; font-weight: 600; }
+.fc-code .tok-fn { color: #2563eb; }
+.fc-code .tok-str { color: #15803d; }
+.fc-code .tok-num { color: #c2410c; }
+.fc-code .tok-cmt { color: #94a3b8; font-style: italic; }
+
+/* a `word` in single backticks inside the card text */
+.fc-inline-code {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    font-size: 0.9em;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    border: 1px solid var(--fc-border);
+}
+
+/* the revealed back of the card keeps its line breaks; with a code
+   box it takes the full width under its label */
+.fc-reveal-text { white-space: pre-wrap; }
+.fc-reveal-text:has(.fc-code) { flex: 1 1 100%; }
+.fc-reveal .fc-code { background: #ffffff; border-color: #86efac; }
+
+@media (max-width: 720px) {
+    .fc-code { padding: 10px 12px; font-size: 13.5px; }
+}
+
+/* ============================================================
+   Preview card -> the floating card in the stage
+   lesson-flashcards.js (flyPreviewToCard) adds .is-leaving to the
+   overlay when Start / Continue / Play card is pressed: everything
+   except the card itself fades away while the card flies to the
+   floating 3D card (the movement itself is set in the script,
+   because it depends on where that card is on screen).
+   ============================================================ */
+.fc-overlay.is-leaving {
+    background: transparent;
+    -webkit-backdrop-filter: blur(0);
+    backdrop-filter: blur(0);
+    overflow: hidden;
+    pointer-events: none;
+    transition: background 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
+}
+
+.fc-overlay.is-leaving .fc-overlay-card.fc-preview {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fc-overlay.is-leaving .fc-preview > :not(.fc-preview-card) {
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.fc-overlay.is-leaving .fc-preview-card {
+    position: relative;
+    z-index: 1;
+    will-change: transform, opacity;
+}

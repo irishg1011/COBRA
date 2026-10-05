@@ -163,6 +163,16 @@
         if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
     }
 
+    // Waits until the 3D stage has its shaders ready (stage.warmUp() in the
+    // 3D file), but never longer than capMs - a slow device still starts.
+    function warmStage(stage, capMs) {
+        if (!stage || typeof stage.warmUp !== "function") return Promise.resolve();
+        return Promise.race([
+            stage.warmUp(),
+            new Promise((resolve) => setTimeout(resolve, capMs || 6000))
+        ]);
+    }
+
     // ---------------- the activity ----------------
     function renderFillBlanks(activity, container, onActivityDone) {
         container.innerHTML = "";
@@ -1126,6 +1136,9 @@
                 </div>
             `);
 
+            // Fetch the 3D stage's files while the server answers, not after it.
+            const stageFiles = import(FIB_JS_BASE + "battle3d.js").then((mod) => ({ mod }), (error) => ({ error }));
+
             let play;
             try {
                 play = await fetchPlay(laId);
@@ -1148,12 +1161,16 @@
                 + Math.max(0, play.state.solved_count - play.state.first_try_correct) * 50;
 
             try {
-                const mod = await import(FIB_JS_BASE + "battle3d.js");
+                const loaded = await stageFiles;
+                if (loaded.error) throw loaded.error;
                 if (disposed) return;
                 // Scenery follows the chapter's side on the Learning Map:
                 // "land" = forest clearing, "water" = inside a wooden ship.
-                stage3d = mod.createBattle(ui.canvas, { terrain: activity.terrain || "land" });
+                stage3d = loaded.mod.createBattle(ui.canvas, { terrain: activity.terrain || "land" });
                 stage3d.holdIntro();   // cobra waits in the bush / behind the doorway until Start
+                // Shaders get ready here, behind "Loading activity..." - the
+                // first frame used to freeze the page while they compiled.
+                await warmStage(stage3d);
             } catch (err) {
                 console.warn("Battle stage unavailable, showing the board only:", err);
                 stage3d = null;

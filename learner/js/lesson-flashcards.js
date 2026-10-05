@@ -43,6 +43,7 @@
         ? new URL(".", document.currentScript.src).href
         : "";
     const FC_ANIM = { win: 1700, sting: 1300, death: 1700 };
+    const FC_FLY_MS = 560;   // preview card flying to the floating card in the stage
 
     // ---------------- small helpers ----------------
     function el(tag, className) {
@@ -120,6 +121,127 @@
     function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
     function easeIn(t) { return t * t; }
 
+    // ---------------- card text with code ----------------
+    // A card's text may hold a fenced code block:
+    //     What does this display?
+    //     ```python
+    //     name = "Cobra"
+    //     print(name)
+    //     ```
+    // fcParseCard() splits the text into text parts and code parts, and
+    // fcRenderCard() draws them: the code goes in a monospace box, one
+    // statement per line, with Python colours. Display only - the mentor's
+    // code is never rewritten. Tabs become 4 spaces, and trailing spaces
+    // and a shared left indent are removed, so it lines up the PEP 8 way.
+    // Card text comes from the database and only goes in via textContent.
+    // After the opening ``` an optional language word is dropped: any word
+    // that ends its line ("```python"), or python / py on the same line.
+    const FC_FENCE = /```(?:[ \t]*[A-Za-z0-9_+#.-]*[ \t]*\n|[ \t]*(?:python3?|py)\b[ \t]*)?([\s\S]*?)(?:```|$)/gi;
+    const FC_TOKEN_PATTERN = /(#.*$)|("(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|([^\sA-Za-z0-9_'"#]+)/g;
+    const FC_KEYWORDS = new Set([
+        "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class",
+        "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global",
+        "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise",
+        "return", "try", "while", "with", "yield"
+    ]);
+
+    function fcCleanCode(code) {
+        const lines = code.replace(/\t/g, "    ").split("\n").map((line) => line.replace(/\s+$/, ""));
+        while (lines.length && !lines[0]) lines.shift();
+        while (lines.length && !lines[lines.length - 1]) lines.pop();
+        const indents = lines.filter(Boolean).map((line) => line.match(/^ */)[0].length);
+        const cut = indents.length ? Math.min(...indents) : 0;
+        return lines.map((line) => line.slice(cut)).join("\n");
+    }
+
+    // -> [{ type: "text" | "code", text }], in the order they appear.
+    // A card with no code block is one "text" part.
+    function fcParseCard(text) {
+        const source = String(text === null || text === undefined ? "" : text).replace(/\r\n?/g, "\n");
+        const parts = [];
+        const pushText = (chunk) => {
+            const clean = chunk.trim();
+            if (clean) parts.push({ type: "text", text: clean });
+        };
+        let last = 0;
+        let m;
+        FC_FENCE.lastIndex = 0;
+        while ((m = FC_FENCE.exec(source)) !== null) {
+            pushText(source.slice(last, m.index));
+            const code = fcCleanCode(m[1]);
+            if (code) parts.push({ type: "code", text: code });
+            last = m.index + m[0].length;
+        }
+        pushText(source.slice(last));
+        return parts;
+    }
+
+    // Appends syntax-coloured spans for one line of code.
+    function fcHighlightInto(parent, line) {
+        let last = 0;
+        let m;
+        FC_TOKEN_PATTERN.lastIndex = 0;
+        while ((m = FC_TOKEN_PATTERN.exec(line)) !== null) {
+            if (m[0] === "") { FC_TOKEN_PATTERN.lastIndex += 1; continue; }
+            if (m.index > last) parent.appendChild(document.createTextNode(line.slice(last, m.index)));
+            let cls = "";
+            if (m[1]) cls = "tok-cmt";
+            else if (m[2]) cls = "tok-str";
+            else if (m[3]) cls = "tok-num";
+            else if (m[4]) {
+                if (FC_KEYWORDS.has(m[4])) cls = "tok-kw";
+                else if (line.charAt(m.index + m[4].length) === "(") cls = "tok-fn";
+            }
+            if (cls) {
+                const span = el("span", cls);
+                span.textContent = m[0];
+                parent.appendChild(span);
+            } else {
+                parent.appendChild(document.createTextNode(m[0]));
+            }
+            last = m.index + m[0].length;
+        }
+        if (last < line.length) parent.appendChild(document.createTextNode(line.slice(last)));
+    }
+
+    // Draws card text into `node`: text parts as text (a `word` in single
+    // backticks becomes inline code), code parts as a code box.
+    function fcRenderCard(node, text) {
+        node.textContent = "";
+        fcParseCard(text).forEach((part) => {
+            if (part.type === "code") {
+                const pre = el("pre", "fc-code");
+                part.text.split("\n").forEach((line, i) => {
+                    if (i) pre.appendChild(document.createTextNode("\n"));
+                    fcHighlightInto(pre, line);
+                });
+                node.appendChild(pre);
+                return;
+            }
+            const block = el("span", "fc-text-part");
+            part.text.split(/(`[^`\n]+`)/).forEach((piece) => {
+                if (piece.length > 2 && piece.charAt(0) === "`" && piece.charAt(piece.length - 1) === "`") {
+                    const code = el("code", "fc-inline-code");
+                    code.textContent = piece.slice(1, -1);
+                    block.appendChild(code);
+                } else if (piece) {
+                    block.appendChild(document.createTextNode(piece));
+                }
+            });
+            node.appendChild(block);
+        });
+    }
+
+    // Waits until the 3D stage has its shaders ready (stage.warmUp() in the
+    // 3D file), but never longer than capMs - a slow device still starts.
+    function warmStage(stage, capMs) {
+        if (!stage || typeof stage.warmUp !== "function") return Promise.resolve();
+        return Promise.race([
+            stage.warmUp(),
+            new Promise((resolve) => setTimeout(resolve, capMs || 6000))
+        ]);
+    }
+
     // ---------------- the activity ----------------
     function renderFlashcards(activity, container, onActivityDone) {
         container.innerHTML = "";
@@ -161,7 +283,7 @@
                     </div>
                     <div class="fc-card">
                         <span class="fc-card-label">Front</span>
-                        <p class="fc-card-front" data-c="front"></p>
+                        <div class="fc-card-front" data-c="front"></div>
                     </div>
                     <div class="fc-answer-row" data-c="answerRow">
                         <textarea class="fc-answer-input" data-c="input" rows="1" autocomplete="off" spellcheck="false" placeholder="Type the answer on the back of the card..." aria-label="Your answer"></textarea>
@@ -271,6 +393,73 @@
         function hideOverlay() {
             ui.overlay.hidden = true;
             ui.overlay.innerHTML = "";
+            ui.overlay.classList.remove("is-leaving");
+            revealStageCard(false);   // the floating card is only hidden while a preview is open
+        }
+
+        // ---- preview card -> the floating card in the stage ----
+        // While a card preview is open the floating 3D card is hidden. On
+        // Start / Continue / Play card the preview card flies to where the
+        // floating card lives and shrinks to its size, the rest of the
+        // preview fades away, and the floating card pops in as it lands.
+        // No stage (no WebGL, or hidden behind the phone keyboard) or
+        // "reduce motion" switched on in the device: no flight, the card is
+        // simply shown. Styles: .fc-overlay.is-leaving in the CSS file.
+        const reduceMotionQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+
+        function revealStageCard(animated) {
+            if (stage3d && stage3d.showCard) stage3d.showCard(animated);
+        }
+
+        // Resolves when the flight is over (or right away when there is none).
+        function flyPreviewToCard() {
+            return new Promise((resolve) => {
+                const card = ui.overlay.querySelector(".fc-preview-card");
+                const canFly = !!card && typeof card.animate === "function"
+                    && !!stage3d && typeof stage3d.cardRect === "function"
+                    && !(reduceMotionQuery && reduceMotionQuery.matches);
+                if (!canFly) {
+                    revealStageCard(false);
+                    resolve();
+                    return;
+                }
+
+                let finished = false;
+                let safety = null;
+                const finish = () => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(safety);
+                    revealStageCard(false);   // does nothing when the pop-in already started
+                    resolve();
+                };
+                // Never leave the play waiting on an animation (e.g. the tab was hidden mid-flight).
+                safety = setTimeout(finish, FC_FLY_MS + 700);
+
+                // One frame later, so a layout change made by the same click
+                // (full screen on phones) is already drawn before measuring.
+                requestAnimationFrame(() => {
+                    if (finished || disposed || !stage3d) { finish(); return; }
+                    const from = card.getBoundingClientRect();
+                    const to = stage3d.cardRect();   // where the floating card is on screen
+                    if (!to || from.width < 1 || to.width < 8) { finish(); return; }
+
+                    ui.overlay.classList.add("is-leaving");
+                    const scale = to.width / from.width;
+                    const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+                    const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+                    const landed = `translate(${dx}px, ${dy}px) scale(${scale})`;
+                    const flight = card.animate([
+                        { transform: "translate(0px, 0px) scale(1)", opacity: 1, offset: 0 },
+                        { transform: landed, opacity: 1, offset: 0.8 },
+                        { transform: landed, opacity: 0, offset: 1 }
+                    ], { duration: FC_FLY_MS, easing: "cubic-bezier(0.45, 0, 0.2, 1)", fill: "forwards" });
+                    // The floating card pops in while the flying one fades out on top of it.
+                    setTimeout(() => { if (!finished) revealStageCard(true); }, FC_FLY_MS * 0.6);
+                    flight.onfinish = finish;
+                    flight.oncancel = finish;
+                });
+            });
         }
 
         function overlayNode(name) {
@@ -292,7 +481,7 @@
                     <span class="fc-preview-eyebrow" data-c="pvEyebrow"></span>
                     <div class="fc-preview-card">
                         <span class="fc-card-label" data-c="pvMeta"></span>
-                        <p class="fc-preview-front" data-c="pvFront"></p>
+                        <div class="fc-preview-front" data-c="pvFront"></div>
                     </div>
                     <p>Type what's on the back of this card. Get it right and Cobra flings the card at NullScorpion; get it wrong and the scorpion stings back (−1 life).</p>
                     <div class="fc-keys"><kbd>Enter = new line</kbd></div>
@@ -306,11 +495,15 @@
                 ? `Retake round ${server.retake.round} · ${copy.eyebrow}`
                 : copy.eyebrow;
             overlayNode("pvMeta").textContent = `Card ${qIndex + 1} of ${total}`;
-            overlayNode("pvFront").textContent = currentCard().front_text;
+            fcRenderCard(overlayNode("pvFront"), currentCard().front_text);
             overlayNode("pvBtnText").textContent = copy.btn;
-            const startFromPreview = () => {
+            const startFromPreview = async () => {
+                if (mode !== "ready") return;   // already starting (second click / Enter)
                 enterFocusIfPhone();   // phones: the game goes full screen
                 if (kind === "next") {
+                    setMode("busy");
+                    await flyPreviewToCard();   // the preview card becomes the floating card
+                    if (disposed) return;
                     hideOverlay();
                     setMode("playing");
                     ui.input.focus({ preventScroll: true });
@@ -322,6 +515,8 @@
             btn.addEventListener("click", startFromPreview);
             overlayNode("pvSkipBtn").addEventListener("click", () => skipFromPreview(kind));
             btn.focus({ preventScroll: true });
+            // The floating card waits out of sight until this preview card lands on it.
+            if (stage3d && stage3d.hideCard) stage3d.hideCard();
         }
 
         function fillReveal(node) {
@@ -331,8 +526,8 @@
             node.innerHTML = "";
             const label = el("span", "fc-reveal-label");
             label.textContent = "Back of the card";
-            const text = el("span", "fc-reveal-text");
-            text.textContent = revealedAnswer;
+            const text = el("div", "fc-reveal-text");
+            fcRenderCard(text, revealedAnswer);
             node.appendChild(label);
             node.appendChild(text);
         }
@@ -519,7 +714,7 @@
         function loadCard() {
             const card = currentCard();
             ui.qmeta.textContent = `Card ${qIndex + 1} of ${total}`;
-            ui.front.textContent = card.front_text;
+            fcRenderCard(ui.front, card.front_text);
             ui.input.value = "";
             autoResizeInput();
             ui.feedback.hidden = true;
@@ -527,7 +722,7 @@
             wrongOnCurrent = false;
             fx.thrown = false;
             fx.glow = "";
-            if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, "?");
+            if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, fcParseCard(card.front_text), "?");
             updateHUD();
             updateControls();
         }
@@ -598,8 +793,10 @@
             if (disposed || mode === "busy") return;
             setMode("busy");
             if (!(await openPlay())) return;
-            hideOverlay();
             if (stage3d) stage3d.playIntro();   // cobra slithers in (on open and on resume)
+            await flyPreviewToCard();           // the preview card becomes the floating card
+            if (disposed) return;
+            hideOverlay();
             setMode("playing");
             ui.input.focus({ preventScroll: true });
         }
@@ -630,7 +827,7 @@
                 bestStreak = Math.max(bestStreak, streak);
                 score += (result.first_try ? 100 : result.is_close ? 40 : 50) + streak * 20;
                 bump(ui.scoreStat);
-                if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, result.answer || answer);
+                if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, fcParseCard(card.front_text), fcParseCard(result.answer || answer));
                 fx.glow = result.is_close ? "close" : "ok";
                 winAnim();
                 updateHUD();
@@ -694,7 +891,7 @@
             updateHUD();
             const flyOff = () => {
                 if (disposed) return;
-                if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, card.front_text, revealedAnswer || "?");
+                if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, fcParseCard(card.front_text), fcParseCard(revealedAnswer || "?"));
                 fx.glow = "";
                 winAnim(true);
                 setTimeout(() => {
@@ -1018,6 +1215,9 @@
                 </div>
             `);
 
+            // Fetch the 3D stage's files while the server answers, not after it.
+            const stageFiles = import(FC_JS_BASE + "flashcards3d.js").then((mod) => ({ mod }), (error) => ({ error }));
+
             let play;
             try {
                 play = await fetchPlay(laId);
@@ -1040,11 +1240,15 @@
                 + Math.max(0, play.state.solved_count - play.state.first_try_correct) * 50;
 
             try {
-                const mod = await import(FC_JS_BASE + "flashcards3d.js");
+                const loaded = await stageFiles;
+                if (loaded.error) throw loaded.error;
                 if (disposed) return;
                 // "land" = forest clearing, "water" = inside a wooden ship
-                stage3d = mod.createFlashStage(ui.canvas, { terrain: activity.terrain || "land" });
+                stage3d = loaded.mod.createFlashStage(ui.canvas, { terrain: activity.terrain || "land" });
                 stage3d.holdIntro();   // cobra waits in the bush / behind the doorway until Start
+                // Shaders get ready here, behind "Shuffling the cards..." - the
+                // first frame used to freeze the page while they compiled.
+                await warmStage(stage3d);
             } catch (err) {
                 console.warn("Card duel stage unavailable, showing the cards only:", err);
                 stage3d = null;

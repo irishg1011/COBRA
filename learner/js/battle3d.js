@@ -16,6 +16,7 @@
      api.burst(where, color, n) where = 'hero' | 'foe'
      api.float(where, text, color)
      api.resize()               call when the canvas changes size
+     api.warmUp()               -> Promise: stage made ready ahead of the first frame
      api.dispose()              free GPU memory + listeners
      api.holdIntro()            cobra waits out of view
      api.playIntro()            cobra slithers in
@@ -555,6 +556,7 @@ export function createBattle(canvas, opts = {}) {
 
   /* ---------- cleanup ---------- */
   function dispose() {
+    stageGone = true;
     canvas.removeEventListener('pointerdown', onPointerDown);
     canvas.removeEventListener('pointermove', onPointerMove);
     canvas.removeEventListener('pointerup', endOrbit);
@@ -571,7 +573,33 @@ export function createBattle(canvas, opts = {}) {
     renderer.dispose();
   }
 
+  /* ---------- warm-up ---------- */
+  // The very first frame is by far the most expensive one: the browser
+  // compiles every shader of this scene, uploads its textures and builds
+  // the shadow map inside it, and the page cannot respond meanwhile. The
+  // game used to hit that right as its Start card appeared. warmUp() does
+  // the work earlier, while the game still shows its "Loading..." card:
+  //   1. the shaders are requested ahead of time - compiled in the
+  //      background where the browser can (KHR_parallel_shader_compile);
+  //   2. one frame is drawn, which finishes whatever is left.
+  // It resolves when the stage is ready to draw smoothly and never rejects
+  // (if anything goes wrong, the first real frame does the work as before).
+  let stageGone = false;   // dispose() ran - a warm-up still waiting must not draw
+  function warmUp() {
+    const prime = () => {
+      if (stageGone) return;
+      try { renderer.render(scene, camera); } catch (err) { /* first real frame does it */ }
+    };
+    try {
+      if (typeof renderer.compileAsync === 'function') {
+        return renderer.compileAsync(scene, camera).then(prime, prime);
+      }
+    } catch (err) { /* fall through */ }
+    prime();
+    return Promise.resolve();
+  }
+
   resize();
 
-  return { render, burst, float, resize, dispose, holdIntro, playIntro, skipIntro };
+  return { render, burst, float, resize, dispose, holdIntro, playIntro, skipIntro, warmUp };
 }

@@ -17,12 +17,22 @@
    battle3d.js, following the chapter's side on the Learning Map.
 
    createFlashStage(canvas, { terrain }) -> api
-     api.setCard(label, front, back)   repaint the floating card
+     api.setCard(label, front, back)   repaint the floating card. front / back
+                                       are plain text, or the parts that
+                                       lesson-flashcards.js makes from card
+                                       text holding a code block:
+                                       [{ type: 'text' | 'code', text }]
      api.render(frame)                 draw one frame
      api.burst(where, color, n)        where = 'hero' | 'foe' | 'card'
      api.float(where, text, color)
      api.holdIntro() / playIntro() / skipIntro()
+     api.hideCard()                    hide the floating card (a card preview is open)
+     api.showCard(animated)            show it again; animated = small pop-in
+     api.cardRect()                    where the floating card sits on screen:
+                                       { left, top, width, height } in viewport
+                                       pixels, or null when the stage is hidden
      api.resize() / api.dispose()
+     api.warmUp()                      -> Promise: stage made ready ahead of the first frame
    frame = {
      t, cardFlip (0 front .. 1 back), cardThrow (0..1 flying to foe),
      cardShake (0..1), cardGlow ('ok' | 'close' | 'bad' | ''),
@@ -261,8 +271,175 @@ export function createFlashStage(canvas, opts = {}) {
     g.closePath();
   }
 
-  // Wraps `text` into the card, shrinking the font until it fits.
-  function paintFace(face, label, text, back) {
+  const CARD_SANS = 'Inter, system-ui, sans-serif';
+  const CARD_MONO = '"JetBrains Mono", Consolas, "Courier New", monospace';
+
+  // A face's content is plain text, or parts: [{ type: 'text' | 'code', text }].
+  // Single backticks around a word are only markup for the page - drop them here.
+  function toParts(content) {
+    const parts = Array.isArray(content) ? content : [{ type: 'text', text: String(content || '') }];
+    return parts
+      .filter(p => p && p.text)
+      .map(p => (p.type === 'code'
+        ? { type: 'code', text: String(p.text) }
+        : { type: 'text', text: String(p.text).replace(/`([^`\n]+)`/g, '$1') }));
+  }
+
+  // Breaks words into lines no wider than maxW at the current font.
+  function wrapWords(g, words, maxW) {
+    const lines = [];
+    let line = '';
+    words.forEach(word => {
+      const tryLine = line ? `${line} ${word}` : word;
+      if (g.measureText(tryLine).width > maxW && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = tryLine;
+      }
+    });
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  // A code line too long for the card continues on the next line with a
+  // 4-space hanging indent (only on this small 3D card - the board below
+  // always shows the line as written).
+  function wrapCodeLine(g, line, maxW) {
+    const indent = line.match(/^ */)[0];
+    const hang = `${indent}    `;
+    const out = [];
+    let cur = '';
+    line.slice(indent.length).split(/( +)/).forEach(piece => {
+      const lead = out.length ? hang : indent;
+      if (cur && piece.trim() && g.measureText(lead + cur + piece).width > maxW) {
+        out.push(lead + cur.replace(/ +$/, ''));
+        cur = piece;
+      } else {
+        cur += piece;
+      }
+    });
+    if (cur) out.push((out.length ? hang : indent) + cur);
+    return out;
+  }
+
+  // Plain text card: wraps `text` into the card, shrinking the font until it fits.
+  function paintPlain(g, W, H, text, back) {
+    const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ');
+    let size = 132, lines = [];
+    const maxW = W - 140, maxH = H - 200;
+    while (size >= 30) {
+      g.font = `800 ${size}px ${CARD_SANS}`;
+      lines = wrapWords(g, words, maxW);
+      const tooWide = lines.some(l => g.measureText(l).width > maxW);
+      if (!tooWide && lines.length * size * 1.2 <= maxH) break;
+      size -= 6;
+    }
+    g.fillStyle = back ? '#14532d' : '#0f172a';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    const lineH = size * 1.2;
+    const startY = 130 + (H - 160) / 2 - ((lines.length - 1) * lineH) / 2;
+    lines.slice(0, 8).forEach((l, i) => g.fillText(l, W / 2, startY + i * lineH));
+  }
+
+  // Card with code: the question centered on top, the code in a
+  // left-aligned monospace box under it (one statement per line,
+  // indentation kept). Picks the biggest code size that fits the card,
+  // then the biggest question size that still fits the height.
+  function paintRich(g, W, H, parts, back) {
+    const LEFT = 70, TOP = 124, PAD_X = 28, PAD_Y = 20, GAP = 22;
+    const MIN_CODE = 24, MIN_TEXT = 28;
+    const maxW = W - LEFT * 2, maxH = H - TOP - 44;
+    let blocks = [], total = 0;
+
+    function measure(codeSize, textSize, wrapCode) {
+      let ok = true;
+      blocks = parts.map(part => {
+        const lines = [];
+        if (part.type === 'code') {
+          g.font = `600 ${codeSize}px ${CARD_MONO}`;
+          const inner = maxW - PAD_X * 2;
+          part.text.split('\n').forEach(line => {
+            if (g.measureText(line).width <= inner) lines.push(line);
+            else if (wrapCode) wrapCodeLine(g, line, inner).forEach(l => lines.push(l));
+            else ok = false;
+          });
+          const lineH = codeSize * 1.4;
+          return { code: true, lines, size: codeSize, lineH, h: lines.length * lineH + PAD_Y * 2 };
+        }
+        g.font = `800 ${textSize}px ${CARD_SANS}`;
+        part.text.split('\n').forEach(para => {
+          const words = para.trim().split(/\s+/).filter(Boolean);
+          if (words.length) wrapWords(g, words, maxW).forEach(l => lines.push(l));
+        });
+        if (lines.some(l => g.measureText(l).width > maxW)) ok = false;
+        const lineH = textSize * 1.2;
+        return { code: false, lines, size: textSize, lineH, h: lines.length * lineH };
+      });
+      total = blocks.reduce((sum, b) => sum + b.h, 0) + GAP * (blocks.length - 1);
+      return ok && total <= maxH;
+    }
+
+    // First try the code lines exactly as written (46px down to 30px).
+    // If a line is still too long at 30px, wrap long lines instead of
+    // shrinking the code until it cannot be read (34px down to 24px).
+    let fits = false;
+    [[46, 30, false], [34, MIN_CODE, true]].forEach(([from, to, wrapCode]) => {
+      for (let codeSize = from; codeSize >= to && !fits; codeSize -= 2) {
+        // the question stays a little bigger than the code
+        const floor = codeSize === MIN_CODE ? MIN_TEXT : Math.max(MIN_TEXT, Math.ceil(codeSize * 1.15));
+        for (let textSize = 72; textSize >= floor && !fits; textSize -= 4) {
+          fits = measure(codeSize, textSize, wrapCode);
+        }
+      }
+    });
+    if (!fits) {
+      // Still too tall at the smallest sizes: cut lines from the end and mark the cut.
+      measure(MIN_CODE, MIN_TEXT, true);
+      for (let i = blocks.length - 1; i >= 0 && total > maxH; i--) {
+        const b = blocks[i];
+        let cut = false;
+        while (b.lines.length > 1 && total > maxH) {
+          b.lines.pop();
+          b.h -= b.lineH;
+          total -= b.lineH;
+          cut = true;
+        }
+        if (cut) b.lines[b.lines.length - 1] = '\u2026';
+      }
+    }
+
+    let y = TOP + Math.max(0, (maxH - total) / 2);
+    const ink = back ? '#14532d' : '#0f172a';
+    g.textBaseline = 'middle';
+    blocks.forEach(b => {
+      if (b.code) {
+        g.save();
+        roundRect(g, LEFT, y, maxW, b.h, 22);
+        g.fillStyle = back ? '#ffffff' : '#f1f5f9';
+        g.fill();
+        g.lineWidth = 4;
+        g.strokeStyle = back ? '#86efac' : '#cbd5e1';
+        g.stroke();
+        g.clip();   // a single word wider than the box is cut at its edge
+        g.font = `600 ${b.size}px ${CARD_MONO}`;
+        g.textAlign = 'left';
+        g.fillStyle = ink;
+        b.lines.forEach((l, i) => g.fillText(l, LEFT + PAD_X, y + PAD_Y + b.lineH * (i + 0.5)));
+        g.restore();
+      } else {
+        g.font = `800 ${b.size}px ${CARD_SANS}`;
+        g.textAlign = 'center';
+        g.fillStyle = ink;
+        b.lines.forEach((l, i) => g.fillText(l, W / 2, y + b.lineH * (i + 0.5)));
+      }
+      y += b.h + GAP;
+    });
+  }
+
+  // Paints one face of the card: frame, label, then its content.
+  function paintFace(face, label, content, back) {
     const g = face.c.getContext('2d');
     const W = face.c.width, H = face.c.height;
     g.clearRect(0, 0, W, H);
@@ -275,38 +452,14 @@ export function createFlashStage(canvas, opts = {}) {
     g.stroke();
 
     g.fillStyle = back ? '#15803d' : '#64748b';
-    g.font = '800 44px Inter, system-ui, sans-serif';
+    g.font = `800 44px ${CARD_SANS}`;
     g.textAlign = 'left';
     g.textBaseline = 'top';
     g.fillText(label, 60, 48);
 
-    const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ');
-    let size = 132, lines = [];
-    const maxW = W - 140, maxH = H - 200;
-    while (size >= 30) {
-      g.font = `800 ${size}px Inter, system-ui, sans-serif`;
-      lines = [];
-      let line = '';
-      words.forEach(word => {
-        const tryLine = line ? `${line} ${word}` : word;
-        if (g.measureText(tryLine).width > maxW && line) {
-          lines.push(line);
-          line = word;
-        } else {
-          line = tryLine;
-        }
-      });
-      if (line) lines.push(line);
-      const tooWide = lines.some(l => g.measureText(l).width > maxW);
-      if (!tooWide && lines.length * size * 1.2 <= maxH) break;
-      size -= 6;
-    }
-    g.fillStyle = back ? '#14532d' : '#0f172a';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    const lineH = size * 1.2;
-    const startY = 130 + (H - 160) / 2 - ((lines.length - 1) * lineH) / 2;
-    lines.slice(0, 8).forEach((l, i) => g.fillText(l, W / 2, startY + i * lineH));
+    const parts = toParts(content);
+    if (parts.some(p => p.type === 'code')) paintRich(g, W, H, parts, back);
+    else paintPlain(g, W, H, parts.map(p => p.text).join(' '), back);
     face.tex.needsUpdate = true;
   }
 
@@ -409,6 +562,44 @@ export function createFlashStage(canvas, opts = {}) {
     const p = (t - intro.start) / INTRO_SECS;
     if (p >= 1) { intro.start = null; return 0; }
     return -INTRO_DIST * Math.pow(1 - Math.max(0, p), 3);
+  }
+
+  /* ---------- preview card -> floating card hand-over ---------- */
+  // lesson-flashcards.js hides the floating card while a card preview is
+  // open, flies the preview card to cardRect(), then calls showCard(true)
+  // so the floating card pops in right where the preview landed.
+  const POP_SECS = 0.34;
+  const cardShow = { on: true, popStart: null };
+  function hideCard() { cardShow.on = false; cardShow.popStart = null; }
+  function showCard(animated) {
+    if (cardShow.on) return;
+    cardShow.on = true;
+    cardShow.popStart = animated ? lastT : null;
+  }
+  // 0.7 -> 1 with a small overshoot (ease-out-back)
+  function popScale(t) {
+    if (cardShow.popStart === null) return 1;
+    const p = (t - cardShow.popStart) / POP_SECS;
+    if (p >= 1) { cardShow.popStart = null; return 1; }
+    const x = Math.max(0, p) - 1, c = 1.70158;
+    return 0.7 + 0.3 * (1 + (c + 1) * x * x * x + c * x * x);
+  }
+
+  // The floating card's home spot, projected to the screen.
+  const rectCorner = new THREE.Vector3();
+  function cardRect() {
+    const box = canvas.getBoundingClientRect();
+    if (!box.width || !box.height) return null;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => {
+      rectCorner.set(CARD_HOME.x + sx * CARD_W / 2, CARD_HOME.y + sy * CARD_H / 2, CARD_HOME.z).project(camera);
+      const x = box.left + (rectCorner.x + 1) / 2 * box.width;
+      const y = box.top + (1 - rectCorner.y) / 2 * box.height;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    });
+    if (![minX, maxX, minY, maxY].every(Number.isFinite)) return null;
+    return { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
   }
 
   function resize() {
@@ -556,9 +747,9 @@ export function createFlashStage(canvas, opts = {}) {
     );
     cardPivot.rotation.y = flip * Math.PI + thr * Math.PI * 4;
     cardPivot.rotation.z = Math.sin(t * 1.1) * 0.03 + thr * 0.6;
-    const cardScale = 1 - thr * 0.55;
+    const cardScale = (1 - thr * 0.55) * popScale(t);
     cardPivot.scale.setScalar(cardScale);
-    cardPivot.visible = thr < 0.98;
+    cardPivot.visible = cardShow.on && thr < 0.98;
     const glowHex = f.cardGlow === 'ok' ? 0x22c55e : f.cardGlow === 'close' ? 0xf59e0b : f.cardGlow === 'bad' ? 0xef4444 : 0;
     glowRing.material.color.setHex(glowHex || 0x22c55e);
     glowRing.material.opacity = glowHex ? 0.7 + 0.25 * Math.sin(t * 8) : 0;
@@ -653,6 +844,7 @@ export function createFlashStage(canvas, opts = {}) {
 
   /* ---------- cleanup ---------- */
   function dispose() {
+    stageGone = true;
     canvas.removeEventListener('pointerdown', onPointerDown);
     canvas.removeEventListener('pointermove', onPointerMove);
     canvas.removeEventListener('pointerup', endOrbit);
@@ -676,7 +868,33 @@ export function createFlashStage(canvas, opts = {}) {
     if (renderer.forceContextLoss) renderer.forceContextLoss();
   }
 
+  /* ---------- warm-up ---------- */
+  // The very first frame is by far the most expensive one: the browser
+  // compiles every shader of this scene, uploads its textures and builds
+  // the shadow map inside it, and the page cannot respond meanwhile. The
+  // game used to hit that right as its Start card appeared. warmUp() does
+  // the work earlier, while the game still shows its "Loading..." card:
+  //   1. the shaders are requested ahead of time - compiled in the
+  //      background where the browser can (KHR_parallel_shader_compile);
+  //   2. one frame is drawn, which finishes whatever is left.
+  // It resolves when the stage is ready to draw smoothly and never rejects
+  // (if anything goes wrong, the first real frame does the work as before).
+  let stageGone = false;   // dispose() ran - a warm-up still waiting must not draw
+  function warmUp() {
+    const prime = () => {
+      if (stageGone) return;
+      try { renderer.render(scene, camera); } catch (err) { /* first real frame does it */ }
+    };
+    try {
+      if (typeof renderer.compileAsync === 'function') {
+        return renderer.compileAsync(scene, camera).then(prime, prime);
+      }
+    } catch (err) { /* fall through */ }
+    prime();
+    return Promise.resolve();
+  }
+
   resize();
 
-  return { setCard, render, burst, float, resize, dispose, holdIntro, playIntro, skipIntro };
+  return { setCard, render, burst, float, resize, dispose, holdIntro, playIntro, skipIntro, hideCard, showCard, cardRect, warmUp };
 }

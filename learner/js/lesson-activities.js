@@ -29,6 +29,32 @@
         ? new URL(".", document.currentScript.src).href
         : "";
 
+    // The 3D engine and the three game stages are fetched and read by the
+    // browser while the learner is still on the video / lesson content
+    // (when the page is idle), so opening an activity does not have to
+    // wait for them. Same URLs the games import later, so nothing is
+    // loaded twice. A failed preload is ignored - the game loads them
+    // itself (or falls back) as before.
+    function preloadGameStages() {
+        ["arena3d.js", "battle3d.js", "flashcards3d.js"].forEach((file) => {
+            import(LEARNER_JS_BASE + file).catch(() => { /* loaded again when the game opens */ });
+        });
+    }
+    if (LEARNER_JS_BASE) {
+        if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(preloadGameStages, { timeout: 4000 });
+        else setTimeout(preloadGameStages, 1500);
+    }
+
+    // Waits until the 3D stage has its shaders ready (stage.warmUp() in the
+    // 3D file), but never longer than capMs - a slow device still starts.
+    function warmStage(stage, capMs) {
+        if (!stage || typeof stage.warmUp !== "function") return Promise.resolve();
+        return Promise.race([
+            stage.warmUp(),
+            new Promise((resolve) => setTimeout(resolve, capMs || 6000))
+        ]);
+    }
+
     function el(tag, className, html) {
         const e = document.createElement(tag);
         if (className) e.className = className;
@@ -1245,6 +1271,9 @@
                 </div>
             `);
 
+            // Fetch the 3D arena's files while the server answers, not after it.
+            const arenaFiles = import(LEARNER_JS_BASE + "arena3d.js").then((mod) => ({ mod }), (error) => ({ error }));
+
             let data;
             try {
                 data = await mcqRequest("state", activity.la_id);
@@ -1258,11 +1287,15 @@
 
             computeLayout();
             try {
-                const mod = await import(LEARNER_JS_BASE + "arena3d.js");
+                const loaded = await arenaFiles;
+                if (loaded.error) throw loaded.error;
                 if (disposed) return;
                 // "land" = forest meadow, "water" = inside a wooden ship
-                arena = mod.createArena(ui.canvas, { terrain: activity.terrain || "land" });
+                arena = loaded.mod.createArena(ui.canvas, { terrain: activity.terrain || "land" });
                 arena.setGrid(COLS, ROWS);
+                // Shaders get ready here, behind "Loading activity..." - the
+                // first frame used to freeze the page while they compiled.
+                await warmStage(arena);
             } catch (err) {
                 console.warn("Arena unavailable, switching to tap-to-answer:", err);
                 fallback = true;

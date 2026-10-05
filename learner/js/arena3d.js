@@ -24,7 +24,8 @@
             // through a wall - the arena draws that part on the opposite side
      burst(gx, gy, color),
      resize(),
-     dispose()
+     dispose(),
+     warmUp()   // -> Promise: stage made ready ahead of the first frame (call after setGrid)
    }
 
    Grid coordinates come in as game cells (x: 0..cols-1, y: 0..rows-1)
@@ -878,6 +879,7 @@ export function createArena(canvas, opts = {}) {
   // Browsers only allow a handful of live WebGL contexts per page, so
   // the activity calls this whenever its panel is torn down.
   function dispose() {
+    stageGone = true;
     window.removeEventListener('resize', resize);
     disposeForest();
     // Everything still in the scene, plus the shared pieces this terrain
@@ -910,5 +912,44 @@ export function createArena(canvas, opts = {}) {
   resize();
   window.addEventListener('resize', resize);
 
-  return { setGrid, render, burst, resize, dispose, scene, camera, renderer };
+  /* ---------- warm-up ---------- */
+  // The very first frame is by far the most expensive one: the browser
+  // compiles every shader of this scene, uploads its textures and builds
+  // the shadow map inside it, and the page cannot respond meanwhile. The
+  // game used to hit that right as its Start card appeared. warmUp() does
+  // the work earlier, while the game still shows its "Loading..." card:
+  //   1. the shaders are requested ahead of time - compiled in the
+  //      background where the browser can (KHR_parallel_shader_compile);
+  //   2. one frame is drawn, which finishes whatever is left.
+  // It resolves when the stage is ready to draw smoothly and never rejects
+  // (if anything goes wrong, the first real frame does the work as before).
+  // Arena extras: the cobra is left out of step 1 (its shaders depend on
+  // the wall clipping, which only exists inside a real frame), and step 2
+  // draws a short rehearsal frame with a cobra and one pellet so their
+  // shaders and the pellet pool are ready too, then an empty frame so the
+  // rehearsal leaves nothing behind. Call it after setGrid().
+  let stageGone = false;   // dispose() ran - a warm-up still waiting must not draw
+  function warmUp() {
+    const prime = () => {
+      if (stageGone) return;
+      try {
+        if (cobra.group.parent !== scene) scene.add(cobra.group);
+        render({
+          segs: [{ x: 3, y: 2 }, { x: 2, y: 2 }, { x: 1, y: 2 }], headAngle: 0,
+          pellets: [{ x: 6, y: 2, letter: 'A', color: '#16a34a' }], shake: 0, dt: 0.016, dead: false
+        });
+        render({ segs: [], pellets: [], shake: 0, dt: 0.016 });
+      } catch (err) { /* first real frame does it */ }
+    };
+    try {
+      if (typeof renderer.compileAsync === 'function') {
+        scene.remove(cobra.group);
+        return renderer.compileAsync(scene, camera).then(prime, prime);
+      }
+    } catch (err) { /* fall through */ }
+    prime();
+    return Promise.resolve();
+  }
+
+  return { setGrid, render, burst, resize, dispose, warmUp, scene, camera, renderer };
 }
