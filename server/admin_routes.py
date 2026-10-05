@@ -238,10 +238,12 @@ LOGIN_LOG_STATUS_FILTERS = {"success", "failed"}
 # belongs to account_tbl) - the two meaningful sorts for a log table are
 # its own timestamp and the associated person's name.
 LOGIN_LOG_SORT_CLAUSES = {
-    "attempted_at": "ll.attempted_at DESC",
-    "name": "p.firstname ASC, p.lastname ASC",
+    # log_id last: a stable order, so a page never repeats or skips a row
+    "attempted_at": "ll.attempted_at DESC, ll.log_id DESC",
+    "name": "p.firstname ASC, p.lastname ASC, ll.attempted_at DESC, ll.log_id DESC",
 }
 DEFAULT_LOGIN_LOG_SORT_KEY = "attempted_at"
+LOGIN_LOGS_PER_PAGE = 10   # Login Logs table page size
 
 
 # ------------------------------------------------------------------
@@ -933,7 +935,19 @@ def get_login_logs_metrics():
             connection.close()
 
 
-def get_login_logs_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
+def _clean_ymd(value):
+    """Only a real 'YYYY-MM-DD' date is used; anything else is ignored."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def get_login_logs_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None,
+                            date_from=None, date_to=None, limit=None, offset=0, with_total=False):
     """
     Task #18: Pulls login attempt records from login_logs_tbl, joined
     against account_tbl (email, u_type), usertype_tbl (role label), and
@@ -960,6 +974,14 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
     sort_by (str | None): "attempted_at" (default, newest first) or
     "name". Only ever selects one of the two hardcoded LOGIN_LOG_SORT_CLAUSES
     entries - never built from raw input.
+
+    date_from / date_to ('YYYY-MM-DD' | None): Attempted At range, both
+    days included. Compared as attempted_at >= from AND < to + 1 day, so
+    the column is never wrapped in DATE().
+
+    limit / offset: one page of rows (Login Logs pagination, Dashboard's
+    "Recent logins"); None = every row. with_total=True also returns how
+    many rows match the filters: (logs, total).
 
     Returns a list of dicts (each with log_id, acc_id, ip_address,
     full_name, email, role, status, attempted_at) ready for direct use
@@ -1019,9 +1041,26 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
             base_query += " AND ll.attempt_status = %s"
             params.append(normalized_status.capitalize())
 
+        date_from = _clean_ymd(date_from)
+        date_to = _clean_ymd(date_to)
+        if date_from:
+            base_query += " AND ll.attempted_at >= %s"
+            params.append(date_from)
+        if date_to:
+            base_query += " AND ll.attempted_at < DATE_ADD(%s, INTERVAL 1 DAY)"
+            params.append(date_to)
+
+        total = None
+        if with_total:
+            cursor.execute(f"SELECT COUNT(*) AS n FROM ({base_query}) AS matching", tuple(params))
+            total = int(cursor.fetchone()["n"])
+
         sort_key = (sort_by or "").strip().lower()
         order_clause = LOGIN_LOG_SORT_CLAUSES.get(sort_key, LOGIN_LOG_SORT_CLAUSES[DEFAULT_LOGIN_LOG_SORT_KEY])
         base_query += f" ORDER BY {order_clause}"
+        if limit is not None:
+            base_query += " LIMIT %s OFFSET %s"
+            params.extend([int(limit), max(0, int(offset or 0))])
 
         cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
@@ -1045,7 +1084,7 @@ def get_login_logs_overview(search_query=None, role_filter=None, status_filter=N
                 "avatar_url": avatars.get(row.get("acc_id")),
             })
 
-        return logs
+        return (logs, total) if with_total else logs
 
     except Error as e:
         print(f"admin_routes: database error while loading login logs: {e}")
@@ -1071,8 +1110,8 @@ def _admin_accounts_section():
 
 def _admin_recent_logins_section():
     def build():
-        logs = get_login_logs_overview()
-        return None if logs is None else {"logs": logs[:RECENT_LOGINS_LIMIT]}
+        logs = get_login_logs_overview(limit=RECENT_LOGINS_LIMIT)
+        return None if logs is None else {"logs": logs}
     return dashboard_section(build)
 
 
@@ -1246,18 +1285,57 @@ def login_logs():
     """
     metrics = get_login_logs_metrics()
 
-    logs = get_login_logs_overview()
-    if logs is None:
-        # DB unreachable - render with an empty list rather than crashing;
-        # the template's {% else %} branch already shows "No login logs
-        # found." for an empty list.
-        logs = []
+    # DB unreachable -> an empty page rather than a crash; the template's
+    # {% else %} branch already shows "No login logs found."
+    result = _login_logs_page(request.args) or _empty_login_logs_page()
 
     return render_template(
         'login-logs.html',
         metrics=metrics,
-        logs=logs
+        **result,
     )
+
+
+def _empty_login_logs_page():
+    return {"logs": [], "total": 0, "page": 1, "total_pages": 1, "per_page": LOGIN_LOGS_PER_PAGE,
+            "filters": {"date_from": "", "date_to": ""}}
+
+
+def _login_logs_page(args):
+    """
+    One page of the Login Logs table for these request args (q, role,
+    status, sort, from, to, page). The six stat cards never use this -
+    they always count today. Returns None if the database is unreachable.
+    """
+    date_from = _clean_ymd(args.get('from', ''))
+    date_to = _clean_ymd(args.get('to', ''))
+    filters = dict(
+        search_query=args.get('q', ''),
+        role_filter=args.get('role', ''),
+        status_filter=args.get('status', ''),
+        sort_by=args.get('sort', ''),
+        date_from=date_from,
+        date_to=date_to,
+    )
+    page = max(1, args.get('page', 1, type=int) or 1)
+    found = get_login_logs_overview(**filters, limit=LOGIN_LOGS_PER_PAGE,
+                                    offset=(page - 1) * LOGIN_LOGS_PER_PAGE, with_total=True)
+    if found is None:
+        return None
+    logs, total = found
+    total_pages = max(1, (total + LOGIN_LOGS_PER_PAGE - 1) // LOGIN_LOGS_PER_PAGE)
+    if page > total_pages:   # e.g. a filter shrank the list - show its last page
+        page = total_pages
+        logs, total = get_login_logs_overview(**filters, limit=LOGIN_LOGS_PER_PAGE,
+                                              offset=(page - 1) * LOGIN_LOGS_PER_PAGE, with_total=True)
+    return {
+        "logs": logs,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "per_page": LOGIN_LOGS_PER_PAGE,
+        "filters": {"date_from": date_from or "", "date_to": date_to or ""},
+    }
 
 
 # ============================================================
@@ -1274,24 +1352,23 @@ def login_logs_data():
       role   - "Administrator" or "Learner"
       status - "Success" or "Failed" (the login attempt's own outcome)
       sort   - "attempted_at" (default, newest first) or "name"
+      from / to - Attempted At range, 'YYYY-MM-DD', both days included
+      page   - 1-based page (LOGIN_LOGS_PER_PAGE rows)
 
-    Returns JSON: { "success": bool, "logs": [...], "total": int }
+    Returns JSON: { "success": bool, "logs": [...], "total": int,
+                    "page": int, "total_pages": int, "per_page": int }
     """
-    term = request.args.get('q', '')
-    role = request.args.get('role', '')
-    status = request.args.get('status', '')
-    sort = request.args.get('sort', '')
+    date_from = _clean_ymd(request.args.get('from', ''))
+    date_to = _clean_ymd(request.args.get('to', ''))
+    if date_from and date_to and date_from > date_to:
+        return jsonify({"success": False, "logs": [],
+                        "message": "Attempted At: the end date must be on or after the start date."}), 400
 
-    logs = get_login_logs_overview(
-        search_query=term,
-        role_filter=role,
-        status_filter=status,
-        sort_by=sort,
-    )
-    if logs is None:
+    result = _login_logs_page(request.args)
+    if result is None:
         return jsonify({"success": False, "message": "Could not reach the database.", "logs": []}), 500
 
-    return jsonify({"success": True, "logs": logs, "total": len(logs)}), 200
+    return jsonify({"success": True, **result}), 200
 
 
 # ============================================================

@@ -33,9 +33,21 @@
         const sortSelect = document.getElementById("logSortSelect");
         const tableBody = document.getElementById("loginLogsTableBody");
         const showingCount = document.getElementById("logsShowingCount");
+        // Attempted At range (same date-range control as Learner Progress / Coding Sandbox)
+        const dateFromInput = document.getElementById("logDateFromInput");
+        const dateToInput = document.getElementById("logDateToInput");
+        const clearDateBtn = document.getElementById("clearLogDateBtn");
+        const dateFilterError = document.getElementById("logDateFilterError");
+        // Pagination
+        const pageLabel = document.getElementById("logsPageLabel");
+        const prevBtn = document.getElementById("logsPrevBtn");
+        const nextBtn = document.getElementById("logsNextBtn");
 
         if (!tableBody) return;
 
+        // Read from the server-rendered page, never assumed.
+        let currentPage = parseInt(tableBody.dataset.page || "1", 10);
+        let totalPages = parseInt(tableBody.dataset.totalPages || "1", 10);
         let debounceTimer = null;
         let activeRequestId = 0; // guards against out-of-order responses
 
@@ -131,7 +143,6 @@
                             No login logs found.
                         </td>
                     </tr>`;
-                if (showingCount) showingCount.textContent = "Showing 0 logs";
                 return;
             }
 
@@ -149,12 +160,41 @@
                 </tr>
             `).join("");
 
-            // Admin redesign: keep the footer count in sync with the
-            // live-filtered rows (same pattern as admin-account-search.js).
-            if (showingCount) {
-                const n = logs.length;
-                showingCount.textContent = `Showing ${n} log${n !== 1 ? "s" : ""}`;
+        }
+
+        // Footer: "Showing 10 of 57 logs" + "2 of 6" + Prev / Next.
+        function updatePagination(countOnPage, total, page, pages) {
+            currentPage = page;
+            totalPages = pages;
+            tableBody.dataset.page = String(page);
+            tableBody.dataset.totalPages = String(pages);
+            if (showingCount) showingCount.textContent = `Showing ${countOnPage} of ${total} log${total !== 1 ? "s" : ""}`;
+            if (pageLabel) pageLabel.textContent = `${page} of ${pages}`;
+            if (prevBtn) prevBtn.disabled = page <= 1;
+            if (nextBtn) nextBtn.disabled = page >= pages;
+        }
+
+        function showDateError(message) {
+            if (!dateFilterError) return;
+            dateFilterError.textContent = message;
+            dateFilterError.classList.add("is-visible");
+        }
+
+        function clearDateError() {
+            if (!dateFilterError) return;
+            dateFilterError.textContent = "";
+            dateFilterError.classList.remove("is-visible");
+        }
+
+        function validateDates() {
+            clearDateError();
+            const from = dateFromInput ? dateFromInput.value : "";
+            const to = dateToInput ? dateToInput.value : "";
+            if (from && to && from > to) {
+                showDateError("Attempted At: the end date must be on or after the start date.");
+                return false;
             }
+            return true;
         }
 
         /**
@@ -176,10 +216,15 @@
             // At), so it's always sent explicitly.
             if (sortSelect && sortSelect.value) params.set("sort", sortSelect.value);
 
+            if (dateFromInput && dateFromInput.value) params.set("from", dateFromInput.value);
+            if (dateToInput && dateToInput.value) params.set("to", dateToInput.value);
+            params.set("page", String(currentPage));
+
             return params;
         }
 
         async function runFetch() {
+            if (!validateDates()) return;
             const requestId = ++activeRequestId;
             const params = buildQueryParams();
 
@@ -195,6 +240,7 @@
 
                 if (result.success) {
                     renderRows(result.logs);
+                    updatePagination(result.logs.length, result.total, result.page, result.total_pages);
                     // Cheap extra freshness: a search/filter round-trip is
                     // a natural moment to also re-sync the metric cards.
                     loadMetrics();
@@ -219,21 +265,46 @@
             }
         }
 
-        function scheduleFetch() {
+        // Any filter change starts again from page 1; Prev / Next keep the filters.
+        function scheduleFetch(resetPage = true) {
+            if (resetPage) currentPage = 1;
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(runFetch, DEBOUNCE_MS);
         }
 
         // Live search: debounced so it doesn't fire a request on every
         // single keystroke.
-        if (searchInput) searchInput.addEventListener("input", scheduleFetch);
+        if (searchInput) searchInput.addEventListener("input", () => scheduleFetch());
 
         // Role / Status / Sort - each change re-runs the same combined
         // fetch, preserving whatever is currently in the search box and
         // in the other dropdowns rather than resetting anything.
         [roleSelect, statusSelect, sortSelect].forEach((select) => {
             if (!select) return;
-            select.addEventListener("change", scheduleFetch);
+            select.addEventListener("change", () => scheduleFetch());
         });
+
+        [dateFromInput, dateToInput].forEach((input) => {
+            if (input) input.addEventListener("change", () => scheduleFetch());
+        });
+        if (clearDateBtn) {
+            clearDateBtn.addEventListener("click", () => {
+                if (dateFromInput) dateFromInput.value = "";
+                if (dateToInput) dateToInput.value = "";
+                clearDateError();
+                scheduleFetch();
+            });
+        }
+
+        if (prevBtn) {
+            prevBtn.addEventListener("click", () => {
+                if (currentPage > 1) { currentPage--; scheduleFetch(false); }
+            });
+        }
+        if (nextBtn) {
+            nextBtn.addEventListener("click", () => {
+                if (currentPage < totalPages) { currentPage++; scheduleFetch(false); }
+            });
+        }
     });
 })();

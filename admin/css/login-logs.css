@@ -1,0 +1,13 @@
+/* login-logs.css - Account & Security > Login Logs (page-only bits;
+   the date-range control and pagination come from admin-style.css) */
+
+/* --- Toolbar: Attempted At date range --- */
+.log-date-separator {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+/* Shown by admin-login-logs.js when From is after To */
+.date-filter-error.is-visible {
+    display: block;
+}
