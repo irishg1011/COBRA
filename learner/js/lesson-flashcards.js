@@ -495,6 +495,10 @@
                     const play = await fetchPlay(laId);
                     applyState(play.state);
                 } catch (err) {
+                    if (err.message && err.message.toLowerCase().includes("not logged in")) {
+                        showError(err.message);
+                        return;
+                    }
                     const text = overlayNode("errorText");
                     if (text) text.textContent = `Still failing: ${err.message}`;
                     return;
