@@ -252,27 +252,6 @@ document.addEventListener('DOMContentLoaded', () => {
         errorEl.insertAdjacentElement('afterend', hintEl);
     }
 
-    // feat/admin-login-page: "Admin? Use the admin login page" line under
-    // an error, for an admin who used the learner page (server sends
-    // admin_login_url with a 403). Same textContent-only build as above.
-    function showAdminLoginHint(afterEl, url) {
-        if (!afterEl || !url) return;
-        const errorEl = afterEl.parentElement.querySelector('.js-error-message');
-        if (!errorEl) return;
-
-        let hintEl = afterEl.parentElement.querySelector('.auth-signup-hint');
-        if (hintEl) hintEl.remove();
-
-        hintEl = document.createElement('p');
-        hintEl.className = 'auth-signup-hint';
-        hintEl.append('Go to the ');
-        const link = document.createElement('a');
-        link.href = url;
-        link.className = 'auth-inline-link';
-        link.textContent = 'admin login page';
-        hintEl.appendChild(link);
-        errorEl.insertAdjacentElement('afterend', hintEl);
-    }
 
     // Opens Sign Up (step 1) on purpose, so no "switch views?" confirm.
     // showSignUpView() clears the sign-up form first, so the email is
@@ -1216,10 +1195,6 @@ if (result.success) {
                         if (response.status === 401) {
                             showSignUpHint(passwordInput.closest('.password-wrapper'), 'No account yet?', 'Sign up');
                         }
-                        // feat/admin-login-page: admin account on the learner page
-                        if (result.admin_login_url) {
-                            showAdminLoginHint(passwordInput.closest('.password-wrapper'), result.admin_login_url);
-                        }
                     }
                 }
             } catch (err) {
@@ -1303,10 +1278,6 @@ if (result.success) {
                     // 404 = no account uses this email -> offer Sign Up with it filled in.
                     if (response.status === 404) {
                         showSignUpHint(forgotUsernameEmailInput, 'Want to make one?', 'Sign up with this email', userEmail);
-                    }
-                    // staff email -> they sign in on the staff page
-                    if (result.admin_login_url) {
-                        showAdminLoginHint(forgotUsernameEmailInput, result.admin_login_url);
                     }
                 }
             } catch (err) {
@@ -1482,10 +1453,6 @@ if (result.success) {
                     // email -> offer Sign Up with the email already filled in.
                     if (response.status === 404) {
                         showSignUpHint(forgotEmailInput, 'Want to make one?', 'Sign up with this email', userEmail);
-                    }
-                    // feat/admin-login-page: admin email -> reset on the admin page
-                    if (result.admin_login_url) {
-                        showAdminLoginHint(forgotEmailInput, result.admin_login_url);
                     }
                 }
             } catch (err) {

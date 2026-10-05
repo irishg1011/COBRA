@@ -426,7 +426,8 @@ def login():
     """
     Learner door. All the rules (sweep, 5-try lockout, logs, archived
     message) live in auth_core.authenticate() - shared with /admin/login.
-    An admin account gets 403 + admin_login_url here, never a session.
+    A staff account gets the same "Invalid username or password." as an
+    unknown username here - this page never reveals staff accounts.
     """
     data = request.get_json(silent=True) or {}
     payload, status, login_info = authenticate(

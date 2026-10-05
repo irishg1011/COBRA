@@ -16,10 +16,13 @@ logs. The only new part is WHICH ROLE each door lets in:
            Checked BEFORE the password, so the staff page never reveals
            whether a learner password was right or a learner is locked.
     Learner door, staff account (Admin or Mentor)
-        -> only after the password is correct: 403 "Staff accounts sign
-           in at the staff login page." + admin_login_url. A wrong
-           password counts toward the lockout as usual; a right password
-           at the wrong door does NOT, and it is logged as Failed.
+        -> the same generic "Invalid username or password." (401), also
+           checked BEFORE the password. The learner page never says an
+           account is staff, never links to the staff login page, and a
+           staff password typed there neither counts toward the lockout
+           nor reveals whether it was right (logged as Failed).
+    Forgot password / username on the learner page with a staff email
+        -> the same reply as an unknown email.
 
 feat/mentor-role: the staff door ("admin" portal) lets in BOTH Admin and
 Mentor accounts. Roles are matched by usertype_tbl.u_type NAME (see
@@ -67,7 +70,6 @@ RESET_WINDOW_SECONDS = 5 * 60    # time to type the new password after verifying
 
 ARCHIVED_ACCOUNT_MESSAGE = "This account has been archived. Please contact an administrator."
 INVALID_LOGIN_MESSAGE = "Invalid username or password."
-ADMIN_ELSEWHERE_MESSAGE = "Staff accounts sign in at the staff login page."
 PASSWORD_RULE_MESSAGE = (
     "Password must be at least 8 characters long and include an uppercase letter, "
     "lowercase letter, number, and special character."
@@ -128,8 +130,10 @@ def authenticate(username, password, portal, ip_address):
         is_staff = role in STAFF_ROLES
         is_admin = role == ADMIN_ROLE
 
-        # Staff door: a learner account looks exactly like an unknown username.
-        if portal == "admin" and not is_staff:
+        # Each door: an account of the other kind looks exactly like an
+        # unknown username (staff door / learner account, and learner door /
+        # staff account - the learner page never reveals staff accounts).
+        if (portal == "admin" and not is_staff) or (portal == "learner" and is_staff):
             cursor.close()
             log_login_attempt(acc_id=account["acc_id"], ip_address=ip_address, attempt_status="Failed")
             return {"success": False, "message": INVALID_LOGIN_MESSAGE}, 401, None
@@ -195,17 +199,6 @@ def authenticate(username, password, portal, ip_address):
                 "success": False,
                 "message": f"Incorrect password. {MAX_FAILED_ATTEMPTS - failed_attempts} attempt(s) remaining.",
             }, 401, None
-
-        # Right password, wrong door (learner page, staff account).
-        # Not a failed attempt (no lockout count), but no session either.
-        if portal == "learner" and is_staff:
-            cursor.close()
-            log_login_attempt(acc_id=account["acc_id"], ip_address=ip_address, attempt_status="Failed")
-            return {
-                "success": False,
-                "message": ADMIN_ELSEWHERE_MESSAGE,
-                "admin_login_url": ADMIN_LOGIN_URL,
-            }, 403, None
 
         # Success: the ONLY place status goes back to 'Active'
         cursor.execute(
@@ -293,12 +286,10 @@ def send_reset_code(email, portal):
         if not account or account.get("role") not in wanted:
             return {"success": False, "message": "No staff account found with this email address."}, 404
     else:
-        if not account:
+        # A staff email looks the same as an unknown one here.
+        if not account or account.get("role") not in wanted:
             # 404 -> the learner page offers "Sign up with this email"
             return {"success": False, "message": "No account found with this email address."}, 404
-        if account.get("role") not in wanted:
-            return {"success": False, "message": "Staff accounts reset their password from the staff login page.",
-                    "admin_login_url": ADMIN_LOGIN_URL}, 403
 
     if account.get("is_deleted"):
         return {"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}, 403
@@ -371,12 +362,10 @@ def send_username_code(email, portal):
         if not account or account.get("role") not in wanted:
             return {"success": False, "message": "No staff account found with this email address."}, 404
     else:
-        if not account:
+        # A staff email looks the same as an unknown one here.
+        if not account or account.get("role") not in wanted:
             # 404 -> the learner page offers "Sign up with this email"
             return {"success": False, "message": "No account found with this email address."}, 404
-        if account.get("role") not in wanted:
-            return {"success": False, "message": "Staff accounts sign in at the staff login page.",
-                    "admin_login_url": ADMIN_LOGIN_URL}, 403
 
     if account.get("is_deleted"):
         return {"success": False, "message": ARCHIVED_ACCOUNT_MESSAGE}, 403
