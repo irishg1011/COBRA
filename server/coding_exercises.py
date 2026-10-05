@@ -12,6 +12,7 @@ from cobradb import get_db_connection
 from validators import validate_title_length  # feat/title-char-limit
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 from exercise_tags import normalize_tag, tag_label
+from activity_validation import ACTIVITY_TITLE_SEPARATOR, get_lesson_title  # feat/exercise-auto-title
 
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 TEST_CASES_TABLE = "test_cases_tbl"   # old grading - only read for exercises saved before feat/output-based-exercises
@@ -161,12 +162,14 @@ def format_exercise_title(title: str) -> str:
     return cleaned[0].upper() + cleaned[1:] 
 
 
-def is_exercise_title_taken(title: str, exclude_exercise_id=None):
+def is_exercise_title_taken(title: str, exclude_exercise_id=None, format_case=True, skip_archived=False):
     """
     Task #74: Checks whether `title` already exists globally in coding_exercises_tbl
-    (case-insensitive comparison).
+    (case-insensitive comparison). feat/exercise-auto-title: a generated
+    title is checked as built (format_case=False), and archived exercises
+    never block it (skip_archived=True) - same rule as activities.
     """
-    formatted = format_exercise_title(title)
+    formatted = format_exercise_title(title) if format_case else (title or "").strip()
     if not formatted:
         return False
 
@@ -176,11 +179,15 @@ def is_exercise_title_taken(title: str, exclude_exercise_id=None):
 
     try:
         cursor = connection.cursor()
-        query = f"SELECT exercise_id FROM {CODING_EXERCISES_TABLE} WHERE LOWER(exercise_title) = LOWER(%s)"
+        query = f"""SELECT ce.exercise_id FROM {CODING_EXERCISES_TABLE} ce
+                    LEFT JOIN {LA_STATS_TABLE} stats ON ce.exercise_stats_id = stats.la_stats_id
+                    WHERE LOWER(ce.exercise_title) = LOWER(%s)"""
         params = [formatted]
+        if skip_archived:
+            query += " AND COALESCE(ce.is_archived, 0) = 0 AND COALESCE(stats.la_stats_name, '') <> 'Archived'"
 
         if exclude_exercise_id:
-            query += " AND exercise_id != %s"
+            query += " AND ce.exercise_id != %s"
             params.append(exclude_exercise_id)
 
         query += " LIMIT 1"
@@ -220,6 +227,66 @@ def validate_exercise_title(title: str, exclude_exercise_id=None):
         return False, f"A coding exercise with the title '{formatted}' already exists. Exercise titles must be unique across the entire system.", formatted
 
     return True, None, formatted
+
+
+# ---------------- feat/exercise-auto-title ----------------
+# Like the activities (activity_validation.py): the title is never typed.
+# It is always "<Lesson name> – Coding Exercise", built on the server on
+# every save (the client's title is ignored) and renamed with its lesson.
+EXERCISE_TITLE_TYPE = "Coding Exercise"
+
+
+def build_exercise_title(lesson_title):
+    """ "<Lesson name> – Coding Exercise", or "" without a lesson name. Never truncated."""
+    lesson = (lesson_title or "").strip()
+    return f"{lesson}{ACTIVITY_TITLE_SEPARATOR}{EXERCISE_TITLE_TYPE}" if lesson else ""
+
+
+def validate_generated_exercise_title(title, exclude_exercise_id=None):
+    """(is_valid, message_or_title) for a title from build_exercise_title() - kept exactly as built."""
+    title = (title or "").strip()
+    if not title:
+        return False, "Please select a lesson."
+    is_valid, _msg = validate_title_length(title, "exercise", "Exercise title")
+    if not is_valid:
+        return False, (f'This lesson\'s name is too long to build the exercise title ("{title}"). '
+                       "Please shorten the lesson name first.")
+    taken = is_exercise_title_taken(title, exclude_exercise_id=exclude_exercise_id,
+                                    format_case=False, skip_archived=True)
+    if taken is None:
+        return False, "Database connection unavailable. Could not verify title uniqueness."
+    if taken:
+        return False, f'A coding exercise named "{title}" already exists. Each lesson can have only one.'
+    return True, title
+
+
+def sync_lesson_exercise_titles(cursor, resource_id, lesson_title, changed_by=None):
+    """
+    After a lesson is renamed, rename ALL its exercises (archived ones too,
+    so a later restore already has the right name). Runs on the caller's
+    cursor, inside the caller's transaction; each change is logged in Name
+    History. Lesson names are unique, so the new titles can't collide.
+    Returns how many exercises were renamed.
+    """
+    new_title = build_exercise_title(lesson_title)
+    if not new_title:
+        return 0
+    cursor.execute(
+        f"SELECT exercise_id, exercise_title FROM {CODING_EXERCISES_TABLE} WHERE resource_id = %s",
+        (resource_id,)
+    )
+    renamed = 0
+    for row in cursor.fetchall():
+        exercise_id, old_title = (row["exercise_id"], row["exercise_title"]) if isinstance(row, dict) else row
+        if old_title == new_title:
+            continue
+        cursor.execute(
+            f"UPDATE {CODING_EXERCISES_TABLE} SET exercise_title = %s, updated_at = NOW() WHERE exercise_id = %s",
+            (new_title, exercise_id)
+        )
+        log_title_change(cursor, "exercise", exercise_id, old_title, new_title, changed_by)
+        renamed += 1
+    return renamed
 
 
 def _fmt_date(dt):
@@ -639,12 +706,6 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
             except (ValueError, TypeError):
                 exercise_id = None
 
-        raw_title = data.get('title') or data.get('exercise_title') or ''
-        is_valid, err_msg, formatted_title = validate_exercise_title(raw_title, exclude_exercise_id=exercise_id)
-        if not is_valid:
-            cursor.close()
-            return False, None, err_msg
-
         resource_id = data.get('resource_id') or data.get('lesson_id')
         if not resource_id:
             cursor.close()
@@ -654,6 +715,13 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
         except (ValueError, TypeError):
             cursor.close()
             return False, None, "Invalid Lesson ID."
+
+        # feat/exercise-auto-title: the client's title is ignored.
+        formatted_title = build_exercise_title(get_lesson_title(resource_id, connection))
+        is_valid, title_msg = validate_generated_exercise_title(formatted_title, exclude_exercise_id=exercise_id)
+        if not is_valid:
+            cursor.close()
+            return False, None, title_msg
 
         points = data.get('points')
         try:

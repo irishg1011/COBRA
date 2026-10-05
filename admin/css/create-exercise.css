@@ -110,6 +110,26 @@ select.form-control-select:disabled,
     color: #ef4444;
 }
 
+/* --- Exercise Title: built from the lesson, read-only (same look as the
+       activity title in create-activity-page.css) --- */
+.form-control.exercise-title-locked {
+    background-color: #f3f4f6;
+    color: var(--admin-text);
+    border-style: dashed;
+    cursor: not-allowed;
+}
+
+.form-control.exercise-title-locked:focus {
+    border-color: #9ca3af;
+    box-shadow: none;
+}
+
+.exercise-title-lock-icon {
+    margin-left: 4px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
 /* --- Section 6 "Required in the code" (chips are also built by create-exercise.js) --- */
 .required-tags-selected {
     display: flex;

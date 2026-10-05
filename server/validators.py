@@ -74,6 +74,8 @@ MOBILE_REGEX = re.compile(r"^09\d{9}$")
 # " – Fill in the Blanks" (21 chars), so the activity limit is the lesson
 # limit + 21 - a full-length lesson name always fits, never truncated.
 ACTIVITY_TITLE_LONGEST_SUFFIX = " \u2013 Fill in the Blanks"
+# feat/exercise-auto-title: exercise titles are "<Lesson name> – Coding Exercise".
+EXERCISE_TITLE_SUFFIX = " \u2013 Coding Exercise"
 
 TITLE_LIMITS = {
     "category": 50,   # Chapter name   -> category_tbl.category_name
@@ -81,7 +83,7 @@ TITLE_LIMITS = {
     "resource": 60,   # Lesson title   -> learning_resources_tbl.resource_title
     "video": 100,     # Video title    -> video_tutorials_tbl.video_title (varchar 255)
     "activity": 60 + len(ACTIVITY_TITLE_LONGEST_SUFFIX),  # 81 -> learning_activities_tbl.activity_title (varchar 255)
-    "exercise": 60,   # Exercise title -> coding_exercises_tbl.exercise_title
+    "exercise": 60 + len(EXERCISE_TITLE_SUFFIX),  # 78 -> coding_exercises_tbl.exercise_title (varchar 255)
 }
 
 # Allowed characters for name-type fields (letters, spaces, hyphens,

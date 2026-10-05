@@ -96,12 +96,13 @@
                                 <h3>Exercise Information</h3>
                             </div>
 
-                            <!-- Row 1: Exercise Title -->
+                            <!-- Row 1: Exercise Title - feat/exercise-auto-title: built from the
+                                 Lesson ("Variables – Coding Exercise") by create-exercise.js, like
+                                 the activity titles. Read-only; the server builds it again on every save. -->
                             <div class="mb-20">
-                                <label class="form-label" for="exerciseTitle">Exercise Title *</label>
-                                <input type="text" id="exerciseTitle" name="title" class="form-control" placeholder="Enter exercise title..." maxlength="{{ title_limits.exercise }}" value="{{ existing_exercise.exercise_title if existing_exercise else '' }}" data-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}" required autocomplete="off">
+                                <label class="form-label" for="exerciseTitle">Exercise Title * <i class="fa-solid fa-lock exercise-title-lock-icon" aria-hidden="true"></i></label>
+                                <input type="text" id="exerciseTitle" name="title" class="form-control exercise-title-locked" placeholder="Select a lesson" maxlength="{{ title_limits.exercise }}" value="{{ existing_exercise.exercise_title if existing_exercise else '' }}" data-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}" readonly aria-readonly="true" tabindex="-1" title="Filled automatically from the lesson" autocomplete="off">
                                 <small class="char-counter" data-counter-for="exerciseTitle"></small>
-                                <span id="exerciseTitleError" class="field-error-message"></span>
                             </div>
 
                             <!-- Row 2: Category, Module, and Lesson in the same line -->

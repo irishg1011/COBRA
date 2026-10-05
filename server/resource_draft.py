@@ -42,6 +42,7 @@ from lesson_validation import format_lesson_title, get_lesson_title_conflict, le
 from validators import validate_title_length  # feat/title-char-limit
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 from activity_validation import sync_lesson_activity_titles  # feat/activity-auto-title
+from coding_exercises import sync_lesson_exercise_titles  # feat/exercise-auto-title
 from resource_publishing import get_draft_status_id
 from lesson_content_validation import validate_lesson_content
 
@@ -309,10 +310,12 @@ def save_lesson_draft(resource_id, lesson_name, cat_id, module_id, content_html,
             success_msg = "Lesson saved successfully."
 
             log_title_change(cursor, "lesson", existing_id, old_row[0], normalized_name, uploaded_by)
-            # feat/activity-auto-title: a renamed lesson renames its
-            # activities ("<Lesson> – <Type>") in this same transaction.
+            # feat/activity-auto-title + feat/exercise-auto-title: a renamed
+            # lesson renames its activities ("<Lesson> – <Type>") and its
+            # exercise ("<Lesson> – Coding Exercise") in this same transaction.
             if old_row[0] != normalized_name:
                 sync_lesson_activity_titles(cursor, existing_id, normalized_name, uploaded_by)
+                sync_lesson_exercise_titles(cursor, existing_id, normalized_name, uploaded_by)
 
             cursor.execute(
                 f"SELECT lesson_content_id FROM {LESSON_CONTENT_TABLE} WHERE resource_id = %s",

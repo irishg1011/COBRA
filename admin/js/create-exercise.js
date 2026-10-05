@@ -86,20 +86,8 @@ function validateExerciseForm(isPublish = false) {
     const saveDraftBtn = document.getElementById("saveDraftBtn");
     const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
 
-    // 1. Exercise Title
-    const titleVal = titleInput ? titleInput.value.trim() : "";
-    if (!titleVal) {
-        isValid = false;
-        if (titleInput) titleInput.classList.add("field-error");
-        if (!firstErrorMsg) {
-            firstErrorMsg = isPublish
-                ? "Please enter an Exercise Title before publishing."
-                : `Please enter an Exercise Title before ${isPublished ? "saving" : "saving a draft"}.`;
-            firstErrorField = titleInput;
-        }
-    } else {
-        if (titleInput && !titleInput.dataset.duplicateError) titleInput.classList.remove("field-error");
-    }
+    // 1. Exercise Title - feat/exercise-auto-title: built from the Lesson,
+    //    so the Category / Module / Lesson check below covers it.
 
     // 2. Category, Module, Lesson
     const catVal = categorySelect ? categorySelect.value : "";
@@ -271,7 +259,6 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log("Create Exercise frontend script loaded successfully.");
 
     // Task #69 & Task #72: Setup live casing normalization on specified text fields
-    setupFieldCasingNormalization('exerciseTitle');
     setupFieldCasingNormalization('exerciseInstruction');
     setupFieldCasingNormalization('problemSituation');
     setupFieldCasingNormalization('problemQuestion');
@@ -279,8 +266,10 @@ document.addEventListener('DOMContentLoaded', function () {
     setupFieldCasingNormalization('correctFeedback');
     setupFieldCasingNormalization('incorrectFeedback');
 
-    // Task #74 & Fix #2: Setup Exercise Title duplicate validation check
-    setupExerciseTitleValidation();
+    // feat/exercise-auto-title: the title follows the Lesson (replaces the
+    // typed title + its live duplicate check), and Mark Ready validates first.
+    setupExerciseAutoTitle();
+    setupMarkReadyValidation();
 
     // Task #70 & Fix #1: Setup Category -> Module -> Lesson dependent dropdowns
     setupDependentDropdowns();
@@ -352,105 +341,40 @@ function setupTitleCasingNormalization(inputId) {
 /* =================================================================
    Task #74 & Fix #2: Exercise Title Global Duplication Prevention
 ==================================================================== */
-function setupExerciseTitleValidation() {
+const EXERCISE_TITLE_SEPARATOR = " \u2013 ";
+const EXERCISE_TITLE_TYPE = "Coding Exercise";
+
+// "<Lesson> – Coding Exercise", read-only - lesson names are unique and a
+// lesson has one exercise, so this title is unique too. The server builds
+// it again on every save and ignores what is sent.
+function updateExerciseTitle() {
     const titleInput = document.getElementById('exerciseTitle');
-    const titleError = document.getElementById('exerciseTitleError');
+    const lessonSelect = document.getElementById('exerciseLesson');
+    if (!titleInput || !lessonSelect) return;
+    const option = lessonSelect.value ? lessonSelect.options[lessonSelect.selectedIndex] : null;
+    const lesson = option ? option.textContent.trim() : '';
+    titleInput.value = lesson ? `${lesson}${EXERCISE_TITLE_SEPARATOR}${EXERCISE_TITLE_TYPE}` : '';
+    titleInput.classList.remove('field-error');
+    if (typeof window.cobraByteRefreshCharCounters === 'function') window.cobraByteRefreshCharCounters();
+}
+
+function setupExerciseAutoTitle() {
+    const lessonSelect = document.getElementById('exerciseLesson');
+    if (lessonSelect) lessonSelect.addEventListener('change', updateExerciseTitle);
+    // A reopened exercise keeps its saved title until its lesson list loads
+    // (setupDependentDropdowns calls updateExerciseTitle() when it does).
+}
+
+function setupMarkReadyValidation() {
     const form = document.getElementById('createExerciseForm');
-
-    if (!titleInput) return;
-
-    let debounceTimer = null;
-    let isTitleTaken = false;
-    let isChecking = false;
-
-    function showTitleError(message) {
-        if (titleError) {
-            titleError.textContent = message;
-            titleError.style.display = 'block';
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+        if (!validateExerciseForm(true)) {
+            e.preventDefault();
+            return false;
         }
-        titleInput.classList.add('field-error');
-        titleInput.dataset.duplicateError = "true";
-        isTitleTaken = true;
-    }
-
-    function clearTitleError() {
-        if (titleError) {
-            titleError.textContent = '';
-            titleError.style.display = 'none';
-        }
-        delete titleInput.dataset.duplicateError;
-        titleInput.classList.remove('field-error');
-        isTitleTaken = false;
-    }
-
-    async function checkTitleAvailability() {
-        const rawTitle = titleInput.value.trim();
-        if (!rawTitle) {
-            clearTitleError();
-            return true;
-        }
-
-        const excludeId = titleInput.dataset.exerciseId || document.getElementById('exerciseIdInput')?.value || '';
-        isChecking = true;
-
-        try {
-            const url = `/admin/coding-exercises/check-title?title=${encodeURIComponent(rawTitle)}&exclude_exercise_id=${encodeURIComponent(excludeId)}`;
-            const response = await fetch(url, { credentials: 'include' });
-            const data = await response.json();
-
-            if (!data.available) {
-                showTitleError(data.message || 'A coding exercise with this title already exists.');
-                return false;
-            } else {
-                clearTitleError();
-                return true;
-            }
-        } catch (err) {
-            console.error('create-exercise: failed to check title availability:', err);
-            return true; // Allow submission on network error or fail-safe
-        } finally {
-            isChecking = false;
-        }
-    }
-
-    titleInput.addEventListener('input', function () {
-        clearTitleError();
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            checkTitleAvailability();
-        }, 300);
+        isSubmitting = true;
     });
-
-    titleInput.addEventListener('blur', function () {
-        if (debounceTimer) clearTimeout(debounceTimer);
-        checkTitleAvailability();
-    });
-
-    if (form) {
-        form.addEventListener('submit', async function (e) {
-            if (isTitleTaken) {
-                e.preventDefault();
-                titleInput.focus();
-                showInfoModal('A coding exercise with this title already exists. Exercise titles must be unique across the entire system.', 'Duplicate Title');
-                return false;
-            }
-
-            if (!validateExerciseForm(true)) {
-                e.preventDefault();
-                return false;
-            }
-
-            const isAvailable = await checkTitleAvailability();
-            if (!isAvailable) {
-                e.preventDefault();
-                titleInput.focus();
-                showInfoModal('A coding exercise with this title already exists. Exercise titles must be unique across the entire system.', 'Duplicate Title');
-                return false;
-            }
-
-            isSubmitting = true;
-        });
-    }
 }
 
 /* =================================================================
@@ -794,6 +718,7 @@ function setupDependentDropdowns() {
     function resetLessonDropdown() {
         lessonSelect.innerHTML = LESSON_PLACEHOLDER_HTML;
         lessonSelect.disabled = true;
+        updateExerciseTitle();
     }
 
     async function loadLessonsForModule(moduleId, preselectResourceId = null) {
@@ -824,6 +749,7 @@ function setupDependentDropdowns() {
             if (preselectResourceId && lessonSelect.querySelector(`option[value="${preselectResourceId}"]`)) {
                 lessonSelect.value = String(preselectResourceId);
             }
+            updateExerciseTitle();   // setting the value by script fires no "change"
         } catch (err) {
             console.error("create-exercise: failed to load lessons for module:", err);
             resetLessonDropdown();
