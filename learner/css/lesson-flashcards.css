@@ -344,20 +344,27 @@
     word-break: break-word;
 }
 
-.fc-answer-row { display: flex; gap: 10px; flex-wrap: wrap; }
-.fc-answer-row .fc-skip-btn { flex-shrink: 0; }
+.fc-answer-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+.fc-answer-row .fc-skip-btn { flex-shrink: 0; min-height: 46px; box-sizing: border-box; }
+.fc-answer-row .fc-primary-btn { min-height: 46px; box-sizing: border-box; }
 
 .fc-answer-input {
     flex: 1 1 260px;
     min-width: 0;
+    min-height: 46px;
+    max-height: 220px;
     padding: 12px 14px;
     font-family: inherit;
     font-size: 15px;
+    line-height: 1.45;
     color: var(--fc-text);
     background: #f8fafc;
     border: 1.5px solid var(--fc-border);
     border-radius: 10px;
     outline: none;
+    resize: none;
+    box-sizing: border-box;
+    overflow-y: auto;
 }
 
 .fc-answer-input:focus { border-color: var(--fc-green); background: #ffffff; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }

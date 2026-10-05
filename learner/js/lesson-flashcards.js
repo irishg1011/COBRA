@@ -164,7 +164,7 @@
                         <p class="fc-card-front" data-c="front"></p>
                     </div>
                     <div class="fc-answer-row" data-c="answerRow">
-                        <input type="text" class="fc-answer-input" data-c="input" autocomplete="off" spellcheck="false" placeholder="Type the answer on the back of the card..." aria-label="Your answer">
+                        <textarea class="fc-answer-input" data-c="input" rows="1" autocomplete="off" spellcheck="false" placeholder="Type the answer on the back of the card..." aria-label="Your answer"></textarea>
                         <button type="button" class="fc-primary-btn" data-c="checkBtn" disabled><i class="fa-solid fa-bolt"></i> Throw answer</button>
                         <button type="button" class="fc-ghost-btn fc-skip-btn" data-c="playSkipBtn"><i class="fa-solid fa-forward"></i> <span data-c="playSkipText">Skip (−1 life)</span></button>
                     </div>
@@ -295,7 +295,7 @@
                         <p class="fc-preview-front" data-c="pvFront"></p>
                     </div>
                     <p>Type what's on the back of this card. Get it right and Cobra flings the card at NullScorpion; get it wrong and the scorpion stings back (−1 life).</p>
-                    <div class="fc-keys"><kbd>Enter = throw answer</kbd></div>
+                    <div class="fc-keys"><kbd>Enter = new line</kbd></div>
                     <div class="fc-overlay-actions">
                         <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
                         <button type="button" class="fc-primary-btn" data-c="pvBtn"><i class="fa-solid fa-play"></i> <span data-c="pvBtnText"></span></button>
@@ -484,11 +484,20 @@
         }
 
         // ---- card board ----
+        function autoResizeInput() {
+            if (!ui.input) return;
+            ui.input.style.height = "auto";
+            const border = (ui.input.offsetHeight - ui.input.clientHeight) || 3;
+            const nextH = Math.max(46, ui.input.scrollHeight + border);
+            ui.input.style.height = `${nextH}px`;
+        }
+
         function loadCard() {
             const card = currentCard();
             ui.qmeta.textContent = `Card ${qIndex + 1} of ${total}`;
             ui.front.textContent = card.front_text;
             ui.input.value = "";
+            autoResizeInput();
             ui.feedback.hidden = true;
             revealedAnswer = null;
             wrongOnCurrent = false;
@@ -845,11 +854,19 @@
         }
 
         // ---- input + lifecycle ----
-        ui.input.addEventListener("input", updateControls);
+        ui.input.addEventListener("input", () => {
+            updateControls();
+            autoResizeInput();
+        });
         ui.input.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
-                e.preventDefault();
-                submitAnswer();
+                // Allow default Enter behavior (inserting a newline in textarea);
+                // stop event propagation so outer handlers or forms are not triggered.
+                e.stopPropagation();
+                requestAnimationFrame(() => {
+                    updateControls();
+                    autoResizeInput();
+                });
             }
         });
         ui.checkBtn.addEventListener("click", submitAnswer);
@@ -877,6 +894,7 @@
         function onResize() {
             if (disposed) return;
             updateFocusBtn();   // a turned phone / resized window may change "is this a phone"
+            autoResizeInput();
             if (stage3d) stage3d.resize();
         }
 

@@ -113,6 +113,14 @@ def ensure_flashcard_schema(connection):
 
 
 # ---------------- grading ----------------
+def _norm_text(val):
+    if not val:
+        return ""
+    # Normalize CRLF/CR to LF and strip trailing whitespace on each line
+    lines = [line.rstrip() for line in val.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    return "\n".join(lines).strip()
+
+
 def _loose(value):
     """Lower-case with runs of whitespace collapsed - for the 'close' check."""
     return re.sub(r"\s+", " ", (value or "").strip()).lower()
@@ -120,8 +128,8 @@ def _loose(value):
 
 def grade_flashcard(submitted, back_text):
     """'correct' | 'close' | 'incorrect' for a typed answer."""
-    submitted = (submitted or "").strip()
-    back_text = (back_text or "").strip()
+    submitted = _norm_text(submitted)
+    back_text = _norm_text(back_text)
     if not submitted or not back_text:
         return "incorrect"
     if submitted == back_text:
