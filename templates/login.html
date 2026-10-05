@@ -64,9 +64,6 @@
                             <input type="text" id="username" placeholder="Enter username" required>
                         </div>
 
-                        
-                        <a href="#" class="forgot-username-link" id="forgotUsernameLink">Forgot your username?</a>
-
                         <div class="input-group password-group">
                             <label for="password">Password</label>
                             <div class="password-wrapper">
@@ -80,8 +77,12 @@
                             </div>
                         </div>
 
-                        <a href="#" class="forgot-link">Forgot your password?</a>
                         <button type="submit" class="btn-login">Login</button>
+                        <!-- Recovery links under the button (same ids/classes script.js opens the panels with) -->
+                        <p class="auth-help-links">
+                            Need to find your <a href="#" class="forgot-username-link" id="forgotUsernameLink">username</a>
+                            or your <a href="#" class="forgot-link">password</a>?
+                        </p>
                     </form>
                 </div>
                 
@@ -252,7 +253,7 @@
                 <!-- FORGOT USERNAME PANELS (feat/forgot-username)
                      Same three steps as Forgot Password above - email, code, result -
                      but the result is the account's username. Opened by the
-                     "Forgot your username?" link under the Username box (script.js). -->
+                     "username" link under the Login button (script.js). -->
                 <div id="forgotUsernamePanel" class="auth-hidden">
                     <div class="verification-container">
                         <div class="verification-icon">

@@ -508,6 +508,32 @@ h1 {
     text-decoration: underline;
 }
 
+/* "Need to find your username or your password?" under the Login button -
+   only the words "username" / "password" are links. Overrides the block
+   spacing .forgot-link / .forgot-username-link have elsewhere. */
+.auth-help-links {
+    margin: 18px 0 0;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #4b5563;
+}
+
+.auth-help-links .forgot-link,
+.auth-help-links .forgot-username-link {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.auth-help-links .forgot-link:hover,
+.auth-help-links .forgot-username-link:hover {
+    color: #0f7a2c;
+}
+
 /* The recovered username on the last "Forgot your username?" screen
    (feat/forgot-username): large, in the same grey box as the inputs so it
    reads as "this is what you type". */

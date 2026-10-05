@@ -287,14 +287,16 @@
             sessionTally = { video_seen: false, content_seen: false, activities: [], exercise: null };
 
             try {
-                const [contentResp, videoResp, exerciseResp] = await Promise.all([
+                const [contentResp, videoResp, exerciseResp, activitiesResp] = await Promise.all([
                     fetch(`/admin/publishing/preview/lesson-content?resource_id=${resourceId}`, { credentials: "include" }),
                     fetch(`/admin/publishing/preview/video?resource_id=${resourceId}`, { credentials: "include" }),
                     fetch(`/admin/publishing/preview/exercise?resource_id=${resourceId}`, { credentials: "include" }),
+                    fetch(`/admin/publishing/preview/activities?resource_id=${resourceId}`, { credentials: "include" }),
                 ]);
                 const contentResult = await contentResp.json();
                 const videoResult = await videoResp.json();
                 const exerciseResult = await exerciseResp.json();
+                const activitiesResult = await activitiesResp.json().catch(() => ({}));
 
                 if (!contentResult.success) {
                     lessonTitleEl.style.display = "block";
@@ -306,6 +308,7 @@
                     resource_id: resourceId,
                     video: videoResult.video || null,
                     exercise: exerciseResult.exercise || null,
+                    activities: activitiesResult.activities || [],
                 };
 
                 lessonTitleEl.style.display = "block";
@@ -315,9 +318,16 @@
                 stepOrder = [];
                 if (currentLesson.video) stepOrder.push({ key: "video", label: "Video" });
                 stepOrder.push({ key: "content", label: "Content" });
-                stepOrder.push({ key: "activities", label: "Activities" });
+                // Same as the learner side: no activities -> no Activities step
+                // (and no exercise either -> Content goes straight to Summary).
+                if (currentLesson.activities.length) stepOrder.push({ key: "activities", label: "Activities" });
                 if (currentLesson.exercise) stepOrder.push({ key: "exercise", label: "Exercise" });
                 stepOrder.push({ key: "summary", label: "Summary" });
+
+                // Button under the lesson content names the step that really comes next.
+                contentContinueBtn.textContent = currentLesson.activities.length
+                    ? "Continue to Activities"
+                    : (currentLesson.exercise ? "Continue to Exercise" : "Continue to Summary");
 
                 if (currentLesson.video) {
                     videoTitleEl.textContent = currentLesson.video.video_title || "";
@@ -338,7 +348,8 @@
         });
         contentContinueBtn.addEventListener("click", () => {
             sessionTally.content_seen = true;
-            startActivitiesStep();
+            if (currentLesson.activities.length || currentLesson.exercise) startActivitiesStep();
+            else showStep("summary");
         });
 
         // ------------------------------------------------------------
@@ -363,15 +374,10 @@
 
         async function startActivitiesStep() {
             stopPlayFrame();
-            showStep("activities");
+            const activities = currentLesson.activities || [];
+            // Exercise only (no activities): the frame opens on the exercise.
+            showStep(activities.length ? "activities" : "exercise");
             activitiesContinueBtn.style.display = "none";
-
-            let activities = [];
-            try {
-                const resp = await fetch(`/admin/publishing/preview/activities?resource_id=${currentLesson.resource_id}`, { credentials: "include" });
-                const result = await resp.json();
-                activities = result.activities || [];
-            } catch (e) { /* leave empty */ }
 
             if (activities.length === 0 && !currentLesson.exercise) {
                 activitiesContainer.style.display = "none";
