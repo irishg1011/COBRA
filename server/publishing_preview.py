@@ -31,7 +31,9 @@ so there's nothing to duplicate.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
-from exercise_tips import fix_tips
+from coding_exercises import ensure_test_case_type_column
+from learner_exercise import evaluate_submission, public_test_cases
+from exercise_ai import CheckerUnavailable
 
 CATEGORY_TABLE = "category_tbl"
 CATEGORY_STATS_TABLE = "category_stats_tbl"
@@ -477,14 +479,16 @@ def get_preview_exercise(resource_id):
             cursor.close()
             return None
 
+        ensure_test_case_type_column(connection)
         cursor.execute(
-            f"""SELECT test_case_id, test_order, test_input
+            f"""SELECT test_case_id, test_order, test_input, case_type
                 FROM {TEST_CASES_TABLE}
                 WHERE exercise_id = %s
                 ORDER BY test_order ASC, test_case_id ASC""",
             (exercise["exercise_id"],)
         )
-        exercise["test_cases"] = cursor.fetchall()
+        # Same shape the learner page gets (AI checks marked, their text held back).
+        exercise["test_cases"] = public_test_cases(cursor.fetchall())
         cursor.close()
         return exercise
     except Error as e:
@@ -497,14 +501,19 @@ def get_preview_exercise(resource_id):
 
 def grade_preview_exercise(exercise_id, actual_outputs, submitted_code=None):
     """
-    Reuses learner_exercise.grade_exercise_submission()'s exact
-    comparison logic - trimmed actual vs. real expected_output per test
-    case - but NEVER writes to exercise_submissions_tbl. Pure grading,
-    nothing recorded, so an admin can resubmit the same exercise in
-    preview endlessly with zero trace left behind.
+    Grades exactly like the learner's Submit - the same
+    learner_exercise.evaluate_submission() (exact-output test cases + AI
+    checks) - but NEVER writes to exercise_submissions_tbl. Nothing is
+    recorded, so an admin can resubmit the same exercise in preview
+    endlessly with zero trace left behind.
+
+    When the AI cannot answer (no GEMINI_API_KEY, free limit reached, no
+    connection), a learner is asked to try again. Preview instead shows
+    WHY in the "How to fix it" box, so a mentor testing an exercise can
+    see what is wrong with the setup.
 
     Returns {"passed": int, "total": int, "status": "correct"|"incorrect",
-    "feedback": str} or None on failure.
+    "feedback": str, "tips": list} or None on failure.
     """
     if not exercise_id:
         return None
@@ -512,33 +521,21 @@ def grade_preview_exercise(exercise_id, actual_outputs, submitted_code=None):
     if connection is None:
         return None
     try:
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute(
-            f"SELECT test_case_id, test_order, test_input, expected_output FROM {TEST_CASES_TABLE} WHERE exercise_id = %s",
-            (exercise_id,)
-        )
-        rows = cursor.fetchall()
-        expected_by_id = {r["test_case_id"]: (r["expected_output"] or "").strip() for r in rows}
-        total = len(expected_by_id)
-        if total == 0:
-            cursor.close()
+        try:
+            result = evaluate_submission(connection, exercise_id, submitted_code or "", actual_outputs)
+        except CheckerUnavailable as busy:
+            return {
+                "passed": 0,
+                "total": 0,
+                "status": "incorrect",
+                "feedback": "The AI checker could not be reached, so this run was not graded.",
+                "tips": [{"test": "AI", "input": "", "tip": f"The AI checker did not answer: {busy.detail}"}],
+            }
+        if result is None:
             return None
-
-        actual_by_id = {int(a["test_case_id"]): (a.get("actual_output") or "").strip() for a in (actual_outputs or [])}
-        passed = sum(1 for tc_id, expected in expected_by_id.items() if actual_by_id.get(tc_id, "") == expected)
-        status = "correct" if passed == total else "incorrect"
-
-        cursor.execute(
-            f"SELECT correct_feedback FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
-            (exercise_id,)
-        )
-        ex_row = cursor.fetchone()
-        correct_feedback = (ex_row.get("correct_feedback") if ex_row else "") or ""
-        feedback = correct_feedback if status == "correct" else f"{passed} of {total} test cases passed."
-
-        cursor.close()
-        tips = [] if status == "correct" else fix_tips(submitted_code, rows, actual_by_id)
-        return {"passed": passed, "total": total, "status": status, "feedback": feedback, "tips": tips}
+        status, passed, total = result["status"], result["passed"], result["total"]
+        feedback = result["correct_feedback"] if status == "correct" else f"{passed} of {total} test cases passed."
+        return {"passed": passed, "total": total, "status": status, "feedback": feedback, "tips": result["tips"]}
     except Error as e:
         print(f"publishing_preview: failed to grade preview exercise {exercise_id}: {e}")
         return None

@@ -183,17 +183,17 @@
                         </div>
                     </div>
 
-                    <!-- Section 4 & 5: Answer (Expected) & Correct Feedback -->
+                    <!-- Section 4 & 5: Answer (Python Code) & Correct Feedback -->
                     <div class="form-grid-2 mb-24">
                         <div class="card-box padded-card mb-0">
                             <div class="form-section-header">
                                 <div class="step-badge">4</div>
-                                <h3>Answer (Expected)</h3>
+                                <h3>Answer (Python Code)</h3>
                             </div>
-                            <p class="form-label section-hint mb-20">The correct output / behavior expected from the learner's code.</p>
+                            <p class="form-label section-hint mb-20">Your correct solution, as Python code. Learners never see it. The AI uses it as the reference when it judges the AI checks below.</p>
                             
                             <div class="form-group mb-0 form-group-relative">
-                                <textarea id="expectedAnswer" name="expected_answer" class="form-control question-textarea" rows="3" placeholder="Expected output..." required>{{ existing_exercise.expected_answer if existing_exercise else '' }}</textarea>
+                                <textarea id="expectedAnswer" name="expected_answer" class="form-control question-textarea code-textarea" rows="4" spellcheck="false" placeholder="e.g., message = &quot;Welcome to the School Portal!&quot;" required>{{ existing_exercise.expected_answer if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 1000</span>
                             </div>
                         </div>
@@ -218,21 +218,37 @@
                             <div class="step-badge">6</div>
                             <h3>Test Cases</h3>
                         </div>
-                        <p class="form-label section-hint mb-20">Add test cases to evaluate the solution.</p>
+                        <p class="form-label section-hint mb-20">Add test cases to evaluate the solution. Every test case must pass.</p>
+                        <ul class="test-case-help">
+                            <li><strong>Exact output</strong> - the learner's code is run and what it prints must match Expected Output exactly, line by line. Input is optional: each line answers one input() call, in order.</li>
+                            <li><strong>AI check</strong> - write in plain words what the code must do (for example: Has a variable named status). The AI reads the learner's code and decides. Use it for things an output cannot prove, and for questions where learners choose their own values.</li>
+                        </ul>
 
                         <!-- Test Cases Container -->
                         <div id="testCasesContainer" class="test-cases-list-wrapper mb-20">
                             {% if existing_exercise and existing_exercise.test_cases %}
                                 {% for tc in existing_exercise.test_cases %}
-                                <div class="test-case-row" data-index="{{ loop.index0 }}">
+                                {% set is_check = (tc.case_type == 'check') %}
+                                <div class="test-case-row{{ ' is-check' if is_check else '' }}" data-index="{{ loop.index0 }}">
                                     <div class="test-case-badge">{{ loop.index }}</div>
-                                    <div class="test-case-field">
-                                        <label class="form-label test-case-label">Input</label>
-                                        <input type="text" name="test_cases[{{ loop.index0 }}][input]" class="form-control" value="{{ tc.test_input }}" placeholder="e.g., 5" required>
+                                    <div class="test-case-field test-case-type-field">
+                                        <label class="form-label test-case-label">Type</label>
+                                        <select name="test_cases[{{ loop.index0 }}][type]" class="form-control-select test-case-type" aria-label="Test case type">
+                                            <option value="output" {{ '' if is_check else 'selected' }}>Exact output</option>
+                                            <option value="check" {{ 'selected' if is_check else '' }}>AI check</option>
+                                        </select>
                                     </div>
-                                    <div class="test-case-field">
+                                    <div class="test-case-field for-output">
+                                        <label class="form-label test-case-label">Input (optional)</label>
+                                        <textarea name="test_cases[{{ loop.index0 }}][input]" class="form-control test-case-textarea" rows="2" maxlength="500" spellcheck="false" placeholder="e.g., 5 (one line per input)">{{ '' if is_check else tc.test_input }}</textarea>
+                                    </div>
+                                    <div class="test-case-field for-output">
                                         <label class="form-label test-case-label">Expected Output</label>
-                                        <input type="text" name="test_cases[{{ loop.index0 }}][output]" class="form-control" value="{{ tc.expected_output }}" placeholder="e.g., Positive" required>
+                                        <textarea name="test_cases[{{ loop.index0 }}][output]" class="form-control test-case-textarea" rows="2" maxlength="500" spellcheck="false" placeholder="e.g., Positive">{{ '' if is_check else tc.expected_output }}</textarea>
+                                    </div>
+                                    <div class="test-case-field for-check">
+                                        <label class="form-label test-case-label">What the code must do</label>
+                                        <textarea name="test_cases[{{ loop.index0 }}][check]" class="form-control test-case-check-text" rows="2" maxlength="500" placeholder="e.g., Has a variable named status">{{ tc.test_input if is_check else '' }}</textarea>
                                     </div>
                                     <div class="test-case-actions">
                                         <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case"><i class="fa-solid fa-trash-can"></i></button>
@@ -242,6 +258,13 @@
                                 {% endfor %}
                             {% endif %}
                         </div>
+
+                        <!-- Shown by create-exercise.js while the test cases can be passed by
+                             printing one fixed answer (fewer than two different inputs). -->
+                        <p class="test-case-hardcode-note" id="testCaseHardcodeNote" role="status" hidden>
+                            <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                            The exact-output test cases use only one input, so a learner could pass by printing the expected output directly. Add a test case with a different input, or an AI check.
+                        </p>
 
                         <!-- Add Test Case Button with explicit inline fallback handler -->
                         <button type="button" id="addTestCaseBtn" class="add-sub-question-btn">

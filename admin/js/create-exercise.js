@@ -243,18 +243,25 @@ function validateExerciseForm(isPublish = false) {
             }
         } else {
             testCaseRows.forEach((row, idx) => {
-                const outField = row.querySelector('input[name*="[output]"]');
-                const outVal = outField ? outField.value.trim() : "";
+                // "Exact output" needs an Expected Output; an "AI check" needs its requirement text.
+                const isCheck = isTestCaseCheck(row);
+                const outField = row.querySelector('[name*="[output]"]');
+                const checkField = row.querySelector('[name*="[check]"]');
+                const needed = isCheck ? checkField : outField;
+                const other = isCheck ? outField : checkField;
+                if (other) other.classList.remove("field-error");
 
-                if (!outVal) {
+                if (!needed || !needed.value.trim()) {
                     isValid = false;
-                    if (outField) outField.classList.add("field-error");
+                    if (needed) needed.classList.add("field-error");
                     if (!firstErrorMsg) {
-                        firstErrorMsg = `Please provide expected output for Test Case #${idx + 1} before publishing.`;
-                        firstErrorField = outField;
+                        firstErrorMsg = isCheck
+                            ? `Please describe what the code must do for Test Case #${idx + 1} before publishing.`
+                            : `Please provide expected output for Test Case #${idx + 1} before publishing.`;
+                        firstErrorField = needed;
                     }
                 } else {
-                    if (outField) outField.classList.remove("field-error");
+                    needed.classList.remove("field-error");
                 }
             });
         }
@@ -341,6 +348,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const deleteBtn = e.target.closest('.test-case-delete-btn');
             if (deleteBtn) removeTestCaseRow(deleteBtn);
         });
+        // Type dropdown: "Exact output" <-> "AI check"
+        testCaseContainer.addEventListener('change', (e) => {
+            const typeField = e.target.closest('.test-case-type');
+            if (typeField) setTestCaseType(typeField.closest('.test-case-row'), typeField.value, true);
+        });
     }
     if (testCaseContainer && testCaseContainer.children.length === 0) {
         addTestCaseRow('', '');
@@ -351,8 +363,10 @@ document.addEventListener('DOMContentLoaded', function () {
         testCaseContainer.querySelectorAll('.test-case-row').forEach((row) => {
             wireTestCaseDuplicateCheck(row);
             checkTestCaseDuplicate(row);
+            row.querySelectorAll('.test-case-textarea, .test-case-check-text').forEach(fitTestCaseField);
         });
     }
+    checkTestCaseVariety();
 
     // Add Test Case button listener (using 'once' or checking to prevent duplicate triggers)
     const addTestCaseBtn = document.getElementById('addTestCaseBtn');
@@ -690,7 +704,7 @@ function hasPopulatedExerciseInputs() {
     }
 
     // Check test cases
-    const testInputs = document.querySelectorAll('#testCasesContainer input');
+    const testInputs = document.querySelectorAll('#testCasesContainer textarea');
     for (const input of testInputs) {
         if ((input.value || '').trim() !== '') {
             return true;
@@ -982,7 +996,7 @@ function setupCharacterCounter(textareaId, counterId, maxLength) {
 /* =================================================================
    Dynamic Test Cases Management Functions
 ==================================================================== */
-function addTestCaseRow(inputVal = '', outputVal = '') {
+function addTestCaseRow(inputVal = '', outputVal = '', type = 'output', checkVal = '') {
     const container = document.getElementById('testCasesContainer');
     if (!container) return;
 
@@ -998,14 +1012,27 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
     row.innerHTML = `
         <div class="test-case-badge">${num}</div>
         
-        <div class="test-case-field">
-            <label class="form-label test-case-label">Input</label>
-            <input type="text" name="test_cases[${index}][input]" class="form-control" value="${inputVal}" placeholder="e.g., 5" required>
+        <div class="test-case-field test-case-type-field">
+            <label class="form-label test-case-label">Type</label>
+            <select name="test_cases[${index}][type]" class="form-control-select test-case-type" aria-label="Test case type">
+                <option value="output">Exact output</option>
+                <option value="check">AI check</option>
+            </select>
         </div>
 
-        <div class="test-case-field">
+        <div class="test-case-field for-output">
+            <label class="form-label test-case-label">Input (optional)</label>
+            <textarea name="test_cases[${index}][input]" class="form-control test-case-textarea" rows="2" maxlength="500" spellcheck="false" placeholder="e.g., 5 (one line per input)"></textarea>
+        </div>
+
+        <div class="test-case-field for-output">
             <label class="form-label test-case-label">Expected Output</label>
-            <input type="text" name="test_cases[${index}][output]" class="form-control" value="${outputVal}" placeholder="e.g., Positive" required>
+            <textarea name="test_cases[${index}][output]" class="form-control test-case-textarea" rows="2" maxlength="500" spellcheck="false" placeholder="e.g., Positive"></textarea>
+        </div>
+
+        <div class="test-case-field for-check">
+            <label class="form-label test-case-label">What the code must do</label>
+            <textarea name="test_cases[${index}][check]" class="form-control test-case-check-text" rows="2" maxlength="500" placeholder="e.g., Has a variable named status"></textarea>
         </div>
 
         <div class="test-case-actions">
@@ -1015,9 +1042,95 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
         <div class="test-case-duplicate-warning">⚠️ Warning: Identical Input and Output</div>
     `;
 
+    // Values go in as text (never through innerHTML), so quotes, < and
+    // line breaks in a test case are kept exactly as typed.
+    row.querySelector('[name*="[input]"]').value = inputVal;
+    row.querySelector('[name*="[output]"]').value = outputVal;
+    row.querySelector('[name*="[check]"]').value = checkVal;
+
     container.appendChild(row);
     wireTestCaseDuplicateCheck(row);
+    setTestCaseType(row, type === 'check' ? 'check' : 'output', false);
+    row.querySelectorAll('.test-case-textarea, .test-case-check-text').forEach(fitTestCaseField);
+}
+
+/** true when the row is an "AI check" (its Type dropdown says so). */
+function isTestCaseCheck(row) {
+    const typeField = row ? row.querySelector('.test-case-type') : null;
+    return !!typeField && typeField.value === 'check';
+}
+
+/**
+ * Switches one row between "Exact output" (Input + Expected Output boxes)
+ * and "AI check" (one "What the code must do" box). Which boxes show is
+ * CSS, from the row's is-check class.
+ *
+ * moveText (only when the mentor changes the dropdown): a requirement that
+ * was typed in the Input box before AI checks existed moves into the check
+ * box, so an old test case is fixed by just changing its Type. Going back
+ * moves it to Input again when that row's boxes are still empty.
+ */
+function setTestCaseType(row, type, moveText) {
+    if (!row) return;
+    const isCheck = type === 'check';
+    const typeField = row.querySelector('.test-case-type');
+    const inputField = row.querySelector('[name*="[input]"]');
+    const outputField = row.querySelector('[name*="[output]"]');
+    const checkField = row.querySelector('[name*="[check]"]');
+    if (typeField && typeField.value !== type) typeField.value = type;
+    row.classList.toggle('is-check', isCheck);
+
+    if (moveText && inputField && checkField) {
+        if (isCheck && !checkField.value.trim() && inputField.value.trim()) {
+            checkField.value = inputField.value.trim();
+            inputField.value = '';
+        } else if (!isCheck && checkField.value.trim() && !inputField.value.trim()
+                   && !(outputField && outputField.value.trim())) {
+            inputField.value = checkField.value.trim();
+            checkField.value = '';
+        }
+    }
+    [inputField, outputField, checkField].forEach((field) => {
+        if (!field) return;
+        field.classList.remove('field-error');
+        fitTestCaseField(field);
+    });
     checkTestCaseDuplicate(row);
+    checkTestCaseVariety();
+}
+
+/**
+ * Input and Expected Output can be several lines (one line per input()
+ * call / per printed line). The box grows with its text: 2 to 8 rows,
+ * then it scrolls.
+ */
+function fitTestCaseField(field) {
+    if (!field) return;
+    const lines = (field.value || '').split('\n').length;
+    field.rows = Math.min(8, Math.max(2, lines));
+}
+
+/**
+ * Test cases that all use the same input can be passed by printing one
+ * fixed answer. Shows the note under the list while the "Exact output"
+ * test cases have an input but fewer than two DIFFERENT inputs, and no
+ * AI check backs them up. Exercises that read no input at all (every
+ * Input empty) are left alone. A note only - it never blocks Save or
+ * Publish.
+ */
+function checkTestCaseVariety() {
+    const note = document.getElementById('testCaseHardcodeNote');
+    if (!note) return;
+    const inputs = [];
+    let hasCheck = false;
+    document.querySelectorAll('#testCasesContainer .test-case-row').forEach((row) => {
+        if (!isTestCaseRowPopulated(row)) return;
+        if (isTestCaseCheck(row)) { hasCheck = true; return; }   // an AI check reads the code itself
+        const field = row.querySelector('[name*="[input]"]');
+        inputs.push(field ? field.value.trim() : '');
+    });
+    const usesInput = inputs.some((value) => value !== '');
+    note.hidden = !(usesInput && new Set(inputs).size < 2 && !hasCheck);
 }
 
 /**
@@ -1028,34 +1141,45 @@ function addTestCaseRow(inputVal = '', outputVal = '') {
  */
 function checkTestCaseDuplicate(row) {
     if (!row) return;
-    const inputField = row.querySelector('input[name*="[input]"]');
-    const outputField = row.querySelector('input[name*="[output]"]');
+    const inputField = row.querySelector('[name*="[input]"]');
+    const outputField = row.querySelector('[name*="[output]"]');
     const warning = row.querySelector('.test-case-duplicate-warning');
     if (!inputField || !outputField || !warning) return;
 
     const inputVal = inputField.value.trim();
     const outputVal = outputField.value.trim();
-    const isDuplicate = inputVal !== '' && outputVal !== '' && inputVal === outputVal;
+    const isDuplicate = !isTestCaseCheck(row) && inputVal !== '' && outputVal !== '' && inputVal === outputVal;
 
     warning.style.display = isDuplicate ? 'block' : 'none';
 }
 
 function wireTestCaseDuplicateCheck(row) {
     if (!row) return;
-    const inputField = row.querySelector('input[name*="[input]"]');
-    const outputField = row.querySelector('input[name*="[output]"]');
-    if (inputField) inputField.addEventListener('input', () => checkTestCaseDuplicate(row));
-    if (outputField) outputField.addEventListener('input', () => checkTestCaseDuplicate(row));
+    const inputField = row.querySelector('[name*="[input]"]');
+    const outputField = row.querySelector('[name*="[output]"]');
+    const checkField = row.querySelector('[name*="[check]"]');
+    [inputField, outputField, checkField].forEach((field) => {
+        if (!field) return;
+        field.addEventListener('input', () => {
+            checkTestCaseDuplicate(row);
+            fitTestCaseField(field);
+            checkTestCaseVariety();
+        });
+    });
 }
 
 function isTestCaseRowPopulated(row) {
     if (!row) return false;
-    const inputField = row.querySelector('input[name*="[input]"]');
-    const outputField = row.querySelector('input[name*="[output]"]');
+    const inputField = row.querySelector('[name*="[input]"]');
+    const outputField = row.querySelector('[name*="[output]"]');
 
     const inputVal = inputField ? inputField.value.trim() : '';
     const outputVal = outputField ? outputField.value.trim() : '';
 
+    if (isTestCaseCheck(row)) {
+        const checkField = row.querySelector('[name*="[check]"]');
+        return !!checkField && checkField.value.trim() !== '';
+    }
     return (inputVal !== '' || outputVal !== '');
 }
 
@@ -1082,6 +1206,7 @@ function removeTestCaseRow(btn) {
 
     row.remove();
     reindexTestCases();
+    checkTestCaseVariety();
 }
 
 function reindexTestCases() {
@@ -1093,10 +1218,15 @@ function reindexTestCases() {
         row.dataset.index = idx;
         row.querySelector('.test-case-badge').textContent = idx + 1;
 
-        const inputField = row.querySelector('input[name*="[input]"]');
-        const outputField = row.querySelector('input[name*="[output]"]');
+        const inputField = row.querySelector('[name*="[input]"]');
+        const outputField = row.querySelector('[name*="[output]"]');
+
+        const typeField = row.querySelector('[name*="[type]"]');
+        const checkField = row.querySelector('[name*="[check]"]');
 
         if (inputField) inputField.name = `test_cases[${idx}][input]`;
         if (outputField) outputField.name = `test_cases[${idx}][output]`;
+        if (typeField) typeField.name = `test_cases[${idx}][type]`;
+        if (checkField) checkField.name = `test_cases[${idx}][check]`;
     });
 }

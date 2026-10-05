@@ -133,6 +133,23 @@ select.form-control-select:disabled,
 
 .test-case-field {
     flex: 1;
+    min-width: 0;
+}
+
+/* Type dropdown ("Exact output" / "AI check") keeps a fixed width */
+.test-case-field.test-case-type-field {
+    flex: 0 0 150px;
+}
+
+/* A row shows the boxes of its own type only (create-exercise.js sets
+   .is-check on the row from the Type dropdown) */
+.test-case-row .for-check,
+.test-case-row.is-check .for-output {
+    display: none;
+}
+
+.test-case-row.is-check .for-check {
+    display: block;
 }
 
 .form-label.test-case-label {
@@ -236,4 +253,63 @@ select.field-error,
 textarea.field-error {
     border-color: #ef4444 !important;
     box-shadow: 0 0 0 1px #ef4444 !important;
+}
+
+/* --- Code-like text boxes --- */
+/* Answer (Python Code) */
+.code-textarea {
+    font-family: Consolas, "Courier New", monospace;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+    tab-size: 4;
+}
+
+/* Test case Input / Expected Output: several lines, shown like code */
+.test-case-textarea {
+    min-height: 44px;
+    resize: vertical;
+    font-family: Consolas, "Courier New", monospace;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+/* AI check: plain words, so it wraps like normal text */
+.test-case-check-text {
+    min-height: 44px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+/* The two kinds of test case, explained under the section title */
+.test-case-help {
+    margin: -8px 0 20px;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--admin-muted);
+}
+
+.test-case-help strong {
+    color: var(--admin-text);
+    font-weight: 600;
+}
+
+/* Shown while the exact-output test cases can be passed by printing one
+   fixed answer (create-exercise.js toggles the hidden attribute) */
+.test-case-hardcode-note {
+    margin: 0 0 16px;
+    padding: 8px 12px;
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    color: #92400e;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.test-case-hardcode-note[hidden] {
+    display: none;
 }

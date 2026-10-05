@@ -1272,11 +1272,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let failed = false;
         try {
+            // "Exact output" test cases: one run each, with that test case's
+            // input. "AI check" test cases are judged on the server from the
+            // code itself, so there is nothing to run for them here.
+            const testCases = lessonData.exercise.test_cases || [];
             const actualOutputs = [];
-            for (const tc of lessonData.exercise.test_cases) {
+            for (const tc of testCases) {
+                if (tc.case_type === 'check') continue;
                 const output = await runExerciseForGrading(code, tc.test_input);
                 actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
             }
+            // What the AI checks look at besides the code: one run with no
+            // input, always sent under test_case_id 0
+            // (learner_exercise.PLAIN_RUN_ID). The server ignores it when
+            // the exercise has no AI check.
+            const plain = await runExerciseForGrading(code, "");
+            actualOutputs.push({ test_case_id: 0, actual_output: (plain || "").trim() });
+            exerciseSubmitBtn.textContent = "Checking your code...";
 
             const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/submit`, {
                 method: 'POST',

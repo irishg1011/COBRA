@@ -23,6 +23,34 @@ MODULE_STATS_TABLE = "module_stats_tbl"
 
 DEFAULT_EXERCISE_STATUSES = ["Draft", "Published", "Archived", "Ready to Publish"]
 _stats_ensured = False
+
+# Two kinds of test case (test_cases_tbl.case_type):
+#   'output'  Input (optional lines for input()) + Expected Output. The
+#             learner's code is run and its output must match exactly.
+#   'check'   a requirement in plain words, kept in test_input (with an
+#             empty expected_output). The AI reads the learner's code and
+#             decides - see exercise_ai.py.
+CASE_OUTPUT = "output"
+CASE_CHECK = "check"
+_case_type_column_ensured = False
+
+
+def ensure_test_case_type_column(connection):
+    """test_cases_tbl.case_type, added on first use. Rows from before are 'output'."""
+    global _case_type_column_ensured
+    if _case_type_column_ensured:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"ALTER TABLE {TEST_CASES_TABLE} ADD COLUMN IF NOT EXISTS "
+            f"case_type VARCHAR(10) NOT NULL DEFAULT '{CASE_OUTPUT}'"
+        )
+        connection.commit()
+        cursor.close()
+        _case_type_column_ensured = True
+    except Error as e:
+        print(f"coding_exercises: failed to ensure {TEST_CASES_TABLE}.case_type: {e}")
 _is_archived_column_ensured = False
 
 CE_SORT_CLAUSES = {
@@ -406,9 +434,10 @@ def get_coding_exercise(exercise_id):
             cursor.close()
             return None
 
+        ensure_test_case_type_column(connection)
         cursor.execute(
             f"""
-            SELECT test_case_id, exercise_id, test_order, test_input, expected_output
+            SELECT test_case_id, exercise_id, test_order, test_input, expected_output, case_type
             FROM {TEST_CASES_TABLE}
             WHERE exercise_id = %s
             ORDER BY test_order ASC, test_case_id ASC
@@ -450,9 +479,32 @@ def delete_coding_exercise(exercise_id):
             connection.close()
 
 
+def clean_test_text(value):
+    r"""
+    One shape for test-case text (Input, Expected Output) and for the
+    output a learner's code printed, so the two can be compared line by
+    line. Used when a test case is saved and again when it is graded
+    (learner_exercise.py), so both sides always go through the same rule:
+
+      - Windows / old-Mac line endings become "\n" (a <textarea> submits
+        "\r\n", Python prints "\n")
+      - spaces at the END of each line are dropped
+      - blank lines and spaces around the whole text are dropped
+
+    Nothing else changes: the words, capital letters, punctuation and
+    the spaces inside a line must still match exactly.
+    """
+    text = str(value if value is not None else "").replace("\r\n", "\n").replace("\r", "\n")
+    return "\n".join(line.rstrip() for line in text.split("\n")).strip()
+
+
 def parse_test_cases_from_form(form_data):
     """
-    Parses test_cases[0][input] and test_cases[0][output] from multipart form data.
+    Parses test_cases[0][type], [input], [output] and [check] from multipart form data.
+      type 'output' (default): [input] and [output], both can be several
+          lines - each line of Input answers one input() call, and
+          Expected Output is everything the code should print.
+      type 'check': [check] is the requirement in plain words (AI-judged).
     """
     import re
     cases_dict = {}
@@ -470,10 +522,16 @@ def parse_test_cases_from_form(form_data):
     result = []
     for idx in sorted_indices:
         item = cases_dict[idx]
-        input_val = (item.get('input') or '').strip()
-        output_val = (item.get('output') or '').strip()
+        if (item.get('type') or '').strip().lower() == CASE_CHECK:
+            check_val = clean_test_text(item.get('check'))
+            if check_val:
+                result.append({'type': CASE_CHECK, 'input': check_val, 'output': ''})
+            continue
+        input_val = clean_test_text(item.get('input'))
+        output_val = clean_test_text(item.get('output'))
         if input_val or output_val:
             result.append({
+                'type': CASE_OUTPUT,
                 'input': input_val,
                 'output': output_val,
             })
@@ -496,6 +554,7 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
     try:
         ensure_exercise_stats(connection)
         ensure_title_history(connection)  # before any write - DDL commits implicitly
+        ensure_test_case_type_column(connection)
         cursor = connection.cursor(dictionary=True)
 
         exercise_id = data.get('exercise_id')
@@ -609,16 +668,17 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
         test_cases = data.get('test_cases') or []
         if isinstance(test_cases, list):
             for order, tc in enumerate(test_cases, start=1):
-                inp = str(tc.get('input', '')).strip()
-                out = str(tc.get('output', '')).strip()
+                case_type = CASE_CHECK if tc.get('type') == CASE_CHECK else CASE_OUTPUT
+                inp = clean_test_text(tc.get('input', ''))
+                out = '' if case_type == CASE_CHECK else clean_test_text(tc.get('output', ''))
                 if inp or out:
                     cursor.execute(
                         f"""
                         INSERT INTO {TEST_CASES_TABLE}
-                        (exercise_id, test_order, test_input, expected_output)
-                        VALUES (%s, %s, %s, %s)
+                        (exercise_id, test_order, test_input, expected_output, case_type)
+                        VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (exercise_id, order, inp, out)
+                        (exercise_id, order, inp, out, case_type)
                     )
 
         connection.commit()

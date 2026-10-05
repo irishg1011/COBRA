@@ -39,6 +39,7 @@ from learner_exercise import (
     is_exercise_done,
     exercise_score,
 )
+from exercise_ai import CheckerUnavailable  # an "AI check" test case could not be judged
 from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from weak_spots import get_weak_spots, get_review_status  # weak-spot recommendations
 from module_review import get_module_review, module_review_summary  # Module Review card (end of every module)
@@ -1073,7 +1074,12 @@ def lesson_exercise_submit():
             "message": "You already passed this exercise. Your result is saved, so it can't be submitted again.",
         }), 409
 
-    result = grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_outputs)
+    try:
+        result = grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_outputs)
+    except CheckerUnavailable as busy:
+        # An AI check could not be judged (free limit, network, no reply).
+        # Nothing was recorded, so this is not a failed try.
+        return jsonify({"success": False, "busy": True, "message": str(busy)}), 503
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 500
 

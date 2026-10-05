@@ -4,7 +4,8 @@ learner_exercise.py - Learner-Side Coding Exercise Data Access & Grading
 Pure DB-access helpers backing the learner-facing Exercise step on
 lesson-content.html. Mirrors lesson_activities.py's convention: READ-ONLY
 for exercise content from the learner's point of view, and NEVER returns
-any test case's expected_output to the client - grading happens entirely
+any test case's expected_output (or an AI check's requirement text) to
+the client - grading happens entirely
 server-side in grade_exercise_submission() below, comparing the actual
 output the learner's code produced (captured client-side via Pyodide and
 sent up) against the real expected_output kept server-only.
@@ -17,9 +18,19 @@ project's existing convention.
 from mysql.connector import Error
 from cobradb import get_db_connection
 from exercise_tips import fix_tips, tips_text
+from coding_exercises import (
+    clean_test_text,  # same text rule when a test case is saved and when it is graded
+    ensure_test_case_type_column, CASE_CHECK,
+)
+from exercise_ai import judge_checks, CheckerUnavailable  # "AI check" test cases
 
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 TEST_CASES_TABLE = "test_cases_tbl"
+
+# The page runs the learner's code once with NO input and sends what it
+# printed under this test_case_id (no real test case has id 0). It is what
+# the AI checks look at; "exact output" test cases use their own runs.
+PLAIN_RUN_ID = 0
 LA_STATS_TABLE = "learning_activities_stats_tbl"
 SUBMISSIONS_TABLE = "exercise_submissions_tbl"
 PROGRESS_TABLE = "learner_exercise_progress_tbl"
@@ -66,14 +77,15 @@ def get_published_exercise_for_resource(resource_id):
             cursor.close()
             return None
 
+        ensure_test_case_type_column(connection)
         cursor.execute(
-            f"""SELECT test_case_id, test_order, test_input
+            f"""SELECT test_case_id, test_order, test_input, case_type
                 FROM {TEST_CASES_TABLE}
                 WHERE exercise_id = %s
                 ORDER BY test_order ASC, test_case_id ASC""",
             (exercise["exercise_id"],)
         )
-        exercise["test_cases"] = cursor.fetchall()
+        exercise["test_cases"] = public_test_cases(cursor.fetchall())
         cursor.close()
         return exercise
     except Error as e:
@@ -141,59 +153,140 @@ def get_latest_submission(acc_id, exercise_id, correct_only=False):
         if connection.is_connected():
             connection.close()
 
+def public_test_cases(rows):
+    """
+    Test cases as the lesson page may see them: never expected_output, and
+    for an AI check never the requirement text either (it can give the
+    answer away) - only that the row is a check, so the page does not run
+    the code for it. A test input can be several lines (one per input()
+    call); the page splits it on "\n", so it leaves here with "\n" only.
+    """
+    cases = []
+    for row in rows:
+        is_check = (row.get("case_type") or "") == CASE_CHECK
+        cases.append({
+            "test_case_id": row["test_case_id"],
+            "test_order": row.get("test_order"),
+            "case_type": CASE_CHECK if is_check else "output",
+            "test_input": "" if is_check else clean_test_text(row.get("test_input")),
+        })
+    return cases
+
+
+def evaluate_submission(connection, exercise_id, submitted_code, actual_outputs):
+    """
+    The ONE grading rule, shared by the learner's Submit and the admin
+    Preview. Nothing is written here except the AI's saved verdict.
+
+    `actual_outputs` is a list of {"test_case_id": int, "actual_output": str}
+    - the REAL output the learner's code produced, captured in the browser
+    by Pyodide: one entry per "exact output" test case (run with that test
+    case's input), plus one under PLAIN_RUN_ID (run with no input).
+
+      'output' test case  passes when the output equals expected_output
+                          after clean_test_text() on both sides (line
+                          endings and spaces at the end of a line do not
+                          matter, everything else must match exactly).
+      'check' test case   passes when the AI says the learner's code meets
+                          the mentor's requirement (exercise_ai.py).
+
+    Returns {"passed", "total", "status", "tips", "correct_feedback"} or
+    None when the exercise has no test cases. Raises CheckerUnavailable
+    when the AI could not answer - the caller must record no attempt.
+    """
+    ensure_test_case_type_column(connection)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            f"""SELECT test_case_id, test_order, test_input, expected_output, case_type
+                FROM {TEST_CASES_TABLE} WHERE exercise_id = %s
+                ORDER BY test_order ASC, test_case_id ASC""",
+            (exercise_id,)
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+        cursor.execute(
+            f"""SELECT exercise_id, instruction, situation, problem_question,
+                       expected_answer, correct_feedback
+                FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s""",
+            (exercise_id,)
+        )
+        exercise = cursor.fetchone() or {"exercise_id": exercise_id}
+    finally:
+        cursor.close()
+
+    for number, row in enumerate(rows, start=1):
+        row["number"] = int(row.get("test_order") or number)   # "Test N" in tips
+        row["test_input"] = clean_test_text(row.get("test_input"))
+        row["expected_output"] = clean_test_text(row.get("expected_output"))
+    output_rows = [r for r in rows if (r.get("case_type") or "") != CASE_CHECK]
+    check_rows = [r for r in rows if (r.get("case_type") or "") == CASE_CHECK]
+
+    actual_by_id = {}
+    for item in (actual_outputs or []):
+        try:
+            actual_by_id[int(item["test_case_id"])] = clean_test_text(item.get("actual_output"))
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    passed = sum(1 for r in output_rows if actual_by_id.get(r["test_case_id"], "") == r["expected_output"])
+    tips = fix_tips(submitted_code, output_rows, actual_by_id)
+
+    if check_rows:
+        verdict = judge_checks(
+            connection, exercise,
+            [{"number": r["number"], "text": r["test_input"]} for r in check_rows],
+            submitted_code,
+            actual_by_id.get(PLAIN_RUN_ID),   # None when the page did not send it
+        )
+        for row in check_rows:
+            result = verdict[row["number"]]
+            if result["passed"]:
+                passed += 1
+            else:
+                tips.append({
+                    "test": row["number"],
+                    "input": "",
+                    "tip": result["reason"] or "Your code does not do what this part of the problem asks yet.",
+                })
+
+    total = len(rows)
+    status = "correct" if passed == total else "incorrect"
+    tips = [] if status == "correct" else sorted(tips, key=lambda t: t["test"])
+    return {
+        "passed": passed,
+        "total": total,
+        "status": status,
+        "tips": tips,
+        "correct_feedback": exercise.get("correct_feedback") or "",
+    }
+
+
 def grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_outputs):
     """
-    Grades one submission: `actual_outputs` is a list of
-    {"test_case_id": int, "actual_output": str} - the REAL output the
-    learner's code produced for each test case, captured client-side via
-    Pyodide and fed real test_input. This looks up each test case's real
-    expected_output (never sent to the client) and compares, trimmed on
-    both sides.
-
-    Logs the attempt as a new row in exercise_submissions_tbl
-    (append-only, attempt_number increments per (acc_id, exercise_id)).
+    Grades one submission with evaluate_submission() and logs the attempt
+    as a new row in exercise_submissions_tbl (append-only, attempt_number
+    increments per (acc_id, exercise_id)).
 
     Returns (passed: int, total: int, status: str, feedback: str,
-    tips: list - see exercise_tips.fix_tips, empty when passed) on
+    tips: list - one per failing test case, empty when passed) on
     success, or None on failure (exercise not found, DB unreachable).
+    Raises CheckerUnavailable when an AI check could not be judged: no
+    attempt is logged, and the route asks the learner to submit again.
     """
     connection = get_db_connection()
     if connection is None:
         return None
 
     try:
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute(
-            f"SELECT test_case_id, test_order, test_input, expected_output FROM {TEST_CASES_TABLE} WHERE exercise_id = %s",
-            (exercise_id,)
-        )
-        test_case_rows = cursor.fetchall()
-        expected_by_id = {r["test_case_id"]: (r["expected_output"] or "").strip() for r in test_case_rows}
-        total = len(expected_by_id)
-
-        if total == 0:
-            cursor.close()
+        result = evaluate_submission(connection, exercise_id, submitted_code, actual_outputs)
+        if result is None:
             return None
+        passed, total, status, tips = result["passed"], result["total"], result["status"], result["tips"]
+        cursor = connection.cursor(dictionary=True)
 
-        actual_by_id = {int(a["test_case_id"]): (a.get("actual_output") or "").strip() for a in (actual_outputs or [])}
-
-        passed = 0
-        for tc_id, expected in expected_by_id.items():
-            actual = actual_by_id.get(tc_id, "")
-            if actual == expected:
-                passed += 1
-
-        status = "correct" if passed == total else "incorrect"
-
-        cursor.execute(
-            f"SELECT correct_feedback FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s",
-            (exercise_id,)
-        )
-        ex_row = cursor.fetchone()
-        correct_feedback = (ex_row.get("correct_feedback") if ex_row else "") or ""
-
-        feedback = correct_feedback if status == "correct" else f"{passed} of {total} test cases passed. Review your code and try again."
-        tips = [] if status == "correct" else fix_tips(submitted_code, test_case_rows, actual_by_id)
+        feedback = result["correct_feedback"] if status == "correct" else f"{passed} of {total} test cases passed. Review your code and try again."
         # The tips are saved with the attempt so mentors see what the learner was told.
         saved_feedback = feedback + ("\n" + tips_text(tips) if tips else "")
 
@@ -214,6 +307,8 @@ def grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_output
         connection.commit()
         cursor.close()
         return passed, total, status, feedback, tips
+    except CheckerUnavailable:
+        raise   # nothing was logged - learner_routes tells the learner to try again
     except Error as e:
         connection.rollback()
         print(f"learner_exercise: failed to grade submission for exercise_id={exercise_id}: {e}")
