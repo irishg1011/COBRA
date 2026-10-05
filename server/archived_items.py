@@ -14,6 +14,7 @@ state directly - admin_routes.py turns these into JSON HTTP responses.
 from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 from coding_exercises import ensure_output_exercise_schema  # exercise_required_tags_tbl
 
 # Table constants
@@ -47,9 +48,8 @@ def _fmt_date(dt):
 
 
 def _fmt_datetime(dt):
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 # ==============================================================================

@@ -34,6 +34,7 @@ validation rules, which would make this file a circular import).
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 
 TITLE_HISTORY_TABLE = "title_history_tbl"
 
@@ -193,10 +194,8 @@ def log_title_change(cursor, entity_type, entity_id, old_title, new_title, chang
 # Reading
 # ------------------------------------------------------------------
 def _fmt_datetime(dt):
-    """e.g. 'Sep 28, 2026, 3:12 PM'"""
-    if not dt:
-        return None
-    return f"{dt.strftime('%b')} {dt.day}, {dt.year}, {dt.strftime('%I:%M %p').lstrip('0')}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt, empty=None)
 
 
 def _current_title(cursor, entity_type, entity_id):

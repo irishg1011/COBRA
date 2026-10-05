@@ -32,6 +32,7 @@ from datetime import date, datetime
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 from profile_avatar import get_avatar_url
 from session_tracker import end_sessions_for_account, _get_timeout_minutes
 from learner_progress_monitor import get_learner_course_detail
@@ -100,10 +101,8 @@ def _fmt_date(dt):
 
 
 def _fmt_datetime(dt):
-    """e.g. 'Jul 15, 2026, 1:30 PM'"""
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.year}, {dt.strftime('%I:%M %p').lstrip('0')}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 def _full_name(row):

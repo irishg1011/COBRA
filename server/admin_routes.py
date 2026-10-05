@@ -8,6 +8,7 @@ from mysql.connector import Error
 from werkzeug.security import generate_password_hash  # NEW: reuses the exact same hashing scheme as the Learner Sign Up flow
 
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 from account_status import refresh_inactive_accounts, get_account_status_counts  # NEW: shared, configurable Active/Inactive sweep + lean status-count aggregate
 from login_logs import get_todays_login_metrics  # NEW: today's login/success/fail counts for the Login Logs metric cards
 from password_reset_logs import get_password_resets_today_count  # NEW: today's password-reset count for the Login Logs metric cards
@@ -637,10 +638,8 @@ def _fmt_date(dt):
 
 
 def _fmt_datetime(dt):
-    """e.g. 'Jul 15, 01:30 AM'"""
-    if not dt:
-        return "Never"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt, empty="Never")
 
 
 def get_accounts_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):

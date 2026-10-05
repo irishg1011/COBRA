@@ -30,6 +30,7 @@ file ever raises: a notification must not break the event it describes.
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 from notifications import (
     notify, ensure_notifications_schema, _relative,
     NOTIFICATIONS_TABLE, PH_NOW_SQL, KEEP_DAYS,
@@ -182,7 +183,7 @@ def list_notifications(acc_id, only_unread=False, before_id=None, limit=12):
                 "is_read": bool(r["is_read"]),
                 "is_today": bool(r["is_today"]),
                 "relative": _relative(r["secs_ago"]),
-                "when": r["created_at"].strftime("%b %d, %Y · %I:%M %p").replace(" 0", " "),
+                "when": fmt_datetime(r["created_at"]),
             } for r in rows],
         }
     except Error as e:

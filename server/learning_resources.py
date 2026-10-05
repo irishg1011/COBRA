@@ -82,6 +82,7 @@ Task #43 requirements this file satisfies:
 from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 RESOURCE_TYPES_TABLE = "resource_types_tbl"
@@ -111,11 +112,8 @@ def _fmt_date(dt):
 
 
 def _fmt_datetime(dt):
-    """e.g. 'Jul 15, 01:30 AM' - matches admin_routes.py's own
-    _fmt_datetime() convention."""
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 # ================================================================

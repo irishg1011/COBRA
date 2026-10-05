@@ -55,6 +55,7 @@ import re
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 from validators import validate_title_length  # feat/title-char-limit
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 
@@ -655,9 +656,8 @@ def get_archived_video_tutorials(search_query=None, page=1, per_page=8):
 
 
 def _format_archived_datetime(dt):
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 def restore_video_tutorial(video_tutorial_id):

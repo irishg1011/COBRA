@@ -20,6 +20,7 @@ otherwise picking "Success" would always show Failed = 0.
 from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 
 SANDBOX_RUNS_TABLE = "sandbox_runs_tbl"
 SANDBOX_SNIPPETS_TABLE = "sandbox_snippets_tbl"
@@ -33,22 +34,14 @@ STATUS_LABELS = {"success": "Success", "error": "Failed"}
 # ------------------------------------------------------------------
 # Formatting helpers
 # ------------------------------------------------------------------
-def _fmt_time(dt):
-    return dt.strftime('%I:%M %p').lstrip('0')
-
-
 def _fmt_datetime(dt):
-    """Table timestamp, e.g. 'Jul 20, 10:00 AM'."""
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {_fmt_time(dt)}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 def _fmt_full_datetime(dt):
-    """Modal timestamp, e.g. 'Jul 20, 2026, 10:00 AM'."""
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.year}, {_fmt_time(dt)}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 def _fmt_exec_time(ms):

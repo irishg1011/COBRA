@@ -66,6 +66,7 @@ Requirements satisfied:
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 from lesson_activities import ensure_activity_game_schema  # MCQ arena: sort_order + lives/session tables
 
 LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
@@ -183,11 +184,8 @@ def _fmt_date(dt):
 
 
 def _fmt_datetime(dt):
-    """e.g. 'Aug 26, 01:30 PM' - matches learning_resources.py's own
-    _fmt_datetime() convention."""
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 # ================================================================

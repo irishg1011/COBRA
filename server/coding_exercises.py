@@ -9,6 +9,7 @@ these get turned into HTTP responses/JSON.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
+from admin_time import fmt_datetime  # the one admin date + time format
 from validators import validate_title_length  # feat/title-char-limit
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 from exercise_tags import normalize_tag, tag_label
@@ -297,10 +298,8 @@ def _fmt_date(dt):
 
 
 def _fmt_datetime(dt):
-    """e.g. 'Aug 26, 01:30 PM'."""
-    if not dt:
-        return "—"
-    return f"{dt.strftime('%b')} {dt.day}, {dt.strftime('%I:%M %p').lstrip('0') or '12:00 AM'}"
+    """e.g. 'Oct 5, 2026 4:53 PM' (admin_time.fmt_datetime - one format for the admin side)"""
+    return fmt_datetime(dt)
 
 
 def get_exercise_stats():
