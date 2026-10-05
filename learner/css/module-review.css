@@ -145,8 +145,6 @@
 .review-item-answers > div { display: flex; gap: 8px; flex-wrap: wrap; }
 .review-item-answers dt { font-weight: 600; color: #475569; min-width: 110px; }
 .review-item-answers dd { margin: 0; color: #334155; }
-.review-item-answers .is-correct dt,
-.review-item-answers .is-correct dd { color: #15803d; }
 
 .review-part { margin-top: 10px; }
 .review-part summary { cursor: pointer; font-size: 13.5px; color: #15803d; }

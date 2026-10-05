@@ -16,15 +16,16 @@ HOW A PART IS FOUND (automatic - no admin tagging):
   2. From each missed item we take key terms: the correct answer (weight 3)
      and the question / sentence / front card (weight 1). Very common words
      (print, the, is, ...) are ignored; operators (==, %, //, +=, ...) count.
-  3. Every part of this lesson AND of the earlier lessons (course order) is
-     scored: sum of (weight x rarity x frequency) of the terms it contains -
+  3. The parts of the item's OWN lesson are scored first; only when none of
+     them matches at all are the earlier lessons (course order) scored too: sum of (weight x rarity x frequency) of the terms it contains -
      a term found in fewer parts is worth more, a term the part uses more
      often counts a bit more, a term in the heading counts 1.5x, and an
      operator in the answer (==, %, //) weighs 4 instead of 3.
   4. The highest-scoring part wins; on a tie the EARLIER part wins (the
      place the concept was first taught). No match at all -> the item's own
      lesson, first part.
-So an item can send the learner to its own lesson or to an earlier one.
+So an item sends the learner to its own lesson, and to an earlier one only
+when its own lesson has no matching part.
 
 "Missed" = the same items the retake uses (activity_retakes.missed_item_ids):
 first attempt wrong or skipped, and not fixed in a retake round yet.
@@ -345,14 +346,11 @@ def _best_section(item, candidates):
     return best_index
 
 
-def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None, include_correct=False):
+def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None):
     """
     Groups of {part -> missed items} for the given lessons (one course scan).
     candidates_cache: pass the same dict when building for several learners,
     so each lesson's content is read and split only once.
-    include_correct: also put each item's correct answer in the result. Only
-    module_review.py asks for it, and only once the module is PASSED (no
-    retake can be started any more, so showing it gives nothing away).
     """
     groups = {}
     order_of = {l["resource_id"]: i for i, l in enumerate(course)}
@@ -368,13 +366,16 @@ def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None, incl
             candidates_cache[resource_id] = _candidate_sections(cursor, course, resource_id)
         candidates = candidates_cache[resource_id]
 
+        own = [c for c in candidates if c["resource_id"] == resource_id]
         for item in items:
-            index = _best_section(item, candidates)
-            if index is None:
-                own = [c for c in candidates if c["resource_id"] == resource_id]
-                section = own[0] if own else None
+            # The item's OWN lesson first; an earlier lesson only when no
+            # part of its own lesson matches at all.
+            index = _best_section(item, own)
+            if index is not None:
+                section = own[index]
             else:
-                section = candidates[index]
+                index = _best_section(item, candidates)
+                section = candidates[index] if index is not None else (own[0] if own else None)
             if section is None:
                 continue
             key = (section["resource_id"], section["index"])
@@ -395,7 +396,6 @@ def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None, incl
                 # never sent to the learner; they get the feedback instead.
                 "your_answer": item["your_answer"],
                 "feedback": item["feedback"],
-                **({"correct": item["correct"]} if include_correct else {}),
             })
 
     out = sorted(groups.values(), key=lambda g: g["order"])

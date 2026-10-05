@@ -5,8 +5,7 @@
  * /api/module-review (module_review.py) and shows, lesson by lesson,
  * every item the learner missed: what they answered, the feedback, the
  * part of the lesson to re-read, and the retake while the module is
- * below the pass mark. The correct answer only comes from the server
- * once the module is passed (no retake left to give away).
+ * below the pass mark. The correct answer is never shown.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
@@ -71,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div><dt>Your answer</dt><dd>${item.result === 'skipped' ? '<em>Skipped</em>'
                     : (item.your_answer ? `<code>${escapeHtml(item.your_answer)}</code>` : '<em>No answer saved</em>')}</dd></div>
                 ${item.feedback ? `<div><dt>Feedback</dt><dd>${escapeHtml(item.feedback)}</dd></div>` : ''}
-                ${item.correct ? `<div class="is-correct"><dt>Correct answer</dt><dd><code>${escapeHtml(item.correct)}</code></dd></div>` : ''}
                 <div><dt>Taught in</dt><dd>${escapeHtml(item.part_heading || '-')}</dd></div>
             </dl>`;
     }
@@ -247,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
             subtitle.textContent = 'You passed this module. This review is optional practice.';
             stateEl.innerHTML = '<span class="review-pill is-passed"><i class="fa-solid fa-check"></i> Passed</span>';
             explainEl.textContent = data.missed_total
-                ? `Your module score is ${data.percent}%. Look back at the ${plural(data.missed_total, 'item')} you missed - the correct answers are shown now that the module is passed.`
+                ? `Your module score is ${data.percent}%. Look back at the ${plural(data.missed_total, 'item')} you missed and the parts to re-read.`
                 : `Your module score is ${data.percent}%. You got every item right on the first try - great job!`;
             const next = data.next;
             if (next && next.type === 'chapter') {

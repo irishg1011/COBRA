@@ -22,9 +22,8 @@ States (module_review_state):
   passed        every lesson finished and the module passed - the review
                 is optional practice and the next module is open
 
-The CORRECT answer is only shown once the module is passed: before that
-the learner can still retake the item, and weak_spots.py never gives the
-answer away while a retake is possible.
+The CORRECT answer is never shown (not even once the module is passed):
+the learner gets their own answer and the game's feedback instead.
 
 Opening the review marks its recommendations as viewed (In Progress on
 the mentor's Recommendations page), through weak_spots._save_recommendations.
@@ -156,8 +155,7 @@ def get_module_review(acc_id, module_id):
             return {**base, "lessons": [], "missed_total": 0, "next": None}, 200
 
         passed = state == STATE_PASSED
-        groups = _build(cursor, acc_id, [by_id[rid] for rid in lesson_ids], course,
-                        include_correct=passed)
+        groups = _build(cursor, acc_id, [by_id[rid] for rid in lesson_ids], course)
 
         # weak_spots groups items by the PART to re-read; the review shows
         # them by the LESSON they were asked in. Each lesson lists its parts
@@ -190,7 +188,6 @@ def get_module_review(acc_id, module_id):
                     "result": _item_result(item["your_answer"]),
                     "your_answer": "" if item["your_answer"] == "Skipped" else item["your_answer"],
                     "feedback": item["feedback"],
-                    "correct": item.get("correct") if passed else None,
                     "part_key": key,
                     "part_heading": g["heading"],
                 })
