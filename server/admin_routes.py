@@ -109,7 +109,7 @@ from recommendations import get_recommendations_data, empty_recommendations_data
 from contact_messages import (  # feat/contact-messages: Admin > Messages (landing page "Send Us a Message")
     get_messages_data, empty_messages_data, get_message, send_reply, REPLY_MAX,
 )
-from urllib.parse import quote  # feat/staff-search: ?q= on the result links
+from urllib.parse import quote, urlencode  # feat/staff-search: ?q= / ?focus= on the result links
 from werkzeug.routing import BuildError
 from score_display import PASS_MARK, score_class, score_badge_class  # one color rule for scores (green >= pass mark, red below)
 from staff_search import search_everything  # feat/staff-search: the header's "Search anything..." box
@@ -3737,12 +3737,19 @@ def staff_search():
         for item in group["items"]:
             if not is_allowed(item["endpoint"], role):
                 continue
+            # A Publishing copy of a chapter / module / lesson is only for a
+            # role that can't open the item's own page (staff_search._item).
+            if item.get("fallback_for") and is_allowed(item["fallback_for"], role):
+                continue
             try:
                 url = url_for(item["endpoint"])
             except BuildError:
                 continue
+            query = dict(item.get("params") or {})
             if item.get("q"):
-                url += "?q=" + quote(item["q"])
+                query["q"] = item["q"]
+            if query:
+                url += "?" + urlencode(query, quote_via=quote)
             items.append({"title": item["title"], "subtitle": item["subtitle"], "url": url})
         if items:
             groups.append({"label": group["label"], "items": items})

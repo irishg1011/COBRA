@@ -13,6 +13,10 @@ owns it with that search already filled in.
     Messages            sender, email or text        -> Messages
     Chapters / Modules                               -> Manage Course
     Lessons                                          -> Learning Resources
+       (a role that can't open those pages - the Admin - gets the same
+        chapters / modules / lessons linked to Publishing instead, with
+        ?focus=<node id> so that page opens the path, scrolls to the item
+        and highlights it; Publishing is view-only for the Admin)
     Activities                                       -> Learning Activities
     Coding exercises                                 -> Coding Exercises
     Badges                                           -> Achievements
@@ -59,8 +63,14 @@ PAGES = [
 ]
 
 
-def _item(title, subtitle, endpoint, q=None):
-    return {"title": title, "subtitle": subtitle or "", "endpoint": endpoint, "q": q}
+def _item(title, subtitle, endpoint, q=None, params=None, fallback_for=None):
+    """
+    params: extra query string for the link (e.g. {"focus": "res-12"}).
+    fallback_for: an endpoint - this item is shown ONLY to a role that may
+    NOT open that endpoint (so a mentor never gets a second copy).
+    """
+    return {"title": title, "subtitle": subtitle or "", "endpoint": endpoint, "q": q,
+            "params": params, "fallback_for": fallback_for}
 
 
 def _pages(term):
@@ -154,6 +164,67 @@ def _lessons(cursor, like):
             for r in cursor.fetchall()]
 
 
+# ------------------------------------------------------------------
+# Chapters / modules / lessons -> Publishing (for a role without Manage
+# Course / Learning Resources, i.e. the Admin). Archived items - and
+# anything inside an archived module or chapter - are left out, because
+# the Publishing tree doesn't show them.
+# ------------------------------------------------------------------
+def _publishing_chapters(cursor, like):
+    cursor.execute(
+        """SELECT cat_id, category_name FROM category_tbl
+           WHERE COALESCE(is_archived, 0) = 0 AND LOWER(category_name) LIKE %s
+           ORDER BY COALESCE(display_order, 999999), cat_id
+           LIMIT %s""",
+        (like, PER_GROUP)
+    )
+    return [_item(r["category_name"], "Chapter", "admin_bp.publishing",
+                  params={"focus": f"cat-{r['cat_id']}"}, fallback_for="admin_bp.manage_course")
+            for r in cursor.fetchall()]
+
+
+def _publishing_modules(cursor, like):
+    cursor.execute(
+        """SELECT m.module_id, m.module_name, c.category_name
+           FROM modules_tbl m
+           JOIN category_tbl c ON m.cat_id = c.cat_id
+           LEFT JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+           WHERE COALESCE(m.is_archived, 0) = 0 AND COALESCE(ms.module_stats_name, '') <> 'Archived'
+             AND COALESCE(c.is_archived, 0) = 0
+             AND LOWER(m.module_name) LIKE %s
+           ORDER BY COALESCE(c.display_order, 999999), c.cat_id,
+                    COALESCE(m.display_order, 999999), m.module_id
+           LIMIT %s""",
+        (like, PER_GROUP)
+    )
+    return [_item(r["module_name"], r["category_name"], "admin_bp.publishing",
+                  params={"focus": f"mod-{r['module_id']}"}, fallback_for="admin_bp.manage_course")
+            for r in cursor.fetchall()]
+
+
+def _publishing_lessons(cursor, like):
+    cursor.execute(
+        """SELECT lr.resource_id, lr.resource_title, m.module_name, c.category_name
+           FROM learning_resources_tbl lr
+           JOIN learning_resources_stats_tbl lrs ON lr.lr_stats_id = lrs.lr_stats_id
+           JOIN modules_tbl m ON lr.module_id = m.module_id
+           JOIN category_tbl c ON m.cat_id = c.cat_id
+           LEFT JOIN module_stats_tbl ms ON m.module_stats_id = ms.module_stats_id
+           WHERE lrs.lr_stats_name <> 'Archived'
+             AND COALESCE(m.is_archived, 0) = 0 AND COALESCE(ms.module_stats_name, '') <> 'Archived'
+             AND COALESCE(c.is_archived, 0) = 0
+             AND LOWER(lr.resource_title) LIKE %s
+           ORDER BY COALESCE(c.display_order, 999999), c.cat_id,
+                    COALESCE(m.display_order, 999999), m.module_id,
+                    COALESCE(lr.display_order, 999999), lr.resource_id
+           LIMIT %s""",
+        (like, PER_GROUP)
+    )
+    return [_item(r["resource_title"], f"{r['category_name']} › {r['module_name']}", "admin_bp.publishing",
+                  params={"focus": f"res-{r['resource_id']}"}, fallback_for="admin_bp.learning_resources")
+            for r in cursor.fetchall()]
+
+
 def _activities(cursor, like):
     cursor.execute(
         """SELECT la.activity_title, las.la_stats_name, atp.activity_type_name
@@ -224,8 +295,13 @@ def search_everything(query):
             except Error as e:
                 print(f"staff_search: '{label}' could not be searched: {e}")
                 return
-            if items:
-                groups.append({"label": label, "items": items})
+            if not items:
+                return
+            for group in groups:   # same label twice (e.g. Publishing copies) -> one group
+                if group["label"] == label:
+                    group["items"].extend(items)
+                    return
+            groups.append({"label": label, "items": items})
 
         try:
             accounts, learners = _accounts(cursor, like)
@@ -241,6 +317,11 @@ def search_everything(query):
         run("Chapters", _chapters)
         run("Modules", _modules)
         run("Lessons", _lessons)
+        # Same groups, linked to Publishing - kept only for a role that
+        # can't open Manage Course / Learning Resources (see _item).
+        run("Chapters", _publishing_chapters)
+        run("Modules", _publishing_modules)
+        run("Lessons", _publishing_lessons)
         run("Activities", _activities)
         run("Coding exercises", _exercises)
         run("Badges", _badges)
