@@ -40,7 +40,7 @@
                         {% else %}
                         <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
                         {% endif %}
-                        <p class="welcome-subtext">Create coding exercises with test cases and detailed instructions.</p>
+                        <p class="welcome-subtext">Create coding exercises with an expected output and the code each lesson must practice.</p>
                     </div>
                     <div class="top-bar-right">
                         <div class="dashboard-datetime-badge">
@@ -183,18 +183,30 @@
                         </div>
                     </div>
 
-                    <!-- Section 4 & 5: Answer (Python Code) & Correct Feedback -->
+                    <!-- Section 4 & 5: Expected Output (+ Given input) & Correct Feedback -->
                     <div class="form-grid-2 mb-24">
                         <div class="card-box padded-card mb-0">
                             <div class="form-section-header">
                                 <div class="step-badge">4</div>
-                                <h3>Answer (Python Code)</h3>
+                                <h3>Expected Output</h3>
                             </div>
-                            <p class="form-label section-hint mb-20">Your correct solution, as Python code. Learners never see it. The AI uses it as the reference when it judges the AI checks below.</p>
-                            
-                            <div class="form-group mb-0 form-group-relative">
-                                <textarea id="expectedAnswer" name="expected_answer" class="form-control question-textarea code-textarea" rows="4" spellcheck="false" placeholder="e.g., message = &quot;Welcome to the School Portal!&quot;" required>{{ existing_exercise.expected_answer if existing_exercise else '' }}</textarea>
+                            <p class="form-label section-hint mb-20">Exactly what the learner's program should print.</p>
+                            {% if existing_exercise and existing_exercise.legacy_prefilled %}
+                            <p class="legacy-exercise-note" role="status">
+                                <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                This exercise was made with test cases. Expected Output and Given input were filled in from its first test case - check them, then save.
+                            </p>
+                            {% endif %}
+
+                            <div class="form-group mb-20 form-group-relative">
+                                <textarea id="expectedAnswer" name="expected_answer" class="form-control question-textarea output-textarea" rows="4" spellcheck="false" placeholder="e.g., Welcome to the School Portal!" required>{{ existing_exercise.expected_answer if existing_exercise else '' }}</textarea>
                                 <span class="char-counter">0 / 1000</span>
+                            </div>
+
+                            <div class="form-group mb-0">
+                                <label class="form-label" for="givenInput">Given input (optional)</label>
+                                <textarea id="givenInput" name="given_input" class="form-control question-textarea output-textarea" rows="2" spellcheck="false" placeholder="e.g., Alice">{{ (existing_exercise.given_input or '') if existing_exercise else '' }}</textarea>
+                                <small class="given-input-hint">One value per line, fed to the learner's input() calls in order. The text an input() prompt shows is not part of the output.</small>
                             </div>
                         </div>
 
@@ -212,64 +224,69 @@
                         </div>
                     </div>
 
-                    <!-- Section 6: Test Cases -->
-                    <div class="card-box padded-card mb-24">
+                    <!-- Section 6: Required in the code - the tag list comes from
+                         server/exercise_tags.py (catalog_for_form), never from here. -->
+                    {% set selected_tags = (existing_exercise.required_tags if existing_exercise and existing_exercise.required_tags else []) %}
+                    <div class="card-box padded-card mb-24" id="requiredTagsSection"
+                         data-max-name-length="{{ tag_catalog.max_name_length }}"
+                         data-keywords="{{ tag_catalog.keywords | join(' ') }}">
                         <div class="form-section-header">
                             <div class="step-badge">6</div>
-                            <h3>Test Cases</h3>
+                            <h3>Required in the code</h3>
                         </div>
-                        <p class="form-label section-hint mb-20">Add test cases to evaluate the solution. Every test case must pass.</p>
-                        <ul class="test-case-help">
-                            <li><strong>Exact output</strong> - the learner's code is run and what it prints must match Expected Output exactly, line by line. Input is optional: each line answers one input() call, in order.</li>
-                            <li><strong>AI check</strong> - write in plain words what the code must do (for example: Has a variable named status). The AI reads the learner's code and decides. Use it for things an output cannot prove, and for questions where learners choose their own values.</li>
-                        </ul>
+                        <p class="form-label section-hint mb-20">Pick what the learner's code must use, so printing the answer directly doesn't pass. Leave it empty to grade on the output only.</p>
 
-                        <!-- Test Cases Container -->
-                        <div id="testCasesContainer" class="test-cases-list-wrapper mb-20">
-                            {% if existing_exercise and existing_exercise.test_cases %}
-                                {% for tc in existing_exercise.test_cases %}
-                                {% set is_check = (tc.case_type == 'check') %}
-                                <div class="test-case-row{{ ' is-check' if is_check else '' }}" data-index="{{ loop.index0 }}">
-                                    <div class="test-case-badge">{{ loop.index }}</div>
-                                    <div class="test-case-field test-case-type-field">
-                                        <label class="form-label test-case-label">Type</label>
-                                        <select name="test_cases[{{ loop.index0 }}][type]" class="form-control-select test-case-type" aria-label="Test case type">
-                                            <option value="output" {{ '' if is_check else 'selected' }}>Exact output</option>
-                                            <option value="check" {{ 'selected' if is_check else '' }}>AI check</option>
-                                        </select>
-                                    </div>
-                                    <div class="test-case-field for-output">
-                                        <label class="form-label test-case-label">Input (optional)</label>
-                                        <textarea name="test_cases[{{ loop.index0 }}][input]" class="form-control test-case-textarea" rows="2" maxlength="500" spellcheck="false" placeholder="e.g., 5 (one line per input)">{{ '' if is_check else tc.test_input }}</textarea>
-                                    </div>
-                                    <div class="test-case-field for-output">
-                                        <label class="form-label test-case-label">Expected Output</label>
-                                        <textarea name="test_cases[{{ loop.index0 }}][output]" class="form-control test-case-textarea" rows="2" maxlength="500" spellcheck="false" placeholder="e.g., Positive">{{ '' if is_check else tc.expected_output }}</textarea>
-                                    </div>
-                                    <div class="test-case-field for-check">
-                                        <label class="form-label test-case-label">What the code must do</label>
-                                        <textarea name="test_cases[{{ loop.index0 }}][check]" class="form-control test-case-check-text" rows="2" maxlength="500" placeholder="e.g., Has a variable named status">{{ tc.test_input if is_check else '' }}</textarea>
-                                    </div>
-                                    <div class="test-case-actions">
-                                        <button type="button" class="icon-control-btn text-danger test-case-delete-btn" title="Delete" aria-label="Delete test case"><i class="fa-solid fa-trash-can"></i></button>
-                                    </div>
-                                    <div class="test-case-duplicate-warning">⚠️ Warning: Identical Input and Output</div>
+                        <div class="required-tags-selected" id="requiredTagsSelected" aria-live="polite">
+                            {% for tag in selected_tags %}
+                            <span class="required-tag-chip" data-key="{{ tag.kind }}:{{ tag.value }}">
+                                <span class="required-tag-chip-label">{{ tag.label }}</span>
+                                <button type="button" class="required-tag-remove" aria-label="Remove {{ tag.label }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                                <input type="hidden" name="required_tags" value="{{ tag.kind }}:{{ tag.value }}">
+                            </span>
+                            {% endfor %}
+                            <span class="required-tags-empty" id="requiredTagsEmpty"{% if selected_tags %} hidden{% endif %}>No tags yet - only the output is checked.</span>
+                        </div>
+
+                        <div class="required-tags-picker" id="requiredTagsPicker">
+                            {% for group in tag_catalog.chapters %}
+                            <div class="required-tags-group">
+                                <p class="required-tags-group-title">{{ group.chapter }}</p>
+                                <div class="required-tags-options">
+                                    {% for concept in group.concepts %}
+                                    <button type="button" class="required-tag-option" data-key="concept:{{ concept }}" data-label="{{ concept }}" aria-pressed="false">{{ concept }}</button>
+                                    {% endfor %}
                                 </div>
-                                {% endfor %}
-                            {% endif %}
+                            </div>
+                            {% endfor %}
+                            <div class="required-tags-group">
+                                <p class="required-tags-group-title">Functions</p>
+                                <div class="required-tags-options">
+                                    {% for name in tag_catalog.functions %}
+                                    <button type="button" class="required-tag-option" data-key="function:{{ name }}" data-label="{{ name }}()" aria-pressed="false">{{ name }}()</button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="required-tags-group">
+                                <p class="required-tags-group-title">Methods</p>
+                                <div class="required-tags-options">
+                                    {% for name in tag_catalog.methods %}
+                                    <button type="button" class="required-tag-option" data-key="method:{{ name }}" data-label=".{{ name }}()" aria-pressed="false">.{{ name }}()</button>
+                                    {% endfor %}
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Shown by create-exercise.js while the test cases can be passed by
-                             printing one fixed answer (fewer than two different inputs). -->
-                        <p class="test-case-hardcode-note" id="testCaseHardcodeNote" role="status" hidden>
-                            <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
-                            The exact-output test cases use only one input, so a learner could pass by printing the expected output directly. Add a test case with a different input, or an AI check.
-                        </p>
-
-                        <!-- Add Test Case Button with explicit inline fallback handler -->
-                        <button type="button" id="addTestCaseBtn" class="add-sub-question-btn">
-                            <i class="fa-solid fa-plus"></i> Add Test Case
-                        </button>
+                        <div class="required-tags-custom">
+                            <label class="form-label" for="customTagInput">Add another function or method</label>
+                            <div class="required-tags-custom-row">
+                                <input type="text" id="customTagInput" class="form-control" maxlength="{{ tag_catalog.max_name_length + 1 }}" placeholder="e.g., enumerate or .split" autocomplete="off" spellcheck="false">
+                                <button type="button" id="addCustomTagBtn" class="add-sub-question-btn">
+                                    <i class="fa-solid fa-plus"></i> Add
+                                </button>
+                            </div>
+                            <span id="customTagError" class="field-error-message"></span>
+                            <small class="given-input-hint">A name like enumerate means a function call. Start with a dot (.split) for a method.</small>
+                        </div>
                     </div>
 
                     <!-- Section 7: Options

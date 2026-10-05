@@ -56,7 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const exerciseCompleteStatus = document.getElementById('exerciseCompleteStatus');
     const exerciseClueRow = document.getElementById('exerciseClueRow');
     const exerciseHintBtn = document.getElementById('exerciseHintBtn');
-    const exerciseTips = document.getElementById('exerciseTips');
+    const exerciseRequiredRow = document.getElementById('exerciseRequiredRow');
+    const exerciseRequiredChips = document.getElementById('exerciseRequiredChips');
+    const exerciseExpectedBox = document.getElementById('exerciseExpectedBox');
     const exerciseSkippedNote = document.getElementById('exerciseSkippedNote');
     const exerciseSubmitNote = document.getElementById('exerciseSubmitNote');
     const exerciseSkipBtn = document.getElementById('exerciseSkipBtn');
@@ -1091,13 +1093,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ---------------- Exercise step ----------------
-    // Deterministic run used ONLY for grading: input() answers come from
-    // a pre-supplied queue (this test case's test_input, split by line)
-    // instead of prompting the learner - no UI, no waiting. The free
-    // "Run" button below reuses the existing interactive runPythonCode()
-    // instead, since that's meant for the learner trying things out by
-    // hand with real prompts.
-    async function runExerciseForGrading(code, testInput) {
+    // Deterministic run used for grading (feat/output-based-exercises):
+    // input() answers come from the exercise's Given input (one value per
+    // line, in order) instead of prompting - no UI, no waiting. Returns
+    // {output, error}: everything printed, and the traceback of the Python
+    // error the code stopped with ("" when it ran fine). null when the
+    // Python runtime could not load.
+    function givenInputLines() {
+        const text = String((lessonData.exercise && lessonData.exercise.given_input) || '')
+            .replace(/\r\n?/g, '\n').replace(/\n$/, '');
+        return text ? text.split('\n') : [];
+    }
+
+    async function runExerciseForGrading(code) {
         let pyodide;
         try {
             pyodide = await getPyodideInstance();
@@ -1105,51 +1113,79 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
 
-        const inputLines = (testInput || "").split("\n");
         pyodide.globals.set("_cobrabyte_grade_code", code || "");
-        pyodide.globals.set("_cobrabyte_grade_inputs", inputLines);
+        pyodide.globals.set("_cobrabyte_grade_inputs", givenInputLines());
 
         try {
             const result = await pyodide.runPythonAsync(
-                "import sys, io, traceback, builtins\n" +
+                "import sys, io, json, traceback, builtins\n" +
                 "_cobrabyte_grade_stdout = io.StringIO()\n" +
+                "_cobrabyte_grade_error = ''\n" +
                 "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
                 "sys.stdout = sys.stderr = _cobrabyte_grade_stdout\n" +
                 "_cobrabyte_grade_queue = list(_cobrabyte_grade_inputs.to_py())\n" +
                 "def _cobrabyte_grade_input(prompt=''):\n" +
-                "    return _cobrabyte_grade_queue.pop(0) if _cobrabyte_grade_queue else ''\n" +
+                "    if not _cobrabyte_grade_queue:\n" +
+                "        raise EOFError('EOF when reading a line')\n" +
+                "    return _cobrabyte_grade_queue.pop(0)\n" +
                 "_old_input = builtins.input\n" +
                 "builtins.input = _cobrabyte_grade_input\n" +
                 "try:\n" +
-                "    exec(_cobrabyte_grade_code, {'__name__': '__main__'})\n" +
-                "except Exception:\n" +
-                "    traceback.print_exc()\n" +
+                "    exec(compile(_cobrabyte_grade_code, '<string>', 'exec'), {'__name__': '__main__'})\n" +
+                "except SystemExit:\n" +
+                "    pass\n" +
+                "except BaseException:\n" +
+                "    _cobrabyte_grade_error = traceback.format_exc()\n" +
                 "finally:\n" +
                 "    builtins.input = _old_input\n" +
                 "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
-                "_cobrabyte_grade_stdout.getvalue()\n"
+                "json.dumps([_cobrabyte_grade_stdout.getvalue(), _cobrabyte_grade_error])\n"
             );
-            return result;
+            const [output, error] = JSON.parse(result);
+            return { output: output || "", error: error || "" };
         } catch (err) {
-            return "Error running code: " + (err && err.message ? err.message : String(err));
+            return { output: "", error: "Error running code: " + (err && err.message ? err.message : String(err)) };
         }
     }
+
+    const runText = (run) => [run.output.replace(/\s+$/, ""), run.error.trim()].filter(Boolean).join("\n");
 
     exerciseRunBtn.addEventListener('click', async () => {
         const code = exerciseCodeBox.innerText.trim();
         if (!code) return;
         exerciseRunBtn.disabled = true;
         exerciseRunBtn.textContent = "Running...";
-        activeOutputBox = exerciseOutputBox;
         exerciseOutputBox.textContent = "";
-        const output = await runPythonCode(code, [], "");
-        activeOutputBox = null;
-        exerciseOutputBox.textContent = (output || "").trim();
+        if (givenInputLines().length) {
+            // The exercise gives its own input - run with it, same as Submit.
+            const run = await runExerciseForGrading(code);
+            exerciseOutputBox.textContent = run ? runText(run)
+                : "Could not load the Python runtime. Check your internet connection and try again.";
+        } else {
+            activeOutputBox = exerciseOutputBox;
+            const output = await runPythonCode(code, [], "");
+            activeOutputBox = null;
+            exerciseOutputBox.textContent = (output || "").trim();
+        }
         exerciseRunBtn.disabled = false;
         exerciseRunBtn.textContent = "Run";
     });
 
-    // ---------------- Exercise: submit lock, fix tips, hint, skip ----------------
+    // "You must use:" chips + the expected output (shown, never hidden).
+    function renderExerciseRequirements(exercise) {
+        const tags = exercise.required_tags || [];
+        exerciseRequiredChips.innerHTML = '';
+        tags.forEach((tag) => {
+            const chip = document.createElement('span');
+            chip.className = 'exercise-required-chip';
+            chip.textContent = tag.label;
+            exerciseRequiredChips.appendChild(chip);
+        });
+        exerciseRequiredRow.hidden = tags.length === 0;
+        exerciseExpectedBox.textContent = exercise.expected_output || '';
+    }
+
+    // ---------------- Exercise: submit lock, hint, skip ----------------
     // exerciseState comes from the server (learner_exercise.get_exercise_state):
     // {passed, skipped, attempts, failed, best, total, hint_after, skip_after}.
     let exerciseState = null;
@@ -1165,31 +1201,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     exerciseCodeBox.addEventListener('input', updateSubmitLock);
     exerciseCodeBox.addEventListener('keyup', updateSubmitLock);
-
-    function renderTips(tips) {
-        if (!tips || !tips.length) {
-            exerciseTips.hidden = true;
-            exerciseTips.innerHTML = '';
-            return;
-        }
-        exerciseTips.innerHTML = `
-            <p class="exercise-tips-title"><i class="fa-solid fa-wrench"></i> How to fix it</p>
-            <ul>${tips.map((t) => `
-                <li><span class="exercise-tip-test">Test ${escapeHtml(t.test)}</span>${t.input ? ` (input: <span class="exercise-tip-input">${escapeHtml(t.input)}</span>)` : ''}: ${escapeHtml(t.tip)}</li>`).join('')}
-            </ul>`;
-        exerciseTips.hidden = false;
-    }
-
-    // Tips saved with an attempt (feedback_given): first line = feedback,
-    // then one "Test N: tip" line per failing test case.
-    function tipsFromSaved(text) {
-        return String(text || '').split('\n').slice(1).map((line) => {
-            const m = line.match(/^Test (\d+): (.*)$/);
-            if (!m) return null;
-            const tc = (lessonData.exercise.test_cases || []).find((c) => String(c.test_order) === m[1]);
-            return { test: m[1], input: tc ? tc.test_input : '', tip: m[2] };
-        }).filter(Boolean);
-    }
 
     function renderExerciseState() {
         const st = exerciseState;
@@ -1220,15 +1231,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     exerciseSkipBtn.addEventListener('click', () => {
-        const st = exerciseState || {};
-        const best = `${st.best || 0} of ${st.total || lessonData.exercise.test_cases.length}`;
-        const open = window.CobraProceed && window.CobraProceed.open;
         const doSkip = () => skipExercise();
-        if (!open) { if (window.confirm('Skip this exercise for now?')) doSkip(); return; }
+        if (!(window.CobraProceed && window.CobraProceed.open)) { doSkip(); return; }
         window.CobraProceed.open({
             icon: 'fa-forward',
             title: 'Skip this exercise for now?',
-            text: `Your best attempt (${best} test cases) will count toward your lesson score, and "Applying the lesson" will show as Needs work. `
+            text: `The exercise will count as not passed in your lesson score, and "Applying the lesson" will show as Needs work. `
                 + `You can finish the lesson and come back any time - passing the exercise later gives full credit.`,
             yesLabel: 'Yes, skip for now',
             noLabel: 'Keep trying',
@@ -1268,55 +1276,45 @@ document.addEventListener('DOMContentLoaded', () => {
         exerciseSubmitBtn.disabled = true;
         exerciseSubmitBtn.dataset.running = '1';
         exerciseSubmitNote.hidden = true;
-        exerciseSubmitBtn.textContent = "Running tests...";
+        exerciseSubmitBtn.textContent = "Checking...";
 
         let failed = false;
         try {
-            // "Exact output" test cases: one run each, with that test case's
-            // input. "AI check" test cases are judged on the server from the
-            // code itself, so there is nothing to run for them here.
-            const testCases = lessonData.exercise.test_cases || [];
-            const actualOutputs = [];
-            for (const tc of testCases) {
-                if (tc.case_type === 'check') continue;
-                const output = await runExerciseForGrading(code, tc.test_input);
-                actualOutputs.push({ test_case_id: tc.test_case_id, actual_output: (output || "").trim() });
-            }
-            // What the AI checks look at besides the code: one run with no
-            // input, always sent under test_case_id 0
-            // (learner_exercise.PLAIN_RUN_ID). The server ignores it when
-            // the exercise has no AI check.
-            const plain = await runExerciseForGrading(code, "");
-            actualOutputs.push({ test_case_id: 0, actual_output: (plain || "").trim() });
-            exerciseSubmitBtn.textContent = "Checking your code...";
+            // ONE run with the exercise's Given input; the server compares
+            // its output with the Expected Output and checks the required
+            // tags in the code (learner_exercise.evaluate_submission).
+            const run = await runExerciseForGrading(code);
+            exerciseResultBox.style.display = "block";
+            if (!run) throw new Error("Python runtime unavailable");
+            exerciseOutputBox.textContent = runText(run);
 
+            const body = {
+                resource_id: resourceId,
+                exercise_id: lessonData.exercise.exercise_id,
+                submitted_code: code,
+                actual_output: run.output
+            };
+            if (run.error) body.error = run.error;
             const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({
-                    resource_id: resourceId,
-                    exercise_id: lessonData.exercise.exercise_id,
-                    submitted_code: code,
-                    actual_outputs: actualOutputs
-                })
+                body: JSON.stringify(body)
             });
             const result = await response.json();
 
-            exerciseResultBox.style.display = "block";
             if (result.state) exerciseState = result.state;
             if (result.locked) {
-                lockExercise({ passed: lessonData.exercise.test_cases.length, total: lessonData.exercise.test_cases.length });
+                lockExercise();
                 return;
             }
             if (result.success && result.status === "correct") {
                 exerciseResultBox.className = "exercise-result pass";
-                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(result.feedback)} (${result.passed}/${result.total} test cases passed)`;
-                renderTips([]);
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(result.feedback)}`;
                 exerciseCompleteRow.style.display = "flex";
                 exerciseCompleteStatus.style.display = "inline-flex";
                 lessonData.exercise_completed = true;
-                lockExercise(result);
+                lockExercise();
                 renderExerciseState();
                 // A skipped lesson is already complete - passing now just
                 // upgrades the score, so stay here instead of re-finishing.
@@ -1324,8 +1322,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (result.success) {
                 failed = true;
                 exerciseResultBox.className = "exercise-result fail";
-                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${escapeHtml(result.feedback)} (${result.passed}/${result.total} test cases passed)`;
-                renderTips(result.tips);
+                exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${escapeHtml(result.feedback)}`;
                 renderExerciseState();
             } else {
                 exerciseResultBox.className = "exercise-result fail";
@@ -1333,6 +1330,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error('Error submitting exercise:', err);
+            exerciseResultBox.style.display = "block";
+            exerciseResultBox.className = "exercise-result fail";
+            exerciseResultBox.textContent = "Could not check your code. Check your internet connection and try again.";
         } finally {
             delete exerciseSubmitBtn.dataset.running;
         }
@@ -1348,7 +1348,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // A passed exercise is locked, same rule as the activities: the result
     // that counts is saved, so it can't be submitted again. Run still works
     // so the learner can look at their code's output.
-    function lockExercise(result) {
+    function lockExercise() {
         exerciseSubmitBtn.disabled = true;
         exerciseSubmitBtn.hidden = true;
         exerciseCodeBox.setAttribute('contenteditable', 'false');
@@ -1363,8 +1363,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exerciseSubmitNote.hidden = true;
         exerciseSkipBtn.hidden = true;
         exerciseSkippedNote.hidden = true;
-        const score = result && result.total ? ` (${result.passed}/${result.total} test cases)` : '';
-        note.innerHTML = `<i class="fa-solid fa-lock"></i> You passed this exercise${score}. Your result is saved, so it can't be submitted again.`;
+        note.innerHTML = `<i class="fa-solid fa-lock"></i> You passed this exercise. Your result is saved, so it can't be submitted again.`;
     }
 
     // ---------------- Activities step (unchanged behavior from before) ----------------
@@ -1551,7 +1550,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (data.exercise) {
             const ex = data.exercise;
-            rows.push(`<div class="summary-row"><span>Exercise — ${escapeHtml(ex.exercise_title)}</span><span class="${ex.completed ? 'ok' : 'pending'}">${ex.points_earned}/${ex.points_total} test cases${ex.completed ? ' (Passed)' : (ex.skipped ? ' (Skipped – try again)' : '')}</span></div>`);
+            rows.push(`<div class="summary-row"><span>Exercise — ${escapeHtml(ex.exercise_title)}</span><span class="${ex.completed ? 'ok' : 'pending'}">${ex.completed ? 'Passed' : (ex.skipped ? 'Skipped – try again' : 'Not passed yet')}</span></div>`);
         }
 
         summaryList.innerHTML = rows.join('');
@@ -1753,11 +1752,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 exerciseSituation.textContent = data.exercise.situation;
                 exerciseProblem.textContent = data.exercise.problem_question;
                 exerciseClue.textContent = data.exercise.clue;
+                renderExerciseRequirements(data.exercise);
                 exerciseState = data.exercise_state || null;
                 if (data.exercise_completed) {
                     exerciseCompleteRow.style.display = "flex";
                     exerciseCompleteStatus.style.display = "inline-flex";
-                    lockExercise({ passed: data.exercise.test_cases.length, total: data.exercise.test_cases.length });
+                    lockExercise();
                 }
 
                 const lastSub = data.exercise_last_submission;
@@ -1768,10 +1768,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     exerciseResultBox.style.display = "block";
                     const passed = lastSub.status === "correct";
                     exerciseResultBox.className = "exercise-result " + (passed ? "pass" : "fail");
+                    // First line only: attempts from before output-based grading saved tips below it.
                     const savedFeedback = String(lastSub.feedback_given || "").split("\n")[0];
-                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${escapeHtml(savedFeedback)} (${lastSub.test_cases_passed}/${lastSub.test_cases_total} test cases passed)`;
+                    exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${escapeHtml(savedFeedback)}`;
                     if (!passed) {
-                        renderTips(tipsFromSaved(lastSub.feedback_given));
                         // The editor holds the code that just failed - same lock as after submitting.
                         if (lastSub.submitted_code) lastFailedCode = codeKey(lastSub.submitted_code);
                     }

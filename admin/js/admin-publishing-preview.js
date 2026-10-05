@@ -435,7 +435,7 @@
                 rows.push(`<div class="summary-row"><span>${escapeHtml(a.title)}</span><span class="ok">${label}</span></div>`);
             });
             if (sessionTally.exercise) {
-                rows.push(`<div class="summary-row"><span>Coding Exercise</span><span class="${sessionTally.exercise.passed === sessionTally.exercise.total ? "ok" : "pending"}">${sessionTally.exercise.passed}/${sessionTally.exercise.total} test cases</span></div>`);
+                rows.push(`<div class="summary-row"><span>Coding Exercise</span><span class="${sessionTally.exercise.passed ? "ok" : "pending"}">${sessionTally.exercise.passed ? "Passed" : "Not passed yet"}</span></div>`);
             }
             summaryListEl.innerHTML = rows.join("") || `<p class="lessons-loading">Nothing to summarize yet.</p>`;
 

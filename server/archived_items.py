@@ -14,6 +14,7 @@ state directly - admin_routes.py turns these into JSON HTTP responses.
 from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
+from coding_exercises import ensure_output_exercise_schema  # exercise_required_tags_tbl
 
 # Table constants
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
@@ -32,6 +33,7 @@ FLASHCARDS_TABLE = "flashcards_tbl"
 
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 TEST_CASES_TABLE = "test_cases_tbl"
+REQUIRED_TAGS_TABLE = "exercise_required_tags_tbl"
 
 MODULES_TABLE = "modules_tbl"
 CATEGORY_TABLE = "category_tbl"
@@ -660,7 +662,8 @@ def restore_coding_exercise(exercise_id):
 
 def permanently_delete_coding_exercise(exercise_id):
     """
-    Permanently deletes a coding exercise and its test cases.
+    Permanently deletes a coding exercise, its old test cases and its
+    required tags.
     """
     if not exercise_id:
         return False, "Exercise ID is required."
@@ -670,6 +673,7 @@ def permanently_delete_coding_exercise(exercise_id):
         return False, "Could not connect to the database."
 
     try:
+        ensure_output_exercise_schema(connection)   # DDL first - it commits implicitly
         cursor = connection.cursor()
 
         cursor.execute(
@@ -690,6 +694,7 @@ def permanently_delete_coding_exercise(exercise_id):
             return False, "This exercise must be archived before it can be permanently deleted."
 
         cursor.execute(f"DELETE FROM {TEST_CASES_TABLE} WHERE exercise_id = %s", (exercise_id,))
+        cursor.execute(f"DELETE FROM {REQUIRED_TAGS_TABLE} WHERE exercise_id = %s", (exercise_id,))
         cursor.execute(f"DELETE FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s", (exercise_id,))
 
         connection.commit()

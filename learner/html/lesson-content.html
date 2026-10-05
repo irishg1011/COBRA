@@ -125,6 +125,16 @@
                 <button type="button" class="exercise-hint-btn" id="exerciseHintBtn" hidden><i class="fa-solid fa-lightbulb"></i> Show hint</button>
             </div>
 
+            <!-- feat/output-based-exercises: what the code must use + the output to match -->
+            <div class="exercise-required-row" id="exerciseRequiredRow" hidden>
+                <span class="exercise-required-label">You must use:</span>
+                <div class="exercise-required-chips" id="exerciseRequiredChips"></div>
+            </div>
+            <div class="exercise-pane exercise-expected">
+                <div class="exercise-pane-head">Your output should look like this</div>
+                <pre class="exercise-output-box exercise-expected-box" id="exerciseExpectedBox"></pre>
+            </div>
+
             <div class="exercise-editor-grid">
                 <div class="exercise-pane">
                     <div class="exercise-pane-head">Your Code <button type="button" class="exercise-run-btn" id="exerciseRunBtn">Run</button></div>
@@ -139,8 +149,6 @@
 
             <div class="exercise-result" id="exerciseResultBox" style="display: none;"></div>
 
-            <!-- Automatic "how to fix it" tips, one per failing test case (exercise_tips.py) -->
-            <div class="exercise-tips" id="exerciseTips" hidden></div>
 
             <!-- Skipped for now (after 3 tries): still open to retry for full credit -->
             <p class="exercise-skipped-note" id="exerciseSkippedNote" hidden>

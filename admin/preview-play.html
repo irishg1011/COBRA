@@ -85,6 +85,16 @@
                     <button type="button" class="exercise-hint-btn" id="exerciseHintBtn" hidden><i class="fa-solid fa-lightbulb"></i> Show hint</button>
                 </div>
 
+                <!-- feat/output-based-exercises: what the code must use + the output to match -->
+                <div class="exercise-required-row" id="exerciseRequiredRow" hidden>
+                    <span class="exercise-required-label">You must use:</span>
+                    <div class="exercise-required-chips" id="exerciseRequiredChips"></div>
+                </div>
+                <div class="exercise-pane exercise-expected">
+                    <div class="exercise-pane-head">Your output should look like this</div>
+                    <pre class="exercise-output-box exercise-expected-box" id="exerciseExpectedBox"></pre>
+                </div>
+
                 <div class="exercise-editor-grid">
                     <div class="exercise-pane">
                         <div class="exercise-pane-head">Your Code <button type="button" class="exercise-run-btn" id="exerciseRunBtn">Run</button></div>
@@ -99,8 +109,6 @@
 
                 <div class="exercise-result is-hidden" id="exerciseResultBox"></div>
 
-                <!-- Same "How to fix it" tips the learner gets (exercise_tips.py) -->
-                <div class="exercise-tips" id="exerciseTips" hidden></div>
                 <p class="exercise-skipped-note" id="exerciseSkippedNote" hidden></p>
 
                 <div class="lesson-step-footer exercise-footer">

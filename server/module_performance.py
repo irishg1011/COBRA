@@ -13,8 +13,8 @@ ONE place it is written; lesson_summary.py and learner_progress_monitor.py
 call it too, so every screen shows the same number)
 
   ACTIVITY part = POOLED across the lesson's activities, x 50%
-    (adviser's rule): every correct item of every game + every passed test
-    case of the coding exercise, divided by all items + test cases. A bad
+    (adviser's rule): every correct item of every game + the coding
+    exercise when passed (one item), divided by all items + 1. A bad
     run in one activity can be made up in another - e.g. 9 correct out of
     15 items over three activities is 60% of the activity part, whichever
     activity the misses were in. (80% pooled gives 40, 100% gives 50.)
@@ -252,15 +252,15 @@ def lesson_complete(cursor, acc_id, resource_id):
         ex_row = cursor.fetchone()
         if not ex_row or ex_row["status"] != "completed":
             # Skipped for now (after 3 tries) also counts as done.
-            if not exercise_score(cursor, acc_id, ex["exercise_id"], 0)["skipped"]:
+            if not exercise_score(cursor, acc_id, ex["exercise_id"])["skipped"]:
                 return False
     return True
 
 
 # ---------------- performance ----------------
 def _exercise_points(cursor, acc_id, resource_id):
-    """(points_earned, points_total) for the lesson's coding exercise - learner_exercise.exercise_score()
-    (passed -> all, skipped -> best attempt, else latest attempt)."""
+    """(points_earned, points_total) for the lesson's coding exercise - learner_exercise.exercise_score():
+    one item, earned when the latest attempt is correct."""
     cursor.execute(
         """SELECT ce.exercise_id
            FROM coding_exercises_tbl ce
@@ -273,10 +273,8 @@ def _exercise_points(cursor, acc_id, resource_id):
     row = cursor.fetchone()
     if not row:
         return 0, 0
-    exercise_id = row["exercise_id"]
-    cursor.execute("SELECT COUNT(*) AS cnt FROM test_cases_tbl WHERE exercise_id = %s", (exercise_id,))
-    test_total = cursor.fetchone()["cnt"]
-    return exercise_score(cursor, acc_id, exercise_id, test_total)["earned"], test_total
+    score = exercise_score(cursor, acc_id, row["exercise_id"])
+    return score["earned"], score["total"]
 
 
 def lesson_performance(cursor, acc_id, resource_id):

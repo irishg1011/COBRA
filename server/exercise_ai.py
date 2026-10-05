@@ -1,6 +1,10 @@
 """
 exercise_ai.py - AI judge for a coding exercise's "AI check" test cases
 ------------------------------------------------------------------------------
+NOT CALLED ANY MORE (feat/output-based-exercises): exercises are now graded
+on their output + required tags (learner_exercise.evaluate_submission).
+Kept, with exercise_ai_verdicts_tbl, in case AI feedback comes back later.
+------------------------------------------------------------------------------
 A coding exercise has two kinds of test cases (test_cases_tbl.case_type):
 
     'output'  the learner's code is run and what it prints must match the

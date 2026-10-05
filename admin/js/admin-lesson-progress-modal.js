@@ -163,7 +163,7 @@
 
             return `
                 <table class="progress-detail-table">
-                    <thead><tr><th>Exercise</th><th>Attempts</th><th>Test Cases</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Exercise</th><th>Attempts</th><th>Score</th><th>Status</th></tr></thead>
                     <tbody>
                         <tr>
                             <td>${escapeHtml(ex.title)}</td>

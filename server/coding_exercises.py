@@ -11,9 +11,12 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from validators import validate_title_length  # feat/title-char-limit
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
+from exercise_tags import normalize_tag, tag_label
 
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
-TEST_CASES_TABLE = "test_cases_tbl"
+TEST_CASES_TABLE = "test_cases_tbl"   # old grading - only read for exercises saved before feat/output-based-exercises
+REQUIRED_TAGS_TABLE = "exercise_required_tags_tbl"
+SUBMISSIONS_TABLE = "exercise_submissions_tbl"
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
 PROFILE_TABLE = "profile_tbl"
@@ -24,33 +27,67 @@ MODULE_STATS_TABLE = "module_stats_tbl"
 DEFAULT_EXERCISE_STATUSES = ["Draft", "Published", "Archived", "Ready to Publish"]
 _stats_ensured = False
 
-# Two kinds of test case (test_cases_tbl.case_type):
-#   'output'  Input (optional lines for input()) + Expected Output. The
-#             learner's code is run and its output must match exactly.
-#   'check'   a requirement in plain words, kept in test_input (with an
-#             empty expected_output). The AI reads the learner's code and
-#             decides - see exercise_ai.py.
+# feat/output-based-exercises: an exercise is graded on ONE Expected
+# Output (coding_exercises_tbl.expected_answer), the optional Given input
+# fed to input() (given_input) and the "Required in the code" tags
+# (exercise_required_tags_tbl, see exercise_tags.py). test_cases_tbl is
+# left as it was and is no longer written; it is only read for an
+# exercise that was never saved in the new form (given_input IS NULL),
+# whose first exact-output test case then stands in for its Expected
+# Output and Given input - see load_exercise_spec().
+# Old test cases are 'output' (Input + Expected Output) or 'check' (an
+# AI-judged requirement, exercise_ai.py - no longer used) in case_type.
 CASE_OUTPUT = "output"
-CASE_CHECK = "check"
-_case_type_column_ensured = False
+_output_schema_ensured = False
 
 
-def ensure_test_case_type_column(connection):
-    """test_cases_tbl.case_type, added on first use. Rows from before are 'output'."""
-    global _case_type_column_ensured
-    if _case_type_column_ensured:
+def ensure_output_exercise_schema(connection):
+    """
+    Lazy, idempotent schema for output-based grading (run before any write -
+    DDL commits implicitly):
+      coding_exercises_tbl.given_input      TEXT NULL (NULL = never saved in the new form)
+      exercise_required_tags_tbl            one row per required tag
+      exercise_submissions_tbl.actual_output / output_passed / tags_passed
+    """
+    global _output_schema_ensured
+    if _output_schema_ensured:
         return
+    tags_columns = f"""
+            tag_row_id INT AUTO_INCREMENT PRIMARY KEY,
+            exercise_id INT NOT NULL,
+            tag_kind ENUM('concept','function','method') NOT NULL,
+            tag_value VARCHAR(100) NOT NULL,
+            tag_order INT NOT NULL,
+            INDEX idx_required_tags_exercise (exercise_id)"""
     try:
         cursor = connection.cursor()
+        cursor.execute(f"ALTER TABLE {CODING_EXERCISES_TABLE} ADD COLUMN IF NOT EXISTS given_input TEXT NULL")
+        try:
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {REQUIRED_TAGS_TABLE} ({tags_columns},
+                    CONSTRAINT fk_required_tags_exercise FOREIGN KEY (exercise_id)
+                        REFERENCES {CODING_EXERCISES_TABLE} (exercise_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci""")
+        except Error as e:
+            # e.g. the exercises table has no usable key for a foreign key -
+            # the table still works; deletes clean the tags up explicitly.
+            print(f"coding_exercises: {REQUIRED_TAGS_TABLE} created without its foreign key: {e}")
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {REQUIRED_TAGS_TABLE} ({tags_columns}
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci""")
         cursor.execute(
-            f"ALTER TABLE {TEST_CASES_TABLE} ADD COLUMN IF NOT EXISTS "
-            f"case_type VARCHAR(10) NOT NULL DEFAULT '{CASE_OUTPUT}'"
+            f"ALTER TABLE {SUBMISSIONS_TABLE} "
+            f"ADD COLUMN IF NOT EXISTS actual_output TEXT NULL, "
+            f"ADD COLUMN IF NOT EXISTS output_passed TINYINT(1) NULL, "
+            f"ADD COLUMN IF NOT EXISTS tags_passed TINYINT(1) NULL"
         )
         connection.commit()
         cursor.close()
-        _case_type_column_ensured = True
+        _output_schema_ensured = True
     except Error as e:
-        print(f"coding_exercises: failed to ensure {TEST_CASES_TABLE}.case_type: {e}")
+        print(f"coding_exercises: failed to ensure the output-based exercise schema: {e}")
+
+
 _is_archived_column_ensured = False
 
 CE_SORT_CLAUSES = {
@@ -401,13 +438,17 @@ def get_coding_exercises_overview(search_query=None, stats_filter=None, page=1, 
 
 def get_coding_exercise(exercise_id):
     """
-    Fetches a single coding exercise along with its test cases.
+    Fetches a single coding exercise for the editor, with its required
+    tags and Given input. An exercise never saved in the new form shows
+    the Expected Output / Given input of its first old test case
+    (legacy_prefilled), so saving it once converts it.
     """
     connection = get_db_connection()
     if connection is None:
         return None
 
     try:
+        ensure_output_exercise_schema(connection)
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             f"""
@@ -434,18 +475,12 @@ def get_coding_exercise(exercise_id):
             cursor.close()
             return None
 
-        ensure_test_case_type_column(connection)
-        cursor.execute(
-            f"""
-            SELECT test_case_id, exercise_id, test_order, test_input, expected_output, case_type
-            FROM {TEST_CASES_TABLE}
-            WHERE exercise_id = %s
-            ORDER BY test_order ASC, test_case_id ASC
-            """,
-            (exercise_id,)
-        )
-        exercise["test_cases"] = cursor.fetchall()
+        spec = load_exercise_spec(cursor, exercise_id)
         cursor.close()
+        exercise["expected_answer"] = spec["expected_output"]
+        exercise["given_input"] = spec["given_input"]
+        exercise["required_tags"] = [tag_dict(kind, value) for kind, value in spec["tags"]]
+        exercise["legacy_prefilled"] = spec["legacy"]
         return exercise
     except Error as e:
         print(f"coding_exercises: failed to get exercise {exercise_id}: {e}")
@@ -464,8 +499,10 @@ def delete_coding_exercise(exercise_id):
         return False, "Database connection unavailable."
 
     try:
+        ensure_output_exercise_schema(connection)
         cursor = connection.cursor()
         cursor.execute(f"DELETE FROM {TEST_CASES_TABLE} WHERE exercise_id = %s", (exercise_id,))
+        cursor.execute(f"DELETE FROM {REQUIRED_TAGS_TABLE} WHERE exercise_id = %s", (exercise_id,))
         cursor.execute(f"DELETE FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s", (exercise_id,))
         connection.commit()
         cursor.close()
@@ -481,10 +518,8 @@ def delete_coding_exercise(exercise_id):
 
 def clean_test_text(value):
     r"""
-    One shape for test-case text (Input, Expected Output) and for the
-    output a learner's code printed, so the two can be compared line by
-    line. Used when a test case is saved and again when it is graded
-    (learner_exercise.py), so both sides always go through the same rule:
+    The shape old test-case text (Input, Expected Output) was saved in -
+    used to read an old exercise's first test case (load_exercise_spec):
 
       - Windows / old-Mac line endings become "\n" (a <textarea> submits
         "\r\n", Python prints "\n")
@@ -498,50 +533,90 @@ def clean_test_text(value):
     return "\n".join(line.rstrip() for line in text.split("\n")).strip()
 
 
-def parse_test_cases_from_form(form_data):
-    """
-    Parses test_cases[0][type], [input], [output] and [check] from multipart form data.
-      type 'output' (default): [input] and [output], both can be several
-          lines - each line of Input answers one input() call, and
-          Expected Output is everything the code should print.
-      type 'check': [check] is the requirement in plain words (AI-judged).
-    """
-    import re
-    cases_dict = {}
-    for key, val in form_data.items():
-        if key.startswith('test_cases['):
-            m = re.match(r'test_cases\[(\d+)\]\[(\w+)\]', key)
-            if m:
-                idx = int(m.group(1))
-                field = m.group(2)
-                if idx not in cases_dict:
-                    cases_dict[idx] = {}
-                cases_dict[idx][field] = val
+def keep_as_typed(value):
+    r"""Expected Output and Given input are saved exactly as typed - only
+    Windows line endings (what a <textarea> submits) become "\n"."""
+    return str(value if value is not None else "").replace("\r\n", "\n").replace("\r", "\n")
 
-    sorted_indices = sorted(cases_dict.keys())
-    result = []
-    for idx in sorted_indices:
-        item = cases_dict[idx]
-        if (item.get('type') or '').strip().lower() == CASE_CHECK:
-            check_val = clean_test_text(item.get('check'))
-            if check_val:
-                result.append({'type': CASE_CHECK, 'input': check_val, 'output': ''})
-            continue
-        input_val = clean_test_text(item.get('input'))
-        output_val = clean_test_text(item.get('output'))
-        if input_val or output_val:
-            result.append({
-                'type': CASE_OUTPUT,
-                'input': input_val,
-                'output': output_val,
-            })
-    return result
+
+def tag_dict(kind, value):
+    return {"kind": kind, "value": value, "label": tag_label(kind, value)}
+
+
+def parse_required_tags(raw_tags):
+    """
+    The mentor's "Required in the code" picks -> [{"kind", "value", "label"}],
+    valid and de-duplicated, in the order picked. Each pick is
+    "kind:value" (the form's required_tags fields) or a {"kind", "value"} dict.
+    """
+    tags, seen = [], set()
+    for raw in raw_tags or []:
+        if isinstance(raw, dict):
+            kind, value = raw.get("kind"), raw.get("value")
+        else:
+            kind, _, value = str(raw).partition(":")
+        tag = normalize_tag(kind, value)
+        if tag and tag not in seen:
+            seen.add(tag)
+            tags.append(tag_dict(*tag))
+    return tags
+
+
+def parse_required_tags_from_form(form_data):
+    """required_tags fields of the mentor form (one per chip)."""
+    return parse_required_tags(form_data.getlist("required_tags"))
+
+
+def load_exercise_spec(cursor, exercise_id):
+    """
+    What an exercise is graded on, with the caller's cursor:
+      {"expected_output", "given_input", "tags": [(kind, value)],
+       "correct_feedback", "legacy": bool}
+    or None when the exercise does not exist.
+
+    legacy: never saved in the new form (given_input IS NULL) and it has an
+    old exact-output test case - that row's expected_output / test_input
+    are used (read-only), because expected_answer held the mentor's answer
+    CODE back then, not what the program prints.
+    """
+    cursor.execute(
+        f"""SELECT expected_answer, given_input, correct_feedback
+            FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s""",
+        (exercise_id,)
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    cursor.execute(
+        f"""SELECT tag_kind, tag_value FROM {REQUIRED_TAGS_TABLE}
+            WHERE exercise_id = %s ORDER BY tag_order ASC, tag_row_id ASC""",
+        (exercise_id,)
+    )
+    spec = {
+        "expected_output": keep_as_typed(row["expected_answer"]),
+        "given_input": keep_as_typed(row["given_input"]),
+        "tags": [(r["tag_kind"], r["tag_value"]) for r in cursor.fetchall()],
+        "correct_feedback": row["correct_feedback"] or "",
+        "legacy": False,
+    }
+    if row["given_input"] is None:
+        # SELECT * - old databases may not have the case_type column yet.
+        cursor.execute(
+            f"""SELECT * FROM {TEST_CASES_TABLE} WHERE exercise_id = %s
+                ORDER BY test_order ASC, test_case_id ASC""",
+            (exercise_id,)
+        )
+        first = next((r for r in cursor.fetchall() if (r.get("case_type") or CASE_OUTPUT) == CASE_OUTPUT), None)
+        if first:
+            spec.update(expected_output=clean_test_text(first["expected_output"]),
+                        given_input=clean_test_text(first["test_input"]), legacy=True)
+    return spec
 
 
 def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = None):
     """
-    Task #76: Persists a coding exercise and its child test cases with
-    atomic transaction handling. Supports both Save Draft (status='Draft')
+    Task #76: Persists a coding exercise with its Given input and required
+    tags (feat/output-based-exercises) with atomic transaction handling. Supports both Save Draft (status='Draft')
     and Publish (status='Published').
 
     Returns:
@@ -554,7 +629,7 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
     try:
         ensure_exercise_stats(connection)
         ensure_title_history(connection)  # before any write - DDL commits implicitly
-        ensure_test_case_type_column(connection)
+        ensure_output_exercise_schema(connection)
         cursor = connection.cursor(dictionary=True)
 
         exercise_id = data.get('exercise_id')
@@ -590,8 +665,12 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
         situation = (data.get('situation') or '').strip()
         problem_question = (data.get('problem_question') or '').strip()
         clue = (data.get('clue') or '').strip()
-        expected_answer = (data.get('expected_answer') or '').strip()
+        # Expected Output + Given input: exactly as typed (no first-letter
+        # capital, no trimming). given_input is never NULL once saved here.
+        expected_answer = keep_as_typed(data.get('expected_answer'))
+        given_input = keep_as_typed(data.get('given_input'))
         correct_feedback = (data.get('correct_feedback') or '').strip()
+        required_tags = parse_required_tags(data.get('required_tags'))
 
         # Resolve status id
         status_name = status if status in ('Draft', 'Published', 'Archived') else 'Draft'
@@ -631,6 +710,7 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
                     problem_question = %s,
                     clue = %s,
                     expected_answer = %s,
+                    given_input = %s,
                     correct_feedback = %s,
                     updated_at = NOW()
                 WHERE exercise_id = %s
@@ -638,48 +718,37 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
             cursor.execute(update_sql, (
                 formatted_title, resource_id, points,
                 instruction, situation, problem_question, clue,
-                expected_answer, correct_feedback, exercise_id
+                expected_answer, given_input, correct_feedback, exercise_id
             ))
             if old_row:
                 # uploaded_by (not the 'Admin' fallback) - changed_by must be a real account
                 log_title_change(cursor, "exercise", exercise_id, old_row["exercise_title"], formatted_title, uploaded_by)
-            # Clear old test cases
-            cursor.execute(f"DELETE FROM {TEST_CASES_TABLE} WHERE exercise_id = %s", (exercise_id,))
+            cursor.execute(f"DELETE FROM {REQUIRED_TAGS_TABLE} WHERE exercise_id = %s", (exercise_id,))
         else:
             insert_sql = f"""
                 INSERT INTO {CODING_EXERCISES_TABLE}
                 (
                     exercise_title, resource_id, points, exercise_stats_id,
                     instruction, situation, problem_question, clue,
-                    expected_answer, correct_feedback, uploaded_by,
+                    expected_answer, given_input, correct_feedback, uploaded_by,
                     created_at, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
             """
             cursor.execute(insert_sql, (
                 formatted_title, resource_id, points, stats_id,
                 instruction, situation, problem_question, clue,
-                expected_answer, correct_feedback, uploader
+                expected_answer, given_input, correct_feedback, uploader
             ))
             exercise_id = cursor.lastrowid
             log_title_change(cursor, "exercise", exercise_id, None, formatted_title, uploaded_by)
 
-        # Insert test cases
-        test_cases = data.get('test_cases') or []
-        if isinstance(test_cases, list):
-            for order, tc in enumerate(test_cases, start=1):
-                case_type = CASE_CHECK if tc.get('type') == CASE_CHECK else CASE_OUTPUT
-                inp = clean_test_text(tc.get('input', ''))
-                out = '' if case_type == CASE_CHECK else clean_test_text(tc.get('output', ''))
-                if inp or out:
-                    cursor.execute(
-                        f"""
-                        INSERT INTO {TEST_CASES_TABLE}
-                        (exercise_id, test_order, test_input, expected_output, case_type)
-                        VALUES (%s, %s, %s, %s, %s)
-                        """,
-                        (exercise_id, order, inp, out, case_type)
-                    )
+        for order, tag in enumerate(required_tags, start=1):
+            cursor.execute(
+                f"""INSERT INTO {REQUIRED_TAGS_TABLE} (exercise_id, tag_kind, tag_value, tag_order)
+                    VALUES (%s, %s, %s, %s)""",
+                (exercise_id, tag["kind"], tag["value"], order)
+            )
 
         connection.commit()
         cursor.close()

@@ -39,7 +39,6 @@ from learner_exercise import (
     is_exercise_done,
     exercise_score,
 )
-from exercise_ai import CheckerUnavailable  # an "AI check" test case could not be judged
 from lesson_summary import get_lesson_performance_summary, get_next_lesson_info
 from weak_spots import get_weak_spots, get_review_status  # weak-spot recommendations
 from module_review import get_module_review, module_review_summary  # Module Review card (end of every module)
@@ -629,7 +628,7 @@ def lessons_data():
                         ex_progress = cursor.fetchone()
                         if not ex_progress or ex_progress["status"] != "completed":
                             # Skipped for now (after 3 tries) also lets the lesson finish.
-                            if not exercise_score(cursor, acc_id, ex["exercise_id"], 0)["skipped"]:
+                            if not exercise_score(cursor, acc_id, ex["exercise_id"])["skipped"]:
                                 exercise_completed = False
                                 break
 
@@ -1060,7 +1059,10 @@ def lesson_exercise_submit():
     data = request.get_json(silent=True) or {}
     exercise_id = data.get("exercise_id")
     submitted_code = data.get("submitted_code", "")
-    actual_outputs = data.get("actual_outputs") or []
+    # One run with the exercise's Given input (feat/output-based-exercises):
+    # everything it printed, and the Python error it stopped with, if any.
+    actual_output = data.get("actual_output") or ""
+    error_text = data.get("error") or ""
 
     if not exercise_id:
         return jsonify({"success": False, "message": "exercise_id is required."}), 400
@@ -1074,26 +1076,19 @@ def lesson_exercise_submit():
             "message": "You already passed this exercise. Your result is saved, so it can't be submitted again.",
         }), 409
 
-    try:
-        result = grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_outputs)
-    except CheckerUnavailable as busy:
-        # An AI check could not be judged (free limit, network, no reply).
-        # Nothing was recorded, so this is not a failed try.
-        return jsonify({"success": False, "busy": True, "message": str(busy)}), 503
+    result = grade_exercise_submission(acc_id, exercise_id, submitted_code, actual_output, error_text)
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 500
 
-    passed, total, status, feedback, tips = result
-    if status == "correct":
+    if result["status"] == "correct":
         record_exercise_progress(acc_id, exercise_id)
 
     return jsonify({
         "success": True,
-        "passed": passed,
-        "total": total,
-        "status": status,
-        "feedback": feedback,
-        "tips": tips,
+        "status": result["status"],
+        "feedback": result["feedback"],
+        "output_passed": result["output_passed"],
+        "tags_passed": result["tags_passed"],
         "state": get_exercise_state(acc_id, exercise_id),
     }), 200
 

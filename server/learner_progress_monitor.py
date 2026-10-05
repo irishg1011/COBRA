@@ -16,12 +16,12 @@ BY LESSON VIEW - SCORE
     - the one place the rule is written (feat/grade-50-50).
       - activities: learner's score / item count (MCQ questions, FIB
         items, flashcards), published activities only
-      - exercise (latest published, non-archived): full credit once a
-        learner_exercise_progress_tbl row exists, otherwise the latest
-        attempt's test_cases_passed
+      - exercise (latest published, non-archived): ONE item - earned once a
+        learner_exercise_progress_tbl row exists or the latest attempt's
+        status is 'correct' (learner_exercise.exercise_score())
       - Score % = 50% ACTIVITIES + 50% LESSON CONTENT:
-          activities: POOLED - all correct items + passed test cases over
-            all items + test cases of the lesson (adviser's rule), worth 50
+          activities: POOLED - all correct items + the passed exercise over
+            all items + the exercise (adviser's rule), worth 50
           lesson content: content read, + video watched when the lesson
             has a published video, worth 50
       - lessons with nothing graded -> score None (shown as "—")
@@ -49,6 +49,7 @@ from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in 
 from activity_retakes import ensure_retake_schema
 from module_review import module_review_summary  # Module Review status in the Course Progress modal
 from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
+from learner_exercise import EXERCISE_ITEMS  # an exercise is one gradable item
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = 80
@@ -226,11 +227,10 @@ def _load_lesson_structure(cursor, resource_ids):
             "item_total": int(item_total or 0),
         })
 
-    # Latest published, non-archived exercise per lesson + its test-case count
+    # Latest published, non-archived exercise per lesson - one gradable item
     cursor.execute(
         f"""SELECT
-                ce.exercise_id, ce.resource_id, ce.exercise_title,
-                (SELECT COUNT(*) FROM test_cases_tbl tc WHERE tc.exercise_id = ce.exercise_id) AS test_total
+                ce.exercise_id, ce.resource_id, ce.exercise_title
             FROM coding_exercises_tbl ce
             JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
             WHERE ce.resource_id IN ({_ph(ids)}) AND las.la_stats_name = 'Published'
@@ -244,7 +244,7 @@ def _load_lesson_structure(cursor, resource_ids):
             lesson["exercise"] = {
                 "exercise_id": r["exercise_id"],
                 "title": r["exercise_title"],
-                "test_total": int(r["test_total"] or 0),
+                "test_total": EXERCISE_ITEMS,
             }
 
     return lessons
@@ -284,7 +284,7 @@ def _load_exercise_results(cursor, acc_ids, exercise_ids):
     passed = {(r["acc_id"], r["exercise_id"]) for r in cursor.fetchall()}
 
     cursor.execute(
-        f"""SELECT acc_id, exercise_id, test_cases_passed, status
+        f"""SELECT acc_id, exercise_id, status
             FROM exercise_submissions_tbl
             WHERE acc_id IN ({_ph(acc_ids)}) AND exercise_id IN ({_ph(exercise_ids)})
             ORDER BY attempt_number ASC, submission_id ASC""",
@@ -293,13 +293,13 @@ def _load_exercise_results(cursor, acc_ids, exercise_ids):
     submissions = {}
     for r in cursor.fetchall():
         key = (r["acc_id"], r["exercise_id"])
-        entry = submissions.setdefault(key, {"attempts": 0, "latest_passed": 0, "best_passed": 0, "skipped": False})
+        entry = submissions.setdefault(key, {"attempts": 0, "latest_passed": 0, "skipped": False})
         if r["status"] == "skipped":   # "skip for now" marker - not an attempt
             entry["skipped"] = True
             continue
         entry["attempts"] += 1
-        entry["latest_passed"] = int(r["test_cases_passed"] or 0)  # last row = latest attempt
-        entry["best_passed"] = max(entry["best_passed"], entry["latest_passed"])
+        # One item, read from the status column (never test_cases_passed). Last row = latest attempt.
+        entry["latest_passed"] = EXERCISE_ITEMS if r["status"] == "correct" else 0
     return passed, submissions
 
 
@@ -342,14 +342,9 @@ def _evaluate(row, lesson, act_progress, ex_passed, submissions):
         passed = key in ex_passed
         sub = submissions.get(key)
         skipped = bool(sub and sub["skipped"] and not passed)
-        # Same rule as learner_exercise.exercise_score(): passed -> all,
-        # skipped -> best attempt, otherwise the latest attempt.
-        if passed:
-            points = ex["test_total"]
-        elif sub:
-            points = min(sub["best_passed"] if skipped else sub["latest_passed"], ex["test_total"])
-        else:
-            points = 0
+        # Same rule as learner_exercise.exercise_score(): earned when passed
+        # or when the latest attempt is correct.
+        points = ex["test_total"] if passed or (sub and sub["latest_passed"]) else 0
         exercise_done = passed or skipped
 
         exercise = {

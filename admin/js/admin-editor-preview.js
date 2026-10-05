@@ -848,10 +848,9 @@
         const mark = (e) => { if (e.isTrusted) exerciseDirty = true; };
         form.addEventListener("input", mark);
         form.addEventListener("change", mark);
-        document.addEventListener("click", (e) => {
-            if (!e.isTrusted) return;
-            if (e.target.closest("#addTestCaseBtn, .test-case-delete-btn")) exerciseDirty = true;
-        });
+        // The "Required in the code" picker (create-exercise.js) adds and
+        // removes chips without an input event - it announces each change.
+        form.addEventListener("requiredtagschange", () => { exerciseDirty = true; });
     }
 
     function exercisePromptLine(label, value) {
@@ -898,6 +897,23 @@
         clue.innerHTML = '<i class="fa-solid fa-lightbulb"></i> ' + escapeHtml(fieldValue("problemClue") || "-");
         prompt.appendChild(clue);
         body.appendChild(prompt);
+
+        // Same rows the learner sees (lesson-content.html): required tags + expected output.
+        const tagLabels = Array.from(document.querySelectorAll("#requiredTagsSelected .required-tag-chip-label"))
+            .map((label) => label.textContent);
+        if (tagLabels.length) {
+            const tagsRow = el("div", "exercise-required-row");
+            tagsRow.appendChild(el("span", "exercise-required-label", "You must use:"));
+            const chips = el("div", "exercise-required-chips");
+            tagLabels.forEach((label) => chips.appendChild(el("span", "exercise-required-chip", label)));
+            tagsRow.appendChild(chips);
+            body.appendChild(tagsRow);
+        }
+        const expected = document.getElementById("expectedAnswer");
+        const expectedPane = el("div", "exercise-pane exercise-expected");
+        expectedPane.appendChild(el("div", "exercise-pane-head", "Your output should look like this"));
+        expectedPane.appendChild(el("pre", "exercise-output-box exercise-expected-box", expected ? expected.value : ""));
+        body.appendChild(expectedPane);
 
         const grid = el("div", "exercise-editor-grid");
         grid.appendChild(exercisePane("Your Code", "# Write your code here", true));

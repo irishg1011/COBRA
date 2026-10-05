@@ -15,7 +15,7 @@ Each kind of activity measures a different skill:
 
   - games: first-try correct items / items (a Flashcards "close" answer
     counts as right, like the game itself)
-  - exercise: test cases passed on the FIRST submission / test cases
+  - exercise: one item - right when the FIRST submission was correct
   - a skill is STRONG at STRONG_PERCENT or higher, NEEDS WORK below
   - a skill is left out when the lesson has no such activity, or the
     learner has not answered any of it yet
@@ -38,7 +38,7 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, item_ids_for_activity
 from weak_spots import _course_lessons, _build, _published_game_activities
-from learner_exercise import exercise_score
+from learner_exercise import exercise_score, EXERCISE_ITEMS
 
 STRONG_PERCENT = 80
 EXERCISE_KEY = "exercise"
@@ -84,10 +84,10 @@ def _first_try_counts(cursor, acc_id, activity_type, item_ids):
 
 
 def _exercise_first_try(cursor, acc_id, resource_id):
-    """(test cases total, passed on the first submission, attempts, skipped for now) or None."""
+    """(items total, items right on the first submission, attempts, skipped for now) or None.
+    An exercise is one item (learner_exercise.EXERCISE_ITEMS): right when the first attempt was correct."""
     cursor.execute(
-        """SELECT ce.exercise_id,
-                  (SELECT COUNT(*) FROM test_cases_tbl tc WHERE tc.exercise_id = ce.exercise_id) AS test_total
+        """SELECT ce.exercise_id
            FROM coding_exercises_tbl ce
            JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
            WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
@@ -96,10 +96,10 @@ def _exercise_first_try(cursor, acc_id, resource_id):
         (resource_id,)
     )
     row = cursor.fetchone()
-    if not row or not row["test_total"]:
+    if not row:
         return None
     cursor.execute(
-        """SELECT test_cases_passed FROM exercise_submissions_tbl
+        """SELECT status FROM exercise_submissions_tbl
            WHERE acc_id = %s AND exercise_id = %s AND status <> 'skipped'
            ORDER BY attempt_number ASC, submission_id ASC""",
         (acc_id, row["exercise_id"])
@@ -107,8 +107,9 @@ def _exercise_first_try(cursor, acc_id, resource_id):
     subs = cursor.fetchall()
     if not subs:
         return None
-    skipped = exercise_score(cursor, acc_id, row["exercise_id"], 0)["skipped"]
-    return int(row["test_total"]), int(subs[0]["test_cases_passed"] or 0), len(subs), skipped
+    skipped = exercise_score(cursor, acc_id, row["exercise_id"])["skipped"]
+    first_right = EXERCISE_ITEMS if subs[0]["status"] == "correct" else 0
+    return EXERCISE_ITEMS, first_right, len(subs), skipped
 
 
 def _weak_parts(groups, resource_id):

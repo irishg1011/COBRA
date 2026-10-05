@@ -16,7 +16,7 @@
 
     function skillHtml(skill) {
         const score = skill.key === "applying"
-            ? `${skill.right}/${skill.total} test cases on the first try${skill.attempts > 1 ? ` · passed after ${skill.attempts} tries` : ""}`
+            ? `${skill.right ? "Passed" : "Not passed"} on the first try${skill.attempts > 1 ? ` · ${skill.attempts} tries` : ""}`
             : `${skill.right}/${skill.total} on the first try`;
         const parts = (!skill.strong && skill.parts && skill.parts.length)
             ? `<p class="insight-parts"><i class="fa-solid fa-book-open"></i> Re-read: ${skill.parts.map(escapeHtml).join(", ")}</p>`

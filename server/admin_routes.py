@@ -70,8 +70,9 @@ from activity_validation import validate_activity_title, validate_activity_type_
 from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB integration
     get_coding_exercises_overview, get_exercise_stats, delete_coding_exercise,
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
-    save_coding_exercise, parse_test_cases_from_form,
+    save_coding_exercise, parse_required_tags_from_form,
 )
+from exercise_tags import catalog_for_form  # "Required in the code" tag picker (feat/output-based-exercises)
 from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise, mark_ready_to_publish_exercise, unpublish_exercise_to_ready  # Task #111 & #112; mark_ready_to_publish_exercise added for Task #publishing-schema; unpublish_exercise_to_ready added for Task #7
 from video_tutorials import (  # NEW: New Video Tutorial DB integration - Category -> Module -> Lesson cascade + Save Draft/Publish
     save_video_tutorial, get_video_tutorial,
@@ -2284,7 +2285,7 @@ def publishing_preview_video():
  
 @admin_bp.route('/publishing/preview/exercise')
 def publishing_preview_exercise():
-    """Preview's Exercise step - real prompt + test_input only, no expected_output."""
+    """Preview's Exercise step - the prompt, Expected Output, Given input and required tags."""
     resource_id = request.args.get('resource_id', type=int)
     if not resource_id:
         return jsonify({"success": False, "message": "resource_id is required."}), 400
@@ -2300,9 +2301,8 @@ def publishing_preview_exercise_grade():
     writes to exercise_submissions_tbl or learner_exercise_progress_tbl.
     """
     data = request.get_json(silent=True) or {}
-    exercise_id = data.get("exercise_id")
-    actual_outputs = data.get("actual_outputs") or []
-    result = grade_preview_exercise(exercise_id, actual_outputs)
+    result = grade_preview_exercise(data.get("exercise_id"), data.get("submitted_code"),
+                                    data.get("actual_output"), data.get("error"))
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 400
     return jsonify({"success": True, **result}), 200
@@ -2491,15 +2491,14 @@ def preview_play_exercise_submit():
     exercise_id = data.get("exercise_id")
     if not exercise_id:
         return jsonify({"success": False, "message": "exercise_id is required."}), 400
-    result = grade_preview_exercise(exercise_id, data.get("actual_outputs") or [], data.get("submitted_code"))
+    result = grade_preview_exercise(exercise_id, data.get("submitted_code"),
+                                    data.get("actual_output"), data.get("error"))
     if result is None:
         return jsonify({"success": False, "message": "Could not grade this submission."}), 500
-    if result["status"] != "correct":
-        # Same wording the learner sees (learner_exercise.grade_exercise_submission).
-        result["feedback"] = f"{result['passed']} of {result['total']} test cases passed. Review your code and try again."
     store = _preview_store()
     exercises = store.get("exercises") or {}
-    exercises[str(exercise_id)] = {"passed": result["passed"], "total": result["total"]}
+    # One item (learner_exercise.EXERCISE_ITEMS) - for the walkthrough's Summary step.
+    exercises[str(exercise_id)] = {"passed": 1 if result["status"] == "correct" else 0, "total": 1}
     store["exercises"] = exercises
     _save_preview_store(store)
     return jsonify({"success": True, **result}), 200
@@ -4435,7 +4434,7 @@ def create_coding_exercise():
     - GET: Renders the Create Coding Exercise page with live Category options
       and support for editing/preloading an existing exercise.
     - POST: Persists new or updated coding exercise into coding_exercises_tbl
-      and test_cases_tbl (Publish by default, or Draft if action=draft), then
+      with its required tags (Publish by default, or Draft if action=draft), then
       redirects back to the Manage Coding Exercises overview page.
     """
     if request.method == 'POST':
@@ -4443,7 +4442,7 @@ def create_coding_exercise():
         data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
 
         if not request.is_json:
-            data['test_cases'] = parse_test_cases_from_form(request.form)
+            data['required_tags'] = parse_required_tags_from_form(request.form)
 
         action = (request.form.get('action') or (request.get_json(silent=True) or {}).get('action') or 'publish').lower()
 
@@ -4488,6 +4487,7 @@ def create_coding_exercise():
                 'create-coding-exercise.html',
                 categories=categories,
                 existing_exercise=data,
+                tag_catalog=catalog_for_form(),
             ), 400
 
     # GET request:
@@ -4503,6 +4503,7 @@ def create_coding_exercise():
         existing_exercise=existing_exercise,
         prefill=None if existing_exercise else _read_prefill(),  # feat/publishing-tree
         return_url=_publishing_return_url(),
+        tag_catalog=catalog_for_form(),
     )
 
 
@@ -4516,7 +4517,7 @@ def save_coding_exercise_draft():
     data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
 
     if not request.is_json:
-        data['test_cases'] = parse_test_cases_from_form(request.form)
+        data['required_tags'] = parse_required_tags_from_form(request.form)
 
     # feat/publishing-tree: saving never changes an existing exercise's
     # status (save_coding_exercise() only uses it for a new row).

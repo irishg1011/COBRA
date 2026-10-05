@@ -46,6 +46,8 @@ from lesson_flashcards import (
     ANSWER_MAX_LEN as FC_ANSWER_MAX_LEN,
 )
 from publishing_preview import PREVIEW_STATUSES, get_preview_exercise
+from learner_exercise import add_public_spec   # the exercise screen's shape, same as the learner page
+from coding_exercises import ensure_output_exercise_schema
 
 PREVIEW_SESSION_KEY = "cobra_preview_play"
 
@@ -54,7 +56,6 @@ LA_STATS_TABLE = "learning_activities_stats_tbl"
 ACTIVITY_TYPES_TABLE = "activity_types_tbl"
 LEARNING_RESOURCES_TABLE = "learning_resources_tbl"
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
-TEST_CASES_TABLE = "test_cases_tbl"
 MCQ_QUESTIONS_TABLE = "mcq_questions_tbl"
 MCQ_OPTIONS_TABLE = "mcq_options_tbl"
 FILL_BLANKS_TABLE = "fill_blanks_tbl"
@@ -190,7 +191,7 @@ def resolve_scope(args):
 # LESSON SHELL + ACTIVITIES LIST (same shapes as the learner routes)
 # ============================================================
 def _exercise_by_id(cursor, exercise_id):
-    """Exercise + test inputs only (never expected_output), any status but Archived."""
+    """Exercise + what its screen shows (learner_exercise.add_public_spec), any status but Archived."""
     cursor.execute(
         f"""SELECT ce.exercise_id, ce.exercise_title, ce.points, ce.instruction,
                    ce.situation, ce.problem_question, ce.clue
@@ -203,15 +204,7 @@ def _exercise_by_id(cursor, exercise_id):
     exercise = cursor.fetchone()
     if not exercise:
         return None
-    cursor.execute(
-        f"""SELECT test_case_id, test_order, test_input
-            FROM {TEST_CASES_TABLE}
-            WHERE exercise_id = %s
-            ORDER BY test_order ASC, test_case_id ASC""",
-        (exercise_id,)
-    )
-    exercise["test_cases"] = cursor.fetchall()
-    return exercise
+    return add_public_spec(cursor, exercise)
 
 
 def get_preview_lesson(scope):
@@ -225,6 +218,7 @@ def get_preview_lesson(scope):
     if connection is None:
         return None
     try:
+        ensure_output_exercise_schema(connection)
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             f"SELECT resource_id, resource_title FROM {LEARNING_RESOURCES_TABLE} WHERE resource_id = %s",

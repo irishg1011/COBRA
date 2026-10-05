@@ -645,6 +645,46 @@
     font-style: italic;
 }
 
+/* feat/output-based-exercises: "You must use:" chips + the expected output.
+   Translucent colors and the existing pane / output-box classes, so they
+   follow the page's light and dark themes. */
+.exercise-required-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 14px;
+}
+.exercise-required-row[hidden] { display: none; }
+.exercise-required-label { font-size: 14px; font-weight: 700; }
+.exercise-required-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.exercise-required-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(22, 163, 74, 0.45);
+    background: rgba(22, 163, 74, 0.12);
+    color: #16a34a;
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.exercise-expected { margin-bottom: 16px; }
+.exercise-output-box.exercise-expected-box {   /* beats .exercise-output-box below */
+    min-height: 0;
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre;
+    word-break: normal;
+}
+
+@media (max-width: 560px) {
+    .exercise-output-box.exercise-expected-box { font-size: 12.5px; }
+}
+
 .exercise-editor-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -737,29 +777,6 @@
 }
 .exercise-hint-btn:hover { background: #fef3c7; }
 .exercise-hint-btn[hidden], .exercise-clue[hidden] { display: none; }
-
-.exercise-tips {
-    margin: -6px 0 16px;
-    padding: 12px 16px;
-    border-radius: 10px;
-    border: 1px solid #fcd34d;
-    background: #fffbeb;
-    color: #78350f;
-    font-size: 13.5px;
-}
-.exercise-tips[hidden] { display: none; }
-.exercise-tips-title { margin: 0 0 8px; font-weight: 700; }
-.exercise-tips-title i { margin-right: 6px; color: #d97706; }
-.exercise-tips ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.exercise-tips li { line-height: 1.5; overflow-wrap: anywhere; }
-.exercise-tip-test { font-weight: 700; }
-.exercise-tip-input {
-    font-family: monospace;
-    background: rgba(146, 64, 14, 0.08);
-    border-radius: 4px;
-    padding: 0 4px;
-    white-space: pre-wrap;
-}
 
 .exercise-skipped-note {
     margin: 0 0 14px;

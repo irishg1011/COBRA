@@ -31,9 +31,8 @@ so there's nothing to duplicate.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
-from coding_exercises import ensure_test_case_type_column
-from learner_exercise import evaluate_submission, public_test_cases
-from exercise_ai import CheckerUnavailable
+from coding_exercises import ensure_output_exercise_schema
+from learner_exercise import evaluate_submission, add_public_spec   # the one exercise fetch + grader
 
 CATEGORY_TABLE = "category_tbl"
 CATEGORY_STATS_TABLE = "category_stats_tbl"
@@ -45,7 +44,6 @@ LEARNING_ACTIVITIES_TABLE = "learning_activities_tbl"
 LA_STATS_TABLE = "learning_activities_stats_tbl"
 CODING_EXERCISES_TABLE = "coding_exercises_tbl"
 VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
-TEST_CASES_TABLE = "test_cases_tbl"
 MCQ_QUESTIONS_TABLE = "mcq_questions_tbl"
 MCQ_OPTIONS_TABLE = "mcq_options_tbl"
 FILL_BLANKS_TABLE = "fill_blanks_tbl"
@@ -403,7 +401,6 @@ def get_preview_activities(resource_id):
 # ADD THESE to the EXISTING publishing_preview.py (append at the end).
 # Also add these two table names near the top with the other TABLE constants:
 #     VIDEO_TUTORIALS_TABLE = "video_tutorials_tbl"
-#     TEST_CASES_TABLE = "test_cases_tbl"
 # =============================================================================
 
 
@@ -449,9 +446,9 @@ def get_preview_video(resource_id):
 def get_preview_exercise(resource_id):
     """
     Returns the Ready to Publish/Published coding exercise attached to a
-    lesson, WITH its test cases' test_input only - never expected_output,
-    mirroring learner_exercise.get_published_exercise_for_resource()'s
-    own rule exactly, just widened to PREVIEW_STATUSES.
+    lesson, with its Expected Output, Given input and required tags -
+    learner_exercise.add_public_spec(), the same shape the learner page
+    gets, just widened to PREVIEW_STATUSES.
 
     Returns None if there's no exercise in preview scope for this lesson.
     """
@@ -461,6 +458,7 @@ def get_preview_exercise(resource_id):
     if connection is None:
         return None
     try:
+        ensure_output_exercise_schema(connection)
         cursor = connection.cursor(dictionary=True)
         placeholders = _status_placeholders()
         cursor.execute(
@@ -479,16 +477,7 @@ def get_preview_exercise(resource_id):
             cursor.close()
             return None
 
-        ensure_test_case_type_column(connection)
-        cursor.execute(
-            f"""SELECT test_case_id, test_order, test_input, case_type
-                FROM {TEST_CASES_TABLE}
-                WHERE exercise_id = %s
-                ORDER BY test_order ASC, test_case_id ASC""",
-            (exercise["exercise_id"],)
-        )
-        # Same shape the learner page gets (AI checks marked, their text held back).
-        exercise["test_cases"] = public_test_cases(cursor.fetchall())
+        add_public_spec(cursor, exercise)
         cursor.close()
         return exercise
     except Error as e:
@@ -499,21 +488,15 @@ def get_preview_exercise(resource_id):
             connection.close()
 
 
-def grade_preview_exercise(exercise_id, actual_outputs, submitted_code=None):
+def grade_preview_exercise(exercise_id, submitted_code, actual_output, error_text=None):
     """
     Grades exactly like the learner's Submit - the same
-    learner_exercise.evaluate_submission() (exact-output test cases + AI
-    checks) - but NEVER writes to exercise_submissions_tbl. Nothing is
-    recorded, so an admin can resubmit the same exercise in preview
-    endlessly with zero trace left behind.
+    learner_exercise.evaluate_submission() - but NEVER writes to
+    exercise_submissions_tbl. Nothing is recorded, so an admin can
+    resubmit the same exercise in preview endlessly with zero trace.
 
-    When the AI cannot answer (no GEMINI_API_KEY, free limit reached, no
-    connection), a learner is asked to try again. Preview instead shows
-    WHY in the "How to fix it" box, so a mentor testing an exercise can
-    see what is wrong with the setup.
-
-    Returns {"passed": int, "total": int, "status": "correct"|"incorrect",
-    "feedback": str, "tips": list} or None on failure.
+    Returns {"status": "correct"|"incorrect", "feedback": str,
+    "output_passed": bool, "tags_passed": bool} or None on failure.
     """
     if not exercise_id:
         return None
@@ -521,28 +504,19 @@ def grade_preview_exercise(exercise_id, actual_outputs, submitted_code=None):
     if connection is None:
         return None
     try:
-        try:
-            result = evaluate_submission(connection, exercise_id, submitted_code or "", actual_outputs)
-        except CheckerUnavailable as busy:
-            return {
-                "passed": 0,
-                "total": 0,
-                "status": "incorrect",
-                "feedback": "The AI checker could not be reached, so this run was not graded.",
-                "tips": [{"test": "AI", "input": "", "tip": f"The AI checker did not answer: {busy.detail}"}],
-            }
+        ensure_output_exercise_schema(connection)
+        cursor = connection.cursor(dictionary=True)
+        result = evaluate_submission(cursor, exercise_id, submitted_code, actual_output, error_text)
+        cursor.close()
         if result is None:
             return None
-        status, passed, total = result["status"], result["passed"], result["total"]
-        feedback = result["correct_feedback"] if status == "correct" else f"{passed} of {total} test cases passed."
-        return {"passed": passed, "total": total, "status": status, "feedback": feedback, "tips": result["tips"]}
+        return {key: result[key] for key in ("status", "feedback", "output_passed", "tags_passed")}
     except Error as e:
         print(f"publishing_preview: failed to grade preview exercise {exercise_id}: {e}")
         return None
     finally:
         if connection.is_connected():
             connection.close()
-
 
 def get_preview_next_lesson(resource_id):
     """

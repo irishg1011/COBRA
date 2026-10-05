@@ -1,21 +1,18 @@
 """
-exercise_tips.py - Automatic "how to fix it" tips for a coding exercise
+exercise_tips.py - Plain, encouraging feedback for a coding exercise
 ------------------------------------------------------------------------------
-After a failed submission, every failing test case gets ONE plain tip,
-worked out by comparing the learner's real output with the expected
-output on the server. No AI and no outside service: the same output
-always gives the same tip.
+feat/output-based-exercises: an exercise has ONE Expected Output. After a
+submission, this file compares the learner's real output with it and
+says what kind of difference there is. No AI and no outside service: the
+same output always gives the same feedback.
 
-The expected output itself is NEVER put in a tip - only what kind of
-difference there is (nothing printed, a Python error and its line,
-capital letters only, spaces/punctuation, number of lines, a number
-that's off, input() not used).
+The expected output itself is NEVER put in the feedback - only what kind
+of difference there is (a Python error and its line, nothing printed,
+the number of lines, which line differs, capital letters / spacing).
 
-    fix_tips(code, test_rows, actual_by_id) -> [{"test": n, "input": str, "tip": str}]
-        code: the submitted code (None = unknown, skips the input() check)
-        test_rows: [{"test_case_id", "test_order", "test_input", "expected_output"}]
-        actual_by_id: {test_case_id: actual output (trimmed)}
-    tips_text(tips) -> one line per tip, saved with the attempt for mentors
+    normalize_output(text)                  -> text the comparison uses
+    error_feedback(error_text)              -> explains a Python error
+    output_feedback(actual, expected)       -> None when they match
 """
 
 import re
@@ -32,84 +29,75 @@ ERROR_HELP = {
     "IndexError": "a list position is used that doesn't exist - lists start at 0",
     "KeyError": "a dictionary key is used that doesn't exist",
     "AttributeError": "a method or property is used that this kind of value doesn't have",
-    "EOFError": "input() was called more times than this test gives input lines",
+    "EOFError": "input() was called more times than this exercise gives input lines",
     "RecursionError": "a function keeps calling itself without stopping",
 }
+GENERIC_ERROR_HELP = "read the last line of the error message - it says what went wrong"
 
 _LINE_RE = re.compile(r'File "<string>", line (\d+)')
 _ERROR_RE = re.compile(r"^(\w+(?:Error|Exception)|KeyboardInterrupt)\b:?\s*(.*)$")
-_NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
-_PUNCT_SPACE_RE = re.compile(r"[\s.,!?;:'\"\-()]+")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
-def _python_error(actual):
-    """(error name, detail, line number or None) when the output is a traceback, else None."""
-    if "Traceback (most recent call last)" not in actual and not re.search(r"^\s*File \"<string>\"", actual, re.M):
-        return None
-    name, detail = None, ""
-    for line in reversed(actual.splitlines()):
+def normalize_output(text):
+    r"""
+    The one shape both sides are compared in: line endings become "\n",
+    spaces at the end of every line are dropped, and blank lines at the
+    very start and end are dropped. Case and the spaces inside a line
+    must still match.
+    """
+    lines = [line.rstrip() for line in str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines)
+
+
+def _parse_error(error_text):
+    """(error name or None, line number or None) from a traceback."""
+    name = None
+    for line in reversed(str(error_text or "").splitlines()):
         m = _ERROR_RE.match(line.strip())
         if m:
-            name, detail = m.group(1), m.group(2).strip()
+            name = m.group(1)
             break
+    lines = _LINE_RE.findall(str(error_text or ""))
+    return name, (int(lines[-1]) if lines else None)
+
+
+def error_feedback(error_text):
+    """The learner's code stopped with a Python error - what it means, kindly."""
+    name, line = _parse_error(error_text)
+    where = f" on line {line}" if line else ""
     if not name:
+        return f"Your program stopped with an error{where}. Read the error message, fix that line and try again - you're close!"
+    meaning = ERROR_HELP.get(name, GENERIC_ERROR_HELP)
+    return f"Your program stopped with a {name}{where}: {meaning}. Fix it and try again - you're close!"
+
+
+def _plural(n, word):
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def output_feedback(actual, expected):
+    """
+    None when the normalized outputs match, else ONE hint about the kind
+    of difference (never the expected text).
+    """
+    actual, expected = normalize_output(actual), normalize_output(expected)
+    if actual == expected:
         return None
-    lines = _LINE_RE.findall(actual)
-    return name, detail, (int(lines[-1]) if lines else None)
-
-
-def _tip_for(code, test_input, expected, actual):
-    err = _python_error(actual)
-    if err:
-        name, detail, line = err
-        where = f" on line {line}" if line else ""
-        meaning = ERROR_HELP.get(name, "read the error message and check that line")
-        extra = f" ({detail})" if detail else ""
-        return f"Python stopped with a {name}{where}: {meaning}{extra}."
-
-    if not actual and expected:
-        return "Your code didn't print anything. Use print() to show the result."
-
-    if code is not None and (test_input or "").strip() and "input(" not in code:
-        return "This test gives your program input, but your code never reads it. Use input() to get it."
-
-    if actual.lower() == expected.lower():
-        return "Almost! Only the capital/small letters are different. Check uppercase and lowercase."
-
-    if _PUNCT_SPACE_RE.sub("", actual) == _PUNCT_SPACE_RE.sub("", expected):
-        return "Almost! Check the spaces and punctuation (commas, periods, !, :) in your output."
-
-    if _PUNCT_SPACE_RE.sub("", actual).lower() == _PUNCT_SPACE_RE.sub("", expected).lower():
-        return "Almost! Check the capital letters, spaces and punctuation (commas, periods, !, :) in your output."
-
-    actual_lines = actual.count("\n") + 1 if actual else 0
-    expected_lines = expected.count("\n") + 1 if expected else 0
-    if actual_lines != expected_lines:
-        return (f"Your output has {actual_lines} line{'s' if actual_lines != 1 else ''}, "
-                f"but this test expects {expected_lines}. Check how many times you print.")
-
-    actual_nums, expected_nums = _NUM_RE.findall(actual), _NUM_RE.findall(expected)
-    if (expected_nums and len(actual_nums) == len(expected_nums) and actual_nums != expected_nums
-            and _NUM_RE.sub("#", actual).lower() == _NUM_RE.sub("#", expected).lower()):
-        return "The words are right, but a number is off. Check your calculation."
-
-    return "Your output doesn't match what this test expects. Run your code with this input and compare it with the problem."
-
-
-def fix_tips(code, test_rows, actual_by_id):
-    tips = []
-    for row in sorted(test_rows, key=lambda r: (r.get("test_order") or 0, r["test_case_id"])):
-        expected = (row.get("expected_output") or "").strip()
-        actual = actual_by_id.get(row["test_case_id"], "")
-        if actual == expected:
-            continue
-        tips.append({
-            "test": len(tips) + 1 if not row.get("test_order") else int(row["test_order"]),
-            "input": row.get("test_input") or "",
-            "tip": _tip_for(code, row.get("test_input") or "", expected, actual),
-        })
-    return tips
-
-
-def tips_text(tips):
-    return "\n".join(f"Test {t['test']}: {t['tip']}" for t in tips)
+    if not actual:
+        return "Your program didn't print anything. Use print() to show the result."
+    if _WHITESPACE_RE.sub("", actual).lower() == _WHITESPACE_RE.sub("", expected).lower():
+        return "Very close. Check your capital letters and spacing."
+    actual_lines, expected_lines = actual.split("\n"), expected.split("\n")
+    if len(actual_lines) != len(expected_lines):
+        return (f"Your program printed {_plural(len(actual_lines), 'line')}, but "
+                f"{_plural(len(expected_lines), 'line')} {'is' if len(expected_lines) == 1 else 'are'} expected. "
+                f"Check how many times your code prints.")
+    for number, (a, e) in enumerate(zip(actual_lines, expected_lines), start=1):
+        if a != e:
+            return f"Line {number} of your output doesn't match yet. Compare it with the expected output and try again."
+    return "Your output doesn't match the expected output yet."

@@ -172,6 +172,49 @@
     font-style: italic;
 }
 
+/* feat/output-based-exercises: same rows as the learner's exercise step */
+.editor-preview-body .exercise-required-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 14px;
+}
+
+.editor-preview-body .exercise-required-label {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.editor-preview-body .exercise-required-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.editor-preview-body .exercise-required-chip {
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(22, 163, 74, 0.45);
+    background: rgba(22, 163, 74, 0.12);
+    color: #16a34a;
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.editor-preview-body .exercise-expected {
+    margin-bottom: 16px;
+}
+
+.editor-preview-body .exercise-output-box.exercise-expected-box {
+    min-height: 0;
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre;
+    word-break: normal;
+}
+
 .editor-preview-body .exercise-editor-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

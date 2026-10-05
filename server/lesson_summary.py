@@ -7,8 +7,8 @@ content, each activity's score, the exercise result) plus an overall
 Performance %.
 
 Performance % (feat/grade-50-50) = 50% ACTIVITIES + 50% LESSON CONTENT:
-all correct items of every activity + passed exercise test cases, POOLED
-over all items + test cases (adviser's rule), is worth 50, and going through the lesson content
+all correct items of every activity + the passed exercise (one item), POOLED
+over all items + the exercise (adviser's rule), is worth 50, and going through the lesson content
 (reading it, and watching the video when there is one) is worth the
 other 50 - so a learner who finished the lesson never sees 0%, even
 with every answer wrong. The rule itself lives in
@@ -80,7 +80,7 @@ def get_lesson_performance_summary(acc_id, resource_id):
         graded_points = 0.0
         graded_total = 0
         # graded_points / graded_total (pooled over every game item and
-        # exercise test case) are the ACTIVITY half of the grade - see
+        # the exercise, one item) are the ACTIVITY half of the grade - see
         # module_performance.lesson_grade_percent().
 
         for row in activity_rows:
@@ -132,24 +132,21 @@ def get_lesson_performance_summary(acc_id, resource_id):
         if exercise_row:
             exercise_id = exercise_row["exercise_id"]
 
-            cursor.execute("SELECT COUNT(*) AS cnt FROM test_cases_tbl WHERE exercise_id = %s", (exercise_id,))
-            test_total = cursor.fetchone()["cnt"]
-
-            ex_score = exercise_score(cursor, acc_id, exercise_id, test_total)
+            # One item (feat/output-based-exercises): earned when the latest attempt is correct.
+            ex_score = exercise_score(cursor, acc_id, exercise_id)
             ex_completed = ex_score["passed"]
             points_earned = ex_score["earned"]
 
             exercise_out = {
                 "exercise_title": exercise_row["exercise_title"],
                 "points_earned": points_earned,
-                "points_total": test_total,
+                "points_total": ex_score["total"],
                 "completed": ex_completed,
                 "skipped": ex_score["skipped"],
             }
 
-            if test_total > 0:
-                graded_points += points_earned
-                graded_total += test_total
+            graded_points += points_earned
+            graded_total += ex_score["total"]
 
         # feat/grade-50-50: 50% activities + 50% lesson content progress
         content_done, content_total = lesson_content_progress(cursor, acc_id, resource_id)

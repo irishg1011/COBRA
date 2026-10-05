@@ -255,7 +255,7 @@
                 const id = deleteBtn.dataset.id;
                 showConfirmModal(
                     "Are you sure you want to permanently delete this coding exercise? " +
-                    "This action cannot be undone and will permanently remove the exercise and all its test cases from the system.",
+                    "This action cannot be undone and will permanently remove the exercise and its settings from the system.",
                     async () => {
                         deleteBtn.style.pointerEvents = "none";
                         try {

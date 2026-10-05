@@ -106,7 +106,7 @@ def _exercise_result(cursor, acc_id, resource_id):
     row = cursor.fetchone()
     if not row:
         return None
-    score = exercise_score(cursor, acc_id, row["exercise_id"], 0)
+    score = exercise_score(cursor, acc_id, row["exercise_id"])
     return {"title": row["exercise_title"], "attempts": score["attempts"],
             "passed": score["passed"], "skipped": score["skipped"]}
 
