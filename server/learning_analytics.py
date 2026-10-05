@@ -13,7 +13,14 @@ archived) are counted.
 
 CARDS
   lesson_performance   one bar per module (course order): the average
-                       lesson score of every learner who has one there
+                       lesson score of every learner who has one there.
+                       Only modules with at least one gradeable lesson (a
+                       published MCQ / FIB / Flashcards activity with items,
+                       or a published coding exercise) - a module with
+                       nothing to score is left out. "learners" = distinct
+                       learners with a score in the module, so it always
+                       matches the average beside it. The chart and the
+                       "View data" table draw this same list, same order.
   score_distribution   each learner's overall average (average of their
                        lesson scores), counted per score band
   stages               one entry per activity type (Multiple Choice,
@@ -41,7 +48,7 @@ from mysql.connector import Error
 
 from cobradb import get_db_connection
 from account_status import refresh_inactive_accounts
-from learner_progress_monitor import _fetch_progress_rows, _evaluate_rows, _load_course_tree
+from learner_progress_monitor import _fetch_progress_rows, _evaluate_rows, _load_course_tree, _load_lesson_structure
 
 STATUS_FILTERS = {"active": "Active", "inactive": "Inactive"}
 RANGE_DAYS = {"7d": 7, "30d": 30, "90d": 90}
@@ -151,6 +158,7 @@ def get_learning_analytics(status=None, date_range=None):
             learner_ids = set(statuses)
 
         chapters, lesson_path = _load_course_tree(cursor)
+        gradeable = _gradeable_modules(cursor, lesson_path)
 
         rows = [
             r for r in _fetch_progress_rows(cursor)
@@ -166,7 +174,7 @@ def get_learning_analytics(status=None, date_range=None):
         trend = _build_trend(cursor, pairs, learner_ids)
         cursor.close()
 
-        modules = _module_performance(chapters, pairs, lesson_path)
+        modules = _module_performance(chapters, pairs, lesson_path, gradeable)
         return {
             "filters": {"status": status, "range": date_range},
             "learners_total": len(learner_ids),
@@ -190,7 +198,21 @@ def get_learning_analytics(status=None, date_range=None):
 # ------------------------------------------------------------------
 # Cards
 # ------------------------------------------------------------------
-def _module_performance(chapters, pairs, lesson_path):
+def _gradeable_modules(cursor, lesson_path):
+    """
+    module_ids that have at least one lesson with something to score: a
+    published activity with items or a published coding exercise - the same
+    lesson structure the lesson grade itself is built from.
+    """
+    structure = _load_lesson_structure(cursor, sorted(lesson_path))
+    modules = set()
+    for rid, lesson in structure.items():
+        if lesson["exercise"] or any(a["item_total"] > 0 for a in lesson["activities"]):
+            modules.add(lesson_path[rid]["module_id"])
+    return modules
+
+
+def _module_performance(chapters, pairs, lesson_path, gradeable):
     scores = {}
     learners = {}
     for row, ev in pairs:
@@ -204,6 +226,8 @@ def _module_performance(chapters, pairs, lesson_path):
     for chapter in chapters:
         for module in chapter["modules"]:
             mid = module["module_id"]
+            if mid not in gradeable:
+                continue   # nothing in this module can be scored
             out.append({
                 "module_id": mid,
                 "name": module["name"],

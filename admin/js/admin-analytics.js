@@ -207,7 +207,15 @@
                     scales: {
                         x: {
                             grid: { display: false },
-                            ticks: { maxRotation: 40, minRotation: 0, callback(value) { return shorten(this.getLabelForValue(value), 16); } },
+                            // One label per bar: Chart.js would otherwise skip
+                            // labels to make them fit, so the label under a
+                            // bar could belong to a different module.
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 60,
+                                minRotation: 0,
+                                callback(value) { return shorten(this.getLabelForValue(value), 16); },
+                            },
                         },
                         y: percentAxis(),
                     },
