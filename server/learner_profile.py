@@ -40,7 +40,7 @@ from api import generate_otp, send_email
 from auth_core import send_reset_code, verify_reset_code, reset_password, otp_storage, OTP_TTL_SECONDS
 from validators import validate_name_field, capitalize_name, validate_email_format
 from learner_routes import get_current_learner_acc_id, LEARNER_DIR
-from learner_progress_monitor import _load_course_tree, _fetch_progress_rows, _evaluate_rows
+from learner_progress_monitor import _load_course_tree, _fetch_progress_rows, _evaluate_rows, _load_lesson_structure
 from module_performance import module_performance, PASS_PERCENT
 from learning_time import record_heartbeat, get_total_seconds
 from badges import award_and_list_badges
@@ -60,6 +60,8 @@ TYPE_KEYS = {
     "Fill in the Blanks": "fib",
     "Flashcards": "flashcards",
 }
+# Breakdown bar order on the profile page (exercise = the lesson's coding exercise).
+TOPIC_TYPES = ("mcq", "flashcards", "fib", "exercise")
 CHAPTER_ICONS = ["fa-shapes", "fa-database", "fa-code-branch", "fa-cubes", "fa-cube",
                  "fa-puzzle-piece", "fa-file-code", "fa-diagram-project"]
 
@@ -202,11 +204,17 @@ def _build_overview(cursor, acc_id, collect=None):
     all_scores = []
     topics = []
 
+    # What each lesson actually has (published activities / exercise), so the
+    # Topic Performance Breakdown only lists chapters - and bars - that exist.
+    structure = _load_lesson_structure(
+        cursor, [l["resource_id"] for c in chapters for m in c["modules"] for l in m["lessons"]])
+
     for index, chapter in enumerate(chapters):
         ch_total = ch_done = 0
         ch_all_passed = True   # feat/certificate: every module of this chapter passed its gate
         ch_scores = []
-        type_fracs = {"mcq": [], "fib": [], "flashcards": []}
+        type_fracs = {key: [] for key in TOPIC_TYPES}
+        ch_types = set()   # graded content this chapter has, attempted or not
 
         for module in chapter["modules"]:
             perf = module_performance(cursor, acc_id, module["module_id"])
@@ -222,6 +230,13 @@ def _build_overview(cursor, acc_id, collect=None):
                 ch_total += 1
                 if perf["lessons"].get(rid, {}).get("completed"):
                     ch_done += 1
+                lesson_info = structure.get(rid) or {}
+                for act in lesson_info.get("activities", []):
+                    key = TYPE_KEYS.get(act["type"])
+                    if key and act["item_total"]:
+                        ch_types.add(key)
+                if lesson_info.get("exercise"):
+                    ch_types.add("exercise")
 
                 ev = by_resource.get(rid)
                 if not ev:
@@ -235,6 +250,9 @@ def _build_overview(cursor, acc_id, collect=None):
                     type_fracs[key].append(act["score"] / act["total"])
                     if act["score"] >= act["total"]:
                         perfect[key] += 1
+                ex = ev.get("exercise")
+                if ex and ex["points_total"] and (ex["passed"] or ex["skipped"] or ex["attempts"]):
+                    type_fracs["exercise"].append(ex["points_earned"] / ex["points_total"])
 
         lessons_total += ch_total
         lessons_completed += ch_done
@@ -254,8 +272,8 @@ def _build_overview(cursor, acc_id, collect=None):
             "lessons_completed": ch_done,
             "percent": round(sum(ch_scores) / len(ch_scores)) if ch_scores else None,
             "types": {
-                key: (round(sum(v) / len(v) * 100) if v else None)
-                for key, v in type_fracs.items()
+                key: (round(sum(type_fracs[key]) / len(type_fracs[key]) * 100) if type_fracs[key] else None)
+                for key in TOPIC_TYPES if key in ch_types
             },
         })
 
@@ -263,6 +281,9 @@ def _build_overview(cursor, acc_id, collect=None):
         (t for t in topics if t["percent"] is not None and t["percent"] < PASS_PERCENT),
         key=lambda t: t["percent"]
     )[:3]
+    # Chapters with no quiz / flashcards / fill-in / exercise have nothing to
+    # break down - leave them out instead of showing empty "-" bars.
+    topics = [t for t in topics if t["types"]]
 
     learning_seconds = get_total_seconds(cursor, acc_id)
     facts = {

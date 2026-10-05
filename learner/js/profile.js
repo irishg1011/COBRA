@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ['mcq', 'Multiple Choice Quiz'],
         ['flashcards', 'Flashcards'],
         ['fib', 'Fill in the Blanks'],
+        ['exercise', 'Coding Exercises'],
     ];
 
     function esc(value) {
@@ -74,12 +75,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTopics(topics, passPercent) {
         const list = $('topicList');
         if (!topics.length) {
-            list.innerHTML = '<p class="topic-empty">No chapters are published yet.</p>';
+            list.innerHTML = '<p class="topic-empty">No chapters with activities are published yet.</p>';
             return;
         }
         list.innerHTML = topics.map((t) => {
             const percentClass = t.percent == null ? 'is-empty' : (t.percent < passPercent ? 'is-low' : '');
-            const types = TYPE_LABELS.map(([key, label]) => {
+            const types = TYPE_LABELS.filter(([key]) => key in t.types).map(([key, label]) => {
                 const value = t.types[key];
                 return `
                     <div class="type-bar">
