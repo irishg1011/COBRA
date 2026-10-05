@@ -559,17 +559,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return age;
     }
 
-    function setMaxBirthdate() {
+    function setBirthdateBounds() {
         if (!birthdateInput) return;
         const today = new Date();
+        const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        // max = latest birthdate that is still >= MIN_SIGNUP_AGE (13) years old today
         const maxDate = new Date(today.getFullYear() - MIN_SIGNUP_AGE, today.getMonth(), today.getDate());
-        const yyyy = maxDate.getFullYear();
-        const mm = String(maxDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(maxDate.getDate()).padStart(2, '0');
-        birthdateInput.setAttribute('max', `${yyyy}-${mm}-${dd}`);
+        // min = earliest birthdate that is still <= MAX_SIGNUP_AGE (60) years old today
+        const minDate = new Date(today.getFullYear() - MAX_SIGNUP_AGE, today.getMonth(), today.getDate());
+        birthdateInput.setAttribute('max', fmt(maxDate));
+        birthdateInput.setAttribute('min', fmt(minDate));
     }
 
-    setMaxBirthdate();
+    setBirthdateBounds();
 
     // =========================================================================
     // --- FEATURE 2: LOAD GENDER OPTIONS FROM MySQL (gender_tbl) ---
