@@ -138,26 +138,12 @@
     window.cobraByteAdminLogout = performLogout;
     window.cobraByteOpenLogoutModal = openLogoutModal;
 
-    // ------------------------------------------------------------
-    // NEW: end the active_sessions_tbl row the INSTANT this tab closes
-    // or navigates away - not up to SESSION_TIMEOUT_MINUTES later.
-    // ------------------------------------------------------------
-    // performLogout() (above) already ends the session via a normal
-    // fetch() when the admin explicitly clicks Logout - but if they
-    // just close the tab/browser instead, no JS gets a chance to run a
-    // normal fetch(). 'pagehide' fires reliably in that case, and
-    // navigator.sendBeacon() is purpose-built for exactly this: a tiny,
-    // fire-and-forget POST the browser guarantees gets sent even while
-    // the page is mid-unload, without blocking navigation.
-    //
-    // Background safety net only - never blocks the admin from leaving,
-    // and if the beacon somehow fails to reach the server,
-    // session_tracker.py's own sweep (on the next Active Sessions
-    // count) still catches it within SESSION_TIMEOUT_MINUTES regardless.
-    window.addEventListener("pagehide", function () {
-        if (!isAuthenticated()) return;
-        if (navigator.sendBeacon) {
-            navigator.sendBeacon("/admin/session/end");
-        }
-    });
+    // NOTE: the 'pagehide' sendBeacon("/admin/session/end") that used to
+    // live here was removed (same reason as static/auth-guard.js on the
+    // learner side): 'pagehide' also fires on every RELOAD and every
+    // link to another admin page, so each one ended this admin's
+    // session row and it had to be recreated on the next request -
+    // "Active Sessions" kept flickering and a slow reload could land on
+    // a page with no session. Closing the tab is now covered by the
+    // Logout button and session_tracker.py's inactivity sweep.
 })();

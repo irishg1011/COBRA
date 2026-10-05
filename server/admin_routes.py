@@ -72,6 +72,7 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
     save_coding_exercise, parse_required_tags_from_form,
 )
+from client_ip import get_client_ip  # real visitor IP behind the proxy (Login Logs)
 from bulk_restore import restore_one, restore_many, restore_with_children, get_restore_options, summary_message  # duplicate-safe restore + bulk restore
 from exercise_tags import catalog_for_form  # "Required in the code" tag picker (feat/output-based-exercises)
 from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise, mark_ready_to_publish_exercise, unpublish_exercise_to_ready  # Task #111 & #112; mark_ready_to_publish_exercise added for Task #publishing-schema; unpublish_exercise_to_ready added for Task #7
@@ -497,7 +498,7 @@ def admin_login_page():
 def admin_login_submit():
     data = request.get_json(silent=True) or {}
     payload, status, login_info = authenticate(
-        data.get("username"), data.get("password"), "admin", request.remote_addr
+        data.get("username"), data.get("password"), "admin", get_client_ip()
     )
     if login_info:
         # Only the acc_id is stored - every admin request re-checks it

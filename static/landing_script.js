@@ -69,6 +69,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const MESSAGE_MIN = 10;
     let sending = false;
 
+    // Enter in Name / Email moves down to the next box instead of sending
+    // the form; only the Send Message button sends. (Enter inside the
+    // Message box still makes a new line.)
+    [[fields.name, fields.email], [fields.email, fields.message]].forEach(([from, to]) => {
+        if (!from || !to) return;
+        from.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || e.isComposing) return;
+            e.preventDefault();
+            to.focus();
+        });
+    });
+
     function showStatus(text, isError) {
         status.textContent = text || '';
         status.classList.toggle('is-error', Boolean(isError));

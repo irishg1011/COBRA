@@ -80,6 +80,7 @@ app.register_blueprint(consent_bp)
 
 # feat/contact-messages: the landing page's "Send Us a Message" form (public)
 from contact_routes import contact_bp
+from client_ip import get_client_ip  # real visitor IP behind the proxy (Login Logs)
 app.register_blueprint(contact_bp)
 # ============================================================
 # DATABASE CONFIG
@@ -429,7 +430,7 @@ def login():
     """
     data = request.get_json(silent=True) or {}
     payload, status, login_info = authenticate(
-        data.get("username"), data.get("password"), "learner", request.remote_addr
+        data.get("username"), data.get("password"), "learner", get_client_ip()
     )
     if login_info:
         # This browser's previous session (if any) ends here - its cookie
@@ -591,6 +592,13 @@ def serve_login():
 def serve_global_assets(filename):
     assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../assets'))
     return send_from_directory(assets_dir, filename)
+
+@app.route("/favicon.ico")
+def favicon():
+    """Tab icon for any page that doesn't name one (the CobraByte "CB" mark)."""
+    assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../assets/images'))
+    return send_from_directory(assets_dir, "favicon.ico", mimetype="image/vnd.microsoft.icon", max_age=86400)
+
 
 @app.route("/header.html")
 def serve_header():

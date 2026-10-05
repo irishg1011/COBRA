@@ -25,6 +25,7 @@ Registered onto the main app in login.py via:
 
 from flask import Blueprint, jsonify, redirect, request
 from contact_messages import submit_contact_message
+from client_ip import get_client_ip
 
 contact_bp = Blueprint("contact_bp", __name__)
 
@@ -39,7 +40,7 @@ def contact_submit():
     data = (request.get_json(silent=True) or {}) if from_script else request.form
     payload, status = submit_contact_message(
         data.get("name"), data.get("email"), data.get("message"),
-        client_key=request.remote_addr,
+        client_key=get_client_ip(),  # per-visitor rate limit, not per-proxy
         trap=data.get("website"),
     )
     if from_script:
