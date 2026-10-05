@@ -879,7 +879,7 @@ def _summarize_learner(learner, pairs, scope_ids, lesson_path, lessons_total, sc
         "lessons_total": lessons_total,
         "avg_score": round(sum(scores) / len(scores)) if scores else None,
         "completion": round((len(completed) / lessons_total) * 100) if lessons_total else 0,
-        "last_active": _fmt_date(last_active),
+        "last_active": fmt_datetime(last_active),   # "Oct 5, 2026 4:53 PM"
         "_last_active_raw": last_active,
         "_current_resource_id": current_rid,
     }
