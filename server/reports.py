@@ -22,6 +22,7 @@ Performance level (by avg_score)
 """
 
 from mysql.connector import Error
+from live_cache import live_cached  # 10-second memory for the auto-refreshing admin pages
 
 from cobradb import get_db_connection
 from learner_progress_monitor import (
@@ -114,6 +115,7 @@ def empty_learner_ranking():
     return {"learners": [], "summary": summarize_ranking([])}
 
 
+@live_cached   # the admin pages refresh every 10 s - see live_cache.py
 def get_learner_ranking(cat_id=None, module_id=None, search=None):
     """
     Returns {"learners": [...every matching learner, ranked...],

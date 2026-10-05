@@ -1,0 +1,16 @@
+{# dashboard-live-content.html - one Dashboard section; included by admin_dashboard.html and
+   re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+{% if content.ok %}
+<div class="dash-snapshot-grid">
+    {% for row in content.rows %}
+    <div class="dash-snapshot-item">
+        <span class="dash-snapshot-label">{{ row.label }}</span>
+        <strong class="dash-snapshot-value">{{ row['Published'] }}<small> / {{ row.total }}</small></strong>
+        <progress class="completion-bar dash-snapshot-bar" value="{{ row['Published'] }}" max="{{ row.total if row.total else 1 }}" aria-label="{{ row['Published'] }} of {{ row.total }} {{ row.label }} published"></progress>
+        <small class="text-muted">published</small>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="dash-section-error">Couldn't load the content snapshot right now.</p>
+{% endif %}

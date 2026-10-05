@@ -1,0 +1,37 @@
+{# dashboard-live-recent-logins.html - one Dashboard section; included by admin_dashboard.html and
+   re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+{% set role_badge = {'Admin': 'badge-admin', 'Mentor': 'badge-mentor', 'Learner': 'badge-learner'} %}
+{% if not recent_logins.ok %}
+<p class="dash-section-error">Couldn't load login attempts right now.</p>
+{% elif not recent_logins.logs %}
+<p class="dash-section-empty">No login attempts yet.</p>
+{% else %}
+<div class="table-scroll">
+    <table class="data-table dash-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in recent_logins.logs %}
+            <tr>
+                <td><span class="cell-truncate-1">{{ log.full_name }}</span></td>
+                <td><span class="badge {{ role_badge.get(log.role, 'badge-inactive') }}">{{ log.role }}</span></td>
+                <td>
+                    {% if log.status == 'Success' %}
+                    <span class="badge badge-success-log">Success</span>
+                    {% else %}
+                    <span class="badge badge-failed-log">{{ log.status or 'Failed' }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted dash-nowrap">{{ log.attempted_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}

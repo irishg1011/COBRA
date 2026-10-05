@@ -91,6 +91,7 @@ ENDPOINT_ROLES = {
     # Admin only - accounts, monitoring, reports
     # ------------------------------------------------------------
     "admin_bp.admin_dashboard": ADMIN,
+    "admin_bp.admin_dashboard_live": ADMIN,   # Dashboard auto-refresh (sections as HTML)
 
     # Account & Security
     "admin_bp.account_security": ADMIN,

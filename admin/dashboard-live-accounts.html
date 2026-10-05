@@ -1,0 +1,48 @@
+{# dashboard-live-accounts.html - one Dashboard section; included by admin_dashboard.html and
+   re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+{% if accounts.ok %}
+<div class="metrics-grid dash-metrics-grid dash-metrics-6">
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Learners</span>
+            <h2 class="metric-value">{{ accounts.accounts.learners }}</h2>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Mentors</span>
+            <h2 class="metric-value">{{ accounts.accounts.mentors }}</h2>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Admins</span>
+            <h2 class="metric-value">{{ accounts.accounts.administrators }}</h2>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Active Sessions</span>
+            <h2 class="metric-value">{{ accounts.logins.active_sessions }}</h2>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Logins Today</span>
+            <h2 class="metric-value">{{ accounts.logins.total_logins_today }}</h2>
+            <small class="dash-metric-sub">
+                <span class="dash-good">{{ accounts.logins.successful_logins }} successful</span> &middot;
+                <span class="dash-bad">{{ accounts.logins.failed_logins }} failed</span>
+            </small>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Locked Accounts</span>
+            <h2 class="metric-value dash-bad">{{ accounts.accounts.locked_accounts }}</h2>
+        </div>
+    </div>
+</div>
+{% else %}
+<p class="dash-section-error dash-section-error-card">Couldn't load account numbers right now.</p>
+{% endif %}

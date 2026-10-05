@@ -173,6 +173,7 @@
 
                 if (result.success) {
                     renderRows(result.accounts);
+                    if (window.CobraLive) CobraLive.changed("accounts-rows", result.accounts);
                     updateMetrics(result.metrics);
                 } else {
                     tableBody.innerHTML = `
@@ -203,6 +204,23 @@
         // archive or restore. Returns a promise that resolves once the
         // new rows are in the DOM.
         window.CobraAccountsTable = { refresh: runSearch };
+
+        // Live refresh (admin-live-refresh.js): same search / filters / sort
+        // that are on screen. Cards always; the rows only when they changed
+        // and no modal is open. Skipped if the admin started a search meanwhile.
+        if (window.CobraLive) {
+            CobraLive.every("accounts", async ({ modalOpen }) => {
+                const startedAt = activeRequestId;
+                const response = await fetch(`/admin/accounts/search?${buildQueryParams().toString()}`, { credentials: "include" });
+                const result = await response.json();
+                if (!result.success || startedAt !== activeRequestId) return;
+                document.querySelectorAll("[data-metric]").forEach((el) => {
+                    const value = result.metrics ? result.metrics[el.dataset.metric] : undefined;
+                    if (value !== undefined) CobraLive.setText(el, value);
+                });
+                if (!modalOpen && CobraLive.changed("accounts-rows", result.accounts)) renderRows(result.accounts);
+            });
+        }
 
         // Live search: debounced so it doesn't fire a request on every
         // single keystroke.

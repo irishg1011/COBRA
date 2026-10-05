@@ -47,6 +47,7 @@ from datetime import datetime, timedelta
 from mysql.connector import Error
 
 from cobradb import get_db_connection
+from live_cache import live_cached  # 10-second memory for the auto-refreshing admin pages
 from account_status import refresh_inactive_accounts
 from learner_progress_monitor import _fetch_progress_rows, _evaluate_rows, _load_course_tree, _load_lesson_structure
 
@@ -136,6 +137,7 @@ def empty_analytics(status="all", date_range="all"):
     }
 
 
+@live_cached   # the admin pages refresh every 10 s - see live_cache.py
 def get_learning_analytics(status=None, date_range=None):
     """Everything the Analytics page shows, or None if the database is unreachable."""
     status, date_range = _clean_filters(status, date_range)

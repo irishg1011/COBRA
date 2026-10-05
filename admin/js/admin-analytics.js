@@ -412,14 +412,39 @@
                 + `(out of ${data.learners_total}) · ${plural(data.records, "lesson record")}`;
         }
 
+        // Each card with the part of the data it draws - the live refresh
+        // redraws only the cards whose part changed.
+        const SECTIONS = [
+            ["scope", (d) => [d.learners_scored, d.learners_total, d.records], (d) => renderScope(d)],
+            ["lessonPerf", (d) => d.lesson_performance, (d) => renderLessonPerformance(d.lesson_performance || [])],
+            ["scoreDist", (d) => [d.score_distribution, d.learners_scored],
+                (d) => renderScoreDistribution(d.score_distribution || [], d.learners_scored || 0)],
+            ["stages", (d) => d.stages, (d) => renderStages(d.stages || [])],
+            ["trend", (d) => d.trend, (d) => renderTrend(d.trend || [])],
+            ["topics", (d) => d.topics, (d) => renderTopics(d.topics || {})],
+        ];
+
         function renderAll(data) {
             lastData = data;
-            renderScope(data);
-            renderLessonPerformance(data.lesson_performance || []);
-            renderScoreDistribution(data.score_distribution || [], data.learners_scored || 0);
-            renderStages(data.stages || []);
-            renderTrend(data.trend || []);
-            renderTopics(data.topics || {});
+            SECTIONS.forEach(([key, part, render]) => {
+                if (window.CobraLive) CobraLive.changed(`analytics-${key}`, part(data));
+                render(data);
+            });
+        }
+
+        // Live refresh: only the changed cards, drawn without the grow-in
+        // animation so an update never looks like a reload.
+        function renderChanged(data) {
+            lastData = data;
+            const animation = hasChartJs ? Chart.defaults.animation : null;
+            if (hasChartJs) Chart.defaults.animation = false;
+            try {
+                SECTIONS.forEach(([key, part, render]) => {
+                    if (CobraLive.changed(`analytics-${key}`, part(data))) render(data);
+                });
+            } finally {
+                if (hasChartJs) Chart.defaults.animation = animation;
+            }
         }
 
         // ------------------------------------------------------------
@@ -482,6 +507,18 @@
         });
 
         loadAnalytics();
+
+        // Live refresh (admin-live-refresh.js): same Learners / Time filters.
+        // Skipped if the admin changed a filter meanwhile.
+        if (window.CobraLive) {
+            CobraLive.every("analytics", async () => {
+                const startedAt = activeRequestId;
+                const resp = await fetch(`/admin/analytics/data?${currentParams().toString()}`, { credentials: "same-origin" });
+                const result = await resp.json().catch(() => ({ success: false }));
+                if (!result.success || startedAt !== activeRequestId) return;
+                renderChanged(result);
+            });
+        }
 
         // ------------------------------------------------------------
         // Print Dashboard

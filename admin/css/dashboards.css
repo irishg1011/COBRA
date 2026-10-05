@@ -334,3 +334,9 @@
 .dash-header-note {
     font-size: 10px;
 }
+
+/* Auto-refresh holders (admin-dashboard-live.js): no box of their own, so
+   the grids and tables inside keep exactly the layout they had. */
+.dash-live {
+    display: contents;
+}

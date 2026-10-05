@@ -116,21 +116,32 @@
             if (showingCount) showingCount.textContent = `${learners.length} learner${learners.length === 1 ? "" : "s"}`;
         }
 
+        // Cards: each value is only written when it changed (the live
+        // refresh calls this every 10 s).
+        function setText(el, value) {
+            const text = String(value);
+            if (el && el.textContent !== text) el.textContent = text;
+        }
+
         function renderSummary(s) {
             if (!s) return;
-            if (cards.total) cards.total.textContent = s.total_learners;
-            if (cards.ranked) cards.ranked.textContent = s.ranked_learners;
+            setText(cards.total, s.total_learners);
+            setText(cards.ranked, s.ranked_learners);
             if (cards.average) {
-                cards.average.textContent = pct(s.average_score);
+                setText(cards.average, pct(s.average_score));
                 CobraScore.apply(cards.average, s.average_score);
             }
-            if (cards.excellent) cards.excellent.textContent = s.excellent;
-            if (cards.needs) cards.needs.textContent = s.needs_improvement;
+            setText(cards.excellent, s.excellent);
+            setText(cards.needs, s.needs_improvement);
             if (cards.top) {
-                cards.top.innerHTML = s.top_performer
+                const html = s.top_performer
                     ? `<span class="report-top-name">${escapeHtml(s.top_performer.name)}</span>
                        <small class="report-top-score ${CobraScore.cls(s.top_performer.avg_score)}">${pct(s.top_performer.avg_score)}</small>`
                     : "—";
+                if (cards.top.dataset.liveHtml !== html) {
+                    cards.top.innerHTML = html;
+                    cards.top.dataset.liveHtml = html;
+                }
             }
         }
 
@@ -172,6 +183,7 @@
                 }
                 showError("");
                 renderTable(result.learners || []);
+                if (window.CobraLive) CobraLive.changed("report-rows", result.learners || []);
                 renderSummary(result.summary);
                 updatePrintHeader();
             } catch (err) {
@@ -192,6 +204,22 @@
             });
         }
         if (moduleSelect) moduleSelect.addEventListener("change", loadRanking);
+
+        // Live refresh (admin-live-refresh.js): same search / Chapter / Module.
+        // Cards always; the table only when its rows changed, no modal is
+        // open and the admin didn't change a filter meanwhile.
+        if (window.CobraLive) {
+            CobraLive.every("reports", async ({ modalOpen }) => {
+                const startedAt = activeRequestId;
+                const resp = await fetch(`/admin/reports/data?${buildParams().toString()}`, { credentials: "same-origin" });
+                const result = await resp.json().catch(() => ({ success: false }));
+                if (!result.success || startedAt !== activeRequestId) return;
+                renderSummary(result.summary);
+                if (!modalOpen && CobraLive.changed("report-rows", result.learners || [])) {
+                    renderTable(result.learners || []);
+                }
+            });
+        }
 
         // ------------------------------------------------------------
         // Print

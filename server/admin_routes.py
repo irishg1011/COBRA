@@ -1112,16 +1112,35 @@ def _admin_recent_logins_section():
     return dashboard_section(build)
 
 
+def _admin_dashboard_sections():
+    return {
+        "accounts": _admin_accounts_section(),
+        "learning": build_learning_section(),
+        "top_learners": build_top_learners_section(),
+        "recent_logins": _admin_recent_logins_section(),
+        "content": build_content_snapshot_section(),
+    }
+
+
 @admin_bp.route('/dashboard')
 def admin_dashboard():
-    return render_template(
-        'admin_dashboard.html',
-        accounts=_admin_accounts_section(),
-        learning=build_learning_section(),
-        top_learners=build_top_learners_section(),
-        recent_logins=_admin_recent_logins_section(),
-        content=build_content_snapshot_section(),
-    )
+    return render_template('admin_dashboard.html', **_admin_dashboard_sections())
+
+
+# Live refresh of the Dashboard (admin-dashboard-live.js, every 10 s): the
+# SAME section templates the page includes, rendered from the same data, so
+# the browser swaps a section only when its HTML changed.
+DASHBOARD_LIVE_SECTIONS = ("accounts", "learning", "top-learners", "recent-logins", "content")
+
+
+@admin_bp.route('/dashboard/live')
+def admin_dashboard_live():
+    context = _admin_dashboard_sections()
+    return jsonify({
+        "success": True,
+        "sections": {name: render_template(f"dashboard-live-{name}.html", **context)
+                     for name in DASHBOARD_LIVE_SECTIONS},
+    }), 200
 
 
 # ============================================================

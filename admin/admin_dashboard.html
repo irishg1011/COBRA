@@ -17,9 +17,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 <body data-auth-guard-mode="refresh">
-    {% set level_class = {'Excellent': 'level-excellent', 'Good': 'level-good', 'Needs Improvement': 'level-needs-improvement'} %}
-    {% set role_badge = {'Admin': 'badge-admin', 'Mentor': 'badge-mentor', 'Learner': 'badge-learner'} %}
-
+        
     <div class="admin-layout">
         {% include 'admin-sidebar.html' %}
 
@@ -50,52 +48,7 @@
                         <h2 class="dash-section-title">Accounts</h2>
                         <a href="{{ url_for('admin_bp.account_security') }}" class="view-all-link">Account &amp; Security</a>
                     </div>
-                    {% if accounts.ok %}
-                    <div class="metrics-grid dash-metrics-grid dash-metrics-6">
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Learners</span>
-                                <h2 class="metric-value">{{ accounts.accounts.learners }}</h2>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Mentors</span>
-                                <h2 class="metric-value">{{ accounts.accounts.mentors }}</h2>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Admins</span>
-                                <h2 class="metric-value">{{ accounts.accounts.administrators }}</h2>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Active Sessions</span>
-                                <h2 class="metric-value">{{ accounts.logins.active_sessions }}</h2>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Logins Today</span>
-                                <h2 class="metric-value">{{ accounts.logins.total_logins_today }}</h2>
-                                <small class="dash-metric-sub">
-                                    <span class="dash-good">{{ accounts.logins.successful_logins }} successful</span> &middot;
-                                    <span class="dash-bad">{{ accounts.logins.failed_logins }} failed</span>
-                                </small>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Locked Accounts</span>
-                                <h2 class="metric-value dash-bad">{{ accounts.accounts.locked_accounts }}</h2>
-                            </div>
-                        </div>
-                    </div>
-                    {% else %}
-                    <p class="dash-section-error dash-section-error-card">Couldn't load account numbers right now.</p>
-                    {% endif %}
+                    <div class="dash-live" data-live-section="accounts">{% include 'dashboard-live-accounts.html' %}</div>
                 </section>
 
                 <!-- b) Learning (Learner Progress -> By Learner, no filters) -->
@@ -104,36 +57,7 @@
                         <h2 class="dash-section-title">Learning</h2>
                         <a href="{{ url_for('admin_bp.learner_progress_learners') }}" class="view-all-link">Learner Progress</a>
                     </div>
-                    {% if learning.ok %}
-                    <div class="metrics-grid dash-metrics-grid dash-metrics-4">
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Average Score</span>
-                                <h2 class="metric-value {{ learning.metrics.average_score|score_class }}">{{ learning.metrics.average_score }}</h2>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Finished Course</span>
-                                <h2 class="metric-value dash-good">{{ learning.metrics.finished }}</h2>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Below {{ pass_mark }}%</span>
-                                <h2 class="metric-value dash-bad">{{ learning.metrics.below_80 }}</h2>
-                            </div>
-                        </div>
-                        <div class="metric-card dash-metric">
-                            <div class="metric-info">
-                                <span class="metric-title">Not Started</span>
-                                <h2 class="metric-value">{{ learning.metrics.not_started }}</h2>
-                            </div>
-                        </div>
-                    </div>
-                    {% else %}
-                    <p class="dash-section-error dash-section-error-card">Couldn't load learner progress right now.</p>
-                    {% endif %}
+                    <div class="dash-live" data-live-section="learning">{% include 'dashboard-live-learning.html' %}</div>
                 </section>
 
                 <div class="dash-row">
@@ -143,39 +67,7 @@
                             <h3>Top 5 learners</h3>
                             <a href="{{ url_for('admin_bp.reports') }}" class="view-all-link">View full report</a>
                         </div>
-                        {% if not top_learners.ok %}
-                        <p class="dash-section-error">Couldn't load the ranking right now.</p>
-                        {% elif not top_learners.learners %}
-                        <p class="dash-section-empty">No learner has a score yet.</p>
-                        {% else %}
-                        <div class="table-scroll">
-                            <table class="data-table dash-table">
-                                <thead>
-                                    <tr>
-                                        <th>Rank</th>
-                                        <th>Learner</th>
-                                        <th>Avg Score</th>
-                                        <th>Level</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for l in top_learners.learners %}
-                                    <tr>
-                                        <td class="report-rank">{{ l.rank }}</td>
-                                        <td>
-                                            <div class="report-learner-cell">
-                                                <strong class="cell-truncate-1">{{ l.name }}</strong>
-                                                <small class="text-muted">{{ l.acc_id }}</small>
-                                            </div>
-                                        </td>
-                                        <td class="{{ l.avg_score|score_class }}">{{ l.avg_score }}%</td>
-                                        <td><span class="badge report-level {{ level_class.get(l.level, 'level-not-rated') }}">{{ l.level }}</span></td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% endif %}
+                        <div class="dash-live" data-live-section="top-learners">{% include 'dashboard-live-top-learners.html' %}</div>
                     </section>
 
                     <!-- d) Recent logins (Login Logs) -->
@@ -184,40 +76,7 @@
                             <h3>Recent logins</h3>
                             <a href="{{ url_for('admin_bp.login_logs') }}" class="view-all-link">View all</a>
                         </div>
-                        {% if not recent_logins.ok %}
-                        <p class="dash-section-error">Couldn't load login attempts right now.</p>
-                        {% elif not recent_logins.logs %}
-                        <p class="dash-section-empty">No login attempts yet.</p>
-                        {% else %}
-                        <div class="table-scroll">
-                            <table class="data-table dash-table">
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Role</th>
-                                        <th>Status</th>
-                                        <th>Time</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for log in recent_logins.logs %}
-                                    <tr>
-                                        <td><span class="cell-truncate-1">{{ log.full_name }}</span></td>
-                                        <td><span class="badge {{ role_badge.get(log.role, 'badge-inactive') }}">{{ log.role }}</span></td>
-                                        <td>
-                                            {% if log.status == 'Success' %}
-                                            <span class="badge badge-success-log">Success</span>
-                                            {% else %}
-                                            <span class="badge badge-failed-log">{{ log.status or 'Failed' }}</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="text-muted dash-nowrap">{{ log.attempted_at }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% endif %}
+                        <div class="dash-live" data-live-section="recent-logins">{% include 'dashboard-live-recent-logins.html' %}</div>
                     </section>
                 </div>
 
@@ -227,20 +86,7 @@
                         <h3>Content snapshot</h3>
                         <a href="{{ url_for('admin_bp.publishing') }}" class="view-all-link">View Publishing</a>
                     </div>
-                    {% if content.ok %}
-                    <div class="dash-snapshot-grid">
-                        {% for row in content.rows %}
-                        <div class="dash-snapshot-item">
-                            <span class="dash-snapshot-label">{{ row.label }}</span>
-                            <strong class="dash-snapshot-value">{{ row['Published'] }}<small> / {{ row.total }}</small></strong>
-                            <progress class="completion-bar dash-snapshot-bar" value="{{ row['Published'] }}" max="{{ row.total if row.total else 1 }}" aria-label="{{ row['Published'] }} of {{ row.total }} {{ row.label }} published"></progress>
-                            <small class="text-muted">published</small>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <p class="dash-section-error">Couldn't load the content snapshot right now.</p>
-                    {% endif %}
+                    <div class="dash-live" data-live-section="content">{% include 'dashboard-live-content.html' %}</div>
                 </section>
             </div>
         </main>
@@ -248,5 +94,6 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-live.js') }}"></script>
 </body>
 </html>

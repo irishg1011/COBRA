@@ -62,7 +62,7 @@
         // changes, lockouts, and password resets that happen while the
         // page is open - without requiring a manual page reload.
         const METRICS_ENDPOINT = "/admin/login-logs/metrics";
-        const METRICS_REFRESH_MS = 15000; // periodic auto-refresh interval
+        // Refreshed every 10 s by the shared admin-live-refresh.js (below).
 
         const metricElements = {
             total_logins_today: document.getElementById("metric-total-logins-today"),
@@ -88,8 +88,11 @@
                     if (!el) return;
                     const value = result.metrics[key];
                     // Gracefully fall back to 0 rather than showing
-                    // "undefined"/blank if a key is ever missing.
-                    el.textContent = (value === null || value === undefined) ? "0" : value;
+                    // "undefined"/blank if a key is ever missing. Only
+                    // written when it changed.
+                    const text = (value === null || value === undefined) ? "0" : value;
+                    if (window.CobraLive) CobraLive.setText(el, text);
+                    else el.textContent = text;
                 });
             } catch (err) {
                 // Best-effort: leave whatever values are currently on
@@ -100,10 +103,10 @@
         }
 
         // Refresh once immediately (covers activity that happened
-        // between the server render and the page finishing load), then
-        // keep polling so the cards stay live without a manual reload.
+        // between the server render and the page finishing load); after
+        // that the shared live refresh keeps the cards (and the table) up
+        // to date - see the CobraLive.every() call at the end.
         loadMetrics();
-        setInterval(loadMetrics, METRICS_REFRESH_MS);
 
         function escapeHtml(str) {
             const div = document.createElement("div");
@@ -162,16 +165,21 @@
 
         }
 
+        // Only writes when the text changed (live refresh calls this every 10 s).
+        function setText(el, text) {
+            if (el && el.textContent !== text) el.textContent = text;
+        }
+
         // Footer: "Showing 10 of 57 logs" + "2 of 6" + Prev / Next.
         function updatePagination(countOnPage, total, page, pages) {
             currentPage = page;
             totalPages = pages;
-            tableBody.dataset.page = String(page);
-            tableBody.dataset.totalPages = String(pages);
-            if (showingCount) showingCount.textContent = `Showing ${countOnPage} of ${total} log${total !== 1 ? "s" : ""}`;
-            if (pageLabel) pageLabel.textContent = `${page} of ${pages}`;
-            if (prevBtn) prevBtn.disabled = page <= 1;
-            if (nextBtn) nextBtn.disabled = page >= pages;
+            if (tableBody.dataset.page !== String(page)) tableBody.dataset.page = String(page);
+            if (tableBody.dataset.totalPages !== String(pages)) tableBody.dataset.totalPages = String(pages);
+            setText(showingCount, `Showing ${countOnPage} of ${total} log${total !== 1 ? "s" : ""}`);
+            setText(pageLabel, `${page} of ${pages}`);
+            if (prevBtn && prevBtn.disabled !== (page <= 1)) prevBtn.disabled = page <= 1;
+            if (nextBtn && nextBtn.disabled !== (page >= pages)) nextBtn.disabled = page >= pages;
         }
 
         function showDateError(message) {
@@ -240,6 +248,7 @@
 
                 if (result.success) {
                     renderRows(result.logs);
+                    if (window.CobraLive) CobraLive.changed("login-logs-rows", result.logs);
                     updatePagination(result.logs.length, result.total, result.page, result.total_pages);
                     // Cheap extra freshness: a search/filter round-trip is
                     // a natural moment to also re-sync the metric cards.
@@ -299,6 +308,23 @@
         if (prevBtn) {
             prevBtn.addEventListener("click", () => {
                 if (currentPage > 1) { currentPage--; scheduleFetch(false); }
+            });
+        }
+
+        // Live refresh (admin-live-refresh.js): the six cards always; the
+        // current page of the table (same search / filters / sort / page)
+        // only when its rows changed, no modal is open and the admin didn't
+        // start a new search meanwhile.
+        if (window.CobraLive) {
+            CobraLive.every("login-logs", async ({ modalOpen }) => {
+                await loadMetrics();
+                if (modalOpen || !validateDates()) return;
+                const startedAt = activeRequestId;
+                const response = await fetch(`/admin/login-logs/data?${buildQueryParams().toString()}`, { credentials: "include" });
+                const result = await response.json();
+                if (!result.success || startedAt !== activeRequestId) return;
+                if (CobraLive.changed("login-logs-rows", result.logs)) renderRows(result.logs);
+                updatePagination(result.logs.length, result.total, result.page, result.total_pages);
             });
         }
         if (nextBtn) {

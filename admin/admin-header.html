@@ -105,6 +105,8 @@
 {# One score color rule for every page (green at/above the pass mark, red below).
    Not deferred: page scripts below it call CobraScore. #}
 <script src="{{ url_for('admin_bp.static', filename='js/admin-score.js') }}"></script>
+{# Auto-refresh of the stat cards / tables (one 10 s timer per page). Not deferred: page scripts register with it. #}
+<script src="{{ url_for('admin_bp.static', filename='js/admin-live-refresh.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-search.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-notifications.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-menu.js') }}"></script>

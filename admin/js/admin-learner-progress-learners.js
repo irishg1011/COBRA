@@ -189,7 +189,8 @@
         function updateMetrics(metrics) {
             if (!metrics) return;
             Object.keys(metricEls).forEach((key) => {
-                if (metricEls[key] && metrics[key] !== undefined) {
+                // Only written when it changed (the live refresh calls this every 10 s).
+                if (metricEls[key] && metrics[key] !== undefined && metricEls[key].textContent !== String(metrics[key])) {
                     metricEls[key].textContent = metrics[key];
                 }
                 if (key === "average_score") CobraScore.apply(metricEls[key], metrics[key]);
@@ -199,10 +200,12 @@
         function updatePagination(countOnPage, total, page, pages) {
             currentPage = page;
             totalPages = pages;
-            if (showingCount) showingCount.textContent = `Showing ${countOnPage} of ${total} learners`;
-            if (pageLabel) pageLabel.textContent = `${page} of ${pages}`;
-            if (prevBtn) prevBtn.disabled = page <= 1;
-            if (nextBtn) nextBtn.disabled = page >= pages;
+            const showingCountText = `Showing ${countOnPage} of ${total} learners`;
+            if (showingCount && showingCount.textContent !== showingCountText) showingCount.textContent = showingCountText;
+            const pageLabelText = `${page} of ${pages}`;
+            if (pageLabel && pageLabel.textContent !== pageLabelText) pageLabel.textContent = pageLabelText;
+            if (prevBtn && prevBtn.disabled !== (page <= 1)) prevBtn.disabled = page <= 1;
+            if (nextBtn && nextBtn.disabled !== (page >= pages)) nextBtn.disabled = page >= pages;
         }
 
         async function fetchLearners(page = 1) {
@@ -222,6 +225,7 @@
 
                 const learners = data.learners || [];
                 renderRows(learners);
+                if (window.CobraLive) CobraLive.changed("learner-progress-rows", learners);
                 updateMetrics(data.metrics);
                 updatePagination(learners.length, data.total || 0, data.page || 1, data.total_pages || 1);
             } catch (err) {
@@ -268,6 +272,28 @@
         if (nextBtn) {
             nextBtn.addEventListener("click", () => {
                 if (currentPage < totalPages) fetchLearners(currentPage + 1);
+            });
+        }
+
+        // Live refresh (admin-live-refresh.js): same search / filters / page
+        // that are on screen. Cards always; the rows only when they changed,
+        // no modal is open and the admin didn't start a new search meanwhile.
+        if (window.CobraLive) {
+            CobraLive.every("learner-progress-rows", async ({ modalOpen }) => {
+                if (!validateDates()) return;
+                const startedAt = activeRequestId;
+                const response = await fetch(`/admin/learner-progress/learners/data?${buildParams(currentPage).toString()}`, {
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    credentials: "include",
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                if (startedAt !== activeRequestId) return;
+                updateMetrics(data.metrics);
+                if (modalOpen) return;
+                const learners = data.learners || [];
+                if (CobraLive.changed("learner-progress-rows", learners)) renderRows(learners);
+                updatePagination(learners.length, data.total || 0, data.page || 1, data.total_pages || 1);
             });
         }
 

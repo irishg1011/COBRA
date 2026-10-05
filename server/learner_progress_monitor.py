@@ -44,6 +44,7 @@ BY LEARNER VIEW: see the section further down.
 from datetime import datetime
 from mysql.connector import Error
 from cobradb import get_db_connection
+from live_cache import live_cached  # 10-second memory for the auto-refreshing admin pages
 from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
 from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
 from activity_retakes import ensure_retake_schema, PASS_PERCENT
@@ -544,6 +545,7 @@ def _metrics(evaluated):
     }
 
 
+@live_cached   # the admin pages refresh every 10 s - see live_cache.py
 def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=None, module_id=None,
                                   started_from=None, started_to=None,
                                   completed_from=None, completed_to=None,
@@ -952,6 +954,7 @@ def build_learner_summaries(cursor, search_query=None, cat_id=None, module_id=No
     ]
 
 
+@live_cached   # the admin pages refresh every 10 s - see live_cache.py
 def get_learners_progress_overview(search_query=None, status_filter=None, cat_id=None,
                                    module_id=None, active_from=None, active_to=None,
                                    page=1, per_page=DEFAULT_PER_PAGE):

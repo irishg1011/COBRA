@@ -1,0 +1,32 @@
+{# dashboard-live-learning.html - one Dashboard section; included by admin_dashboard.html and
+   re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+{% if learning.ok %}
+<div class="metrics-grid dash-metrics-grid dash-metrics-4">
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Average Score</span>
+            <h2 class="metric-value {{ learning.metrics.average_score|score_class }}">{{ learning.metrics.average_score }}</h2>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Finished Course</span>
+            <h2 class="metric-value dash-good">{{ learning.metrics.finished }}</h2>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Below {{ pass_mark }}%</span>
+            <h2 class="metric-value dash-bad">{{ learning.metrics.below_80 }}</h2>
+        </div>
+    </div>
+    <div class="metric-card dash-metric">
+        <div class="metric-info">
+            <span class="metric-title">Not Started</span>
+            <h2 class="metric-value">{{ learning.metrics.not_started }}</h2>
+        </div>
+    </div>
+</div>
+{% else %}
+<p class="dash-section-error dash-section-error-card">Couldn't load learner progress right now.</p>
+{% endif %}

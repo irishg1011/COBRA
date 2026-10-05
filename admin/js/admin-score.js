@@ -59,8 +59,10 @@
     function apply(el, v) {
         if (!el) return;
         const next = cls(v);
-        CLASSES.forEach((c) => { if (c !== next) el.classList.remove(c); });
-        el.classList.add(next);
+        // Only touch the class list when it must change (the live refresh
+        // calls this every 10 s - an add/remove always rewrites the attribute).
+        CLASSES.forEach((c) => { if (c !== next && el.classList.contains(c)) el.classList.remove(c); });
+        if (!el.classList.contains(next)) el.classList.add(next);
     }
 
     function cssVar(name, fallback) {

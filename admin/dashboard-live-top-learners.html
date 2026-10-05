@@ -1,0 +1,36 @@
+{# dashboard-live-top-learners.html - one Dashboard section; included by admin_dashboard.html and
+   re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+{% set level_class = {'Excellent': 'level-excellent', 'Good': 'level-good', 'Needs Improvement': 'level-needs-improvement'} %}
+{% if not top_learners.ok %}
+<p class="dash-section-error">Couldn't load the ranking right now.</p>
+{% elif not top_learners.learners %}
+<p class="dash-section-empty">No learner has a score yet.</p>
+{% else %}
+<div class="table-scroll">
+    <table class="data-table dash-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Learner</th>
+                <th>Avg Score</th>
+                <th>Level</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in top_learners.learners %}
+            <tr>
+                <td class="report-rank">{{ l.rank }}</td>
+                <td>
+                    <div class="report-learner-cell">
+                        <strong class="cell-truncate-1">{{ l.name }}</strong>
+                        <small class="text-muted">{{ l.acc_id }}</small>
+                    </div>
+                </td>
+                <td class="{{ l.avg_score|score_class }}">{{ l.avg_score }}%</td>
+                <td><span class="badge report-level {{ level_class.get(l.level, 'level-not-rated') }}">{{ l.level }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
