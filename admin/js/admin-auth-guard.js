@@ -9,7 +9,7 @@
  * WHY THIS EXISTS
  * Gives the admin pages the same Back-button trap the Learner Dashboard
  * has, so Back never drops an admin onto the login page while still
- * signed in. (feat/admin-login-page: admins now sign in at /admin/login,
+ * signed in. (feat/admin-login-page: admins now sign in at /staff/login,
  * served by the same Flask app on :5000 - no more Live Server / :5500.)
  *
  * BACK / FORWARD BUTTONS
@@ -20,14 +20,14 @@
  * NOTE
  * The real access control is server-side: every admin_bp route checks
  * session["admin_id"] (admin_routes.py _require_admin_session) and sends
- * signed-out / archived admins to /admin/login. The sessionStorage flag
+ * signed-out / archived admins to /staff/login. The sessionStorage flag
  * here only drives the Back-button behavior.
  */
 (function () {
     "use strict";
 
     // feat/admin-login-page: the admin's own login page (same origin).
-    const LOGIN_PAGE_URL = "/admin/login";
+    const LOGIN_PAGE_URL = "/staff/login";
     const AUTH_FLAG_KEY = "isAdminAuthenticated";
 
     function isAuthenticated() {

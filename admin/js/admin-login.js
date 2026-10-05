@@ -11,8 +11,8 @@
  *
  * Every call is same-origin (relative URLs) so the session cookie always
  * goes along - no more :5000 / :5500 mix-ups:
- *   POST /admin/login
- *   POST /admin/forgot-password/send-otp | verify-otp | reset-password
+ *   POST /staff/login
+ *   POST /staff/forgot-password/send-otp | verify-otp | reset-password
  * All rules are enforced on the server (auth_core.py); this file only
  * gives instant feedback.
  */
@@ -236,7 +236,7 @@
             setButtonLoading(loginBtn, "Signing in...");
             let result;
             try {
-                result = await postJson("/admin/login", { username: user, password: passwordInput.value });
+                result = await postJson("/staff/login", { username: user, password: passwordInput.value });
             } catch (err) {
                 resetButtonLoading(loginBtn);
                 showInlineError(passwordAnchor, "Could not reach the server. Please try again.");
@@ -247,7 +247,7 @@
 
             if (data.success) {
                 showPanel(panels.signInSuccess);
-                setTimeout(() => window.location.replace(data.redirect || "/admin/login"), REDIRECT_DELAY_MS);
+                setTimeout(() => window.location.replace(data.redirect || "/staff/login"), REDIRECT_DELAY_MS);
                 return;
             }
 
@@ -324,7 +324,7 @@
             const button = isResend ? null : proceedBtn;
             if (button) setButtonLoading(button, "Sending code...");
             try {
-                const { data } = await postJson("/admin/forgot-password/send-otp", { email });
+                const { data } = await postJson("/staff/forgot-password/send-otp", { email });
                 if (!data.success) {
                     if (isResend) showBlockError(otpWrapper, data.message);
                     else showInlineError(forgotEmailInput, data.message);
@@ -435,7 +435,7 @@
 
             setButtonLoading(verifyBtn, "Verifying...");
             try {
-                const { data } = await postJson("/admin/forgot-password/verify-otp", {
+                const { data } = await postJson("/staff/forgot-password/verify-otp", {
                     email: forgotEmailInput.value.trim(),
                     otp: code,
                 });
@@ -515,7 +515,7 @@
 
             setButtonLoading(resetBtn, "Resetting...");
             try {
-                const { data } = await postJson("/admin/forgot-password/reset-password", {
+                const { data } = await postJson("/staff/forgot-password/reset-password", {
                     email: forgotEmailInput.value.trim(),
                     newPassword: pwd,
                     confirmPassword: confirmPwd,

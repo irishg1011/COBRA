@@ -1128,7 +1128,7 @@ if (result.success) {
     showPanel(successPanel);
 
     // feat/admin-login-page: this page only signs learners in - admins
-    // get a 403 and a link to /admin/login instead - so it's always the
+    // get a 403 and a link to /staff/login instead - so it's always the
     // learner dashboard.
     const destination = result.redirect || "/dashboard";
 

@@ -24,14 +24,14 @@ from datetime import datetime
 import time
 import re
 from login_logs import log_login_attempt  # NEW: reusable login attempt logger
-from admin_routes import admin_bp  # NEW: import admin blueprint
+from admin_routes import admin_bp, staff_bp  # NEW: import admin blueprint (+ /staff login)
 from learner_routes import learner_bp  # NEW: import learner blueprint|
 from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (own blueprint)
 from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
 from learner_profile import learner_profile_bp  # Profile dropdown: View/Edit Profile, Change Password, badges
 from notifications import learner_notifications_bp, notify  # header bell notifications
 from session_tracker import end_session, touch_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
-from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /admin/login
+from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /staff/login
     authenticate, send_reset_code, verify_reset_code, reset_password, otp_storage,
     send_username_code, verify_username_code,  # feat/forgot-username
 )
@@ -60,6 +60,7 @@ app.secret_key = os.environ.get("COBRABYTE_SECRET_KEY", "dev-only-change-me")
 # Register the admin blueprint (only once, now that app.py's duplicate
 # registration no longer exists)
 app.register_blueprint(admin_bp, url_prefix='/admin')
+app.register_blueprint(staff_bp, url_prefix='/staff')  # staff login page + its Forgot Password (public)
 
 # NEW: Learner-side pages (Dashboard, Sandbox) and learner/ folder assets -
 # kept in their own blueprint (learner_routes.py) the same way admin
@@ -425,7 +426,7 @@ def _keep_learner_session_alive():
 def login():
     """
     Learner door. All the rules (sweep, 5-try lockout, logs, archived
-    message) live in auth_core.authenticate() - shared with /admin/login.
+    message) live in auth_core.authenticate() - shared with /staff/login.
     A staff account gets the same "Invalid username or password." as an
     unknown username here - this page never reveals staff accounts.
     """
@@ -450,7 +451,7 @@ def login():
 
 # ============================================================
 # ROUTES: LEARNER FORGOT PASSWORD (send code -> verify -> reset)
-# Learner accounts only - admins reset from /admin/login.
+# Learner accounts only - staff reset from /staff/login.
 # ============================================================
 @app.route("/forgot-password/send-otp", methods=["POST"])
 def forgot_password_send_otp():

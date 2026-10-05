@@ -4,7 +4,7 @@ auth_core.py - Shared sign-in + password-reset logic (feat/admin-login-page)
 ONE copy of the login rules, used by both doors:
 
     Learner login  (/login, login.py)           portal = "learner"
-    Staff login    (/admin/login, admin_routes)  portal = "admin"
+    Staff login    (/staff/login, admin_routes.staff_bp)  portal = "admin"
 
 Moved here unchanged from login.py's /login + /forgot-password routes:
 inactivity sweep, 5-try lockout (1 minute), login logs, lockout logs,
@@ -60,7 +60,7 @@ USERTYPE_TABLE = "usertype_tbl"
 PORTAL_ROLES = {"learner": (LEARNER_ROLE,), "admin": STAFF_ROLES}
 
 LEARNER_LOGIN_URL = "/login"
-ADMIN_LOGIN_URL = "/admin/login"
+ADMIN_LOGIN_URL = "/staff/login"
 LEARNER_HOME_URL = "/dashboard"
 ADMIN_HOME_URL = "/admin/dashboard"
 

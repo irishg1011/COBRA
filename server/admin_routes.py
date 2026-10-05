@@ -145,21 +145,24 @@ admin_bp = Blueprint(
     static_url_path='/admin/assets'    # Creates a direct route for them
 )
 
-# feat/admin-login-page: admins have their own login page, served by this
-# same Flask app (/admin/login) - no more Live Server (:5500) URL. Relative,
-# so it works on 127.0.0.1:5000 and localhost:5000 alike and the session
-# cookie always stays on the same origin.
-LOGIN_REDIRECT_URL = "/admin/login"
+# feat/admin-login-page: staff have their own login page, served by this
+# same Flask app - no more Live Server (:5500) URL. Relative, so it works
+# on 127.0.0.1:5000 and localhost:5000 alike and the session cookie always
+# stays on the same origin.
+#
+# The login page and its Forgot Password calls live under /staff (staff_bp
+# below, registered in login.py) instead of /admin. Those routes are public
+# on purpose, so they are on their own blueprint: admin_bp's before_request
+# never runs for them. /admin/login only redirects there (old bookmarks).
+LOGIN_REDIRECT_URL = "/staff/login"
+
+staff_bp = Blueprint('staff_bp', __name__, template_folder=ADMIN_DIR)
 
 # Routes a signed-out admin must still reach (the login page itself, its
 # reset flow, and the tab-close beacon). Everything else needs a session.
 PUBLIC_ADMIN_ENDPOINTS = {
     'admin_bp.static',
-    'admin_bp.admin_login_page',
-    'admin_bp.admin_login_submit',
-    'admin_bp.admin_forgot_send_otp',
-    'admin_bp.admin_forgot_verify_otp',
-    'admin_bp.admin_forgot_reset',
+    'admin_bp.admin_login_moved',
     'admin_bp.admin_session_end_beacon',
 }
 
@@ -484,6 +487,12 @@ def inject_current_admin():
 # a learner account gets the same generic message as an unknown username.
 # ============================================================
 @admin_bp.route('/login', methods=['GET'])
+def admin_login_moved():
+    """Old address of the staff login page - sends old bookmarks to /staff/login."""
+    return redirect(LOGIN_REDIRECT_URL, code=301)
+
+
+@staff_bp.route('/login', methods=['GET'])
 def admin_login_page():
     """Staff sign-in page. A staff member already signed in goes straight to their role's home."""
     admin_id = session.get("admin_id")
@@ -494,7 +503,7 @@ def admin_login_page():
     return render_template('admin-login.html')
 
 
-@admin_bp.route('/login', methods=['POST'])
+@staff_bp.route('/login', methods=['POST'])
 def admin_login_submit():
     data = request.get_json(silent=True) or {}
     payload, status, login_info = authenticate(
@@ -514,21 +523,21 @@ def admin_login_submit():
     return jsonify(payload), status
 
 
-@admin_bp.route('/forgot-password/send-otp', methods=['POST'])
+@staff_bp.route('/forgot-password/send-otp', methods=['POST'])
 def admin_forgot_send_otp():
     data = request.get_json(silent=True) or {}
     payload, status = send_reset_code(data.get("email"), "admin")
     return jsonify(payload), status
 
 
-@admin_bp.route('/forgot-password/verify-otp', methods=['POST'])
+@staff_bp.route('/forgot-password/verify-otp', methods=['POST'])
 def admin_forgot_verify_otp():
     data = request.get_json(silent=True) or {}
     payload, status = verify_reset_code(data.get("email"), data.get("otp"), "admin")
     return jsonify(payload), status
 
 
-@admin_bp.route('/forgot-password/reset-password', methods=['POST'])
+@staff_bp.route('/forgot-password/reset-password', methods=['POST'])
 def admin_forgot_reset():
     data = request.get_json(silent=True) or {}
     payload, status = reset_password(
