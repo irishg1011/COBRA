@@ -30,7 +30,7 @@ from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (
 from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
 from learner_profile import learner_profile_bp  # Profile dropdown: View/Edit Profile, Change Password, badges
 from notifications import learner_notifications_bp, notify  # header bell notifications
-from session_tracker import end_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
+from session_tracker import end_session, touch_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
 from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /admin/login
     authenticate, send_reset_code, verify_reset_code, reset_password, otp_storage,
     send_username_code, verify_username_code,  # feat/forgot-username
@@ -383,6 +383,41 @@ def signup():
 
 
 # ============================================================
+# LEARNER SESSION KEEP-ALIVE
+# ============================================================
+# A learner counts as signed in only while their session_token has a row
+# in active_sessions_tbl (learner_routes.get_current_learner_acc_id).
+# Nothing used to refresh that row for learners, so it looked "stale" 30
+# minutes after sign-in, and the next sweep (session_tracker, run when an
+# admin page counts Active Sessions) deleted it - the learner then got
+# "Not logged in" in the middle of an activity.
+#
+# Now any learner request refreshes the row, at most once a minute per
+# browser (the time of the last refresh is kept in the session cookie).
+# Learner pages already call the server every minute while open, so a
+# learner who is using the site is never swept. UPDATE only: a row ended
+# on purpose (Logout, archived account) is never brought back here.
+# Staff sessions are left to admin_routes._require_admin_session.
+LEARNER_KEEP_ALIVE_SECONDS = 60
+
+
+@app.before_request
+def _keep_learner_session_alive():
+    token = session.get("session_token")
+    if not token or session.get("admin_id") or request.endpoint == "static":
+        return
+    now = int(time.time())
+    try:
+        last = int(session.get("seen_at") or 0)
+    except (TypeError, ValueError):
+        last = 0
+    if now - last < LEARNER_KEEP_ALIVE_SECONDS:
+        return
+    session["seen_at"] = now
+    touch_session(token)
+
+
+# ============================================================
 # ROUTE: LEARNER LOGIN
 # ============================================================
 @app.route("/login", methods=["POST"])
@@ -397,6 +432,9 @@ def login():
         data.get("username"), data.get("password"), "learner", request.remote_addr
     )
     if login_info:
+        # This browser's previous session (if any) ends here - its cookie
+        # is replaced below. Sessions on OTHER devices are not touched.
+        end_session(session.get("session_token"))
         session.clear()
         if login_info["session_token"]:
             session["session_token"] = login_info["session_token"]

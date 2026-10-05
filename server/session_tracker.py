@@ -7,6 +7,13 @@ means "this account has an open session right now" and is removed the
 moment that session ends or goes stale - this is what the "Active
 Sessions" metric counts, never login/logout history.
 
+ONE ROW PER SIGNED-IN BROWSER, not per account: the same account can be
+signed in on a phone and a laptop at the same time, each with its own
+session_token. Signing in on one device never signs out another. A row
+goes away when that device logs out, when its account is archived
+(end_sessions_for_account), or when it has been idle longer than
+SESSION_TIMEOUT_MINUTES and a sweep runs.
+
     active_sessions_tbl
     --------------------
     session_id     INT AUTO_INCREMENT PRIMARY KEY
@@ -20,6 +27,9 @@ USAGE
     - login.py:  create_session(acc_id) on successful login (Admin or
                  Learner), store the returned token in Flask session[].
     - login.py:  end_session(token) on the Learner /logout route.
+    - login.py:  touch_session(token) about once a minute while a learner
+                 is using the site (_keep_learner_session_alive), so an
+                 active learner is never swept as stale.
     - admin_routes.py: end_session(token) on admin_logout().
     - admin_routes.py: touch_session(token) on every authenticated admin
                  request (keeps a session "warm" while actively browsing
@@ -100,10 +110,13 @@ def create_session(acc_id):
     session token to store in Flask's server-side session[] (e.g.
     session["session_token"] = token).
 
-    Any pre-existing row for this same acc_id is deleted first, so a
-    fresh login always supersedes a stale/duplicate row left behind by
-    a previous crashed browser tab - each account only ever occupies at
-    most one row here at a time.
+    Other sessions of the same account are LEFT ALONE, so one account
+    can be signed in on several devices at once (the newest login used
+    to delete every older row, which signed the other device out in the
+    middle of whatever it was doing). Only this account's rows that are
+    already stale - idle longer than SESSION_TIMEOUT_MINUTES, e.g. a
+    crashed tab or a browser closed without logging out - are cleared
+    here, so dead rows do not pile up.
 
     Returns the token (str), or None if the session couldn't be
     created (DB unreachable). A None return should NOT block the login
@@ -119,7 +132,12 @@ def create_session(acc_id):
         _ensure_table(connection)
         cursor = connection.cursor()
 
-        cursor.execute(f"DELETE FROM {ACTIVE_SESSIONS_TABLE} WHERE acc_id = %s", (acc_id,))
+        cursor.execute(
+            f"""DELETE FROM {ACTIVE_SESSIONS_TABLE}
+                WHERE acc_id = %s
+                  AND TIMESTAMPDIFF(SECOND, last_seen_at, NOW()) > %s""",
+            (acc_id, _get_timeout_minutes() * 60)
+        )
 
         token = secrets.token_hex(32)
         cursor.execute(
@@ -276,9 +294,11 @@ def get_active_session_count(connection):
     """
     Backs the "Active Sessions" metric card. Sweeps stale sessions
     first (so a crashed/abandoned tab doesn't inflate the count),
-    then returns COUNT(*) of whatever active_sessions_tbl rows remain -
-    i.e. every account (Admin or Learner) currently logged in right
-    now, never derived from login_logs_tbl history.
+    then counts the ACCOUNTS that still have a row in
+    active_sessions_tbl - i.e. every account (Admin or Learner)
+    currently logged in right now, never derived from login_logs_tbl
+    history. An account signed in on two devices has two rows but is
+    still one account, so it is counted once (COUNT(DISTINCT acc_id)).
 
     Returns 0 (never raises) on any database error.
     """
@@ -286,7 +306,7 @@ def get_active_session_count(connection):
         sweep_expired_sessions(connection)
         _ensure_table(connection)
         cursor = connection.cursor()
-        cursor.execute(f"SELECT COUNT(*) FROM {ACTIVE_SESSIONS_TABLE}")
+        cursor.execute(f"SELECT COUNT(DISTINCT acc_id) FROM {ACTIVE_SESSIONS_TABLE}")
         row = cursor.fetchone()
         cursor.close()
         return int(row[0]) if row and row[0] is not None else 0

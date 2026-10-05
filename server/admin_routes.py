@@ -500,6 +500,9 @@ def admin_login_submit():
     if login_info:
         # Only the acc_id is stored - every admin request re-checks it
         # against the database (_require_admin_session / get_current_admin).
+        # This browser's previous session (if any) ends here - its cookie
+        # is replaced below. Sessions on OTHER devices are not touched.
+        end_active_session(session.get("session_token"))
         session.clear()
         if login_info["session_token"]:
             session["session_token"] = login_info["session_token"]
