@@ -85,7 +85,7 @@
                     <div class="table-toolbar">
                         <div class="header-search search-override">
                             <span class="mask-icon icon-search search-icon"></span>
-                            <input type="text" id="progressSearchInput" placeholder="Search by learner ID or name..." value="{{ search }}">
+                            <input type="text" id="progressSearchInput" placeholder="Search by lesson, module or chapter name..." value="{{ search }}">
                         </div>
                         <div class="toolbar-filters">
                             <select class="custom-select" id="progressStatusSelect">
@@ -93,6 +93,22 @@
                                 <option value="passed" {{ 'selected' if status_filter == 'passed' }}>Passed ({{ pass_mark }}% and up)</option>
                                 <option value="below" {{ 'selected' if status_filter == 'below' }}>Below {{ pass_mark }}%</option>
                                 <option value="no_score" {{ 'selected' if status_filter == 'no_score' }}>No score yet</option>
+                            </select>
+
+                            <select class="custom-select" id="progressChapterSelect">
+                                <option value="">All Chapters</option>
+                                {% for ch in chapters %}
+                                <option value="{{ ch.cat_id }}" {{ 'selected' if cat_id == ch.cat_id|string }}>{{ ch.name }}</option>
+                                {% endfor %}
+                            </select>
+
+                            <select class="custom-select" id="progressModuleSelect" {{ 'disabled' if not cat_id }}>
+                                <option value="">All Modules</option>
+                                {% for ch in chapters %}
+                                {% for mod in ch.modules %}
+                                <option value="{{ mod.module_id }}" data-cat-id="{{ ch.cat_id }}" {{ 'selected' if module_id == mod.module_id|string }}>{{ mod.name }}</option>
+                                {% endfor %}
+                                {% endfor %}
                             </select>
 
                             <div class="date-filter-group" id="progressStartedDateGroup">
@@ -122,52 +138,41 @@
                         <table class="data-table progress-table" id="progressTable">
                             <thead>
                                 <tr>
-                                    <th>Learner ID</th>
-                                    <th>Name</th>
                                     <th>Lesson</th>
-                                    <th>Score</th>
-                                    <th>Completion</th>
-                                    <th>Started At</th>
-                                    <th>Complete At</th>
+                                    <th>Module</th>
+                                    <th>Chapter</th>
+                                    <th>Learners</th>
+                                    <th>Avg Score</th>
+                                    <th>Completed</th>
+                                    <th>Last Activity</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody id="progressTableBody" data-page="{{ page }}" data-total-pages="{{ total_pages }}">
-                                {% for rec in records %}
-                                <tr data-progress-id="{{ rec.progress_id }}">
-                                    <td>{{ rec.acc_id }}</td>
-                                    <td><div class="profile-cell">{% if rec.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ rec.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}<span>{{ rec.name }}</span></div></td>
-                                    <td>{{ rec.lesson }}</td>
+                                {% for l in lessons %}
+                                <tr data-resource-id="{{ l.resource_id }}">
+                                    <td><strong class="table-item-title cell-truncate">{{ l.lesson }}</strong></td>
+                                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ l.module }}</span></td>
+                                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">{{ l.chapter }}</span></td>
+                                    <td>{{ l.learners }}</td>
                                     <td>
-                                        {% if rec.score is none %}
+                                        {% if l.avg_score is none %}
                                         <span class="progress-no-score">—</span>
                                         {% else %}
-                                        <span class="badge {{ rec.score|score_badge_class }}">{{ rec.score }}%</span>
+                                        <span class="badge {{ l.avg_score|score_badge_class }}">{{ l.avg_score }}%</span>
                                         {% endif %}
                                     </td>
+                                    <td>{{ l.completed }}/{{ l.learners }} learner{{ 's' if l.learners != 1 }}</td>
+                                    <td>{{ l.last_activity }}</td>
                                     <td>
-                                        <div class="completion-cell">
-                                            <progress class="completion-bar" value="{{ rec.completion }}" max="100" aria-label="Completion {{ rec.completion }}%"></progress>
-                                            <span class="completion-pct">{{ rec.completion }}%</span>
-                                        </div>
-                                    </td>
-                                    <td>{{ rec.started_at }}</td>
-                                    <td>
-                                        {% if rec.is_completed %}
-                                        {{ rec.completed_at }}
-                                        {% else %}
-                                        <span class="progress-in-progress">In progress</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <button type="button" class="icon-button-reset progress-view-btn js-view-progress-btn" data-progress-id="{{ rec.progress_id }}" title="View details" aria-label="View details for {{ rec.acc_id }}">
+                                        <button type="button" class="icon-button-reset progress-view-btn js-view-lesson-btn" data-resource-id="{{ l.resource_id }}" title="View learners" aria-label="View learners of {{ l.lesson }}">
                                             <span class="mask-icon icon-eye"></span>
                                         </button>
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="8" class="text-muted table-empty-message">No progress records found.</td>
+                                    <td colspan="8" class="text-muted table-empty-message">No lessons found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -175,7 +180,7 @@
                     </div>
 
                     <div class="table-pagination">
-                        <span id="progressShowingCount">Showing {{ records|length }} of {{ total_records }} records</span>
+                        <span id="progressShowingCount">Showing {{ lessons|length }} of {{ total_lessons }} lesson{{ 's' if total_lessons != 1 }}</span>
                         <div class="pagination-controls">
                             <button type="button" class="btn-pagination" id="progressPrevBtn" {{ 'disabled' if page <= 1 }} title="Previous Page">&lt;</button>
                             <span id="progressPageLabel">{{ page }} of {{ total_pages }}</span>
@@ -189,6 +194,8 @@
         </main>
     </div>
 
+    {# The lesson's learners first, so a learner's own breakdown opens on top of it #}
+    {% include 'learner-progress-lesson-modal.html' %}
     {% include 'learner-progress-modal.html' %}
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>

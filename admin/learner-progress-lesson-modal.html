@@ -1,0 +1,41 @@
+<!-- learner-progress-lesson-modal.html - Admin > Learner Progress (By
+     Lesson): every learner who has a record for one lesson. Opened by the
+     row's eye button (admin-learner-progress.js). Each learner's eye opens
+     the shared Lesson Progress modal (learner-progress-modal.html) on top.
+     Hidden by default with .modal-hidden. -->
+<div id="lessonLearnersModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="lessonLearnersTitle">
+    <div class="progress-detail-card lesson-learners-card">
+
+        <div class="progress-detail-header">
+            <div>
+                <h3 id="lessonLearnersTitle">—</h3>
+                <p class="progress-detail-subtitle" id="lessonLearnersPath">—</p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeLessonLearnersBtn" title="Close" aria-label="Close">&times;</button>
+        </div>
+
+        <p id="lessonLearnersError" class="progress-detail-error"></p>
+
+        <div class="progress-detail-body">
+            <p class="lesson-learners-note" id="lessonLearnersNote"></p>
+            <div class="table-scroll">
+                <table class="data-table progress-table">
+                    <thead>
+                        <tr>
+                            <th>Learner ID</th>
+                            <th>Name</th>
+                            <th>Score</th>
+                            <th>Completion</th>
+                            <th>Started At</th>
+                            <th>Completed At</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lessonLearnersTableBody">
+                        <tr><td colspan="7" class="text-muted table-empty-message">Loading&hellip;</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

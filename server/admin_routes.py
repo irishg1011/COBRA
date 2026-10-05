@@ -132,6 +132,7 @@ from dashboards import (  # feat/dashboards: Mentor + Admin dashboards (read-onl
 from reports import get_learner_ranking, empty_learner_ranking, get_report_filter_options  # Admin > Reports: learner ranking
 from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By Lesson + By Learner)
     get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
+    get_lesson_learners,
     get_learners_progress_overview, get_learner_course_detail, empty_learners_progress_overview,
     get_progress_filter_options,
 )
@@ -3407,6 +3408,8 @@ def _read_progress_filters():
     return {
         "search_query": request.args.get('q', ''),
         "status_filter": request.args.get('status', ''),
+        "cat_id": request.args.get('cat_id', '') or None,
+        "module_id": request.args.get('module_id', '') or None,
         "started_from": request.args.get('started_from', '') or None,
         "started_to": request.args.get('started_to', '') or None,
         "completed_from": request.args.get('completed_from', '') or None,
@@ -3418,22 +3421,26 @@ def _read_progress_filters():
 @admin_bp.route('/learner-progress')
 def learner_progress():
     """
-    Admin > Learner Progress (By Lesson): one row per learner per
-    lesson, with score, completion, filters and pagination
-    (see learner_progress_monitor.py).
+    Admin > Learner Progress (By Lesson): one row per lesson that has
+    at least one learner record (course order) - Learners, Avg Score,
+    Completed, Last Activity - with filters and pagination. The eye opens
+    the lesson's learners (see learner_progress_monitor.py).
     """
     filters = _read_progress_filters()
     overview = get_learner_progress_overview(**filters) or empty_learner_progress_overview()
 
     return render_template(
         'learner-progress.html',
-        records=overview["records"],
+        lessons=overview["lessons"],
         metrics=overview["metrics"],
-        total_records=overview["total"],
+        total_lessons=overview["total"],
         page=overview["page"],
         total_pages=overview["total_pages"],
+        chapters=get_progress_filter_options(),
         search=filters["search_query"] or '',
         status_filter=filters["status_filter"] or '',
+        cat_id=str(filters["cat_id"] or ''),
+        module_id=str(filters["module_id"] or ''),
         started_from=filters["started_from"] or '',
         started_to=filters["started_to"] or '',
         completed_from=filters["completed_from"] or '',
@@ -3449,6 +3456,21 @@ def learner_progress_data():
         return jsonify({"success": False, **empty_learner_progress_overview()}), 500
 
     return jsonify({"success": True, **overview}), 200
+
+
+@admin_bp.route('/learner-progress/lessons/<int:resource_id>')
+def learner_progress_lesson(resource_id):
+    """By Lesson eye button: every learner record of one lesson (same Status / date filters as the table)."""
+    filters = _read_progress_filters()
+    lesson = get_lesson_learners(
+        resource_id,
+        status_filter=filters["status_filter"],
+        started_from=filters["started_from"], started_to=filters["started_to"],
+        completed_from=filters["completed_from"], completed_to=filters["completed_to"],
+    )
+    if lesson is None:
+        return jsonify({"success": False, "message": "Lesson not found or could not be loaded."}), 404
+    return jsonify({"success": True, **lesson}), 200
 
 
 @admin_bp.route('/learner-progress/records/<int:progress_id>')

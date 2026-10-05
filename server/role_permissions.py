@@ -119,6 +119,7 @@ ENDPOINT_ROLES = {
     "admin_bp.learner_progress": ADMIN,
     "admin_bp.learner_progress_data": ADMIN,
     "admin_bp.learner_progress_detail": ADMIN,
+    "admin_bp.learner_progress_lesson": ADMIN,   # By Lesson: one lesson's learners (eye button)
     "admin_bp.learner_progress_learners": ADMIN,
     "admin_bp.learner_progress_learners_data": ADMIN,
     "admin_bp.learner_progress_learner_detail": ADMIN,

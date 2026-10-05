@@ -50,6 +50,7 @@ from activity_retakes import ensure_retake_schema, PASS_PERCENT
 from module_review import module_review_summary  # Module Review status in the Course Progress modal
 from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 from learner_exercise import EXERCISE_ITEMS  # an exercise is one gradable item
+from admin_time import fmt_datetime  # 'Oct 5, 2026 4:53 PM'
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = PASS_PERCENT   # the module pass mark - set once, in activity_retakes.py
@@ -93,7 +94,7 @@ def _empty_metrics():
 def empty_learner_progress_overview():
     """Used when the DB is unreachable so the page still renders."""
     return {
-        "records": [], "metrics": _empty_metrics(),
+        "lessons": [], "metrics": _empty_metrics(),
         "total": 0, "page": 1, "per_page": DEFAULT_PER_PAGE, "total_pages": 1,
     }
 
@@ -437,15 +438,119 @@ TABLE_KEYS = ("progress_id", "acc_id", "name", "lesson", "score", "completion",
 
 
 # ------------------------------------------------------------------
-# Public: By Lesson page data
+# Public: By Lesson page data - ONE ROW PER LESSON
 # ------------------------------------------------------------------
-def get_learner_progress_overview(search_query=None, status_filter=None,
+# Same records and the same scores as before (_fetch_progress_rows +
+# _evaluate_rows); they are only grouped under their lesson. A lesson is
+# listed once at least one learner has a record for it, in course order
+# (chapter, module, lesson - display_order, then creation order).
+#
+#   Learners       learners with a record for the lesson (after filters)
+#   Avg Score      average of those learners' lesson scores; None when the
+#                  lesson has nothing gradeable (no score at all)
+#   Completed      learners who completed it, of Learners
+#   Last Activity  latest started / read / watched / completed time
+#
+# Filters: search = lesson, module or chapter name; Chapter / Module
+# dropdowns; Started / Completed ranges and Status pick which records are
+# counted. The four stat cards keep their meaning: every record matching
+# search + dropdowns + dates (never the status filter).
+def _lesson_paths(cursor, resource_ids):
+    """{resource_id: {lesson, module_id, module, cat_id, chapter, order}}"""
+    if not resource_ids:
+        return {}
+    ids = tuple(resource_ids)
+    cursor.execute(
+        f"""SELECT lr.resource_id, lr.resource_title, m.module_id, m.module_name, c.cat_id, c.category_name,
+                   COALESCE(c.display_order, 999999) AS c_order,
+                   COALESCE(m.display_order, 999999) AS m_order,
+                   COALESCE(lr.display_order, 999999) AS l_order
+            FROM learning_resources_tbl lr
+            LEFT JOIN modules_tbl m ON lr.module_id = m.module_id
+            LEFT JOIN category_tbl c ON m.cat_id = c.cat_id
+            WHERE lr.resource_id IN ({_ph(ids)})""",
+        ids
+    )
+    paths = {}
+    for r in cursor.fetchall():
+        paths[r["resource_id"]] = {
+            "lesson": r["resource_title"] or "—",
+            "module_id": r["module_id"],
+            "module": r["module_name"] or "—",
+            "cat_id": r["cat_id"],
+            "chapter": r["category_name"] or "—",
+            "order": (r["c_order"], r["cat_id"] or 0, r["m_order"], r["module_id"] or 0,
+                      r["l_order"], r["resource_id"]),
+        }
+    return paths
+
+
+def _last_touched(row):
+    """The latest time the learner did anything in this lesson."""
+    times = [row.get(k) for k in ("started_at", "content_read_at", "video_watched_at", "completed_at")]
+    times = [t for t in times if t]
+    return max(times) if times else None
+
+
+def _status_matches(ev, status):
+    if status == "passed":
+        return ev["score"] is not None and ev["score"] >= PASS_MARK
+    if status == "below":
+        return ev["score"] is not None and ev["score"] < PASS_MARK
+    if status == "no_score":
+        return ev["score"] is None
+    return True
+
+
+def _lesson_scope(cursor, search_query=None, cat_id=None, module_id=None, started_from=None,
+                  started_to=None, completed_from=None, completed_to=None, resource_id=None):
+    """(pairs, paths): every (row, evaluated) record in scope, and the lesson paths."""
+    rows = _fetch_progress_rows(
+        cursor, None,
+        _clean_date(started_from), _clean_date(started_to),
+        _clean_date(completed_from), _clean_date(completed_to),
+        exclude_archived=True,
+    )
+    if resource_id is not None:
+        rows = [r for r in rows if r["resource_id"] == resource_id]
+    paths = _lesson_paths(cursor, {r["resource_id"] for r in rows})
+
+    cat_id, module_id = _to_int(cat_id), _to_int(module_id)
+    term = " ".join((search_query or "").lower().split())
+
+    def in_scope(row):
+        path = paths.get(row["resource_id"])
+        if not path:
+            return False
+        if cat_id is not None and path["cat_id"] != cat_id:
+            return False
+        if module_id is not None and path["module_id"] != module_id:
+            return False
+        if term and not any(term in (path[k] or "").lower() for k in ("lesson", "module", "chapter")):
+            return False
+        return True
+
+    rows = [r for r in rows if in_scope(r)]
+    return list(zip(rows, _evaluate_rows(cursor, rows))), paths
+
+
+def _metrics(evaluated):
+    scored = [r["score"] for r in evaluated if r["score"] is not None]
+    return {
+        "total_records": len(evaluated),
+        "average_score": f"{round(sum(scored) / len(scored))}%" if scored else "—",
+        "completed_100": sum(1 for r in evaluated if r["completion"] == 100),
+        "below_80": sum(1 for s in scored if s < PASS_MARK),
+    }
+
+
+def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=None, module_id=None,
                                   started_from=None, started_to=None,
                                   completed_from=None, completed_to=None,
                                   page=1, per_page=DEFAULT_PER_PAGE):
     """
-    Returns {"records", "metrics", "total", "page", "per_page", "total_pages"}
-    or None if the database is unreachable.
+    Returns {"lessons", "metrics", "total", "page", "per_page", "total_pages"}
+    (total = number of lessons) or None if the database is unreachable.
     """
     connection = get_db_connection()
     if connection is None:
@@ -453,45 +558,48 @@ def get_learner_progress_overview(search_query=None, status_filter=None,
 
     try:
         cursor = connection.cursor(dictionary=True)
-
-        rows = _fetch_progress_rows(
-            cursor, search_query,
-            _clean_date(started_from), _clean_date(started_to),
-            _clean_date(completed_from), _clean_date(completed_to),
-            exclude_archived=True,
-        )
-        evaluated = _evaluate_rows(cursor, rows)
+        pairs, paths = _lesson_scope(cursor, search_query, cat_id, module_id,
+                                     started_from, started_to, completed_from, completed_to)
         cursor.close()
 
-        # --- Metric cards (search + dates only) ---
-        scored = [r["score"] for r in evaluated if r["score"] is not None]
-        metrics = {
-            "total_records": len(evaluated),
-            "average_score": f"{round(sum(scored) / len(scored))}%" if scored else "—",
-            "completed_100": sum(1 for r in evaluated if r["completion"] == 100),
-            "below_80": sum(1 for s in scored if s < PASS_MARK),
-        }
+        metrics = _metrics([ev for _, ev in pairs])   # cards: never the status filter
 
-        # --- Status filter (table only) ---
         status = (status_filter or "").strip().lower()
-        if status == "passed":
-            evaluated = [r for r in evaluated if r["score"] is not None and r["score"] >= PASS_MARK]
-        elif status == "below":
-            evaluated = [r for r in evaluated if r["score"] is not None and r["score"] < PASS_MARK]
-        elif status == "no_score":
-            evaluated = [r for r in evaluated if r["score"] is None]
+        groups = {}
+        for row, ev in pairs:
+            if _status_matches(ev, status):
+                groups.setdefault(row["resource_id"], []).append((row, ev))
 
-        total = len(evaluated)
+        lessons = []
+        for rid, items in groups.items():
+            path = paths[rid]
+            learners = {ev["acc_id"] for _, ev in items}
+            scores = [ev["score"] for _, ev in items if ev["score"] is not None]
+            completed = {ev["acc_id"] for _, ev in items if ev["is_completed"]}
+            touched = [t for t in (_last_touched(row) for row, _ in items) if t]
+            lessons.append({
+                "resource_id": rid,
+                "lesson": path["lesson"],
+                "module": path["module"],
+                "chapter": path["chapter"],
+                "learners": len(learners),
+                "avg_score": round(sum(scores) / len(scores)) if scores else None,
+                "completed": len(completed),
+                "last_activity": fmt_datetime(max(touched) if touched else None),
+                "_order": path["order"],
+            })
+        lessons.sort(key=lambda l: l["_order"])
+        for lesson in lessons:
+            del lesson["_order"]
+
+        total = len(lessons)
         per_page = max(1, per_page)
         total_pages = max(1, (total + per_page - 1) // per_page)
         page = min(max(1, page or 1), total_pages)
         offset = (page - 1) * per_page
 
-        records = [{key: r[key] for key in TABLE_KEYS} for r in evaluated[offset:offset + per_page]]
-        _attach_avatars(connection, records)
-
         return {
-            "records": records,
+            "lessons": lessons[offset:offset + per_page],
             "metrics": metrics,
             "total": total,
             "page": page,
@@ -501,6 +609,44 @@ def get_learner_progress_overview(search_query=None, status_filter=None,
 
     except Error as e:
         print(f"learner_progress_monitor: failed to load overview: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def get_lesson_learners(resource_id, status_filter=None, started_from=None, started_to=None,
+                        completed_from=None, completed_to=None):
+    """
+    The By Lesson eye-button modal: every learner record for ONE lesson
+    (the same per-learner data the old one-row-per-record table showed),
+    with the page's Status and date filters applied. Newest start first.
+    Returns {"lesson", "module", "chapter", "records"} or None (not found /
+    database unreachable).
+    """
+    resource_id = _to_int(resource_id)
+    if resource_id is None:
+        return None
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        pairs, paths = _lesson_scope(cursor, None, None, None, started_from, started_to,
+                                     completed_from, completed_to, resource_id=resource_id)
+        if not pairs:
+            paths = _lesson_paths(cursor, {resource_id})
+        cursor.close()
+        path = paths.get(resource_id)
+        if not path:
+            return None
+
+        status = (status_filter or "").strip().lower()
+        records = [{key: ev[key] for key in TABLE_KEYS} for _, ev in pairs if _status_matches(ev, status)]
+        _attach_avatars(connection, records)
+        return {"lesson": path["lesson"], "module": path["module"], "chapter": path["chapter"], "records": records}
+    except Error as e:
+        print(f"learner_progress_monitor: failed to load learners of lesson {resource_id}: {e}")
         return None
     finally:
         if connection.is_connected():
