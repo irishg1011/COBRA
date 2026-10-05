@@ -282,6 +282,11 @@
         }
 
         if (exercisesTableBody) {
+            // "Restore selected" (admin-bulk-restore.js) finished
+            exercisesTableBody.addEventListener("cobra:bulk-restored", () => {
+                loadArchivedExercises();
+                refreshMainExercisesTable();
+            });
             exercisesTableBody.addEventListener("click", handleActionClick);
         }
     });

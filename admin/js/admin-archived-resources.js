@@ -377,6 +377,16 @@
             }
         }
 
+        // "Restore selected" (admin-bulk-restore.js) finished
+        [lessonContentTableBody, videoTutorialTableBody].forEach((tbody) => {
+            if (!tbody) return;
+            tbody.addEventListener("cobra:bulk-restored", () => {
+                if (activeTab === "lesson_content") loadArchivedLessonContent();
+                else loadArchivedVideoTutorials();
+                refreshMainResourcesTable();
+            });
+        });
+
         if (lessonContentTableBody) {
             lessonContentTableBody.addEventListener("click", handleActionClick);
         }

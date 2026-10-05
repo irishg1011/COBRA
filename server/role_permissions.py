@@ -183,6 +183,7 @@ ENDPOINT_ROLES = {
     "admin_bp.manage_course_restore_module": MENTOR,
     "admin_bp.manage_course_module_restore_options": MENTOR,
     "admin_bp.manage_course_module_restore_selected": MENTOR,
+    "admin_bp.archive_bulk_restore": MENTOR,   # "Restore selected" in every Archive table
     "admin_bp.manage_course_permanently_delete_module": MENTOR,
     "admin_bp.title_history": MENTOR,
     "admin_bp.title_history_revert": MENTOR,

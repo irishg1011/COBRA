@@ -72,6 +72,7 @@ from coding_exercises import (  # Task #66, #74, #76: Manage Coding Exercises DB
     get_coding_exercise, validate_exercise_title, is_exercise_title_taken,
     save_coding_exercise, parse_required_tags_from_form,
 )
+from bulk_restore import restore_one, restore_many, restore_with_children, get_restore_options, summary_message  # duplicate-safe restore + bulk restore
 from exercise_tags import catalog_for_form  # "Required in the code" tag picker (feat/output-based-exercises)
 from coding_exercise_publishing import publish_exercise, unpublish_exercise, archive_exercise, mark_ready_to_publish_exercise, unpublish_exercise_to_ready  # Task #111 & #112; mark_ready_to_publish_exercise added for Task #publishing-schema; unpublish_exercise_to_ready added for Task #7
 from video_tutorials import (  # NEW: New Video Tutorial DB integration - Category -> Module -> Lesson cascade + Save Draft/Publish
@@ -1880,36 +1881,45 @@ def manage_course_archived_modules():
 @admin_bp.route('/manage-course/modules/<int:module_id>/restore', methods=['POST'])
 def manage_course_restore_module(module_id):
     """
-    Task #27: flips a module's is_archived flag back to 0.
+    Task #27: flips a module's is_archived flag back to 0 (blocked if an
+    active module in its category already has the same name).
     """
-    success, message = restore_module(module_id)
+    success, message, _name = restore_one("module", module_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+def _restore_options_response(parent_type, parent_id):
+    options = get_restore_options(parent_type, parent_id)
+    if options is None:
+        return jsonify({"success": False, "message": "Could not load the archived items."}), 400
+    return jsonify({"success": True, **options}), 200
+
+
+def _restore_selected_response(parent_type, parent_id):
+    data = request.get_json(silent=True) or {}
+    restored, skipped = restore_with_children(parent_type, parent_id, data)
+    parent_ok = any(r["type"] == parent_type and r["id"] == parent_id for r in restored)
+    if not parent_ok:
+        message = skipped[0]["reason"] if skipped else "Could not restore this item."
+        return jsonify({"success": False, "message": message, "restored": restored, "skipped": skipped}), 400
+    return jsonify({"success": True, "message": summary_message(restored, skipped),
+                    "restored": restored, "skipped": skipped}), 200
 
 
 @admin_bp.route('/manage-course/modules/<int:module_id>/restore-options')
 def manage_course_module_restore_options(module_id):
     """
-    Backs admin-relational-archive.js's "restore with connected items"
-    modal for Modules. archive_module() blocks archiving a module
-    outright if it still has any active resources - it never cascades
-    an archive down to children - so there's never anything connected
-    to list here. Returns empty groups on purpose; the JS already
-    falls back to "No connected items were archived alongside this
-    module" when every group is empty.
+    Backs the restore checklist: archive_module() also archives the
+    module's lessons and their video / activities / exercise, so this
+    lists everything archived under it (bulk_restore.get_restore_options()).
     """
-    return jsonify({"success": True, "resources": [], "activities": [], "exercises": []}), 200
+    return _restore_options_response("module", module_id)
 
 
 @admin_bp.route('/manage-course/modules/<int:module_id>/restore-selected', methods=['POST'])
 def manage_course_module_restore_selected(module_id):
-    """
-    Since restore-options above never reports any connected items to
-    select, this just restores the module itself - same operation as
-    manage_course_restore_module() above, called from the "connected
-    items" modal's Confirm button instead of the plain Restore icon.
-    """
-    success, message = restore_module(module_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
+    """Restores the module plus the ticked children (duplicates are skipped and reported)."""
+    return _restore_selected_response("module", module_id)
 
 
 @admin_bp.route('/manage-course/modules/<int:module_id>/permanent-delete', methods=['POST'])
@@ -1947,28 +1957,41 @@ def manage_course_archive_category(cat_id):
 @admin_bp.route('/manage-course/categories/<int:cat_id>/restore', methods=['POST'])
 def manage_course_restore_category(cat_id):
     """
-    Task #87: Flips a category's is_archived flag back to 0.
+    Task #87: Flips a category's is_archived flag back to 0 (blocked if
+    an active category already has the same name).
     """
-    success, message = restore_category(cat_id)
+    success, message, _name = restore_one("category", cat_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
 @admin_bp.route('/manage-course/categories/<int:cat_id>/restore-options')
 def manage_course_category_restore_options(cat_id):
-    """
-    Same fix as manage_course_module_restore_options() above, for
-    Categories - archive_category() blocks archiving outright if any
-    active modules still belong to it, so nothing is ever cascade-
-    archived alongside it either.
-    """
-    return jsonify({"success": True, "modules": [], "resources": [], "activities": [], "exercises": []}), 200
+    """Same as manage_course_module_restore_options() above, for a Category (modules -> lessons -> items)."""
+    return _restore_options_response("category", cat_id)
 
 
 @admin_bp.route('/manage-course/categories/<int:cat_id>/restore-selected', methods=['POST'])
 def manage_course_category_restore_selected(cat_id):
-    """Restores the category itself - see manage_course_module_restore_selected() above for why."""
-    success, message = restore_category(cat_id)
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
+    """Restores the category plus the ticked children (duplicates are skipped and reported)."""
+    return _restore_selected_response("category", cat_id)
+
+
+@admin_bp.route('/archive/bulk-restore', methods=['POST'])
+def archive_bulk_restore():
+    """
+    Restore every ticked row of an Archive modal in one go.
+    Body: {"items": [{"type": "category|module|resource|video|activity|exercise",
+                      "id": 1, "children": {...restore-selected body...}}]}
+    Anything that would duplicate an active item is skipped, never
+    restored - the reply lists what was restored and what was skipped (and why).
+    """
+    data = request.get_json(silent=True) or {}
+    items = data.get("items") or []
+    if not isinstance(items, list) or not items:
+        return jsonify({"success": False, "message": "Select at least one item to restore."}), 400
+    restored, skipped = restore_many(items)
+    return jsonify({"success": bool(restored), "message": summary_message(restored, skipped),
+                    "restored": restored, "skipped": skipped}), 200
 
 
 @admin_bp.route('/manage-course/categories/<int:cat_id>/permanent-delete', methods=['POST'])
@@ -2776,10 +2799,8 @@ def restore_learning_resource_route(resource_id):
     id actually belongs to, not the id's value alone).
     """
     resource_type = request.args.get('type', '')
-    if resource_type.strip().lower() == "video tutorial":
-        success, message = restore_video_tutorial(resource_id)
-    else:
-        success, message = restore_learning_resource(resource_id)
+    kind = "video" if resource_type.strip().lower() == "video tutorial" else "resource"
+    success, message, _name = restore_one(kind, resource_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -2959,7 +2980,7 @@ def learning_activities_archived():
 
 @admin_bp.route('/learning-activities/<int:activity_id>/restore', methods=['POST'])
 def restore_learning_activity_route(activity_id):
-    success, message = restore_learning_activity(activity_id)
+    success, message, _name = restore_one("activity", activity_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 
@@ -3182,7 +3203,7 @@ def coding_exercises_archived():
 
 @admin_bp.route('/coding-exercises/<int:exercise_id>/restore', methods=['POST'])
 def restore_coding_exercise_route(exercise_id):
-    success, message = restore_coding_exercise(exercise_id)
+    success, message, _name = restore_one("exercise", exercise_id)
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 

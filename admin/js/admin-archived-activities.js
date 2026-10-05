@@ -407,6 +407,14 @@
             }
         }
 
+        // "Restore selected" (admin-bulk-restore.js) finished
+        [mctTableBody, fibTableBody, fcTableBody].forEach((tbody) => {
+            if (tbody) tbody.addEventListener("cobra:bulk-restored", () => {
+                refreshCurrentTab();
+                refreshMainActivityTable();
+            });
+        });
+
         if (mctTableBody) mctTableBody.addEventListener("click", handleActionClick);
         if (fibTableBody) fibTableBody.addEventListener("click", handleActionClick);
         if (fcTableBody) fcTableBody.addEventListener("click", handleActionClick);

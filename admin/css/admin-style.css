@@ -4404,3 +4404,253 @@ body.preview-frame-open {
     height: auto;
     font-size: 16px;
 }
+/* ==========================================================================
+   ARCHIVE: "Cannot Archive" tree, restore checklist tree, bulk restore
+   (admin-relational-archive.js, admin-bulk-restore.js)
+   ========================================================================== */
+.archive-blocker-details {
+    text-align: left;
+    max-height: 45vh;
+    overflow-y: auto;
+    margin: -8px 0 20px;
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #f9fafb;
+}
+
+.archive-tree,
+.archive-tree ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.archive-tree ul {
+    margin: 4px 0 6px 10px;
+    padding-left: 14px;
+    border-left: 2px solid #e5e7eb;
+}
+
+.archive-tree li {
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.45;
+    padding: 3px 0;
+}
+
+.archive-tree li > i,
+.archive-tree-node > i {
+    width: 16px;
+    margin-right: 6px;
+    color: #6b7280;
+    text-align: center;
+}
+
+.archive-tree-node {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+.archive-tree-title {
+    color: #111827;
+}
+
+.archive-tree-badge {
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #15803d;
+    background: #dcfce7;
+}
+
+/* Restore checklist (#restoreSelectionModal) */
+.restore-parent {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+.restore-parent-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.restore-parent-kind {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.restore-parent-empty {
+    margin: 0;
+    font-size: 13px;
+}
+
+.restore-tree {
+    list-style: none;
+    margin: 0 0 0 8px;
+    padding-left: 14px;
+    border-left: 2px solid #e5e7eb;
+}
+
+.restore-tree.restore-tree-root {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+}
+
+.restore-tree .restore-item-label {
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.restore-item-icon {
+    width: 16px;
+    margin-left: 6px;
+    color: #6b7280;
+    text-align: center;
+}
+
+.restore-tree .restore-item-name {
+    margin-left: 6px;
+}
+
+.restore-item-active {
+    color: var(--admin-muted);
+    padding-left: 20px;
+}
+
+.restore-active-tag {
+    margin-left: 8px;
+    font-size: 11px;
+    color: var(--admin-muted);
+    font-style: italic;
+}
+
+/* Bulk restore: checkbox column + selection bar */
+.data-table .bulk-col {
+    width: 36px;
+    text-align: center;
+}
+
+.bulk-col input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #22c55e;
+}
+
+.data-table tr.bulk-row-selected td {
+    background: #f0fdf4;
+}
+
+.bulk-restore-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    font-size: 13px;
+}
+
+.bulk-restore-bar.is-hidden {
+    display: none;
+}
+
+.bulk-restore-count {
+    font-weight: 600;
+    color: #166534;
+    margin-right: auto;
+}
+
+.bulk-restore-btn,
+.bulk-clear-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.bulk-restore-btn {
+    background: #16a34a;
+    color: #fff;
+}
+
+.bulk-restore-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.bulk-clear-btn {
+    background: transparent;
+    color: #374151;
+}
+
+/* Bulk restore summary dialog */
+.bulk-restore-dialog-body {
+    text-align: left;
+    max-height: 50vh;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.bulk-restore-dialog-body .modal-confirm-text {
+    text-align: center;
+    margin-bottom: 14px;
+}
+
+.bulk-restore-section {
+    margin-bottom: 12px;
+}
+
+.bulk-restore-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #166534;
+    margin-bottom: 6px;
+}
+
+.bulk-restore-section-skipped .bulk-restore-section-title {
+    color: #b45309;
+}
+
+.bulk-restore-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.bulk-restore-list li {
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: #f9fafb;
+    margin-bottom: 4px;
+}
+
+.bulk-restore-type {
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.bulk-restore-reason {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #b45309;
+}

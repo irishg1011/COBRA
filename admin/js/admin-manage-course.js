@@ -1335,6 +1335,16 @@
             });
         }
 
+        // Called after the restore checklist / "Restore selected"
+        // (admin-relational-archive.js, admin-bulk-restore.js) - reloads
+        // the archive list and the active tables without a page reload.
+        window.cobraByteRefreshManageCourse = () => {
+            if (activeArchiveTab === "modules") loadArchivedModules();
+            else loadArchivedCategories();
+            loadModules();
+            refreshCategoriesModal();
+        };
+
         // Archived Modules Event Delegation
         if (archivedModulesTableBody) {
             archivedModulesTableBody.addEventListener("click", (e) => {
