@@ -46,13 +46,13 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
 from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
-from activity_retakes import ensure_retake_schema
+from activity_retakes import ensure_retake_schema, PASS_PERCENT
 from module_review import module_review_summary  # Module Review status in the Course Progress modal
 from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 from learner_exercise import EXERCISE_ITEMS  # an exercise is one gradable item
 
 DEFAULT_PER_PAGE = 8
-PASS_MARK = 80
+PASS_MARK = PASS_PERCENT   # the module pass mark - set once, in activity_retakes.py
 VALID_STATUS_FILTERS = {"passed", "below", "no_score"}
 
 

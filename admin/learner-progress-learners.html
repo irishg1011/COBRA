@@ -68,7 +68,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Average Score</span>
-                            <h2 class="metric-value metric-value-good" id="metricLearnerAvgScore">{{ metrics.average_score }}</h2>
+                            <h2 class="metric-value {{ metrics.average_score|score_class }}" id="metricLearnerAvgScore">{{ metrics.average_score }}</h2>
                         </div>
                     </div>
                     <div class="metric-card">
@@ -79,7 +79,7 @@
                     </div>
                     <div class="metric-card">
                         <div class="metric-info">
-                            <span class="metric-title">Below 80%</span>
+                            <span class="metric-title">Below {{ pass_mark }}%</span>
                             <h2 class="metric-value metric-value-bad" id="metricLearnerBelow80">{{ metrics.below_80 }}</h2>
                         </div>
                     </div>
@@ -96,8 +96,8 @@
                         <div class="toolbar-filters">
                             <select class="custom-select" id="learnerStatusSelect">
                                 <option value="">All Status</option>
-                                <option value="passed" {{ 'selected' if status_filter == 'passed' }}>Passed (80% and up)</option>
-                                <option value="below" {{ 'selected' if status_filter == 'below' }}>Below 80%</option>
+                                <option value="passed" {{ 'selected' if status_filter == 'passed' }}>Passed ({{ pass_mark }}% and up)</option>
+                                <option value="below" {{ 'selected' if status_filter == 'below' }}>Below {{ pass_mark }}%</option>
                                 <option value="no_score" {{ 'selected' if status_filter == 'no_score' }}>No score yet</option>
                             </select>
 
@@ -176,10 +176,8 @@
                                     <td>
                                         {% if l.avg_score is none %}
                                         <span class="progress-no-score">—</span>
-                                        {% elif l.avg_score >= 80 %}
-                                        <span class="badge badge-active">{{ l.avg_score }}%</span>
                                         {% else %}
-                                        <span class="badge badge-locked">{{ l.avg_score }}%</span>
+                                        <span class="badge {{ l.avg_score|score_badge_class }}">{{ l.avg_score }}%</span>
                                         {% endif %}
                                     </td>
                                     <td>

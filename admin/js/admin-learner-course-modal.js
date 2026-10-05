@@ -16,7 +16,6 @@
 (function () {
     "use strict";
 
-    const PASS_MARK = 80;
 
     document.addEventListener("DOMContentLoaded", () => {
         const modal = document.getElementById("learnerCourseModal");
@@ -32,8 +31,7 @@
             if (score === null || score === undefined) {
                 return `<span class="progress-no-score">—</span>`;
             }
-            const cls = score >= PASS_MARK ? "badge-active" : "badge-locked";
-            return `<span class="badge ${cls}">${escapeHtml(score)}%</span>`;
+            return `<span class="badge ${CobraScore.badgeClass(score)}">${escapeHtml(score)}%</span>`;
         }
 
         function completionHtml(pct, small = false) {

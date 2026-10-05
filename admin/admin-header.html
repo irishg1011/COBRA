@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-header-tools.css') }}">
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-profile-photo.css') }}">
 {% set staff_photo_src = current_admin.avatar_url if current_admin and current_admin.avatar_url else '/assets/images/avatar.png' %}
-<header class="admin-header">
+<header class="admin-header" data-pass-mark="{{ pass_mark }}">
     <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle sidebar" aria-controls="adminSidebar" aria-expanded="true">
         <span class="mask-icon icon-menu"></span>
     </button>
@@ -102,6 +102,9 @@
 {% endwith %}
 
 {% include 'profile-photo-modal.html' %}
+{# One score color rule for every page (green at/above the pass mark, red below).
+   Not deferred: page scripts below it call CobraScore. #}
+<script src="{{ url_for('admin_bp.static', filename='js/admin-score.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-search.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-notifications.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-menu.js') }}"></script>

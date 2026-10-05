@@ -109,7 +109,7 @@
                         <div class="metric-card dash-metric">
                             <div class="metric-info">
                                 <span class="metric-title">Average Score</span>
-                                <h2 class="metric-value dash-good">{{ learning.metrics.average_score }}</h2>
+                                <h2 class="metric-value {{ learning.metrics.average_score|score_class }}">{{ learning.metrics.average_score }}</h2>
                             </div>
                         </div>
                         <div class="metric-card dash-metric">
@@ -120,7 +120,7 @@
                         </div>
                         <div class="metric-card dash-metric">
                             <div class="metric-info">
-                                <span class="metric-title">Below 80%</span>
+                                <span class="metric-title">Below {{ pass_mark }}%</span>
                                 <h2 class="metric-value dash-bad">{{ learning.metrics.below_80 }}</h2>
                             </div>
                         </div>
@@ -168,7 +168,7 @@
                                                 <small class="text-muted">{{ l.acc_id }}</small>
                                             </div>
                                         </td>
-                                        <td>{{ l.avg_score }}%</td>
+                                        <td class="{{ l.avg_score|score_class }}">{{ l.avg_score }}%</td>
                                         <td><span class="badge report-level {{ level_class.get(l.level, 'level-not-rated') }}">{{ l.level }}</span></td>
                                     </tr>
                                     {% endfor %}

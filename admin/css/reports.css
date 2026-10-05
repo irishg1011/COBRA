@@ -27,7 +27,7 @@
 .report-top-score {
     font-size: 12px;
     font-weight: 600;
-    color: #0F7A3D;
+    /* color: score-pass / score-fail (admin-style.css score color rule) */
 }
 
 /* --- Toolbar --- */

@@ -12,7 +12,6 @@
     "use strict";
 
     const DEBOUNCE_MS = 300;
-    const PASS_MARK = 80;
 
     document.addEventListener("DOMContentLoaded", () => {
 
@@ -58,8 +57,7 @@
             if (score === null || score === undefined) {
                 return `<span class="progress-no-score">—</span>`;
             }
-            const cls = score >= PASS_MARK ? "badge-active" : "badge-locked";
-            return `<span class="badge ${cls}">${escapeHtml(score)}%</span>`;
+            return `<span class="badge ${CobraScore.badgeClass(score)}">${escapeHtml(score)}%</span>`;
         }
 
         function completionHtml(pct, small = false) {
@@ -194,6 +192,7 @@
                 if (metricEls[key] && metrics[key] !== undefined) {
                     metricEls[key].textContent = metrics[key];
                 }
+                if (key === "average_score") CobraScore.apply(metricEls[key], metrics[key]);
             });
         }
 

@@ -11,6 +11,11 @@
     --brand-gradient: linear-gradient(135deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%);
     --sidebar-width: 260px;
     --sidebar-collapsed-width: 80px;
+    /* Score colors (admin-score.js / score_display.py): green at or above
+       the pass mark, red below it, neutral when there is no score. */
+    --score-pass: #0F7A3D;
+    --score-fail: #C62828;
+    --score-none: #6b7280;
 }
 
 * {
@@ -4653,4 +4658,29 @@ body.preview-frame-open {
     margin-top: 2px;
     font-size: 12px;
     color: #b45309;
+}
+
+/* ==========================================================================
+   SCORE COLOR RULE - one rule for every average score on the admin side
+   (classes set by the score_class filter / CobraScore.cls()).
+   ========================================================================== */
+.score-pass,
+.metric-value.score-pass {
+    color: var(--score-pass);
+}
+
+.score-fail,
+.metric-value.score-fail {
+    color: var(--score-fail);
+}
+
+.score-none,
+.metric-value.score-none {
+    color: var(--score-none);
+}
+
+/* A score in a table cell: same weight as the rest of the row, just colored */
+td.score-pass,
+td.score-fail {
+    font-weight: 600;
 }

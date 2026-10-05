@@ -96,7 +96,7 @@
                             <small class="text-muted">${escapeHtml(l.acc_id)}</small>
                         </div>
                     </td>
-                    <td>${pct(l.avg_score)}</td>
+                    <td class="${CobraScore.cls(l.avg_score)}">${pct(l.avg_score)}</td>
                     <td>
                         <div class="completion-cell">
                             <progress class="completion-bar" value="${completion}" max="100" aria-label="Completion ${completion}%"></progress>
@@ -120,13 +120,16 @@
             if (!s) return;
             if (cards.total) cards.total.textContent = s.total_learners;
             if (cards.ranked) cards.ranked.textContent = s.ranked_learners;
-            if (cards.average) cards.average.textContent = pct(s.average_score);
+            if (cards.average) {
+                cards.average.textContent = pct(s.average_score);
+                CobraScore.apply(cards.average, s.average_score);
+            }
             if (cards.excellent) cards.excellent.textContent = s.excellent;
             if (cards.needs) cards.needs.textContent = s.needs_improvement;
             if (cards.top) {
                 cards.top.innerHTML = s.top_performer
                     ? `<span class="report-top-name">${escapeHtml(s.top_performer.name)}</span>
-                       <small class="report-top-score">${pct(s.top_performer.avg_score)}</small>`
+                       <small class="report-top-score ${CobraScore.cls(s.top_performer.avg_score)}">${pct(s.top_performer.avg_score)}</small>`
                     : "—";
             }
         }

@@ -3,7 +3,9 @@
  * -----------------------------------------------------------
  * Loads every card from /admin/analytics/data (learning_analytics.py)
  * and draws it with Chart.js:
- *   - Lesson Performance  bar per module + dashed 80% pass line
+ *   - Lesson Performance  bar per module + dashed pass-mark line; bars and the
+ *                         Avg Score column use the shared score color rule
+ *                         (CobraScore: green at/above the pass mark, red below)
  *   - Score Distribution  donut of learners per score range + legend
  *   - Exercise Stages     avg % per activity type, learners who
  *                         completed it under each bar
@@ -18,7 +20,6 @@
     "use strict";
 
     const GREEN = "#16a34a";
-    const PASS_MARK = 80;
     // Score bands, highest first (same order as the server): green above
     // the 80% pass mark, red below - darker = further from the pass mark.
     const BAND_COLORS = ["#15803d", "#4ade80", "#fca5a5", "#f87171", "#dc2626", "#991b1b"];
@@ -106,9 +107,14 @@
                 el.innerHTML = `<p class="analytics-card-note">No data yet.</p>`;
                 return;
             }
+            // A cell is a plain value, or { text, cls } when it needs a class
+            // (e.g. the score color rule on an Avg Score cell).
             const head = headers.map((h) => `<th class="${h.num ? "num" : ""}">${escapeHtml(h.label)}</th>`).join("");
-            const body = rows.map((r) => `<tr>${r.map((cell, i) =>
-                `<td class="${headers[i].num ? "num" : ""}">${escapeHtml(cell)}</td>`).join("")}</tr>`).join("");
+            const body = rows.map((r) => `<tr>${r.map((cell, i) => {
+                const isObj = cell !== null && typeof cell === "object";
+                const classes = [headers[i].num ? "num" : "", isObj ? cell.cls || "" : ""].filter(Boolean).join(" ");
+                return `<td class="${classes}">${escapeHtml(isObj ? cell.text : cell)}</td>`;
+            }).join("")}</tr>`).join("");
             el.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
         }
 
@@ -143,7 +149,9 @@
                 const y = chart.scales.y;
                 const area = chart.chartArea;
                 if (!y || !area) return;
-                const yPos = y.getPixelForValue(PASS_MARK);
+                const mark = CobraScore.passMark();
+                if (mark === null) return;
+                const yPos = y.getPixelForValue(mark);
                 const ctx = chart.ctx;
                 ctx.save();
                 ctx.strokeStyle = "#111111";
@@ -166,7 +174,7 @@
             setEmpty("lessonPerfWrap", !hasData, "No lesson scores yet for these learners.");
             renderTable("lessonPerfTable",
                 [{ label: "Module" }, { label: "Chapter" }, { label: "Avg Score", num: true }, { label: "Learners", num: true }],
-                modules.map((m) => [m.name, m.chapter, pct(m.avg), m.learners]));
+                modules.map((m) => [m.name, m.chapter, { text: pct(m.avg), cls: CobraScore.cls(m.avg) }, m.learners]));
             if (!hasData) return;
 
             draw("lessonPerf", "lessonPerfChart", {
@@ -176,7 +184,7 @@
                     datasets: [{
                         label: "Avg Score",
                         data: modules.map((m) => m.avg),
-                        backgroundColor: GREEN,
+                        backgroundColor: modules.map((m) => CobraScore.color(m.avg)),
                         borderRadius: 4,
                         maxBarThickness: 34,
                     }],

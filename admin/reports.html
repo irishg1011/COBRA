@@ -68,7 +68,7 @@
                     <div class="metric-card">
                         <div class="metric-info">
                             <span class="metric-title">Average Score</span>
-                            <h2 class="metric-value metric-value-good" id="reportAverageScore">{{ '%d%%'|format(summary.average_score) if summary.average_score is not none else '—' }}</h2>
+                            <h2 class="metric-value {{ summary.average_score|score_class }}" id="reportAverageScore">{{ '%d%%'|format(summary.average_score) if summary.average_score is not none else '—' }}</h2>
                         </div>
                     </div>
                     <div class="metric-card">
@@ -77,7 +77,7 @@
                             <h2 class="metric-value report-top-performer" id="reportTopPerformer">
                                 {% if summary.top_performer %}
                                 <span class="report-top-name">{{ summary.top_performer.name }}</span>
-                                <small class="report-top-score">{{ summary.top_performer.avg_score }}%</small>
+                                <small class="report-top-score {{ summary.top_performer.avg_score|score_class }}">{{ summary.top_performer.avg_score }}%</small>
                                 {% else %}
                                 —
                                 {% endif %}
@@ -153,7 +153,7 @@
                                             <small class="text-muted">{{ l.acc_id }}</small>
                                         </div>
                                     </td>
-                                    <td>{{ '%d%%'|format(l.avg_score) if l.avg_score is not none else '—' }}</td>
+                                    <td class="{{ l.avg_score|score_class }}">{{ '%d%%'|format(l.avg_score) if l.avg_score is not none else '—' }}</td>
                                     <td>
                                         <div class="completion-cell">
                                             <progress class="completion-bar" value="{{ l.completion }}" max="100" aria-label="Completion {{ l.completion }}%"></progress>

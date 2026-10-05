@@ -111,6 +111,7 @@ from contact_messages import (  # feat/contact-messages: Admin > Messages (landi
 )
 from urllib.parse import quote  # feat/staff-search: ?q= on the result links
 from werkzeug.routing import BuildError
+from score_display import PASS_MARK, score_class, score_badge_class  # one color rule for scores (green >= pass mark, red below)
 from staff_search import search_everything  # feat/staff-search: the header's "Search anything..." box
 from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
@@ -477,7 +478,17 @@ def inject_current_admin():
         # feat/title-char-limit: every title input's maxlength comes from
         # validators.TITLE_LIMITS, e.g. maxlength="{{ title_limits.module }}"
         "title_limits": TITLE_LIMITS,
+        # Score colors: the staff header hands this to admin-score.js
+        # (data-pass-mark), templates use the score_class filter below.
+        "pass_mark": PASS_MARK,
     }
+
+
+# One color rule for scores on every admin page (score_display.py):
+#   {{ value|score_class }}        -> score-pass / score-fail / score-none
+#   {{ value|score_badge_class }}  -> badge-active / badge-locked (score pills)
+admin_bp.add_app_template_filter(score_class, "score_class")
+admin_bp.add_app_template_filter(score_badge_class, "score_badge_class")
 
 
 # ============================================================
