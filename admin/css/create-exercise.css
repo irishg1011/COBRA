@@ -219,9 +219,20 @@ select.form-control-select:disabled,
 }
 
 .required-tags-custom-row .form-control {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     font-family: Consolas, "Courier New", monospace;
+}
+
+/* .add-sub-question-btn is a full-width "add row" button elsewhere
+   (width: 100%, margin-top) - here it sits beside the text box. */
+.required-tags-custom-row .add-sub-question-btn {
+    flex: 0 0 auto;
+    width: auto;
+    margin-top: 0;
+    padding: 0 18px;
+    border-style: solid;
+    white-space: nowrap;
 }
 
 .required-tags-custom .field-error-message:not(:empty) {
