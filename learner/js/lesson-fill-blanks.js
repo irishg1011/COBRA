@@ -392,6 +392,26 @@
 
         function showError(message) {
             setMode("error");
+            const isAuthError = Boolean(message && message.toLowerCase().includes("not logged in"));
+            if (isAuthError) {
+                showOverlay(`
+                    <div class="fib-overlay-card">
+                        <i class="fa-solid fa-lock fib-overlay-icon is-warn"></i>
+                        <h4>Session Expired</h4>
+                        <p data-f="errorText">Your login session has expired. Please sign in again to continue.</p>
+                        <div class="fib-overlay-actions">
+                            <button type="button" class="fib-primary-btn" data-f="loginBtn">Sign In</button>
+                        </div>
+                    </div>
+                `);
+                const loginBtn = ui.overlay.querySelector('[data-f="loginBtn"]');
+                if (loginBtn) {
+                    loginBtn.addEventListener("click", () => {
+                        window.location.replace("/login");
+                    });
+                }
+                return;
+            }
             showOverlay(`
                 <div class="fib-overlay-card">
                     <i class="fa-solid fa-triangle-exclamation fib-overlay-icon is-warn"></i>
@@ -410,6 +430,10 @@
                     const play = await fetchPlay(laId);
                     applyState(play.state);
                 } catch (err) {
+                    if (err.message && err.message.toLowerCase().includes("not logged in")) {
+                        showError(err.message);
+                        return;
+                    }
                     const text = ui.overlay.querySelector('[data-f="errorText"]');
                     if (text) text.textContent = `Still failing: ${err.message}`;
                     return;

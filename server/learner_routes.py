@@ -114,8 +114,12 @@ def ensure_progress_schema(connection):
         print(f"learner_routes: could not make completed_at nullable: {e}")
 
 
+from session_tracker import touch_session
+
+
 def get_current_learner_acc_id():
     token = session.get("session_token")
+    acc_id = session.get("acc_id")
     if not token:
         return None
 
@@ -130,8 +134,32 @@ def get_current_learner_acc_id():
             (token,)
         )
         row = cursor.fetchone()
-        cursor.close()
-        return row["acc_id"] if row else None
+        if row:
+            found_acc_id = row["acc_id"]
+            cursor.close()
+            touch_session(token, found_acc_id)
+            return found_acc_id
+
+        # Self-healing (matches admin pattern in admin_routes.py):
+        # If the active_sessions_tbl row was swept during inactivity (or by an admin sweep)
+        # while the learner is still browsing, recreate the active session row so the
+        # learner's valid session is recognized seamlessly.
+        if acc_id:
+            cursor.execute(
+                """SELECT a.acc_id, ut.u_type AS role, a.is_deleted, a.status
+                   FROM account_tbl a
+                   LEFT JOIN usertype_tbl ut ON a.u_type = ut.ut_id
+                   WHERE a.acc_id = %s""",
+                (acc_id,)
+            )
+            acc_row = cursor.fetchone()
+            cursor.close()
+            if acc_row and acc_row.get("role") == "Learner" and not acc_row.get("is_deleted") and acc_row.get("status") != "Archived":
+                touch_session(token, acc_id)
+                return acc_id
+        else:
+            cursor.close()
+        return None
     except Error as e:
         print(f"Error looking up current learner: {e}")
         return None

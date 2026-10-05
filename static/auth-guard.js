@@ -126,11 +126,22 @@
     // their data requests anyway (consent.py); this just shows the screen.
     if (checkConsent) {
         fetch(`${API_BASE_URL}/api/consent/status`, { credentials: "include" })
-            .then(function (res) { return res.json(); })
-            .then(function (data) {
-                if (data && data.needs_consent) window.location.replace("/consent");
+            .then(function (res) {
+                if (res.status === 401) {
+                    performLogout();
+                    return null;
+                }
+                return res.json();
             })
-            .catch(function () { /* offline or not signed in - the other checks handle it */ });
+            .then(function (data) {
+                if (!data) return;
+                if (data.success === false && data.message === "Not logged in.") {
+                    performLogout();
+                    return;
+                }
+                if (data.needs_consent) window.location.replace("/consent");
+            })
+            .catch(function () { /* offline or network failure - allow page to handle */ });
     }
 
     // ------------------------------------------------------------

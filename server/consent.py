@@ -211,6 +211,7 @@ def _current_learner():
     session expired, or the account is staff.
     """
     token = session.get("session_token")
+    acc_id = session.get("acc_id")
     if not token:
         return None
 
@@ -218,6 +219,7 @@ def _current_learner():
     if connection is None:
         return None
     try:
+        from session_tracker import touch_session
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             """SELECT s.acc_id, ut.u_type AS role, p.birthdate
@@ -229,10 +231,29 @@ def _current_learner():
             (token,)
         )
         row = cursor.fetchone()
-        cursor.close()
-        if not row or row.get("role") != LEARNER_ROLE:
+        if row and row.get("role") == LEARNER_ROLE:
+            touch_session(token, row["acc_id"])
+            cursor.close()
+            return {"acc_id": row["acc_id"], "birthdate": row.get("birthdate")}
+
+        if not row and acc_id:
+            cursor.execute(
+                """SELECT a.acc_id, ut.u_type AS role, p.birthdate, a.is_deleted, a.status
+                   FROM account_tbl a
+                   LEFT JOIN usertype_tbl ut ON a.u_type = ut.ut_id
+                   LEFT JOIN profile_tbl p ON p.acc_id = a.acc_id
+                   WHERE a.acc_id = %s""",
+                (acc_id,)
+            )
+            acc_row = cursor.fetchone()
+            cursor.close()
+            if acc_row and acc_row.get("role") == LEARNER_ROLE and not acc_row.get("is_deleted") and acc_row.get("status") != "Archived":
+                touch_session(token, acc_id)
+                return {"acc_id": acc_id, "birthdate": acc_row.get("birthdate")}
             return None
-        return {"acc_id": row["acc_id"], "birthdate": row.get("birthdate")}
+
+        cursor.close()
+        return None
     except Error as e:
         print(f"consent: failed to look up the current learner: {e}")
         return None

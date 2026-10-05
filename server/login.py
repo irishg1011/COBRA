@@ -400,6 +400,8 @@ def login():
         session.clear()
         if login_info["session_token"]:
             session["session_token"] = login_info["session_token"]
+        session["acc_id"] = login_info["acc_id"]
+        session.permanent = True
         # feat/terms-consent: current versions not accepted yet -> consent screen first
         if has_current_consent(login_info["acc_id"]) is False:
             payload["redirect"] = CONSENT_PAGE_URL

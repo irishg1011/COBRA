@@ -458,6 +458,26 @@
 
         function showError(message) {
             setMode("error");
+            const isAuthError = Boolean(message && message.toLowerCase().includes("not logged in"));
+            if (isAuthError) {
+                showOverlay(`
+                    <div class="fc-overlay-card">
+                        <i class="fa-solid fa-lock fc-overlay-icon is-warn"></i>
+                        <h4>Session Expired</h4>
+                        <p data-c="errorText">Your login session has expired. Please sign in again to continue.</p>
+                        <div class="fc-overlay-actions">
+                            <button type="button" class="fc-primary-btn" data-c="loginBtn">Sign In</button>
+                        </div>
+                    </div>
+                `);
+                const loginBtn = overlayNode("loginBtn");
+                if (loginBtn) {
+                    loginBtn.addEventListener("click", () => {
+                        window.location.replace("/login");
+                    });
+                }
+                return;
+            }
             showOverlay(`
                 <div class="fc-overlay-card">
                     <i class="fa-solid fa-triangle-exclamation fc-overlay-icon is-warn"></i>
