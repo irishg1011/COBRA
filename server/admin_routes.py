@@ -107,9 +107,6 @@ from learning_analytics import get_learning_analytics, empty_analytics  # Admin 
 from profile_avatar import get_avatar_url, get_avatar_urls, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo + table photos
 from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
 from recommendations import get_recommendations_data, empty_recommendations_data  # feat/mentor-recommendations: Mentor > Recommendations page
-from contact_messages import (  # feat/contact-messages: Admin > Messages (landing page "Send Us a Message")
-    get_messages_data, empty_messages_data, get_message, send_reply, REPLY_MAX,
-)
 from urllib.parse import quote, urlencode  # feat/staff-search: ?q= / ?focus= on the result links
 from werkzeug.routing import BuildError
 from score_display import PASS_MARK, score_class, score_badge_class  # one color rule for scores (green >= pass mark, red below)
@@ -3779,8 +3776,8 @@ def staff_search():
 
 # ============================================================
 # ROUTE: HEADER BELL (Admin) - feat/admin-bell
-# The logged-in admin's own notifications (new landing page message,
-# account locked, learner signed up, learner finished the course).
+# The logged-in admin's own notifications (account locked, learner
+# signed up, learner finished the course).
 # The account is ALWAYS session["admin_id"] - never an id from the
 # request. Rules live in staff_notifications.py. ADMIN only: mentors
 # have no bell.
@@ -3823,47 +3820,8 @@ def staff_notifications_read_all():
 
 
 # ============================================================
-# ROUTE: MESSAGES (Admin) - feat/contact-messages
-# Everything visitors send from the landing page's "Send Us a Message"
-# form. Admins read them here and reply; the reply is emailed to the
-# visitor. Thin wrappers - the rules live in contact_messages.py.
-# All four endpoints are ADMIN in role_permissions.py (default-deny).
+# ROUTE: REPORTS (Admin) - learner ranking
 # ============================================================
-@admin_bp.route('/messages')
-def messages():
-    """Admin > Messages page. Stat cards and the table are loaded by admin-messages.js."""
-    return render_template('messages.html', reply_max=REPLY_MAX)
-
-
-@admin_bp.route('/messages/data')
-def messages_data():
-    data = get_messages_data(
-        search_query=request.args.get('q', ''),
-        status_filter=request.args.get('status', ''),
-        date_from=request.args.get('date_from', '') or None,
-        date_to=request.args.get('date_to', '') or None,
-        page=request.args.get('page', 1, type=int),
-    )
-    if data is None:
-        return jsonify({"success": False, "message": "Could not load messages.", **empty_messages_data()}), 500
-    return jsonify({"success": True, **data}), 200
-
-
-@admin_bp.route('/messages/<int:message_id>')
-def messages_detail(message_id):
-    """One message with its replies. Opening it marks it as read."""
-    payload, status = get_message(message_id)
-    return jsonify(payload), status
-
-
-@admin_bp.route('/messages/<int:message_id>/reply', methods=['POST'])
-def messages_reply(message_id):
-    """Emails the reply to the visitor and saves it. The sender is always the logged-in admin."""
-    data = request.get_json(silent=True) or {}
-    payload, status = send_reply(message_id, data.get("reply"), session.get("admin_id"))
-    return jsonify(payload), status
-
-
 @admin_bp.route('/reports')
 def reports():
     filters = _read_report_filters()

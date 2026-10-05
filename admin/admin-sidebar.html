@@ -1,7 +1,4 @@
 <!-- admin/admin-sidebar.html -->
-{# feat/contact-messages: the Messages link's icon. Attached here because the
-   sidebar is the one file every admin page includes. #}
-<link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/messages-nav.css') }}">
 <aside class="admin-sidebar" id="adminSidebar">
     {# Clickable logo: goes to the dashboard of the signed-in role
        (Mentor -> Mentor Dashboard, Admin -> Admin Dashboard). #}
@@ -87,11 +84,6 @@
         <a href="{{ url_for('admin_bp.reports') }}" title="Reports" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.reports' else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-reports"></span>
             <span class="nav-label">Reports</span>
-        </a>
-        {# feat/contact-messages: messages sent from the landing page's "Send Us a Message" form #}
-        <a href="{{ url_for('admin_bp.messages') }}" title="Messages" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.messages' else '' }}">
-            <span class="sidebar-icon mask-icon icon-nav-messages"></span>
-            <span class="nav-label">Messages</span>
         </a>
         {% endif %}
     </nav>

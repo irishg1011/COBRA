@@ -4,7 +4,6 @@ staff_notifications.py - The admin bell (staff header)
 feat/admin-bell
 
 Admins get a notification, in the header bell, when:
-    message      a visitor sent a message from the landing page   (contact_messages.py)
     lockout      an account was locked after 5 failed logins      (lockout_logs.py)
     signup       a new learner signed up                          (login.py /signup)
     course_done  a learner finished the whole course              (certificates.py)
@@ -119,9 +118,16 @@ def notify_admins_standalone(notif_type, title, detail=None, link=None, dedupe_k
 # ------------------------------------------------------------------
 # The bell (one account at a time - the logged-in admin)
 # ------------------------------------------------------------------
+# "message" (a landing page message) is no longer created - the Messages
+# page it linked to was removed and messages now go straight to email.
+# Old rows of that type stay in the table but are never shown or counted.
+HIDDEN_TYPES = ("message",)
+_VISIBLE_SQL = f"notif_type NOT IN ({', '.join(repr(t) for t in HIDDEN_TYPES)})"
+
+
 def _unread(cursor, acc_id):
     cursor.execute(
-        f"SELECT COUNT(*) AS n FROM {NOTIFICATIONS_TABLE} WHERE acc_id = %s AND is_read = 0",
+        f"SELECT COUNT(*) AS n FROM {NOTIFICATIONS_TABLE} WHERE acc_id = %s AND is_read = 0 AND {_VISIBLE_SQL}",
         (acc_id,)
     )
     return int(cursor.fetchone()["n"])
@@ -149,7 +155,7 @@ def list_notifications(acc_id, only_unread=False, before_id=None, limit=12):
         )
         connection.commit()
 
-        where, params = ["acc_id = %s"], [acc_id]
+        where, params = ["acc_id = %s", _VISIBLE_SQL], [acc_id]
         if only_unread:
             where.append("is_read = 0")
         if before_id:

@@ -12,7 +12,7 @@
  * The red number on the bell is the unread count. Opening the bell
  * lists the notifications (New / Earlier), with All / Unread tabs and
  * "Mark all as read". Clicking one marks it read and opens its page
- * (the message, the login logs, the account, the learner's progress).
+ * (the login logs, the account, the learner's progress).
  * Same look and behavior as the learner bell (learner.js).
  */
 (function () {
@@ -22,7 +22,6 @@
     const POLL_MS = 60 * 1000;
     const PAGE_SIZE = 12;
     const TYPES = {
-        message:     { icon: "fa-envelope",       tone: "blue" },
         lockout:     { icon: "fa-lock",           tone: "red" },
         signup:      { icon: "fa-user-plus",      tone: "green" },
         course_done: { icon: "fa-graduation-cap", tone: "gold" },

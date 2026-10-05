@@ -10,7 +10,6 @@ owns it with that search already filled in.
     Pages               every sidebar page (by its name)
     Accounts            name, ID, username or email  -> Account & Security
     Learner progress    learners                     -> Learner Progress, By Learner
-    Messages            sender, email or text        -> Messages
     Chapters / Modules                               -> Manage Course
     Lessons                                          -> Learning Resources
        (a role that can't open those pages - the Admin - gets the same
@@ -58,7 +57,6 @@ PAGES = [
     ("Recommendations", "admin_bp.recommendations", "weak topics review"),
     ("Achievements", "admin_bp.achievements", "badges awards"),
     ("Reports", "admin_bp.reports", "ranking top learners"),
-    ("Messages", "admin_bp.messages", "contact inbox reply landing page"),
     ("Change Password", "admin_bp.staff_change_password", "security account"),
 ]
 
@@ -101,23 +99,6 @@ def _accounts(cursor, like):
             learners.append(_item(name, f"Progress of {r['acc_id']}",
                                   "admin_bp.learner_progress_learners", r["acc_id"]))
     return accounts, learners
-
-
-def _messages(cursor, like):
-    cursor.execute(
-        """SELECT sender_name, sender_email, message
-           FROM contact_messages_tbl
-           WHERE LOWER(sender_name) LIKE %s OR LOWER(sender_email) LIKE %s OR LOWER(message) LIKE %s
-           ORDER BY received_at DESC
-           LIMIT %s""",
-        (like, like, like, PER_GROUP)
-    )
-    items = []
-    for r in cursor.fetchall():
-        text = " ".join((r["message"] or "").split())
-        items.append(_item(r["sender_name"], text[:70] + ("…" if len(text) > 70 else ""),
-                           "admin_bp.messages", r["sender_email"]))
-    return items
 
 
 def _chapters(cursor, like):
@@ -313,7 +294,6 @@ def search_everything(query):
         if learners:
             groups.append({"label": "Learner progress", "items": learners})
 
-        run("Messages", _messages)
         run("Chapters", _chapters)
         run("Modules", _modules)
         run("Lessons", _lessons)

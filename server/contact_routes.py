@@ -7,7 +7,7 @@ Its own small Blueprint (like learner_fib_routes.py), because this is
 the one PUBLIC endpoint a visitor who is not logged in may post to:
 
     POST /api/contact   {name, email, message, website}
-         -> saves the message and emails it to the admin inbox
+         -> emails it to the admin inbox (Reply-To = the visitor); nothing is saved
             (contact_messages.submit_contact_message)
 
 "website" is the hidden trap field for bots - real visitors leave it empty.
