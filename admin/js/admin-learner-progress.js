@@ -26,6 +26,7 @@
         const statusSelect = document.getElementById("progressStatusSelect");
         const chapterSelect = document.getElementById("progressChapterSelect");
         const moduleSelect = document.getElementById("progressModuleSelect");
+        const sortSelect = document.getElementById("progressSortSelect");
         const startedFromInput = document.getElementById("progressStartedFromInput");
         const startedToInput = document.getElementById("progressStartedToInput");
         const clearStartedBtn = document.getElementById("clearProgressStartedDateBtn");
@@ -152,6 +153,7 @@
                 q: searchInput ? searchInput.value.trim() : "",
                 cat_id: chapterSelect ? chapterSelect.value : "",
                 module_id: moduleSelect && !moduleSelect.disabled ? moduleSelect.value : "",
+                sort: sortSelect && sortSelect.value !== "course" ? sortSelect.value : "",
                 ...recordFilters(),
             };
             Object.keys(values).forEach((key) => {
@@ -251,6 +253,7 @@
             });
         }
         if (moduleSelect) moduleSelect.addEventListener("change", () => fetchLessons(1));
+        if (sortSelect) sortSelect.addEventListener("change", () => fetchLessons(1));
 
         [startedFromInput, startedToInput, completedFromInput, completedToInput].forEach((input) => {
             if (input) input.addEventListener("change", () => fetchLessons(1));

@@ -111,6 +111,16 @@
                                 {% endfor %}
                             </select>
 
+                            <select class="custom-select" id="progressSortSelect">
+                                <option value="course" {{ 'selected' if sort == 'course' }}>Sort: Course Order</option>
+                                <option value="last_activity" {{ 'selected' if sort == 'last_activity' }}>Last Activity</option>
+                                <option value="learners" {{ 'selected' if sort == 'learners' }}>Most Learners</option>
+                                <option value="completed" {{ 'selected' if sort == 'completed' }}>Most Completed</option>
+                                <option value="score_high" {{ 'selected' if sort == 'score_high' }}>Avg Score: High to Low</option>
+                                <option value="score_low" {{ 'selected' if sort == 'score_low' }}>Avg Score: Low to High</option>
+                                <option value="lesson" {{ 'selected' if sort == 'lesson' }}>Lesson Name (A-Z)</option>
+                            </select>
+
                             <div class="date-filter-group" id="progressStartedDateGroup">
                                 <span class="date-filter-label">Started</span>
                                 <input type="date" class="custom-select" id="progressStartedFromInput" title="Started from" value="{{ started_from }}">

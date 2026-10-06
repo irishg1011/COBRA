@@ -545,14 +545,35 @@ def _metrics(evaluated):
     }
 
 
+# By Lesson "Sort" dropdown. Ties (and missing values) keep course order.
+LESSON_SORTS = ("course", "last_activity", "learners", "score_high", "score_low", "completed", "lesson")
+
+
+def _sort_lessons(lessons, sort):
+    lessons.sort(key=lambda l: l["_order"])          # course order, also the tie-breaker
+    if sort == "last_activity":
+        lessons.sort(key=lambda l: l["_last"] or datetime.min, reverse=True)
+    elif sort == "learners":
+        lessons.sort(key=lambda l: l["learners"], reverse=True)
+    elif sort == "completed":
+        lessons.sort(key=lambda l: l["completed"], reverse=True)
+    elif sort == "score_high":
+        lessons.sort(key=lambda l: (l["avg_score"] is None, -(l["avg_score"] or 0)))
+    elif sort == "score_low":
+        lessons.sort(key=lambda l: (l["avg_score"] is None, l["avg_score"] or 0))
+    elif sort == "lesson":
+        lessons.sort(key=lambda l: (l["lesson"] or "").lower())
+
+
 @live_cached   # the admin pages refresh every 10 s - see live_cache.py
 def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=None, module_id=None,
                                   started_from=None, started_to=None,
                                   completed_from=None, completed_to=None,
-                                  page=1, per_page=DEFAULT_PER_PAGE):
+                                  sort=None, page=1, per_page=DEFAULT_PER_PAGE):
     """
     Returns {"lessons", "metrics", "total", "page", "per_page", "total_pages"}
     (total = number of lessons) or None if the database is unreachable.
+    sort is one of LESSON_SORTS; anything else falls back to course order.
     """
     connection = get_db_connection()
     if connection is None:
@@ -579,6 +600,7 @@ def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=
             scores = [ev["score"] for _, ev in items if ev["score"] is not None]
             completed = {ev["acc_id"] for _, ev in items if ev["is_completed"]}
             touched = [t for t in (_last_touched(row) for row, _ in items) if t]
+            last_touched = max(touched) if touched else None
             lessons.append({
                 "resource_id": rid,
                 "lesson": path["lesson"],
@@ -587,12 +609,14 @@ def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=
                 "learners": len(learners),
                 "avg_score": round(sum(scores) / len(scores)) if scores else None,
                 "completed": len(completed),
-                "last_activity": fmt_datetime(max(touched) if touched else None),
+                "last_activity": fmt_datetime(last_touched),
                 "_order": path["order"],
+                "_last": last_touched,
             })
-        lessons.sort(key=lambda l: l["_order"])
+        _sort_lessons(lessons, sort)
         for lesson in lessons:
             del lesson["_order"]
+            del lesson["_last"]
 
         total = len(lessons)
         per_page = max(1, per_page)

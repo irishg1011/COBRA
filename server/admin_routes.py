@@ -3429,6 +3429,7 @@ def _read_progress_filters():
         "started_to": request.args.get('started_to', '') or None,
         "completed_from": request.args.get('completed_from', '') or None,
         "completed_to": request.args.get('completed_to', '') or None,
+        "sort": request.args.get('sort', '') or None,
         "page": request.args.get('page', 1, type=int),
     }
 
@@ -3460,6 +3461,7 @@ def learner_progress():
         started_to=filters["started_to"] or '',
         completed_from=filters["completed_from"] or '',
         completed_to=filters["completed_to"] or '',
+        sort=filters["sort"] or 'course',
     )
 
 
