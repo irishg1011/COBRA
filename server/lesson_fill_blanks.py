@@ -195,7 +195,8 @@ def _load_items(cursor, la_id):
     """Every item of this activity in sort order (includes the answer - server-side only)."""
     cursor.execute(
         f"""SELECT fib_id, instruction, content, correct_answer, answer_choices,
-                   correct_feedback, incorrect_feedback
+                   correct_feedback, incorrect_feedback,
+                   code_text, expected_output, hint, must_contain
             FROM {FILL_BLANKS_TABLE} WHERE la_id = %s
             ORDER BY sort_order ASC, fib_id ASC""",
         (la_id,)

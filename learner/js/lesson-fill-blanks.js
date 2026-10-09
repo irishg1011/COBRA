@@ -938,7 +938,7 @@
             qIndex = Math.min(server.current_index, total - 1);
             setMode("playing");
             loadItem();
-            if (server.total_lives <= 0 || server.session_status !== "in_progress") enterCooldown();
+            if (server.total_lives <= 0 || (!PREVIEW && server.session_status !== "in_progress")) enterCooldown();
             else if (slotInput) slotInput.focus({ preventScroll: true });
         }
 

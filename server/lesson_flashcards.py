@@ -164,7 +164,7 @@ def _published_type_id(cursor, la_id):
 
 def _load_cards(cursor, la_id):
     cursor.execute(
-        f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback
+        f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback, hint
             FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC""",
         (la_id,)
     )
