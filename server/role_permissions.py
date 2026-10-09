@@ -124,6 +124,7 @@ ENDPOINT_ROLES = {
     "admin_bp.learner_progress_learners": ADMIN,
     "admin_bp.learner_progress_learners_data": ADMIN,
     "admin_bp.learner_progress_learner_detail": ADMIN,
+    "admin_bp.game_settings": ADMIN,   # feat/question-timer: timer durations, leave threshold, pool targets
 
     "admin_bp.analytics": ADMIN,
     "admin_bp.analytics_data": ADMIN,

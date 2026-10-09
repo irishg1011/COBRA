@@ -3550,6 +3550,28 @@ def learner_progress_learners_data():
     return jsonify({"success": True, **overview}), 200
 
 
+@admin_bp.route('/api/game-settings', methods=['GET', 'POST'])
+def game_settings():
+    """
+    feat/question-timer: the game rules that can change after testing with
+    real learners, without a code edit - seconds per question for each
+    activity type, the timer grace, the leave threshold and the pool
+    targets (game_plays.DEFAULT_SETTINGS). GET reads, POST {key: number}.
+    """
+    from game_plays import get_settings, save_settings, DEFAULT_SETTINGS
+    if request.method == 'POST':
+        values, error = save_settings(request.get_json(silent=True) or {})
+        if values is None:
+            return jsonify({"success": False, "message": error}), 400
+    else:
+        values = get_settings(fresh=True)
+    return jsonify({
+        "success": True,
+        "settings": [{"key": k, "value": values.get(k, v), "description": d}
+                     for k, (v, d) in DEFAULT_SETTINGS.items()],
+    }), 200
+
+
 @admin_bp.route('/learner-progress/learner-detail/<acc_id>')
 def learner_progress_learner_detail(acc_id):
     """One learner's course breakdown (Chapter -> Module -> Lesson)."""

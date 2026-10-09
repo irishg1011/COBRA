@@ -456,6 +456,21 @@ TABLE_KEYS = ("progress_id", "acc_id", "name", "lesson", "score", "completion",
 # dropdowns; Started / Completed ranges and Status pick which records are
 # counted. The four stat cards keep their meaning: every record matching
 # search + dropdowns + dates (never the status filter).
+def _attach_leaves(connection, items):
+    """feat/leave-detection: how many times each learner left an activity page."""
+    if not items:
+        return
+    from game_plays import leave_counts, ensure_play_schema
+    ensure_play_schema(connection)
+    cursor = connection.cursor(dictionary=True)
+    counts = leave_counts(cursor, [i["acc_id"] for i in items])
+    cursor.close()
+    for item in items:
+        c = counts.get(item["acc_id"]) or {"total": 0, "warnings": 0, "forfeits": 0}
+        item["leaves"] = c["total"]
+        item["leave_forfeits"] = c["forfeits"]
+
+
 def _lesson_paths(cursor, resource_ids):
     """{resource_id: {lesson, module_id, module, cat_id, chapter, order}}"""
     if not resource_ids:
@@ -1021,6 +1036,7 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
 
         learners = [_strip_private(s) for s in summaries[offset:offset + per_page]]
         _attach_avatars(connection, learners)
+        _attach_leaves(connection, learners)
 
         return {
             "learners": learners,
@@ -1148,6 +1164,22 @@ def get_learner_course_detail(acc_id):
         result = _strip_private(summary)
         result["chapters"] = chapters_out
         result["avatar_url"] = avatar_url
+        # feat/leave-detection: every time this learner left a game or an exercise
+        from game_plays import leave_log, ensure_play_schema
+        ensure_play_schema(connection)
+        log_cursor = connection.cursor(dictionary=True)
+        result["leave_log"] = [{
+            "where": r["activity_title"] or r["exercise_title"] or "—",
+            "context": "Coding exercise" if r["context"] == "exercise" else "Activity",
+            "leave_no": r["leave_no"],
+            "action": {"warning": "Warning", "forfeit": "Question forfeited, rest replaced",
+                       "swap": "Exercise replaced"}.get(r["action"], r["action"]),
+            "reason": {"closed_or_refreshed": "Closed or refreshed the page", "blur": "Switched window",
+                       "hidden": "Switched tab / app or locked the screen"}.get(r["reason"] or "", r["reason"] or ""),
+            "away_seconds": r["away_seconds"],
+            "left_at": fmt_datetime(r["left_at"]),
+        } for r in leave_log(log_cursor, acc_id)]
+        log_cursor.close()
         return result
 
     except Error as e:

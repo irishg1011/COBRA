@@ -143,6 +143,7 @@
                                     <th>Avg Score</th>
                                     <th>Course Completion</th>
                                     <th>Last Active</th>
+                                    <th title="Times the learner left an activity page during a play">Left Page</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -187,6 +188,7 @@
                                         </div>
                                     </td>
                                     <td>{{ l.last_active }}</td>
+                                    <td>{% if l.leaves %}<span class="badge {{ 'badge-locked' if l.leave_forfeits else 'badge-inactive' }}">{{ l.leaves }}</span>{% else %}<span class="progress-no-score">0</span>{% endif %}</td>
                                     <td>
                                         <button type="button" class="icon-button-reset progress-view-btn js-view-learner-btn" data-acc-id="{{ l.acc_id }}" title="View course progress" aria-label="View course progress for {{ l.acc_id }}">
                                             <span class="mask-icon icon-eye"></span>
@@ -195,7 +197,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="10" class="text-muted table-empty-message">No learners found.</td>
+                                    <td colspan="11" class="text-muted table-empty-message">No learners found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

@@ -160,7 +160,7 @@
             if (!learners || learners.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="10" class="text-muted table-empty-message">No learners found.</td>
+                        <td colspan="11" class="text-muted table-empty-message">No learners found.</td>
                     </tr>
                 `;
                 return;
@@ -177,6 +177,7 @@
                     <td>${scoreBadgeHtml(l.avg_score)}</td>
                     <td>${completionHtml(l.completion)}</td>
                     <td>${escapeHtml(l.last_active)}</td>
+                    <td>${leavesHtml(l)}</td>
                     <td>
                         <button type="button" class="icon-button-reset progress-view-btn js-view-learner-btn" data-acc-id="${escapeHtml(l.acc_id)}" title="View course progress" aria-label="View course progress for ${escapeHtml(l.acc_id)}">
                             <span class="mask-icon icon-eye"></span>
@@ -184,6 +185,15 @@
                     </td>
                 </tr>
             `).join("");
+        }
+
+        // feat/leave-detection: times the learner left an activity page
+        // (first leave in a play = warning; after that = forfeit).
+        function leavesHtml(l) {
+            const n = Number(l.leaves || 0);
+            if (!n) return '<span class="progress-no-score">0</span>';
+            const forfeits = Number(l.leave_forfeits || 0);
+            return `<span class="badge ${forfeits ? "badge-locked" : "badge-inactive"}" title="${forfeits} forfeited">${n}</span>`;
         }
 
         function updateMetrics(metrics) {

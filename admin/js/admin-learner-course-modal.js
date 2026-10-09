@@ -57,6 +57,7 @@
         const completionEl = document.getElementById("learnerCourseCompletion");
         const lastActiveEl = document.getElementById("learnerCourseLastActive");
         const chaptersEl = document.getElementById("learnerCourseChapters");
+        const leavesEl = document.getElementById("learnerCourseLeaves");
 
         let modalRequestId = 0;
         let lastFocused = null;
@@ -222,6 +223,24 @@
             setText(lastActiveEl, learner.last_active || "—");
 
             if (chaptersEl) chaptersEl.innerHTML = chaptersHtml(learner.chapters);
+            if (leavesEl) leavesEl.innerHTML = leavesHtml(learner.leave_log || []);
+        }
+
+        // feat/leave-detection: each time the learner left a game / exercise page.
+        function leavesHtml(rows) {
+            if (!rows.length) return '<p class="progress-detail-empty">This learner never left an activity page during a play.</p>';
+            return `<table class="table progress-lesson-table">
+                <thead><tr><th>When</th><th>Where</th><th>Leave #</th><th>What happened</th><th>How</th><th>Away</th></tr></thead>
+                <tbody>${rows.map((r) => `<tr>
+                    <td>${escapeHtml(r.left_at)}</td>
+                    <td>${escapeHtml(r.where)} <small class="text-muted">${escapeHtml(r.context)}</small></td>
+                    <td>${Number(r.leave_no)}</td>
+                    <td>${escapeHtml(r.action)}</td>
+                    <td>${escapeHtml(r.reason)}</td>
+                    <td>${Number(r.away_seconds)} s</td>
+                </tr>`).join("")}</tbody>
+            </table>
+            <p class="progress-detail-empty">The system cannot see where the learner went, a second device, or a window read side by side without clicking it.</p>`;
         }
 
         async function openModal(accId) {
