@@ -209,6 +209,7 @@
             </div>
             <div class="mcq-arena-toolbar">
                 <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b> before the bar runs out. One try per question: a wrong letter, a skip, running out of time or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one; the daily bonus lives are a reserve used after your 5 lives are gone.</p>
+                <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn" disabled aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> <span>Skip (−1 life)</span></button>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
                 <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn"><i class="fa-solid fa-compress"></i> <span>Exit full screen</span></button>
             </div>
@@ -242,6 +243,11 @@
         let acc = 0, last = 0, shake = 0;
         let rafId = null, countdownTimer = null, flashTimer = null;
         let refreshing = false;
+        let firstOpen = true;
+        let counting = false;       // a 3 - 2 - 1 is running
+        // Before the play exists (a new learner, before Start) there is no
+        // question at all - the board draws this empty one.
+        const NOT_YET = { q_id: null, question_text: "", options: [], hidden: true };       // the first "play" after opening the page reports an unclosed leave
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
         // feat/question-timer: the bar only draws the server's clock.
         // feat/question-timer: above the question AND inside the game stage (phones, full screen)
@@ -258,6 +264,7 @@
                 ? '<i class="fa-solid fa-play"></i> <span>Resume</span>'
                 : '<i class="fa-solid fa-pause"></i> <span>Pause</span>';
             ui.pauseBtn.disabled = !(next === "playing" || next === "paused");
+            ui.skipBtn.disabled = !(next === "playing" || next === "paused");
         }
 
         function applyState(state) {
@@ -324,67 +331,68 @@
             return ui.overlay.querySelector(`[data-ui="${name}"]`);
         }
 
-        // Question preview: the learner reads the question and every choice
-        // BEFORE the cobra moves. Shown before each question (first start,
-        // continue, resume after a pause, and after every correct answer).
-        //   kind: start | continue | resume | next
-        function showQuestionPreview(kind) {
+        // feat/game-countdown: the game waits behind a blurred Start card -
+        // no question is on screen (or in the browser) before its clock
+        // starts. Start -> 3 - 2 - 1 -> the server reveals the question,
+        // starting its timer, and it shows with the cobra already moving.
+        //   kind: start | continue | resume
+        function showStartScreen(kind) {
             setMode("ready");
-            const q = questions[qIndex];
+            hideOverlay();
+            const kit = window.CobraGameKit;
             const copy = {
-                start: { eyebrow: "Read the question first", btn: "Start" },
-                continue: { eyebrow: "Pick up where you left off", btn: "Continue" },
-                resume: { eyebrow: "You have lives again - resuming where you stopped", btn: "Resume" },
-                next: { eyebrow: "Next question", btn: "Start" }
-            }[kind] || { eyebrow: "", btn: "Start" };
-            showOverlay(`
-                <div class="mcq-arena-overlay-card mcq-arena-preview">
-                    <span class="mcq-arena-preview-eyebrow" data-ui="previewEyebrow"></span>
-                    <div class="mcq-arena-qmeta" data-ui="previewMeta"></div>
-                    <h4 class="mcq-arena-preview-question" data-ui="previewQuestion"></h4>
-                    <div class="mcq-arena-preview-choices" data-ui="previewChoices"></div>
-                    <p class="mcq-arena-subnote">Steer the cobra into the pellet with the right letter.</p>
-                    ${fallback ? "" : '<div class="mcq-arena-keys"><kbd>W A S D</kbd><kbd>Arrow keys</kbd><kbd>Space = pause</kbd><kbd>Enter = start</kbd></div>'}
-                    <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-ghost-btn" data-ui="previewSkipBtn" aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="previewBtn"><i class="fa-solid fa-play"></i> <span data-ui="previewBtnText"></span></button>
-                    </div>
-                </div>
-            `);
-            overlayNode("previewEyebrow").textContent = (server && server.retake)
-                ? `Retake round ${server.retake.round} · ${copy.eyebrow}`
-                : copy.eyebrow;
-            overlayNode("previewMeta").textContent = `Question ${qIndex + 1} of ${total}`;
-            overlayNode("previewQuestion").textContent = q.question_text;
-            overlayNode("previewBtnText").textContent = copy.btn;
-            const list = overlayNode("previewChoices");
-            (q.options || []).forEach((opt) => {
-                const row = el("div", "mcq-arena-preview-choice");
-                if (triedIds.has(opt.option_id)) row.classList.add("is-wrong");
-                if (revealed && revealed.option_id === opt.option_id) row.classList.add("is-revealed");
-                const badge = el("span", "mcq-arena-key " + letterClass(opt.option_letter));
-                badge.textContent = opt.option_letter;
-                const text = el("span", "mcq-arena-choice-text");
-                text.textContent = opt.text;
-                row.appendChild(badge);
-                row.appendChild(text);
-                list.appendChild(row);
-            });
-            const startFromPreview = () => {
+                start: { title: "Ready to play?", btn: "Start" },
+                continue: { title: "Pick up where you left off", btn: "Continue" },
+                resume: { title: "You have lives again", btn: "Resume" }
+            }[kind] || { title: "Ready to play?", btn: "Start" };
+            const limit = server && server.timer ? server.timer.limit : 0;
+            const left = Math.max(0, total - (server ? server.current_index || 0 : 0));
+            kit.startCard(root, {
+                eyebrow: (server && server.retake) ? `Retake round ${server.retake.round} · Multiple Choice` : "Multiple Choice",
+                title: copy.title,
+                lines: [
+                    kind === "start" ? `${total} questions, one try each` : `${left} question${left === 1 ? "" : "s"} left`,
+                    PREVIEW ? "" : (limit ? `${limit} seconds per question` : ""),
+                    fallback ? "Tap the answer you think is right." : "Steer the cobra into the pellet with the right letter."
+                ],
+                note: PREVIEW ? "Preview: no timer, nothing is saved." : null,
+                button: copy.btn
+            }).then(() => {
+                if (disposed) return;
                 enterFocusIfPhone();
-                if (kind !== "next") {
-                    beginPlay();
-                    return;
-                }
-                if (fallback) {
-                    hideOverlay();
-                    setMode("playing");
-                    return;
-                }
-                resumePlay();
-            };
-            overlayNode("previewBtn").addEventListener("click", startFromPreview);
-            overlayNode("previewSkipBtn").addEventListener("click", () => skipFromPreview(kind));
+                startWithCountdown();
+            });
+        }
+
+        function go() {
+            if (fallback) {
+                hideOverlay();
+                setMode("playing");
+                return;
+            }
+            resumePlay();
+        }
+
+        // 3 - 2 - 1, THEN ask the server for the question (which starts its
+        // clock) and play it straight away.
+        async function startWithCountdown() {
+            if (disposed || counting) return;
+            counting = true;
+            setMode("busy");
+            hideOverlay();
+            const kit = window.CobraGameKit;
+            const next = Math.min((server ? server.current_index : qIndex) + 1, total);
+            await kit.countdown(root, { label: `Question ${next} of ${total}` });
+            if (disposed) return;
+            counting = false;
+            if (PREVIEW) {
+                goToServerQuestion();
+            } else if (!(await openPlay())) {
+                if (mode !== "ready") kit.hideCover(root);   // out of lives / done screens are not covered
+                return;
+            }
+            kit.hideCover(root);
+            go();
         }
 
         function pause() {
@@ -408,6 +416,7 @@
 
         function resumePlay() {
             if (disposed) return;
+            if (window.CobraGameKit) window.CobraGameKit.hideCover(root);
             hideOverlay();
             acc = 0;
             last = performance.now();
@@ -461,13 +470,11 @@
             });
         }
 
-        // Skip from the question preview (the question was never played):
-        // costs 1 life, no score - the server logs it as 'skipped' and
-        // moves on. Start/continue/resume previews open the play first.
-        async function skipFromPreview(kind) {
-            if (disposed || mode !== "ready") return;
+        // Skip the question on screen: costs 1 life, no score - the server
+        // logs it as 'skipped' and the next one comes after a 3 - 2 - 1.
+        async function skipCurrent() {
+            if (disposed || !["playing", "paused"].includes(mode)) return;
             setMode("busy");
-            if (kind !== "next" && !(await openPlay())) return;
             let data = null;
             try {
                 data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id });
@@ -526,7 +533,11 @@
                     window.location.href = "/lessons";
                 }
             });
-            overlayNode("outResumeBtn").addEventListener("click", beginPlay);
+            overlayNode("outResumeBtn").addEventListener("click", () => {
+                if (mode !== "outoflives") return;
+                enterFocusIfPhone();
+                startWithCountdown();
+            });
             syncOutOfLives();
         }
 
@@ -597,9 +608,11 @@
 
         // ---- question + board ----
         function renderQuestion() {
-            const q = questions[qIndex];
+            const q = questions[qIndex] || NOT_YET;
             ui.qmeta.textContent = `Question ${qIndex + 1} of ${total}`;
-            ui.qtext.textContent = q.question_text;
+            // feat/game-countdown: a question is only sent (and its clock
+            // started) after the 3 - 2 - 1, so before that there is nothing to show.
+            ui.qtext.textContent = q.hidden ? "The question appears after the 3 - 2 - 1 countdown." : q.question_text;
             ui.choices.innerHTML = "";
             ui.fallbackFeedback.hidden = true;
             (q.options || []).forEach((opt) => {
@@ -633,7 +646,7 @@
         }
 
         function spawnPellets() {
-            const q = questions[qIndex];
+            const q = questions[qIndex] || NOT_YET;
             pellets = [];
             const taken = new Set(snake.map((p) => p.x + "," + p.y));
             const minX = Math.min(10, COLS - 6);
@@ -686,9 +699,9 @@
             }
             goToServerQuestion();
             if (server.total_lives <= 0) showOutOfLives();
-            else if (server.session_status === "paused") showQuestionPreview("resume");
-            else if (server.session_status === "in_progress" && server.solved_count > 0) showQuestionPreview("continue");
-            else showQuestionPreview("start");
+            else if (server.session_status === "paused") showStartScreen("resume");
+            else if (server.session_status === "in_progress" && server.solved_count > 0) showStartScreen("continue");
+            else showStartScreen("start");
         }
 
         // Starts the ONE play on the server, or continues/resumes that same
@@ -698,7 +711,8 @@
         async function openPlay() {
             let data = null;
             try {
-                data = await mcqRequest("play", activity.la_id);
+                data = await mcqRequest("play", activity.la_id, firstOpen ? { boot: true } : undefined);
+                firstOpen = false;
             } catch (err) {
                 if (!disposed) showError(err.message);
                 return false;
@@ -711,19 +725,6 @@
             }
             goToServerQuestion();
             return true;
-        }
-
-        // Start the ONE play, or continue/resume that same play.
-        async function beginPlay() {
-            if (disposed || mode === "busy") return;
-            setMode("busy");
-            if (!(await openPlay())) return;
-            if (fallback) {
-                hideOverlay();
-                setMode("playing");
-                return;
-            }
-            resumePlay();
         }
 
         // ---- answering ----
@@ -786,9 +787,10 @@
             revealNext();
         }
 
-        // feat/question-pool-draw: the next question is only revealed (and
-        // its clock started) by the server right before it is shown - never
-        // while the feedback is on screen or the play is paused at 0 lives.
+        // feat/question-pool-draw + feat/game-countdown: the next question is
+        // only revealed (and its clock started) by the server after the
+        // 3 - 2 - 1 - never while the feedback is on screen or the play is
+        // paused at 0 lives.
         async function revealNext() {
             if (disposed) return;
             if (server.completed) {
@@ -800,24 +802,7 @@
                 showOutOfLives();
                 return;
             }
-            if (!PREVIEW) {
-                setMode("busy");
-                let data = null;
-                try {
-                    data = await mcqRequest("play", activity.la_id);
-                } catch (err) {
-                    if (!disposed) showError(err.message);
-                    return;
-                }
-                if (disposed) return;
-                applyState(data.state);
-                if (server.completed || server.session_status !== "in_progress") {
-                    resyncFromState();
-                    return;
-                }
-            }
-            goToServerQuestion();
-            showQuestionPreview("next");   // read the next question before playing
+            startWithCountdown();   // 3 - 2 - 1, then the next question and its clock
         }
 
         // feat/question-timer: the bar ran out - the server checks its own clock.
@@ -1085,7 +1070,7 @@
             }
             if (e.code === "Enter" && target && target.tagName === "BUTTON") return; // let the focused button handle it
             if (e.code === "Enter" && mode === "ready") {
-                const startBtn = overlayNode("previewBtn");
+                const startBtn = root.querySelector(".game-ready-btn");
                 if (startBtn) {
                     e.preventDefault();
                     startBtn.click();
@@ -1175,6 +1160,8 @@
             arena = null;
         }
 
+        ui.skipBtn.addEventListener("click", skipCurrent);
+
         ui.pauseBtn.addEventListener("click", () => {
             if (mode === "playing") pause();
             else if (mode === "paused") {
@@ -1205,6 +1192,15 @@
             steer(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
         }, { passive: true });
 
+        function showLeaveEvents() {
+            if (PREVIEW || !window.CobraGameKit || !server || !server.events) return;
+            server.events.forEach((event) => {
+                if (event.type === "leave_warning" || event.type === "leave_forfeit") {
+                    window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
+                }
+            });
+        }
+
         // ---- boot ----
         async function boot() {
             setMode("loading");
@@ -1220,8 +1216,8 @@
 
             let data;
             try {
-                data = PREVIEW ? await mcqRequest("state", activity.la_id)
-                    : await mcqRequest("play", activity.la_id, { boot: true });
+                // feat/game-countdown: opening the page never reveals a question.
+                data = await mcqRequest("state", activity.la_id);
             } catch (err) {
                 console.error("Error loading Multiple Choice state:", err);
                 if (!disposed) showError("Could not load this activity.");
@@ -1257,17 +1253,14 @@
                 leaveGuard = window.CobraGameKit.leaveGuard({
                     url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
                     body: () => ({ la_id: activity.la_id }),
+                    // only while a question is on screen (not on the Start card / 3 - 2 - 1)
                     isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
-                        && server.total_lives > 0 && root.isConnected),
+                        && server.total_lives > 0 && server.current_revealed && root.isConnected),
                     // the server's leave_min_seconds: shorter absences never cover the game
                     minSeconds: () => (server && server.leave ? server.leave.min_seconds : 2),
                     onResult: onLeaveResult
                 });
-                if (server && server.events) server.events.forEach((event) => {
-                    if (event.type === "leave_warning" || event.type === "leave_forfeit") {
-                        window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
-                    }
-                });
+                showLeaveEvents();
             }
             document.addEventListener("keydown", onKeyDown);
             document.addEventListener("visibilitychange", onVisibility);
@@ -1275,6 +1268,20 @@
             countdownTimer = setInterval(tick, 1000);
             if (!fallback) rafId = requestAnimationFrame(loop);
 
+            // A question whose clock was already running (page refreshed or
+            // reopened mid-question) can't wait for a countdown - it shows now.
+            if (!PREVIEW && server && server.current_revealed && !server.completed
+                && server.session_status === "in_progress" && server.total_lives > 0) {
+                if (await openPlay()) {
+                    showLeaveEvents();   // a tab closed mid-question counts as leaving
+                    if (server.current_revealed) {
+                        flash("Your timer kept running while you were away.", false);
+                        go();
+                        return;
+                    }
+                }
+                if (disposed) return;
+            }
             resyncFromState();
         }
 

@@ -89,3 +89,90 @@ html.game-leave-check .fc-root {
     user-select: none;
     -webkit-user-select: none;
 }
+/* feat/game-countdown: blurred cover - Start card, then 3 - 2 - 1 */
+.game-ready-host { position: relative; }
+.game-ready-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.35);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: inherit;
+}
+.game-ready-cover[hidden] { display: none; }
+.game-ready-card {
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 18px;
+    padding: 24px 26px;
+    max-width: 440px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+}
+.game-ready-eyebrow {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #0f766e;
+    margin-bottom: 6px;
+}
+.game-ready-title { margin: 0 0 12px; font-size: 1.3rem; }
+.game-ready-lines {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+    font-size: 0.92rem;
+    color: #334155;
+}
+.game-ready-note {
+    margin: 0 0 18px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+.game-ready-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 12px 34px;
+    font: inherit;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #ffffff;
+    background: linear-gradient(90deg, #0ea5e9, #22c55e);
+    cursor: pointer;
+}
+.game-ready-btn:disabled { opacity: 0.7; cursor: default; }
+.game-ready-count {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: #ffffff;
+    text-align: center;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+.game-ready-count-label { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.04em; }
+.game-ready-count-number { font-size: 6rem; line-height: 1; font-weight: 800; }
+.game-ready-count-number.is-tick { animation: game-ready-pop 0.9s ease-out; }
+.game-ready-count-sub { font-size: 0.88rem; opacity: 0.9; }
+@keyframes game-ready-pop {
+    0% { transform: scale(1.6); opacity: 0; }
+    25% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .game-ready-count-number.is-tick { animation: none; }
+}

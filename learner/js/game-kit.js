@@ -339,5 +339,119 @@
         };
     }
 
-    window.CobraGameKit = { hearts, livesText, timerBar, timerBars, leaveGuard, notice, noticeOpen };
+    // ------------------------------------------------------------
+    // feat/game-countdown: nothing of a question is on screen (or even in
+    // the browser) before its clock starts. A blurred cover over the game
+    // shows a Start card, then "3 - 2 - 1"; only then does the game ask the
+    // server to reveal the question - which starts its timer - and show it.
+    //   startCard(host, opts) -> Promise, resolves when Start is pressed
+    //     opts: { eyebrow, title, lines: [text...], button }
+    //   countdown(host, opts) -> Promise, resolves after 3 - 2 - 1
+    //     opts: { label }  e.g. "Question 2 of 5"
+    // The cover stays until hideCover(host) (or the next startCard/countdown),
+    // so the game can fetch the question behind it without a flash.
+    // ------------------------------------------------------------
+    const COVER_CLASS = "game-ready-cover";
+    const READY_NOTE = "The timer starts the moment each question appears.";
+
+    function coverFor(host) {
+        host.classList.add("game-ready-host");
+        let cover = host.querySelector(":scope > ." + COVER_CLASS);
+        if (!cover) {
+            cover = document.createElement("div");
+            cover.className = COVER_CLASS;
+            host.appendChild(cover);
+        }
+        cover.hidden = false;
+        return cover;
+    }
+
+    function hideCover(host) {
+        const cover = host && host.querySelector(":scope > ." + COVER_CLASS);
+        if (cover) {
+            cover.hidden = true;
+            cover.innerHTML = "";
+        }
+    }
+
+    function startCard(host, opts) {
+        opts = opts || {};
+        const cover = coverFor(host);
+        cover.innerHTML = "";
+        const card = document.createElement("div");
+        card.className = "game-ready-card";
+        const add = (tag, cls, text) => {
+            const node = document.createElement(tag);
+            node.className = cls;
+            node.textContent = text;
+            card.appendChild(node);
+            return node;
+        };
+        if (opts.eyebrow) add("span", "game-ready-eyebrow", opts.eyebrow);
+        add("h4", "game-ready-title", opts.title || "Ready to play?");
+        const list = document.createElement("ul");
+        list.className = "game-ready-lines";
+        (opts.lines || []).filter(Boolean).forEach((text) => {
+            const li = document.createElement("li");
+            li.textContent = text;
+            list.appendChild(li);
+        });
+        if (list.children.length) card.appendChild(list);
+        const note = add("p", "game-ready-note", "");
+        note.innerHTML = '<i class="fa-solid fa-stopwatch"></i> ';
+        note.appendChild(document.createTextNode(opts.note || READY_NOTE));
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "game-ready-btn";
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> ';
+        btn.appendChild(document.createTextNode(opts.button || "Start"));
+        card.appendChild(btn);
+        cover.appendChild(card);
+        return new Promise((resolve) => {
+            btn.addEventListener("click", () => {
+                btn.disabled = true;
+                resolve();
+            }, { once: true });
+            setTimeout(() => btn.focus({ preventScroll: true }), 50);
+        });
+    }
+
+    function countdown(host, opts) {
+        opts = opts || {};
+        const cover = coverFor(host);
+        cover.innerHTML = "";
+        const box = document.createElement("div");
+        box.className = "game-ready-count";
+        box.setAttribute("aria-live", "assertive");
+        const label = document.createElement("span");
+        label.className = "game-ready-count-label";
+        label.textContent = opts.label || "Get ready";
+        const number = document.createElement("b");
+        number.className = "game-ready-count-number";
+        const sub = document.createElement("span");
+        sub.className = "game-ready-count-sub";
+        sub.textContent = "The question and its timer start together.";
+        box.append(label, number, sub);
+        cover.appendChild(box);
+        const steps = [3, 2, 1];
+        return new Promise((resolve) => {
+            let i = 0;
+            const show = () => {
+                if (i >= steps.length) {
+                    resolve();
+                    return;
+                }
+                number.textContent = String(steps[i]);
+                number.classList.remove("is-tick");
+                void number.offsetWidth;   // restart the pop animation
+                number.classList.add("is-tick");
+                i += 1;
+                setTimeout(show, 1000);
+            };
+            show();
+        });
+    }
+
+    window.CobraGameKit = { hearts, livesText, timerBar, timerBars, leaveGuard, notice, noticeOpen,
+        startCard, countdown, hideCover };
 })();
