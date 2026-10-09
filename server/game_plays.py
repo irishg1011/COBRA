@@ -474,7 +474,8 @@ def learner_item(activity_type, row):
             "instruction": (row.get("instruction") or "") if has_console else (row.get("instruction") or ""),
             "content": row["code_text"] if has_console else row["content"],
             "has_console": has_console,
-            "expected_output": (row.get("expected_output") or "") if has_console else "",
+            # The expected output is NOT sent while answering: the learner sees
+            # the real output only after a correct answer (submit_answer).
             "hint": row.get("hint") or "",
             "choices": fib_choices_for_learner(row),
         }

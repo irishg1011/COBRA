@@ -533,8 +533,10 @@
             // show while answering; the console shows the real run afterwards.
             ui.hint.textContent = item.hint ? `Hint: ${item.hint}` : "";
             ui.hint.hidden = !item.hint;
-            ui.expectedText.textContent = item.expected_output || "";
-            ui.expected.hidden = !item.has_console;
+            // The expected output is not shown while answering - only the
+            // real output after a correct answer (showConsole).
+            ui.expectedText.textContent = "";
+            ui.expected.hidden = true;
             ui.consoleOut.hidden = true;
             hideFeedback();
             ui.trayHead.hidden = isTyping();
@@ -727,10 +729,13 @@
                 ui.consoleOut.hidden = true;
                 return;
             }
+            // Correct -> the program's output (exactly the expected output).
+            // Wrong -> the Python error, or what their code printed instead.
             const isError = !!consoleResult.error;
+            const correct = !!consoleResult.correct;
             ui.consoleOut.hidden = false;
-            ui.consoleOut.classList.toggle("is-error", isError);
-            ui.consoleLabel.textContent = isError ? "Python error" : "Your output";
+            ui.consoleOut.classList.toggle("is-error", !correct);
+            ui.consoleLabel.textContent = correct ? "Output" : isError ? "Python error" : "Your output (not what the question asks for)";
             ui.consoleText.textContent = isError ? consoleResult.error : (consoleResult.output || "(nothing was printed)");
         }
 
@@ -743,7 +748,7 @@
             ui.fbText.textContent = result.is_correct
                 ? (result.feedback || "")
                 : `${result.feedback || ""} SyntaxBug bites back (−1 life). This puzzle counts as missed.`.trim();
-            showConsole(result.console);
+            showConsole(result.console ? Object.assign({ correct: !!result.is_correct }, result.console) : null);
             // One try per puzzle: the only way forward is the next puzzle.
             // The correct answer is never shown.
             ui.fbAnswer.hidden = true;
