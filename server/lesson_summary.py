@@ -120,16 +120,8 @@ def get_lesson_performance_summary(acc_id, resource_id):
                 graded_total += item_total
 
         exercise_out = None
-        cursor.execute(
-            """SELECT ce.exercise_id, ce.exercise_title
-               FROM coding_exercises_tbl ce
-               JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-               WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-                 AND COALESCE(ce.is_archived, 0) = 0
-               ORDER BY ce.exercise_id DESC LIMIT 1""",
-            (resource_id,)
-        )
-        exercise_row = cursor.fetchone()
+        from exercise_pool import assigned_exercise_row   # feat/exercise-pool: their own exercise
+        exercise_row = assigned_exercise_row(cursor, acc_id, resource_id)
         if exercise_row:
             exercise_id = exercise_row["exercise_id"]
 

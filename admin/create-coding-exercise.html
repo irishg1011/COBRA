@@ -129,6 +129,7 @@
                                     <select id="exerciseLesson" name="resource_id" class="form-control-select{{ ' select-locked' if lock }}" required disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-resource-id="{{ existing_exercise.resource_id if existing_exercise else (prefill.resource_id if prefill and prefill.resource_id else '') }}">
                                         <option value="" disabled selected>Select lesson</option>
                                     </select>
+                                    <p class="exercise-pool-count" id="exercisePoolCount" hidden></p>
                                 </div>
                             </div>
 

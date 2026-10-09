@@ -4351,7 +4351,22 @@ def create_learning_activity_lessons_by_module():
         return jsonify({"success": True, "lessons": []}), 200
 
     lessons = get_resources_by_module(module_id)
-    return jsonify({"success": True, "lessons": lessons}), 200
+    # feat/exercise-pool: how many coding exercises each lesson already has
+    # (the editor shows "3 / 5" and stops at 5).
+    from exercise_pool import lesson_exercise_count, EXERCISE_POOL_MAX
+    connection = get_db_connection()
+    if connection is not None:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            for lesson in lessons:
+                lesson["exercise_count"] = lesson_exercise_count(cursor, lesson["resource_id"])
+            cursor.close()
+        except Error as e:
+            print(f"admin_routes: could not count exercises per lesson: {e}")
+        finally:
+            if connection.is_connected():
+                connection.close()
+    return jsonify({"success": True, "lessons": lessons, "exercise_pool_max": EXERCISE_POOL_MAX}), 200
 
 
 @admin_bp.route('/create-learning-activity', methods=['GET'])
@@ -4559,7 +4574,22 @@ def coding_exercises_lessons_by_module():
         return jsonify({"success": True, "lessons": []}), 200
 
     lessons = get_resources_by_module(module_id)
-    return jsonify({"success": True, "lessons": lessons}), 200
+    # feat/exercise-pool: how many coding exercises each lesson already has
+    # (the editor shows "3 / 5" and stops at 5).
+    from exercise_pool import lesson_exercise_count, EXERCISE_POOL_MAX
+    connection = get_db_connection()
+    if connection is not None:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            for lesson in lessons:
+                lesson["exercise_count"] = lesson_exercise_count(cursor, lesson["resource_id"])
+            cursor.close()
+        except Error as e:
+            print(f"admin_routes: could not count exercises per lesson: {e}")
+        finally:
+            if connection.is_connected():
+                connection.close()
+    return jsonify({"success": True, "lessons": lessons, "exercise_pool_max": EXERCISE_POOL_MAX}), 200
 
 
 @admin_bp.route('/coding-exercises/check-title', methods=['GET', 'POST'])

@@ -238,23 +238,21 @@ def lesson_complete(cursor, acc_id, resource_id):
     # feat/published-only: a Draft or archived exercise never blocks the
     # lesson - only a Published one has to be passed (learners can't even
     # see the others).
-    cursor.execute(
-        """SELECT ce.exercise_id
-           FROM coding_exercises_tbl ce
-           JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-           WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-             AND COALESCE(ce.is_archived, 0) = 0""",
-        (resource_id,)
-    )
-    for ex in cursor.fetchall():
+    # feat/exercise-pool: only the learner's OWN exercise (one of the
+    # lesson's pool) has to be passed; none drawn yet = not done.
+    from exercise_pool import published_exercise_ids, assigned_exercise_id
+    if published_exercise_ids(cursor, resource_id):
+        own = assigned_exercise_id(cursor, acc_id, resource_id)
+        if not own:
+            return False
         cursor.execute(
             "SELECT status FROM learner_exercise_progress_tbl WHERE acc_id = %s AND exercise_id = %s",
-            (acc_id, ex["exercise_id"])
+            (acc_id, own)
         )
         ex_row = cursor.fetchone()
         if not ex_row or ex_row["status"] != "completed":
             # Skipped for now (after 3 tries) also counts as done.
-            if not exercise_score(cursor, acc_id, ex["exercise_id"])["skipped"]:
+            if not exercise_score(cursor, acc_id, own)["skipped"]:
                 return False
     return True
 
@@ -263,19 +261,14 @@ def lesson_complete(cursor, acc_id, resource_id):
 def _exercise_points(cursor, acc_id, resource_id):
     """(points_earned, points_total) for the lesson's coding exercise - learner_exercise.exercise_score():
     one item, earned when the latest attempt is correct."""
-    cursor.execute(
-        """SELECT ce.exercise_id
-           FROM coding_exercises_tbl ce
-           JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-           WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-             AND COALESCE(ce.is_archived, 0) = 0
-           ORDER BY ce.exercise_id DESC LIMIT 1""",
-        (resource_id,)
-    )
-    row = cursor.fetchone()
-    if not row:
+    # feat/exercise-pool: the learner's own exercise is the ONE gradable item.
+    from exercise_pool import published_exercise_ids, assigned_exercise_id
+    if not published_exercise_ids(cursor, resource_id):
         return 0, 0
-    score = exercise_score(cursor, acc_id, row["exercise_id"])
+    own = assigned_exercise_id(cursor, acc_id, resource_id)
+    if not own:
+        return 0, 1
+    score = exercise_score(cursor, acc_id, own)
     return score["earned"], score["total"]
 
 

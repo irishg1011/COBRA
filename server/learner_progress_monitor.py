@@ -414,13 +414,24 @@ def _evaluate_rows(cursor, rows):
 
     acc_ids = sorted({r["acc_id"] for r in rows})
     la_ids = sorted({a["la_id"] for lesson in lessons.values() for a in lesson["activities"]})
-    exercise_ids = sorted({lesson["exercise"]["exercise_id"] for lesson in lessons.values() if lesson["exercise"]})
+    # feat/exercise-pool: each learner is graded on THEIR exercise of the lesson's pool.
+    from exercise_pool import assigned_exercise_map
+    own = assigned_exercise_map(cursor, acc_ids, resource_ids)
+    exercise_ids = sorted({lesson["exercise"]["exercise_id"] for lesson in lessons.values() if lesson["exercise"]}
+                          | set(own.values()))
 
     act_progress = _load_activity_progress(cursor, acc_ids, la_ids)
     ex_passed, submissions = _load_exercise_results(cursor, acc_ids, exercise_ids)
 
+    def lesson_for(row):
+        lesson = lessons[row["resource_id"]]
+        exercise_id = own.get((row["acc_id"], row["resource_id"]))
+        if lesson["exercise"] and exercise_id and exercise_id != lesson["exercise"]["exercise_id"]:
+            lesson = dict(lesson, exercise=dict(lesson["exercise"], exercise_id=exercise_id))
+        return lesson
+
     return [
-        _evaluate(row, lessons[row["resource_id"]], act_progress, ex_passed, submissions)
+        _evaluate(row, lesson_for(row), act_progress, ex_passed, submissions)
         for row in rows
     ]
 

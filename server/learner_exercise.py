@@ -62,10 +62,12 @@ def add_public_spec(cursor, exercise):
     return exercise
 
 
-def get_published_exercise_for_resource(resource_id):
+def get_published_exercise_for_resource(resource_id, acc_id=None):
     """
     Returns the Published coding_exercises_tbl row for `resource_id`,
     with its Expected Output, Given input and required tags (add_public_spec).
+    feat/exercise-pool: with acc_id, THAT learner's exercise - one of the
+    lesson's pool, drawn on their first visit and kept (exercise_pool.py).
 
     Returns None if the lesson has no Published exercise, or on any
     database error.
@@ -76,6 +78,13 @@ def get_published_exercise_for_resource(resource_id):
     if connection is None:
         return None
 
+    own_id = None
+    if acc_id:
+        from exercise_pool import get_or_draw_exercise_id
+        own_id = get_or_draw_exercise_id(acc_id, resource_id)
+        if not own_id:
+            connection.close()
+            return None
     try:
         ensure_output_exercise_schema(connection)
         cursor = connection.cursor(dictionary=True)
@@ -86,9 +95,10 @@ def get_published_exercise_for_resource(resource_id):
                 JOIN {LA_STATS_TABLE} las ON ce.exercise_stats_id = las.la_stats_id
                 WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
                   AND COALESCE(ce.is_archived, 0) = 0
+                  {"AND ce.exercise_id = %s" if own_id else ""}
                 ORDER BY ce.exercise_id DESC
                 LIMIT 1""",
-            (resource_id,)
+            (resource_id, own_id) if own_id else (resource_id,)
         )
         exercise = cursor.fetchone()
         if not exercise:

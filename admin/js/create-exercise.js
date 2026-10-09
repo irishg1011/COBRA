@@ -344,16 +344,36 @@ function setupTitleCasingNormalization(inputId) {
 const EXERCISE_TITLE_SEPARATOR = " \u2013 ";
 const EXERCISE_TITLE_TYPE = "Coding Exercise";
 
-// "<Lesson> – Coding Exercise", read-only - lesson names are unique and a
-// lesson has one exercise, so this title is unique too. The server builds
-// it again on every save and ignores what is sent.
+// "<Lesson> – Coding Exercise N", read-only (feat/exercise-pool: a lesson
+// holds up to 5 exercises, numbered 1-5 so titles stay unique). The server
+// builds it again on every save and ignores what is sent; a saved exercise
+// keeps its number.
+const EXERCISE_POOL_TARGET = 5;
+
 function updateExerciseTitle() {
     const titleInput = document.getElementById('exerciseTitle');
     const lessonSelect = document.getElementById('exerciseLesson');
     if (!titleInput || !lessonSelect) return;
     const option = lessonSelect.value ? lessonSelect.options[lessonSelect.selectedIndex] : null;
     const lesson = option ? option.textContent.trim() : '';
-    titleInput.value = lesson ? `${lesson}${EXERCISE_TITLE_SEPARATOR}${EXERCISE_TITLE_TYPE}` : '';
+    const savedLesson = lessonSelect.dataset.preselectResourceId || '';
+    const isSavedHere = !!(document.getElementById('exerciseIdInput') || {}).value && savedLesson === lessonSelect.value;
+    const count = option ? Number(option.dataset.exerciseCount || 0) : 0;
+    const savedNumber = (titleInput.dataset.savedTitle || titleInput.value || '').match(/Coding Exercise (\d+)$/);
+    const number = isSavedHere ? (savedNumber ? savedNumber[1] : '1') : String(count + 1);
+    titleInput.value = lesson ? `${lesson}${EXERCISE_TITLE_SEPARATOR}${EXERCISE_TITLE_TYPE} ${number}` : '';
+    if (!titleInput.dataset.savedTitle && isSavedHere) titleInput.dataset.savedTitle = titleInput.value;
+    const note = document.getElementById('exercisePoolCount');
+    if (note) {
+        note.hidden = !lesson;
+        const shown = isSavedHere ? count : count + 1;
+        note.classList.toggle('is-under', shown < EXERCISE_POOL_TARGET);
+        note.classList.toggle('is-full', !isSavedHere && count >= EXERCISE_POOL_TARGET);
+        note.textContent = !isSavedHere && count >= EXERCISE_POOL_TARGET
+            ? `This lesson already has ${count} / ${EXERCISE_POOL_TARGET} coding exercises - the most it can have.`
+            : `This lesson will have ${shown} / ${EXERCISE_POOL_TARGET} coding exercises. Each learner gets one of them at random`
+              + (shown < EXERCISE_POOL_TARGET ? ` - add ${EXERCISE_POOL_TARGET - shown} more (you can still save and publish).` : '.');
+    }
     titleInput.classList.remove('field-error');
     if (typeof window.cobraByteRefreshCharCounters === 'function') window.cobraByteRefreshCharCounters();
 }
@@ -740,7 +760,7 @@ function setupDependentDropdowns() {
 
             const optionsHtml = result.lessons.map(lesson => {
                 const isSelected = preselectResourceId && String(lesson.resource_id) === String(preselectResourceId);
-                return `<option value="${escapeHtml(lesson.resource_id)}" ${isSelected ? 'selected' : ''}>${escapeHtml(lesson.resource_title)}</option>`;
+                return `<option value="${escapeHtml(lesson.resource_id)}" data-exercise-count="${Number(lesson.exercise_count || 0)}" ${isSelected ? 'selected' : ''}>${escapeHtml(lesson.resource_title)}</option>`;
             }).join("");
 
             lessonSelect.innerHTML = LESSON_PLACEHOLDER_HTML + optionsHtml;

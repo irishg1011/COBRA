@@ -54,6 +54,7 @@ from module_performance import (  # Module 85% gate
     live_course_rows, is_live_lesson,  # feat/published-only: what a learner can see
 )
 from activity_retakes import ensure_retake_schema, PASS_PERCENT
+from exercise_pool import assigned_exercise_id, is_assigned  # feat/exercise-pool
 from learner_progress_unlocks import write_unlock, get_unlocked_at  # when a learner first reached a chapter (Task #16's "New" badge) - no longer decides what is locked
 
 learner_bp = Blueprint('learner_bp', __name__)
@@ -619,19 +620,20 @@ def lessons_data():
 
                 exercise_completed = True
                 if has_exercise:
-                    exercise_completed = True
-                    for ex in exercise_rows:
+                    # feat/exercise-pool: only the learner's OWN exercise (one of
+                    # the lesson's pool) has to be passed; none drawn yet = not done.
+                    own_exercise = assigned_exercise_id(cursor, acc_id, resource_id)
+                    exercise_completed = False
+                    if own_exercise:
                         cursor.execute(
                             """SELECT status FROM learner_exercise_progress_tbl
                                WHERE acc_id = %s AND exercise_id = %s""",
-                            (acc_id, ex["exercise_id"])
+                            (acc_id, own_exercise)
                         )
                         ex_progress = cursor.fetchone()
-                        if not ex_progress or ex_progress["status"] != "completed":
-                            # Skipped for now (after 3 tries) also lets the lesson finish.
-                            if not exercise_score(cursor, acc_id, ex["exercise_id"])["skipped"]:
-                                exercise_completed = False
-                                break
+                        # Skipped for now (after 3 tries) also lets the lesson finish.
+                        exercise_completed = bool(ex_progress and ex_progress["status"] == "completed") \
+                            or exercise_score(cursor, acc_id, own_exercise)["skipped"]
 
                 activities_ok = (activities_total == 0) or (activities_completed == activities_total)
                 is_complete = resource_watched and activities_ok and exercise_completed
@@ -886,7 +888,7 @@ def lesson_content_data():
         )
         has_activities = cursor.fetchone()["cnt"] > 0
 
-        exercise = get_published_exercise_for_resource(resource_id)
+        exercise = get_published_exercise_for_resource(resource_id, acc_id)   # feat/exercise-pool: their own
         exercise_completed = False
         exercise_last_submission = None
         exercise_state = None
@@ -932,6 +934,9 @@ def lesson_content_data():
             "exercise_completed": exercise_completed,
             "exercise_last_submission": exercise_last_submission,
             "exercise_state": exercise_state,
+            # feat/exercise-pool: "Retake with a new exercise" is offered
+            "exercise_retake_allowed": bool(exercise) and _exercise_retake_allowed(cursor_ok=connection, acc_id=acc_id,
+                                                                                resource_id=resource_id),
             "is_completed": progress_row["status"] == "completed",
             "progress": {
                 "video_watched": progress_row["video_watched_at"] is not None,
@@ -1067,6 +1072,9 @@ def lesson_exercise_submit():
 
     if not exercise_id:
         return jsonify({"success": False, "message": "exercise_id is required."}), 400
+    # feat/exercise-pool: only the learner's own exercise can be submitted.
+    if not is_assigned(acc_id, data.get("resource_id"), exercise_id):
+        return jsonify({"success": False, "message": "This is not your exercise for this lesson. Reload the page."}), 409
 
     # Locked once passed - same rule as the activities (the result that
     # counts is already saved), so a passed exercise can't be resubmitted.
@@ -1095,6 +1103,75 @@ def lesson_exercise_submit():
 
 
 # ============================================================
+# feat/exercise-pool: RETAKE THE EXERCISE WITH ANOTHER ONE OF THE POOL
+# Open when the module is below the pass mark and the learner's exercise
+# is not passed: they get another exercise they have not seen.
+# ============================================================
+def _exercise_retake_allowed(cursor_ok, acc_id, resource_id):
+    """True when the lesson page should offer a retake with another exercise."""
+    try:
+        cursor = cursor_ok.cursor(dictionary=True)
+        ok, _ = _exercise_retake_check(acc_id, resource_id)(cursor)
+        cursor.close()
+        return ok
+    except Error:
+        return False
+
+
+def _exercise_retake_check(acc_id, resource_id):
+    def check(cursor):
+        from exercise_pool import assigned_exercise_id
+        cursor.execute("SELECT module_id FROM learning_resources_tbl WHERE resource_id = %s", (resource_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "This lesson is not available."
+        if not module_performance(cursor, acc_id, row["module_id"])["needs_retake"]:
+            return False, "A retake opens when every lesson of the module is done and the module is below the pass mark."
+        own = assigned_exercise_id(cursor, acc_id, resource_id)
+        if own and exercise_score(cursor, acc_id, own)["passed"]:
+            return False, "You already passed this lesson's exercise."
+        return True, None
+    return check
+
+
+@learner_bp.route("/api/lesson-exercise/retake", methods=["POST"])
+def lesson_exercise_retake():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+    from exercise_pool import retake_exercise
+    data = request.get_json(silent=True) or {}
+    try:
+        resource_id = int(data.get("resource_id"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "resource_id is required."}), 400
+    result, message = retake_exercise(acc_id, resource_id, _exercise_retake_check(acc_id, resource_id))
+    if result is None:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, **result}), 200
+
+
+# ============================================================
+# feat/leave-detection for the coding exercise: first leave = warning,
+# from the second the exercise is replaced with an unseen one.
+# ============================================================
+@learner_bp.route("/api/lesson-exercise/leave", methods=["POST"])
+def lesson_exercise_leave():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+    from exercise_pool import report_exercise_leave
+    from game_plays import get_settings, setting_int
+    data = request.get_json(silent=True, force=True) or {}
+    result, message = report_exercise_leave(
+        acc_id, data.get("exercise_id"), "start" if data.get("phase") == "start" else "end",
+        data.get("away_seconds"), data.get("reason"), setting_int(get_settings(), "leave_min_seconds"))
+    if result is None:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, **result}), 200
+
+
+# ============================================================
 # ROUTE: SKIP THE EXERCISE FOR NOW - only after SKIP_AFTER_FAILS failed
 # tries. The lesson can then be finished; the exercise scores its best
 # attempt and stays open, so passing it later still gives full credit.
@@ -1110,6 +1187,8 @@ def lesson_exercise_skip():
     if not exercise_id:
         return jsonify({"success": False, "message": "exercise_id is required."}), 400
 
+    if not is_assigned(acc_id, data.get("resource_id"), exercise_id):   # feat/exercise-pool
+        return jsonify({"success": False, "message": "This is not your exercise for this lesson. Reload the page."}), 409
     ok, message, state = skip_exercise(acc_id, exercise_id)
     return jsonify({"success": ok, "message": message, "state": state}), (200 if ok else 400)
 
@@ -1356,7 +1435,7 @@ def mark_lesson_complete():
         }), 400
 
     # Same hard gate for the exercise, if this lesson has one.
-    exercise = get_published_exercise_for_resource(resource_id)
+    exercise = get_published_exercise_for_resource(resource_id, acc_id)
     if exercise and not is_exercise_done(acc_id, exercise["exercise_id"]):
         return jsonify({
             "success": False,

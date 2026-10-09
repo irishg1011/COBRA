@@ -7,6 +7,7 @@ touches Flask/session state directly - admin_routes.py is the only place
 these get turned into HTTP responses/JSON.
 """
 
+import re
 from mysql.connector import Error
 from cobradb import get_db_connection
 from admin_time import fmt_datetime  # the one admin date + time format
@@ -237,10 +238,48 @@ def validate_exercise_title(title: str, exclude_exercise_id=None):
 EXERCISE_TITLE_TYPE = "Coding Exercise"
 
 
-def build_exercise_title(lesson_title):
-    """ "<Lesson name> – Coding Exercise", or "" without a lesson name. Never truncated."""
+def build_exercise_title(lesson_title, number=None):
+    """
+    "<Lesson name> – Coding Exercise N" (feat/exercise-pool: a lesson holds up
+    to 5, numbered 1-5 so titles stay unique), or "" without a lesson name.
+    number=None builds the old unnumbered title. Never truncated.
+    """
     lesson = (lesson_title or "").strip()
-    return f"{lesson}{ACTIVITY_TITLE_SEPARATOR}{EXERCISE_TITLE_TYPE}" if lesson else ""
+    if not lesson:
+        return ""
+    title = f"{lesson}{ACTIVITY_TITLE_SEPARATOR}{EXERCISE_TITLE_TYPE}"
+    return f"{title} {int(number)}" if number else title
+
+
+_TITLE_NUMBER_RE = re.compile(r"Coding Exercise (\d+)$")
+
+
+def exercise_number(title):
+    """The N of "... – Coding Exercise N" (an old unnumbered title counts as 1)."""
+    match = _TITLE_NUMBER_RE.search(title or "")
+    return int(match.group(1)) if match else 1
+
+
+def next_exercise_number(cursor, resource_id, exercise_id=None):
+    """
+    The number for an exercise of this lesson: an existing exercise keeps its
+    own; a new one takes the lowest number 1-5 not used by the lesson's
+    other non-archived exercises.
+    """
+    cursor.execute(
+        f"""SELECT ce.exercise_id, ce.exercise_title FROM {CODING_EXERCISES_TABLE} ce
+            LEFT JOIN {LA_STATS_TABLE} s ON ce.exercise_stats_id = s.la_stats_id
+            WHERE ce.resource_id = %s AND COALESCE(ce.is_archived, 0) = 0
+              AND COALESCE(s.la_stats_name, '') != 'Archived'""",
+        (resource_id,)
+    )
+    rows = cursor.fetchall()
+    used = set()
+    for r in rows:
+        if exercise_id and r["exercise_id"] == exercise_id:
+            return exercise_number(r["exercise_title"])
+        used.add(exercise_number(r["exercise_title"]))
+    return next((n for n in range(1, 100) if n not in used), len(used) + 1)
 
 
 def validate_generated_exercise_title(title, exclude_exercise_id=None):
@@ -257,7 +296,7 @@ def validate_generated_exercise_title(title, exclude_exercise_id=None):
     if taken is None:
         return False, "Database connection unavailable. Could not verify title uniqueness."
     if taken:
-        return False, f'A coding exercise named "{title}" already exists. Each lesson can have only one.'
+        return False, f'A coding exercise named "{title}" already exists.'
     return True, title
 
 
@@ -269,8 +308,7 @@ def sync_lesson_exercise_titles(cursor, resource_id, lesson_title, changed_by=No
     History. Lesson names are unique, so the new titles can't collide.
     Returns how many exercises were renamed.
     """
-    new_title = build_exercise_title(lesson_title)
-    if not new_title:
+    if not build_exercise_title(lesson_title):
         return 0
     cursor.execute(
         f"SELECT exercise_id, exercise_title FROM {CODING_EXERCISES_TABLE} WHERE resource_id = %s",
@@ -279,6 +317,10 @@ def sync_lesson_exercise_titles(cursor, resource_id, lesson_title, changed_by=No
     renamed = 0
     for row in cursor.fetchall():
         exercise_id, old_title = (row["exercise_id"], row["exercise_title"]) if isinstance(row, dict) else row
+        # feat/exercise-pool: each exercise keeps its number (an old
+        # unnumbered title stays unnumbered).
+        number = exercise_number(old_title) if _TITLE_NUMBER_RE.search(old_title or "") else None
+        new_title = build_exercise_title(lesson_title, number)
         if old_title == new_title:
             continue
         cursor.execute(
@@ -716,7 +758,9 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
             return False, None, "Invalid Lesson ID."
 
         # feat/exercise-auto-title: the client's title is ignored.
-        formatted_title = build_exercise_title(get_lesson_title(resource_id, connection))
+        # feat/exercise-pool: numbered 1-5 within the lesson.
+        formatted_title = build_exercise_title(get_lesson_title(resource_id, connection),
+                                               next_exercise_number(cursor, resource_id, exercise_id))
         is_valid, title_msg = validate_generated_exercise_title(formatted_title, exclude_exercise_id=exercise_id)
         if not is_valid:
             cursor.close()
@@ -748,13 +792,14 @@ def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = N
         # Fallback uploaded_by
         uploader = uploaded_by or data.get('uploaded_by') or 'Admin'
 
-        # feat/publishing-tree: one coding exercise per lesson.
-        from publishing_actions import lesson_already_has
-        if lesson_already_has(cursor, "exercise", resource_id, exclude_id=exercise_id):
+        # feat/exercise-pool: a lesson holds a pool of up to five exercises
+        # (each learner gets one). Was: one per lesson.
+        from exercise_pool import lesson_exercise_count, EXERCISE_POOL_MAX
+        if lesson_exercise_count(cursor, resource_id, exclude_id=exercise_id) >= EXERCISE_POOL_MAX:
             cursor.close()
             return False, None, (
-                "This lesson already has a coding exercise. Each lesson can have only one - "
-                "edit the existing exercise instead."
+                f"This lesson already has {EXERCISE_POOL_MAX} coding exercises, the most a lesson can have - "
+                "edit one of them instead."
             )
 
         if exercise_id:

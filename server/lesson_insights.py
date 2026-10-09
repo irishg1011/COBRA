@@ -86,16 +86,8 @@ def _first_try_counts(cursor, acc_id, activity_type, item_ids):
 def _exercise_first_try(cursor, acc_id, resource_id):
     """(items total, items right on the first submission, attempts, skipped for now) or None.
     An exercise is one item (learner_exercise.EXERCISE_ITEMS): right when the first attempt was correct."""
-    cursor.execute(
-        """SELECT ce.exercise_id
-           FROM coding_exercises_tbl ce
-           JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-           WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-             AND COALESCE(ce.is_archived, 0) = 0
-           ORDER BY ce.exercise_id DESC LIMIT 1""",
-        (resource_id,)
-    )
-    row = cursor.fetchone()
+    from exercise_pool import assigned_exercise_row   # feat/exercise-pool: their own exercise
+    row = assigned_exercise_row(cursor, acc_id, resource_id)
     if not row:
         return None
     cursor.execute(
