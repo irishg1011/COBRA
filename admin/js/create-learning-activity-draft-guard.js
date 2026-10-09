@@ -163,7 +163,13 @@
                     });
                 });
 
-                questions.push({ q_id: card.dataset.itemId || null, text: text, options: options, correct_option: correctOption });
+                // feat/hints-feedback: one correct + one wrong text per question
+                const qFb = (field) => {
+                    const el = card.querySelector(`[name$="[${field}]"]:not([name*="[options]"])`);
+                    return el ? el.value.trim() : "";
+                };
+                questions.push({ q_id: card.dataset.itemId || null, text: text, options: options, correct_option: correctOption,
+                    correct_feedback: qFb("correct_feedback"), incorrect_feedback: qFb("incorrect_feedback") });
             });
             return questions;
         }
@@ -172,14 +178,23 @@
             const cards = document.querySelectorAll("#fillBlanksContainer .fill-blank-card");
             const items = [];
             cards.forEach((card) => {
-                const textarea = card.querySelector("textarea");
-                const inputs = card.querySelectorAll('input[type="text"]');
+                // feat/fib-console: read by field name, not position.
+                const val = (field) => {
+                    const el = card.querySelector(`[name$="[${field}]"]`);
+                    if (!el) return "";
+                    return field === "code_text" ? el.value.replace(/\s+$/, "") : el.value.trim();
+                };
                 items.push({
                     fib_id: card.dataset.itemId || null,
-                    content: textarea ? textarea.value.trim() : "",
-                    correct_answer: inputs[0] ? inputs[0].value.trim() : "",
-                    correct_feedback: inputs[1] ? inputs[1].value.trim() : "",
-                    incorrect_feedback: inputs[2] ? inputs[2].value.trim() : "",
+                    content: val("content"),
+                    instruction: val("instruction"),
+                    code_text: val("code_text"),
+                    correct_answer: val("correct_answer"),
+                    expected_output: val("expected_output"),
+                    hint: val("hint"),
+                    must_contain: val("must_contain"),
+                    correct_feedback: val("correct_feedback"),
+                    incorrect_feedback: val("incorrect_feedback"),
                 });
             });
             return items;
@@ -189,14 +204,17 @@
             const cards = document.querySelectorAll("#flashcardsContainer .flashcard-card");
             const items = [];
             cards.forEach((card) => {
-                const textareas = card.querySelectorAll("textarea");
-                const inputs = card.querySelectorAll('input[type="text"]');
+                const val = (field) => {
+                    const el = card.querySelector(`[name$="[${field}]"]`);
+                    return el ? el.value.trim() : "";
+                };
                 items.push({
                     flashcard_id: card.dataset.itemId || null,
-                    front: textareas[0] ? textareas[0].value.trim() : "",
-                    back: textareas[1] ? textareas[1].value.trim() : "",
-                    correct_feedback: inputs[0] ? inputs[0].value.trim() : "",
-                    incorrect_feedback: inputs[1] ? inputs[1].value.trim() : "",
+                    front: val("front"),
+                    back: val("back"),
+                    hint: val("hint"),   // feat/hints-feedback
+                    correct_feedback: val("correct_feedback"),
+                    incorrect_feedback: val("incorrect_feedback"),
                 });
             });
             return items;

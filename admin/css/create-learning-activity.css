@@ -556,3 +556,38 @@ textarea.field-error {
     position: relative;
 }
 
+
+/* feat/question-pool-draw: pool count against the target ("23 / 50") */
+.pool-count {
+    margin: 0 0 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(20, 184, 166, 0.1);
+    color: #0f766e;
+    font-weight: 600;
+    font-size: 0.92rem;
+}
+.pool-count.is-under {
+    background: rgba(245, 158, 11, 0.12);
+    color: #b45309;
+}
+
+/* feat/hints-feedback: answer-leak check (a warning, not a block) */
+.leak-warning {
+    margin: 10px 0 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    color: #b91c1c;
+    font-size: 0.88rem;
+}
+
+/* feat/fib-console: code + expected output fields */
+.fill-blank-card .fib-code-input {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    font-size: 0.9rem;
+    white-space: pre;
+}
+.fib-legacy-content[hidden], .fib-run-note[hidden] { display: none; }
+.form-hint { margin: 6px 0 0; font-size: 0.82rem; color: #64748b; }
+.mt-8 { margin-top: 8px; }
