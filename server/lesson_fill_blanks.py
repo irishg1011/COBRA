@@ -301,6 +301,34 @@ def run_fib_code(code, answer):
     return run_once(fill_blank(code, answer))
 
 
+# An item may END in an error on purpose (e.g. "which error does this raise?"):
+# the error's last line counts as part of the output. A syntax error never
+# does - code that is not valid Python gives the same result for any answer.
+UNRUNNABLE_ERRORS = ("SyntaxError", "IndentationError", "TabError")
+
+
+def error_line(error):
+    """'NameError: name 'x' is not defined' - the last line of a traceback."""
+    lines = [line.strip() for line in str(error or "").splitlines() if line.strip()]
+    return lines[-1] if lines else ""
+
+
+def run_result_text(run):
+    """
+    (text, problem): what the run printed plus, when it stopped with an
+    error, that error's last line. problem is a message (never a valid
+    expected output) for a time-out or a syntax error, else "".
+    """
+    from exercise_tips import normalize_output
+    output = normalize_output(run["output"])
+    if not run["error"]:
+        return output, ""
+    line = error_line(run["error"])
+    if run.get("timed_out") or not line or line.split(":")[0].strip() in UNRUNNABLE_ERRORS:
+        return output, run["error"]
+    return normalize_output(f"{output}\n{line}" if output else line), ""
+
+
 def fib_choices_for_learner(row):
     """The tiles (correct answer mixed in, unmarked) or [] -> the learner types."""
     wrong = parse_fib_choices(row.get("answer_choices"))
@@ -332,10 +360,12 @@ def grade_fib_item(row, answer):
     run = run_fib_code(code, answer)
     console = {"output": normalize_output(run["output"]), "error": run["error"]}
     must = (row.get("must_contain") or "").strip()
-    if run["error"]:
+    expected = normalize_output(row.get("expected_output") or "")
+    actual, problem = run_result_text(run)
+    if run["error"] and (problem or actual != expected):
         return {"outcome": "wrong", "is_close": False, "console": console,
                 "system_feedback": error_feedback(run["error"])}
-    hint = output_feedback(run["output"], row.get("expected_output") or "")
+    hint = output_feedback(actual, expected)
     if hint is not None:
         return {"outcome": "wrong", "is_close": False, "console": console, "system_feedback": hint}
     if must and must not in answer:
@@ -353,9 +383,9 @@ def check_fib_item_for_save(code, correct_answer, expected_output):
     """
     from exercise_tips import normalize_output
     run = run_fib_code(code, correct_answer)
-    actual = normalize_output(run["output"])
-    if run["error"]:
-        return False, actual, run["error"]
+    actual, problem = run_result_text(run)
+    if problem:
+        return False, actual, problem
     return actual == normalize_output(expected_output or ""), actual, ""
 
 

@@ -321,9 +321,10 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
 
                 if opt_text:
                     lower_text = opt_text.lower()
-                    if lower_text in seen_opts:
+                    # Exact text: "okay", "OKAY" and "Okay" are different choices.
+                    if opt_text in seen_opts:
                         return False, f'Duplicate answer option "{opt_text}" found in Question #{q_idx + 1}. Each option must have a unique answer.', None, 0
-                    seen_opts.add(lower_text)
+                    seen_opts.add(opt_text)
 
                     if opt_feedback and lower_text == opt_feedback.lower():
                         return False, f'Answer and Feedback for Learner cannot be identical in Question #{q_idx + 1} (Option {letter}).', None, 0

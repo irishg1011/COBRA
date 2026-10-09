@@ -216,13 +216,28 @@ function isExactAnswerField(el) {
            /^flashcards\[\d+\]\[(back|hint|front_code)\]$/.test(name);
 }
 
+// Pasted text drops the spaces / new lines copied around it (code boxes keep
+// theirs - indentation matters there).
+function handleActivityFieldPaste(e) {
+    const el = e.target;
+    if (!isGuardedActivityField(el) || el.readOnly) return;
+    if (/\[(code_text|front_code)\]$/.test(el.getAttribute('name') || '')) return;
+    const raw = (e.clipboardData || window.clipboardData)?.getData('text');
+    if (raw == null) return;
+    const text = raw.trim();
+    if (text === raw) return;
+    e.preventDefault();
+    el.setRangeText(text, el.selectionStart, el.selectionEnd, 'end');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+document.addEventListener('paste', handleActivityFieldPaste, true);
+
 function handleActivityFieldInput(e) {
     const el = e.target;
     if (!isGuardedActivityField(el)) return;
 
-    if (!isExactAnswerField(el)) {
-        applyActivityFieldCasing(el);
-    }
+    // Text is kept exactly as typed - choices like "okay", "OKAY" and
+    // "Okay" must stay different (no live re-casing).
     updateAddButtonsState();
     const card = el.closest('.question-card, .fill-blank-card, .flashcard-card');
     if (card) checkAnswerLeaks(card);
@@ -335,8 +350,8 @@ function isQuestionCardComplete(card) {
         if (!optionText || !feedbackText) return false;
 
         const lowerOpt = optionText.toLowerCase();
-        if (seenAnswers.has(lowerOpt)) return false;
-        seenAnswers.add(lowerOpt);
+        if (seenAnswers.has(optionText)) return false;
+        seenAnswers.add(optionText);
 
         if (lowerOpt === feedbackText.toLowerCase()) return false;
     }
@@ -411,16 +426,16 @@ function canAddNewQuestion(sourceCard = null) {
         }
 
         const lowerOpt = optionText.toLowerCase();
-        if (seenAnswers.has(lowerOpt)) {
+        if (seenAnswers.has(optionText)) {
             if (textInput) textInput.classList.add('field-error');
-            const prevInput = seenAnswers.get(lowerOpt);
+            const prevInput = seenAnswers.get(optionText);
             if (prevInput) prevInput.classList.add('field-error');
             const msg = `Duplicate answer option "${optionText}" found. Each option must have a unique answer.`;
             showActivityAlert(msg, 'Duplicate Option');
             if (textInput) textInput.focus();
             return false;
         }
-        seenAnswers.set(lowerOpt, textInput);
+        seenAnswers.set(optionText, textInput);
 
         if (lowerOpt === feedbackText.toLowerCase()) {
             if (textInput) textInput.classList.add('field-error');
@@ -1541,10 +1556,13 @@ async function generateExpectedOutput(btn) {
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error(data.message || 'Could not run the code.');
         if (data.error) {
-            note.textContent = `The code stopped with an error: ${data.error}`;
+            fibField(card, 'expected_output').value = '';
+            note.textContent = `The code can't run: ${data.error}`;
         } else {
             fibField(card, 'expected_output').value = data.output;
-            note.textContent = 'Expected output filled in from a real run.';
+            note.textContent = data.same_for_any
+                ? 'Filled in - but ANY answer gives this same result (is the blank in a comment?). Fill "Must contain" so only the right answer passes.'
+                : 'Expected output filled in from a real run.';
         }
     } catch (err) {
         note.textContent = err.message;

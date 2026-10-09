@@ -3559,14 +3559,22 @@ def fib_run_code():
     fills the blank of {code} with {answer}, runs it once (time-limited)
     and returns what it printed, or the Python error.
     """
-    from lesson_fill_blanks import run_fib_code
-    from exercise_tips import normalize_output
+    from lesson_fill_blanks import run_fib_code, run_result_text
     data = request.get_json(silent=True) or {}
     code = data.get('code') or ''
     if not str(code).strip():
         return jsonify({"success": False, "message": "Write the code with its blank first."}), 400
-    run = run_fib_code(code, (data.get('answer') or '').strip())
-    return jsonify({"success": True, "output": normalize_output(run["output"]), "error": run["error"]}), 200
+    answer = (data.get('answer') or '').strip()
+    output, problem = run_result_text(run_fib_code(code, answer))
+    # An error the item ends in is a valid expected output; a syntax error
+    # or a time-out is not. same_for_any: a made-up answer gives the very
+    # same result, so the blank does not matter (e.g. it sits in a comment).
+    same_for_any = False
+    if not problem:
+        probe_output, probe_problem = run_result_text(run_fib_code(code, answer + "_x9"))
+        same_for_any = not probe_problem and probe_output == output
+    return jsonify({"success": True, "output": output, "error": problem,
+                    "same_for_any": same_for_any}), 200
 
 
 @admin_bp.route('/api/game-settings', methods=['GET', 'POST'])
