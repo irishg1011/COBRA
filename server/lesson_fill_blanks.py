@@ -197,7 +197,7 @@ def _load_items(cursor, la_id):
         f"""SELECT fib_id, instruction, content, correct_answer, answer_choices,
                    correct_feedback, incorrect_feedback,
                    code_text, expected_output, hint, must_contain
-            FROM {FILL_BLANKS_TABLE} WHERE la_id = %s
+            FROM {FILL_BLANKS_TABLE} WHERE la_id = %s AND is_removed = 0
             ORDER BY sort_order ASC, fib_id ASC""",
         (la_id,)
     )

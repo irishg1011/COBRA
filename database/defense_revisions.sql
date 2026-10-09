@@ -119,3 +119,10 @@ CREATE TABLE IF NOT EXISTS learner_exercise_draws_tbl (
     KEY idx_exdraw_acc_res (acc_id, resource_id),
     KEY idx_exdraw_exercise (exercise_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Removing an item learners already answered (or saw) hides it instead of
+-- deleting it, so their answers, scores and analytics stay.
+ALTER TABLE mcq_questions_tbl ADD COLUMN IF NOT EXISTS is_removed TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE mcq_options_tbl ADD COLUMN IF NOT EXISTS is_removed TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE fill_blanks_tbl ADD COLUMN IF NOT EXISTS is_removed TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE flashcards_tbl ADD COLUMN IF NOT EXISTS is_removed TINYINT(1) NOT NULL DEFAULT 0;

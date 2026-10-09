@@ -14,17 +14,13 @@
             </svg>
         </div>
         <h3 class="modal-confirm-title">Leave without saving?</h3>
-        {% if existing_exercise and existing_exercise.status == 'Published' %}
-        <p id="unsavedModalDesc" class="modal-confirm-text">You have unsaved changes to this coding exercise. Save your changes, or leave and lose your changes.</p>
-        {% else %}
-        <p id="unsavedModalDesc" class="modal-confirm-text">You have unsaved changes to this coding exercise. Save your work as a draft, or leave and lose your changes.</p>
-        {% endif %}
+        <p id="unsavedModalDesc" class="modal-confirm-text">You have unsaved changes to these coding exercises. Save them, or leave and lose your changes.</p>
         <p id="unsavedSaveError" class="modal-confirm-text modal-error-text modal-hidden"></p>
         <div class="modal-confirm-actions modal-confirm-actions-triple">
             <button type="button" id="unsavedStayBtn" class="modal-btn-cancel">Stay on Page</button>
             <button type="button" id="unsavedLeaveBtn" class="modal-btn-danger">Leave Without Saving</button>
             <button type="button" id="unsavedSaveAndLeaveBtn" class="modal-btn-save" data-redirect-url="{{ url_for('admin_bp.coding_exercises') }}">
-                <i class="fa-regular fa-floppy-disk"></i> {{ 'Save & Leave' if existing_exercise and existing_exercise.status == 'Published' else 'Save Draft & Leave' }}
+                <i class="fa-regular fa-floppy-disk"></i> Save & Leave
             </button>
         </div>
     </div>

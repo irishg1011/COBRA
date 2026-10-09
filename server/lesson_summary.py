@@ -88,11 +88,11 @@ def get_lesson_performance_summary(acc_id, resource_id):
             activity_type = row.get("activity_type_name") or ""
 
             if activity_type in ("Multiple Choice", "Quiz"):
-                cursor.execute("SELECT COUNT(*) AS cnt FROM mcq_questions_tbl WHERE la_id = %s", (la_id,))
+                cursor.execute("SELECT COUNT(*) AS cnt FROM mcq_questions_tbl WHERE la_id = %s AND is_removed = 0", (la_id,))
             elif activity_type == "Fill in the Blanks":
-                cursor.execute("SELECT COUNT(*) AS cnt FROM fill_blanks_tbl WHERE la_id = %s", (la_id,))
+                cursor.execute("SELECT COUNT(*) AS cnt FROM fill_blanks_tbl WHERE la_id = %s AND is_removed = 0", (la_id,))
             elif activity_type == "Flashcards":
-                cursor.execute("SELECT COUNT(*) AS cnt FROM flashcards_tbl WHERE la_id = %s", (la_id,))
+                cursor.execute("SELECT COUNT(*) AS cnt FROM flashcards_tbl WHERE la_id = %s AND is_removed = 0", (la_id,))
             else:
                 cursor.execute("SELECT 0 AS cnt")
             # feat/question-pool-draw: a play draws DRAW_SIZE (5) of the pool

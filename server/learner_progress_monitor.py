@@ -202,9 +202,9 @@ def _load_lesson_structure(cursor, resource_ids):
     cursor.execute(
         f"""SELECT
                 la.la_id, la.resource_id, la.activity_title, atp.activity_type_name,
-                (SELECT COUNT(*) FROM mcq_questions_tbl q WHERE q.la_id = la.la_id) AS mcq_count,
-                (SELECT COUNT(*) FROM fill_blanks_tbl f WHERE f.la_id = la.la_id) AS fib_count,
-                (SELECT COUNT(*) FROM flashcards_tbl fc WHERE fc.la_id = la.la_id) AS fc_count
+                (SELECT COUNT(*) FROM mcq_questions_tbl q WHERE q.la_id = la.la_id AND q.is_removed = 0) AS mcq_count,
+                (SELECT COUNT(*) FROM fill_blanks_tbl f WHERE f.la_id = la.la_id AND f.is_removed = 0) AS fib_count,
+                (SELECT COUNT(*) FROM flashcards_tbl fc WHERE fc.la_id = la.la_id AND fc.is_removed = 0) AS fc_count
             FROM learning_activities_tbl la
             JOIN learning_activities_stats_tbl las ON la.la_stats_id = las.la_stats_id
             LEFT JOIN activity_types_tbl atp ON la.activity_type_id = atp.activity_type_id

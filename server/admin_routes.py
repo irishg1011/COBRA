@@ -4602,6 +4602,38 @@ def coding_exercises_lessons_by_module():
     return jsonify({"success": True, "lessons": lessons, "exercise_pool_max": EXERCISE_POOL_MAX}), 200
 
 
+@admin_bp.route('/coding-exercises/lesson-exercises')
+def coding_exercises_of_lesson():
+    """
+    feat/exercise-cards: the one-page exercise editor shows every coding
+    exercise of the chosen lesson as a card (up to EXERCISE_POOL_MAX).
+    """
+    from coding_exercises import get_lesson_exercises
+    from exercise_pool import EXERCISE_POOL_MAX
+    resource_id = request.args.get('resource_id', type=int)
+    if not resource_id:
+        return jsonify({"success": True, "exercises": [], "max": EXERCISE_POOL_MAX}), 200
+    exercises = []
+    for ex in get_lesson_exercises(resource_id):
+        exercises.append({
+            "exercise_id": ex["exercise_id"],
+            "number": ex["number"],
+            "title": ex.get("exercise_title") or "",
+            "status": ex.get("status") or "Draft",
+            "points": ex.get("points") or 10,
+            "instruction": ex.get("instruction") or "",
+            "situation": ex.get("situation") or "",
+            "problem_question": ex.get("problem_question") or "",
+            "clue": ex.get("clue") or "",
+            "expected_answer": ex.get("expected_answer") or "",
+            "given_input": ex.get("given_input") or "",
+            "correct_feedback": ex.get("correct_feedback") or "",
+            "required_tags": ex.get("required_tags") or [],
+            "legacy_prefilled": bool(ex.get("legacy_prefilled")),
+        })
+    return jsonify({"success": True, "exercises": exercises, "max": EXERCISE_POOL_MAX}), 200
+
+
 @admin_bp.route('/coding-exercises/check-title', methods=['GET', 'POST'])
 def coding_exercises_check_title():
     """

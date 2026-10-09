@@ -287,13 +287,13 @@ def get_preview_activities(scope):
             }
             if activity_type == MCQ_TYPE_NAME:
                 cursor.execute(
-                    f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
+                    f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY sort_order ASC, q_id ASC",
                     (la_id,)
                 )
                 for q in cursor.fetchall():
                     cursor.execute(
                         f"""SELECT option_id, option_letter, option_text
-                            FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC""",
+                            FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s AND is_removed = 0 ORDER BY option_letter ASC""",
                         (q["q_id"],)
                     )
                     entry["items"].append({
@@ -306,14 +306,14 @@ def get_preview_activities(scope):
                     })
             elif activity_type == FIB_TYPE_NAME:
                 cursor.execute(
-                    f"SELECT fib_id, content FROM {FILL_BLANKS_TABLE} WHERE la_id = %s ORDER BY fib_id ASC",
+                    f"SELECT fib_id, content FROM {FILL_BLANKS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY fib_id ASC",
                     (la_id,)
                 )
                 for r in cursor.fetchall():
                     entry["items"].append({"fib_id": r["fib_id"], "content": r["content"]})
             elif activity_type == FLASHCARD_TYPE_NAME:
                 cursor.execute(
-                    f"SELECT flashcard_id, front_text, back_text FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC",
+                    f"SELECT flashcard_id, front_text, back_text FROM {FLASHCARDS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY flashcard_id ASC",
                     (la_id,)
                 )
                 for r in cursor.fetchall():
@@ -371,7 +371,7 @@ def _load_ids(la_id, type_name, loader):
 # ---------------- Multiple Choice ----------------
 def _mcq_q_ids(cursor, la_id):
     cursor.execute(
-        f"SELECT q_id FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
+        f"SELECT q_id FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY sort_order ASC, q_id ASC",
         (la_id,)
     )
     return [r["q_id"] for r in cursor.fetchall()]

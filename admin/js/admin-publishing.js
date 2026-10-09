@@ -52,6 +52,7 @@
 (function () {
     "use strict";
 
+    const EXERCISE_POOL_MAX = 5;   // server/exercise_pool.py
     const KIND = { cat: "category", mod: "module", res: "lesson", vid: "video", act: "activity", ex: "exercise" };
     const LABEL = { cat: "chapter", mod: "module", res: "lesson", vid: "video", act: "activity", ex: "exercise" };
     const TAG = {
@@ -592,14 +593,16 @@
 
         function plusMenuHtml(node) {
             const t = typeOf(node.id);
-            const item = (attrs, icon, label, disabled) =>
+            const item = (attrs, icon, label, disabled, note) =>
                 `<button type="button" class="resource-edit-menu-item js-pub-add" ${attrs} ${disabled ? "disabled" : ""}>` +
-                `<i class="fa-solid ${icon}"></i> ${escapeHtml(label)}${disabled ? ' <span class="publishing-menu-note">(added)</span>' : ""}</button>`;
+                `<i class="fa-solid ${icon}"></i> ${escapeHtml(label)}` +
+                `${note ? ` <span class="publishing-menu-note">(${escapeHtml(note)})</span>` : disabled ? ' <span class="publishing-menu-note">(added)</span>' : ""}</button>`;
 
             if (t === "cat") return `<div class="resource-edit-menu publishing-popover publishing-plus-menu">${item(`data-what="module" data-id="${node.id}"`, "fa-layer-group", "Module", false)}</div>`;
             if (t === "mod") return `<div class="resource-edit-menu publishing-popover publishing-plus-menu">${item(`data-what="lesson" data-id="${node.id}"`, "fa-book-open", "Lesson", false)}</div>`;
 
-            // Lesson: one of each type (videos, 3 activity types, coding exercise)
+            // Lesson: one video and one of each activity type; coding
+            // exercises are a pool of up to EXERCISE_POOL_MAX per lesson.
             const takenTypes = (node.activities || []).map((a) => a.activity_type);
             const rows = [
                 item(`data-what="video" data-id="${node.id}"`, "fa-video", "Video tutorial", (node.videos || []).length > 0),
@@ -607,7 +610,9 @@
                     `data-what="activity" data-type="${escapeHtml(type)}" data-id="${node.id}"`,
                     type === "Flashcards" ? "fa-clone" : type === "Fill in the Blanks" ? "fa-i-cursor" : "fa-list-check",
                     type, takenTypes.includes(type))),
-                item(`data-what="exercise" data-id="${node.id}"`, "fa-code", "Coding exercise", (node.exercises || []).length > 0),
+                item(`data-what="exercise" data-id="${node.id}"`, "fa-code", "Coding exercise",
+                    (node.exercises || []).length >= EXERCISE_POOL_MAX,
+                    `${(node.exercises || []).length} / ${EXERCISE_POOL_MAX}`),
             ];
             return `<div class="resource-edit-menu publishing-popover publishing-plus-menu">${rows.join("")}</div>`;
         }
