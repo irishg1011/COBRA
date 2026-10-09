@@ -139,6 +139,40 @@ def grade_flashcard(submitted, back_text):
     return "incorrect"
 
 
+# ---------------- code answers: show the real syntax error ----------------
+_CODE_CHARS = set("()[]{}=:'\"")
+
+
+def answer_syntax_error(answer, back_text):
+    """
+    When the card's answer is Python code (e.g. print("hi")), a wrong answer
+    that is not valid Python gets the real SyntaxError, like the console in
+    Fill in the Blanks. None for word answers ("Jupiter") or valid code.
+    Only parsed (ast), never run.
+    """
+    import ast
+    back = _norm_text(back_text)
+    if not back or not any(ch in _CODE_CHARS for ch in back):
+        return None
+    try:
+        ast.parse(back)
+    except (SyntaxError, ValueError):
+        return None   # the back is not code
+    try:
+        ast.parse(_norm_text(answer))
+        return None
+    except SyntaxError as e:
+        lines = [f'File "<your answer>", line {e.lineno or 1}']
+        if e.text:
+            lines.append("    " + e.text.rstrip("\n"))
+            if e.offset:
+                lines.append("    " + " " * max(0, e.offset - 1) + "^")
+        lines.append(f"SyntaxError: {e.msg}")
+        return "\n".join(lines)
+    except ValueError as e:
+        return f"SyntaxError: {e}"
+
+
 # ---------------- small helpers ----------------
 def _to_int(value):
     try:

@@ -39,7 +39,7 @@ from lesson_fill_blanks import (
     FALLBACK_INCORRECT_FEEDBACK as FIB_INCORRECT_FEEDBACK,
 )
 from lesson_flashcards import (
-    grade_flashcard, _load_cards as load_flashcards, _learner_card as learner_flashcard,
+    grade_flashcard, answer_syntax_error, _load_cards as load_flashcards, _learner_card as learner_flashcard,
     FLASHCARD_TYPE_NAME, CLOSE_FEEDBACK as FC_CLOSE_FEEDBACK,
     FALLBACK_CORRECT_FEEDBACK as FC_CORRECT_FEEDBACK,
     FALLBACK_INCORRECT_FEEDBACK as FC_INCORRECT_FEEDBACK,
@@ -647,6 +647,7 @@ def preview_flashcards(store, la_id, action, data=None):
             "attempt_number": attempt_number,
             "feedback": feedback,
             "answer": (card["back_text"] or "").strip() if passed else None,
+            "syntax_error": None if passed else answer_syntax_error(answer, card["back_text"]),
             "state": _fc_state(play, card_ids),
         }, None
 

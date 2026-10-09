@@ -555,7 +555,7 @@
         // Wrong answer: show why, then MOVE ON (adviser's rule - the first
         // answer counts; a missed card is fixed later in a retake round).
         // The server already moved the play to the next card (or finished).
-        function showWrongAndNext(feedback, title) {
+        function showWrongAndNext(feedback, title, syntaxError) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
             const last = !!(server && server.completed);
@@ -564,6 +564,10 @@
                     <i class="fa-solid fa-circle-xmark fc-overlay-icon is-danger"></i>
                     <h4 data-c="taTitle">Not quite</h4>
                     <p class="fc-tryagain-feedback" data-c="taFeedback"></p>
+                    <div class="fib-console-out is-error" data-c="taError" hidden>
+                        <span class="fib-console-label">Python error</span>
+                        <pre data-c="taErrorText"></pre>
+                    </div>
                     <div class="fc-reveal" data-c="taReveal" hidden></div>
                     <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.</p>
                     <div class="fc-overlay-actions">
@@ -573,6 +577,9 @@
             `);
             if (title) overlayNode("taTitle").textContent = title;
             overlayNode("taFeedback").textContent = feedback || "That's not what's on the back of this card.";
+            // A code answer that is not valid Python shows the real SyntaxError.
+            overlayNode("taError").hidden = !syntaxError;
+            overlayNode("taErrorText").textContent = syntaxError || "";
             fillReveal(overlayNode("taReveal"));
             const btn = overlayNode("taBtn");
             btn.addEventListener("click", () => {
@@ -952,7 +959,7 @@
             setMode("busy");
             setTimeout(() => {
                 if (disposed) return;
-                showWrongAndNext(result.feedback);
+                showWrongAndNext(result.feedback, null, result.syntax_error);
             }, FC_ANIM.sting);
         }
 

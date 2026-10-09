@@ -535,7 +535,7 @@ def grade(activity_type, row, data):
             "option_id": None,
             "extra": {"console": result.get("console"), "is_close": result.get("is_close", False)},
         }
-    from lesson_flashcards import grade_flashcard, CLOSE_FEEDBACK, ANSWER_MAX_LEN
+    from lesson_flashcards import grade_flashcard, CLOSE_FEEDBACK, ANSWER_MAX_LEN, answer_syntax_error
     answer = (data.get("answer") or "").strip()
     if not answer:
         return {"error": "Type an answer first."}
@@ -548,7 +548,11 @@ def grade(activity_type, row, data):
         "answer_given": answer[:ANSWER_MAX_LEN],
         "option_id": None,
         # The back is only sent once the card is passed - never after a miss.
-        "extra": {"answer": (row["back_text"] or "").strip() if outcome in ("correct", "close") else None},
+        "extra": {
+            "answer": (row["back_text"] or "").strip() if outcome in ("correct", "close") else None,
+            # A code answer that is not valid Python: the real SyntaxError.
+            "syntax_error": answer_syntax_error(answer, row["back_text"]) if outcome == "wrong" else None,
+        },
     }
 
 
@@ -1111,6 +1115,7 @@ def submit_answer(acc_id, la_id, item_id, data, expected_type=None):
             payload["console"] = result["extra"].get("console")
         if ctx["type"] == FLASHCARD_TYPE:
             payload["answer"] = result["extra"].get("answer")
+            payload["syntax_error"] = result["extra"].get("syntax_error")
         return payload, None
     return _run(acc_id, la_id, expected_type, action, "grade answer")
 
