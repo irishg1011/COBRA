@@ -1,0 +1,30 @@
+/* clipboard-guard.css - feat/copy-paste-block: no selecting / long-press in games and exercises */
+.activity-host, .mcq-arena-root, .fib-root, .fc-root, #exerciseStep, [data-clip="block"] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+.activity-host input, .activity-host textarea, .activity-host [contenteditable="true"],
+#exerciseStep [contenteditable="true"], #exerciseStep textarea, #exerciseStep input {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.clip-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translate(-50%, 20px);
+    max-width: calc(100vw - 32px);
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.92rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 10000;
+}
+.clip-toast.is-on { opacity: 1; transform: translate(-50%, 0); }

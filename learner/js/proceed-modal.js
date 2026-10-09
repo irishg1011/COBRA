@@ -16,6 +16,7 @@
  *   });
  *
  * "No", the backdrop and Escape close it and keep the learner where they are.
+ * noLabel: false -> a one-button notice (e.g. the games' "you left the page" warning).
  */
 (function () {
     let overlay = null;
@@ -72,6 +73,7 @@
         titleEl.textContent = opts.title || 'Lesson complete!';
         textEl.textContent = opts.text || '';
         yesBtn.textContent = opts.yesLabel || 'Yes, proceed';
+        noBtn.hidden = opts.noLabel === false;
         noBtn.textContent = opts.noLabel || 'No, stay here';
         overlay.hidden = false;
         yesBtn.focus();

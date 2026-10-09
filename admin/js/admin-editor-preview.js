@@ -763,11 +763,30 @@
         });
     }
 
+    // feat/fib-console: a console item shows the learner's four parts -
+    // question, hint, the code with its blank, and the expected output.
+    // An item saved before the console still shows its old sentence.
+    function previewBlock(label, text, className) {
+        const wrap = el("div", "editor-preview-block " + (className || ""));
+        wrap.appendChild(el("span", "editor-preview-block-label", label));
+        wrap.appendChild(el("pre", "editor-preview-code", text));
+        return wrap;
+    }
+
     function renderFillBlanks(items, body) {
         const total = items.length;
         items.forEach((item, idx) => {
             const host = activityHost(`Item ${idx + 1} of ${total}`);
-            host.appendChild(el("p", "activity-question-text", item.content || "(No sentence yet)"));
+            if (item.code_text) {
+                host.appendChild(el("p", "activity-question-text", item.instruction || "(No question yet)"));
+                if (item.hint) host.appendChild(el("p", "editor-preview-hint", `Hint: ${item.hint}`));
+                host.appendChild(previewBlock("Code", item.code_text));
+                host.appendChild(previewBlock("Expected output", item.expected_output || "(No expected output yet)"));
+            } else {
+                host.appendChild(el("p", "activity-question-text",
+                    item.content || item.instruction || "(No question yet - add the Question and the Code with blank)"));
+                if (item.hint) host.appendChild(el("p", "editor-preview-hint", `Hint: ${item.hint}`));
+            }
 
             const input = el("input", "activity-fillblank-input");
             input.type = "text";
@@ -792,6 +811,8 @@
                 box.textContent = flipped ? back : front;
             });
             host.appendChild(box);
+            if (card.front_code) host.appendChild(previewBlock("Code on the card", card.front_code));
+            if (card.hint) host.appendChild(el("p", "editor-preview-hint", `Hint: ${card.hint}`));   // feat/hints-feedback
             host.appendChild(el("p", "activity-flashcard-hint", "Click the card to flip it."));
             body.appendChild(host);
         });
@@ -820,7 +841,7 @@
             if (items.length) renderMultipleChoice(items, body);
         } else if (data.type === "Fill in the Blanks") {
             items = data.fillBlanks;
-            emptyText = "No sentences added yet.";
+            emptyText = "No items added yet.";
             if (items.length) renderFillBlanks(items, body);
         } else if (data.type === "Flashcards") {
             items = data.flashcards;

@@ -515,6 +515,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!result.success) return;
 
             await navigator.clipboard.writeText(result.snippet.code);
+            // feat/copy-paste-block: copied inside CobraByte, so the editor accepts it.
+            if (window.CobraClipboard) window.CobraClipboard.remember(result.snippet.code);
 
             if (btn) {
                 const originalHtml = btn.innerHTML;

@@ -52,17 +52,20 @@ import re
 QUESTION_TEXT_PATTERN = re.compile(r"^questions\[(\d+)\]\[text\]$")
 # Matches "questions[<n>][correct_option]" -> group(1) = n
 QUESTION_CORRECT_PATTERN = re.compile(r"^questions\[(\d+)\]\[correct_option\]$")
+# feat/hints-feedback: "questions[<n>][correct_feedback|incorrect_feedback]" (one pair per question)
+QUESTION_FEEDBACK_PATTERN = re.compile(r"^questions\[(\d+)\]\[(correct_feedback|incorrect_feedback)\]$")
 # Matches "questions[<n>][options][<m>][text|feedback]" -> group(1)=n, group(2)=m, group(3)=field
 QUESTION_OPTION_PATTERN = re.compile(r"^questions\[(\d+)\]\[options\]\[(\d+)\]\[(text|feedback)\]$")
 
 # Matches "fill_blanks[<n>][content|correct_answer|correct_feedback|incorrect_feedback]"
 FILL_BLANK_FIELD_PATTERN = re.compile(
-    r"^fill_blanks\[(\d+)\]\[(content|correct_answer|correct_feedback|incorrect_feedback)\]$"
+    r"^fill_blanks\[(\d+)\]\[(content|correct_answer|correct_feedback|incorrect_feedback"
+    r"|instruction|code_text|expected_output|hint|must_contain)\]$"   # feat/fib-console
 )
 
 # Matches "flashcards[<n>][front|back|correct_feedback|incorrect_feedback]"
 FLASHCARD_FIELD_PATTERN = re.compile(
-    r"^flashcards\[(\d+)\]\[(front|back|correct_feedback|incorrect_feedback)\]$"
+    r"^flashcards\[(\d+)\]\[(front|front_code|back|correct_feedback|incorrect_feedback|hint)\]$"   # hint, front_code: feat/hints-feedback
 )
 
 
@@ -103,6 +106,13 @@ def parse_questions_from_form(form):
             entry["text"] = (form.get(key) or "").strip()
             continue
 
+        match = QUESTION_FEEDBACK_PATTERN.match(key)
+        if match:
+            idx = int(match.group(1))
+            entry = by_index.setdefault(idx, {"text": "", "correct_option": None, "options": {}})
+            entry[match.group(2)] = (form.get(key) or "").strip()
+            continue
+
         match = QUESTION_CORRECT_PATTERN.match(key)
         if match:
             idx = int(match.group(1))
@@ -131,6 +141,8 @@ def parse_questions_from_form(form):
             "text": entry["text"],
             "options": ordered_options,
             "correct_option": entry["correct_option"],
+            "correct_feedback": entry.get("correct_feedback", ""),
+            "incorrect_feedback": entry.get("incorrect_feedback", ""),
         })
     return questions
 
@@ -170,7 +182,9 @@ def parse_fill_blanks_from_form(form):
             "correct_feedback": "",
             "incorrect_feedback": "",
         })
-        entry[field] = (form.get(key) or "").strip()
+        value = form.get(key) or ""
+        # Code keeps its indentation; only trailing space is dropped.
+        entry[field] = value.rstrip() if field == "code_text" else value.strip()
 
     return [by_index[idx] for idx in sorted(by_index.keys())]
 

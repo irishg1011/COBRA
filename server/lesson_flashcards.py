@@ -17,7 +17,7 @@ New (created lazily, see ensure_flashcard_schema()):
   flashcard_activity_sessions_tbl one row per play: current card,
                                   in_progress / paused / completed, times
 
-Rules:
+Rules (every play rule now lives in game_plays.py - feat/question-pool-draw):
   - Grading: exact match with back_text (trimmed) = "correct";
     same apart from capital letters / extra spaces = "close" (accepted,
     no life lost, the exact spelling is shown); anything else =
@@ -139,6 +139,40 @@ def grade_flashcard(submitted, back_text):
     return "incorrect"
 
 
+# ---------------- code answers: show the real syntax error ----------------
+_CODE_CHARS = set("()[]{}=:'\"")
+
+
+def answer_syntax_error(answer, back_text):
+    """
+    When the card's answer is Python code (e.g. print("hi")), a wrong answer
+    that is not valid Python gets the real SyntaxError, like the console in
+    Fill in the Blanks. None for word answers ("Jupiter") or valid code.
+    Only parsed (ast), never run.
+    """
+    import ast
+    back = _norm_text(back_text)
+    if not back or not any(ch in _CODE_CHARS for ch in back):
+        return None
+    try:
+        ast.parse(back)
+    except (SyntaxError, ValueError):
+        return None   # the back is not code
+    try:
+        ast.parse(_norm_text(answer))
+        return None
+    except SyntaxError as e:
+        lines = [f'File "<your answer>", line {e.lineno or 1}']
+        if e.text:
+            lines.append("    " + e.text.rstrip("\n"))
+            if e.offset:
+                lines.append("    " + " " * max(0, e.offset - 1) + "^")
+        lines.append(f"SyntaxError: {e.msg}")
+        return "\n".join(lines)
+    except ValueError as e:
+        return f"SyntaxError: {e}"
+
+
 # ---------------- small helpers ----------------
 def _to_int(value):
     try:
@@ -164,7 +198,7 @@ def _published_type_id(cursor, la_id):
 
 def _load_cards(cursor, la_id):
     cursor.execute(
-        f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback
+        f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback, hint
             FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC""",
         (la_id,)
     )
@@ -214,472 +248,32 @@ def _valid_recommendation_id(cursor, acc_id, recommendation_id):
     return recommendation_id if cursor.fetchone() else None
 
 
-# ---------------- play context ----------------
-def _open(cursor, acc_id, la_id):
-    """
-    Confirms la_id is a Published Flashcards activity, loads its cards,
-    locks the learner's Flashcards lives pool (applying the 8 AM reset and
-    the 10-minute refill) and their latest play. None if not Flashcards.
-    """
-    type_id = _published_type_id(cursor, la_id)
-    if type_id is None:
-        return None
-    # feat/learner-shuffle: this learner's own card order (stable for them).
-    cards = order_rows(acc_id, activity_scope(la_id), _load_cards(cursor, la_id), "flashcard_id")
-    card_ids = [c["flashcard_id"] for c in cards]
-
-    # Lock order everywhere: lives pool first, then the session row.
-    pool = load_lives_pool(cursor, acc_id, type_id)
-
-    cursor.execute(
-        f"""SELECT session_id, current_flashcard_id, score, status
-            FROM {FLASHCARD_SESSIONS_TABLE}
-            WHERE acc_id = %s AND la_id = %s
-            ORDER BY session_id DESC LIMIT 1 FOR UPDATE""",
-        (acc_id, la_id)
-    )
-    session_row = cursor.fetchone()
-
-    cursor.execute(
-        f"""SELECT 1 FROM {PROGRESS_TABLE}
-            WHERE acc_id = %s AND la_id = %s AND status = 'completed' LIMIT 1""",
-        (acc_id, la_id)
-    )
-    progress_done = cursor.fetchone() is not None
-    completed = progress_done or bool(session_row and session_row["status"] == "completed")
-
-    # Repair: the play finished (session completed) but the activity's
-    # progress row isn't 'completed' - e.g. it was removed while testing.
-    # Without this the game shows the victory screen while the lesson
-    # refuses to finish, because lesson completion reads the progress row.
-    if completed and not progress_done:
-        score = _first_try_score(cursor, acc_id, card_ids)
-        cursor.execute(
-            f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
-            (acc_id, la_id)
-        )
-        existing = cursor.fetchone()
-        if existing:
-            cursor.execute(
-                f"""UPDATE {PROGRESS_TABLE}
-                    SET status = 'completed', score = %s, completed_at = NOW()
-                    WHERE progress_id = %s""",
-                (score, existing["progress_id"])
-            )
-        else:
-            cursor.execute(
-                f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
-                    VALUES (%s, %s, 'completed', %s, NOW())""",
-                (acc_id, la_id, score)
-            )
-
-    solved = _solved_ids(cursor, acc_id, card_ids)
-    if session_row and session_row["current_flashcard_id"] in card_ids:
-        index = card_ids.index(session_row["current_flashcard_id"])
-    else:
-        index = next((i for i, cid in enumerate(card_ids) if cid not in solved), len(card_ids))
-
-    ctx = {
-        "acc_id": acc_id,
-        "la_id": la_id,
-        "cards": cards,
-        "card_ids": card_ids,
-        "solved": solved,
-        "pool": pool,
-        "session": session_row,
-        "index": index,
-        "completed": completed,
-        "retake": None,
-    }
-    retake = open_retake(cursor, acc_id, la_id)
-    if retake:
-        _enter_retake(cursor, ctx, retake)
-    return ctx
-
-
-def _enter_retake(cursor, ctx, retake):
-    """
-    Retake mode (Module 85% gate): an in-progress retake round exists, so
-    this play covers ONLY that round's cards. "Solved" = moved past in this
-    round; the round's "session" lives in memory (in_progress with lives,
-    paused at 0). The normal play's session and first-try score are
-    never touched.
-    """
-    by_id = {c["flashcard_id"]: c for c in ctx["cards"]}
-    card_ids = [cid for cid in retake["item_ids"] if cid in by_id]
-    done, _ = retake_progress(cursor, ctx["acc_id"], FLASHCARD_TYPE, retake)
-    ctx["cards"] = [by_id[cid] for cid in card_ids]
-    ctx["card_ids"] = card_ids
-    ctx["solved"] = {cid for cid in card_ids if cid in done}
-    ctx["index"] = next((i for i, cid in enumerate(card_ids) if cid not in ctx["solved"]), len(card_ids))
-    ctx["completed"] = False
-    ctx["retake"] = retake
-    ctx["session"] = {
-        "session_id": None,
-        "current_flashcard_id": card_ids[ctx["index"]] if ctx["index"] < len(card_ids) else None,
-        "score": 0,
-        "status": "in_progress" if total_lives(ctx["pool"]) > 0 else "paused",
-    }
-
-
-def _retake_id(ctx):
-    """retake_id to stamp on an answer row (None for the normal play)."""
-    return ctx["retake"]["retake_id"] if ctx.get("retake") else None
-
-
-def _state(cursor, ctx):
-    """The only Flashcards state the browser ever receives."""
-    card_ids = ctx["card_ids"]
-    index = ctx["index"]
-    session_row = ctx["session"]
-    state = lives_payload(ctx["pool"])
-    state.update({
-        "session_status": session_row["status"] if session_row else None,
-        "current_index": index,
-        "current_flashcard_id": card_ids[index] if index < len(card_ids) else None,
-        "total": len(card_ids),
-        "solved_count": len(ctx["solved"]),
-        "first_try_correct": _first_try_score(cursor, ctx["acc_id"], card_ids),
-        "completed": ctx["completed"],
-        "retake": None,
-    })
-    retake = ctx.get("retake")
-    if retake:
-        _, fixed = retake_progress(cursor, ctx["acc_id"], FLASHCARD_TYPE, retake)
-        state["retake"] = retake_payload(retake, len(card_ids), len(fixed & set(card_ids)), ctx["completed"])
-    return state
-
-
-def _complete(cursor, ctx):
-    """Session -> completed; learner_activity_progress_tbl -> completed + first-try score."""
-    if ctx.get("retake"):
-        # Retake round finished: only the round closes.
-        complete_retake(cursor, ctx["retake"]["retake_id"])
-        ctx["session"]["status"] = "completed"
-        ctx["completed"] = True
-        ctx["index"] = len(ctx["card_ids"])
-        return
-    acc_id, la_id = ctx["acc_id"], ctx["la_id"]
-    score = _first_try_score(cursor, acc_id, ctx["card_ids"])
-    session_row = ctx["session"]
-    if session_row:
-        cursor.execute(
-            f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
-                SET status = 'completed', score = %s, current_flashcard_id = NULL, completed_at = NOW()
-                WHERE session_id = %s""",
-            (score, session_row["session_id"])
-        )
-        session_row["status"] = "completed"
-
-    cursor.execute(
-        f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
-        (acc_id, la_id)
-    )
-    existing = cursor.fetchone()
-    if existing:
-        cursor.execute(
-            f"""UPDATE {PROGRESS_TABLE}
-                SET status = 'completed', score = %s, completed_at = NOW()
-                WHERE progress_id = %s""",
-            (score, existing["progress_id"])
-        )
-    else:
-        cursor.execute(
-            f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
-                VALUES (%s, %s, 'completed', %s, NOW())""",
-            (acc_id, la_id, score)
-        )
-    ctx["completed"] = True
-    ctx["index"] = len(ctx["card_ids"])
-
-
-def _pause_if_out_of_lives(cursor, ctx):
-    """0 lives -> the in-progress play pauses on its current card (also
-    catches lives spent on another Flashcards activity - the pool is shared)."""
-    session_row = ctx["session"]
-    if (session_row and session_row["status"] == "in_progress"
-            and total_lives(ctx["pool"]) <= 0 and not ctx["completed"]):
-        if ctx.get("retake"):
-            session_row["status"] = "paused"   # retake rounds pause in memory only
-            return
-        cursor.execute(
-            f"UPDATE {FLASHCARD_SESSIONS_TABLE} SET status = 'paused', paused_at = NOW() WHERE session_id = %s",
-            (session_row["session_id"],)
-        )
-        session_row["status"] = "paused"
-
-
-def _settle_position(cursor, ctx):
-    """Finishes the play if every card is already solved (e.g. cards were
-    removed after the learner started); re-points a drifted current card."""
-    session_row = ctx["session"]
-    if not session_row or ctx["completed"]:
-        return
-    card_ids = ctx["card_ids"]
-    if (card_ids or ctx.get("retake")) and all(cid in ctx["solved"] for cid in card_ids):
-        _complete(cursor, ctx)
-        return
-    if card_ids and ctx["index"] >= len(card_ids):
-        ctx["index"] = next(i for i, cid in enumerate(card_ids) if cid not in ctx["solved"])
-    if ctx.get("retake"):
-        return
-    if card_ids:
-        wanted = card_ids[ctx["index"]]
-        if session_row["current_flashcard_id"] != wanted:
-            cursor.execute(
-                f"UPDATE {FLASHCARD_SESSIONS_TABLE} SET current_flashcard_id = %s WHERE session_id = %s",
-                (wanted, session_row["session_id"])
-            )
-            session_row["current_flashcard_id"] = wanted
-
-
-def _run(acc_id, la_id, action, error_label):
-    """Connection + transaction around action(cursor, ctx) -> (payload, error)."""
-    la_id = _to_int(la_id)
-    if not la_id:
-        return None, "la_id is required."
-    connection = get_db_connection()
-    if connection is None:
-        return None, "Could not connect to the database."
-    try:
-        if not (ensure_activity_game_schema(connection) and ensure_flashcard_schema(connection)):
-            return None, "Could not prepare the Flashcards tables - check the Flask console."
-        cursor = connection.cursor(dictionary=True)
-        ctx = _open(cursor, acc_id, la_id)
-        if ctx is None:
-            connection.rollback()
-            cursor.close()
-            return None, "This activity is not available."
-
-        _settle_position(cursor, ctx)
-        _pause_if_out_of_lives(cursor, ctx)
-        payload, error_message = action(cursor, ctx)
-        if payload is None:
-            connection.rollback()
-            cursor.close()
-            return None, error_message
-
-        save_lives_pool(cursor, ctx["pool"])
-        connection.commit()
-        cursor.close()
-        return payload, None
-    except Error as e:
-        connection.rollback()
-        print(f"lesson_flashcards: {error_label} failed for la_id={la_id}: {e}")
-        return None, "Something went wrong. Your progress is saved."
-    finally:
-        if connection.is_connected():
-            connection.close()
-
-
-def _advance(cursor, ctx, flashcard_id):
-    """Marks the card solved and moves to the next unsolved card (or completes)."""
-    session_row = ctx["session"]
-    card_ids = ctx["card_ids"]
-    index = ctx["index"]
-    ctx["solved"].add(flashcard_id)
-    remaining = [i for i, cid in enumerate(card_ids) if cid not in ctx["solved"]]
-    if not remaining:
-        _complete(cursor, ctx)
-        return
-    ctx["index"] = next((i for i in remaining if i > index), remaining[0])
-    next_id = card_ids[ctx["index"]]
-    if ctx.get("retake"):
-        session_row["current_flashcard_id"] = next_id
-        return
-    cursor.execute(
-        f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
-            SET current_flashcard_id = %s, score = %s WHERE session_id = %s""",
-        (next_id, _first_try_score(cursor, ctx["acc_id"], card_ids), session_row["session_id"])
-    )
-    session_row["current_flashcard_id"] = next_id
-
-
-# ---------------- public API ----------------
+# ---------------- play (feat/question-pool-draw) ----------------
+# game_plays.py runs every rule (5 drawn cards per play, one attempt,
+# timer, leaving the page, retakes); these keep the route names.
 def get_flashcard_play(acc_id, la_id):
-    """
-    Cards (front_text only) + current state, with the lives reset/refill
-    applied and saved. Never creates a play. Returns (payload, error).
-    """
-    def action(cursor, ctx):
-        return {
-            "cards": [_learner_card(c) for c in ctx["cards"]],
-            "state": _state(cursor, ctx),
-        }, None
-    return _run(acc_id, la_id, action, "load flashcard play")
+    """Cards of the current play (revealed ones in full, the rest hidden) + state."""
+    from game_plays import get_state
+    state, error = get_state(acc_id, la_id, FLASHCARD_TYPE_NAME)
+    if state is None:
+        return None, error
+    return {"cards": state["items"], "state": state}, None
 
 
-def start_flashcard_play(acc_id, la_id):
-    """
-    Start-or-resume, the ONLY place a play is created:
-      completed -> nothing; in progress -> same play; paused + lives ->
-      same play resumes (resumed_at); paused + 0 lives -> stays paused;
-      no play + lives -> ONE new play at the first unsolved card;
-      no play + 0 lives -> nothing is created.
-    Returns (state, error).
-    """
-    def action(cursor, ctx):
-        session_row = ctx["session"]
-        lives = total_lives(ctx["pool"])
-        if ctx["completed"] or not ctx["card_ids"]:
-            return _state(cursor, ctx), None
-        if session_row and session_row["status"] == "paused":
-            if lives > 0:
-                if not ctx.get("retake"):
-                    cursor.execute(
-                        f"""UPDATE {FLASHCARD_SESSIONS_TABLE}
-                            SET status = 'in_progress', resumed_at = NOW() WHERE session_id = %s""",
-                        (session_row["session_id"],)
-                    )
-                session_row["status"] = "in_progress"
-        elif not session_row and lives > 0:
-            index = min(ctx["index"], len(ctx["card_ids"]) - 1)
-            card_id = ctx["card_ids"][index]
-            cursor.execute(
-                f"""INSERT INTO {FLASHCARD_SESSIONS_TABLE}
-                    (acc_id, la_id, current_flashcard_id, score, status, started_at)
-                    VALUES (%s, %s, %s, 0, 'in_progress', NOW())""",
-                (ctx["acc_id"], ctx["la_id"], card_id)
-            )
-            ctx["session"] = {
-                "session_id": cursor.lastrowid,
-                "current_flashcard_id": card_id,
-                "score": 0,
-                "status": "in_progress",
-            }
-            ctx["index"] = index
-        return _state(cursor, ctx), None
-    return _run(acc_id, la_id, action, "start/resume flashcard play")
+def start_flashcard_play(acc_id, la_id, boot=False):
+    """Start-or-resume the ONE play and reveal its current card."""
+    from game_plays import start_play
+    return start_play(acc_id, la_id, FLASHCARD_TYPE_NAME, boot=boot)
 
 
 def submit_flashcard_answer(acc_id, la_id, flashcard_id, answer, recommendation_id=None):
-    """
-    Grades the typed answer for the current card and appends it to
-    flashcard_learner_answers_tbl (attempt_number counts up per
-    learner/card, so attempt 1 stays the first attempt).
-
-      correct / close -> next card (or completes the activity)
-      incorrect       -> -1 life and ALSO the next card (the miss is kept
-                         for the retake); at 0 lives the play pauses there
-
-    back_text ("answer") is returned only once the card is passed
-    (correct/close) - never after a wrong answer and never before the
-    first answer on a card. payload["graded"] is False when nothing was
-    graded (no running play, 0 lives, completed, or a different card).
-    """
-    flashcard_id = _to_int(flashcard_id)
-    answer = (answer or "").strip()
-    if not flashcard_id:
-        return None, "An answer needs flashcard_id."
-    if not answer:
-        return None, "Type an answer first."
-
-    def action(cursor, ctx):
-        session_row = ctx["session"]
-        card_ids = ctx["card_ids"]
-        index = ctx["index"]
-        pool = ctx["pool"]
-        if (ctx["completed"] or not session_row or session_row["status"] != "in_progress"
-                or total_lives(pool) <= 0 or index >= len(card_ids) or card_ids[index] != flashcard_id):
-            return {"graded": False, "state": _state(cursor, ctx)}, None
-
-        card = ctx["cards"][index]
-        status = grade_flashcard(answer, card["back_text"])
-        if status == "correct":
-            feedback = card.get("correct_feedback") or FALLBACK_CORRECT_FEEDBACK
-        elif status == "close":
-            feedback = CLOSE_FEEDBACK
-        else:
-            feedback = card.get("incorrect_feedback") or FALLBACK_INCORRECT_FEEDBACK
-        rec_id = _valid_recommendation_id(cursor, ctx["acc_id"], recommendation_id)
-
-        cursor.execute(
-            f"SELECT COUNT(*) AS cnt FROM {FLASHCARD_ANSWERS_TABLE} WHERE acc_id = %s AND flashcard_id = %s",
-            (ctx["acc_id"], flashcard_id)
-        )
-        attempt_number = cursor.fetchone()["cnt"] + 1
-        cursor.execute(
-            f"""INSERT INTO {FLASHCARD_ANSWERS_TABLE}
-                (acc_id, flashcard_id, answer_given, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at, retake_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)""",
-            (ctx["acc_id"], flashcard_id, answer[:ANSWER_MAX_LEN], attempt_number, status,
-             "recommendation" if rec_id else "self", rec_id, feedback, _retake_id(ctx))
-        )
-
-        passed = status in ("correct", "close")
-        if not passed:
-            take_life(pool)
-        _advance(cursor, ctx, flashcard_id)   # right or wrong, move on
-        if not passed:
-            _pause_if_out_of_lives(cursor, ctx)
-
-        return {
-            "graded": True,
-            "status": status,
-            "is_correct": passed,
-            "is_close": status == "close",
-            "first_try": attempt_number == 1 and status == "correct",
-            "attempt_number": attempt_number,
-            "feedback": feedback,
-            # The back is only sent once the card is passed (correct/close) -
-            # never after a wrong answer, so it can't be peeked at.
-            "answer": (card["back_text"] or "").strip() if passed else None,
-            "state": _state(cursor, ctx),
-        }, None
-    return _run(acc_id, la_id, action, "grade flashcard answer")
+    """One attempt (see game_plays.submit_answer)."""
+    from game_plays import submit_answer
+    return submit_answer(acc_id, la_id, flashcard_id, {"answer": answer, "recommendation_id": recommendation_id},
+                         FLASHCARD_TYPE_NAME)
 
 
-def skip_flashcard(acc_id, la_id, flashcard_id, from_preview=False):
-    """
-    Skip the current card. Appends a status 'skipped' row (answer_given
-    '', no score) and moves to the next card; skipping the last one
-    completes the play.
-      - after a wrong answer (from_preview=False): costs no life; needs a
-        wrong answer on it first
-      - from the card preview (from_preview=True): costs 1 life and needs
-        no earlier answer; 0 lives afterwards pauses the play
-    payload["skipped"] is False when it wasn't allowed (no running play,
-    0 lives, a different card, or - after-wrong skip only - no wrong
-    answer on it yet).
-    """
-    flashcard_id = _to_int(flashcard_id)
-    if not flashcard_id:
-        return None, "A skip needs flashcard_id."
-
-    def action(cursor, ctx):
-        session_row = ctx["session"]
-        card_ids = ctx["card_ids"]
-        index = ctx["index"]
-        allowed = (not ctx["completed"] and session_row and session_row["status"] == "in_progress"
-                   and total_lives(ctx["pool"]) > 0 and index < len(card_ids)
-                   and card_ids[index] == flashcard_id)
-        if allowed and not from_preview:
-            cursor.execute(
-                f"""SELECT COUNT(*) AS wrong FROM {FLASHCARD_ANSWERS_TABLE}
-                    WHERE acc_id = %s AND flashcard_id = %s AND status = 'incorrect'""",
-                (ctx["acc_id"], flashcard_id)
-            )
-            allowed = cursor.fetchone()["wrong"] > 0
-        if not allowed:
-            return {"skipped": False, "state": _state(cursor, ctx)}, None
-
-        cursor.execute(
-            f"SELECT COUNT(*) AS cnt FROM {FLASHCARD_ANSWERS_TABLE} WHERE acc_id = %s AND flashcard_id = %s",
-            (ctx["acc_id"], flashcard_id)
-        )
-        attempt_number = cursor.fetchone()["cnt"] + 1
-        cursor.execute(
-            f"""INSERT INTO {FLASHCARD_ANSWERS_TABLE}
-                (acc_id, flashcard_id, answer_given, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at, retake_id)
-                VALUES (%s, %s, '', %s, 'skipped', 'self', NULL, NULL, NOW(), %s)""",
-            (ctx["acc_id"], flashcard_id, attempt_number, _retake_id(ctx))
-        )
-        if from_preview:
-            take_life(ctx["pool"])
-        _advance(cursor, ctx, flashcard_id)
-        if from_preview:
-            _pause_if_out_of_lives(cursor, ctx)
-        return {"skipped": True, "state": _state(cursor, ctx)}, None
-    return _run(acc_id, la_id, action, "skip flashcard")
+def skip_flashcard(acc_id, la_id, flashcard_id, from_preview=True):
+    """Skip always costs 1 life and is logged 'skipped'."""
+    from game_plays import skip_item
+    return skip_item(acc_id, la_id, flashcard_id, FLASHCARD_TYPE_NAME)

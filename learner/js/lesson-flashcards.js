@@ -10,22 +10,21 @@
  *   - right (or "close" - only capital letters/spacing differ): the card
  *     flips to its answer and the cobra flicks it into the scorpion
  *     (-1 HP), then the next card
- *   - wrong: the scorpion stings (-1 life) and a modal shows the card's
- *     feedback and its back; the learner picks Try Again (SAME card) or
- *     Skip card (next card - no life, no score)
- * A preview modal shows every card's front before it is played.
+ *   - wrong / skip / time up: the scorpion stings (-1 life), the card's
+ *     feedback shows (never its back) and Next card moves on - one try
+ *     per card (feat/one-attempt-flow), no Try Again.
+ * A preview modal shows each card's front (and its hint) before it is played.
  *
- * Rules (all enforced server-side - see lesson_flashcards.py):
- *   - One Flashcards lives pool per learner, shared across all lessons:
- *     5 regular lives (all back 10 minutes after the first loss) + 5
- *     bonus lives every day at 8:00 AM PH time, spent first. HUD shows
- *     total/5, e.g. "7/5".
- *   - 0 lives: the play pauses on its card; review the lesson and come
- *     back - it resumes the same play once a life is back.
- *   - Saved score = cards answered exactly right on the first try. No replay.
+ * Rules (all enforced server-side - see game_plays.py):
+ *   - Each play draws 5 cards the learner has not seen (feat/question-pool-draw).
+ *   - Lives (feat/lives-5v5): 5 regular hearts; the daily bonus is a
+ *     separate reserve used only after them. NullScorpion has 5 health,
+ *     one per drawn card; each correct card takes one.
+ *   - Timer (feat/question-timer): a slim bar per card; the server decides.
+ *   - 0 lives: the play pauses BEFORE the next card is revealed.
  *
- * Cards come from GET /api/lesson-activities/flashcard-play (front_text
- * only - never the answer). The 3D stage (flashcards3d.js) follows
+ * POST /api/lesson-activities/flashcard-start reveals the current card;
+ * GET flashcard-play reads the state. Never the answer. The 3D stage (flashcards3d.js) follows
  * activity.terrain ("land" forest / "water" ship).
  *
  * Phones: Start / Continue / Play card opens the game full screen
@@ -57,23 +56,19 @@
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }
 
-    // Regular hearts (red, filled/empty out of max_lives) + today's bonus hearts (gold).
+    // feat/lives-5v5: 5 regular hearts + the daily bonus as a separate reserve.
     function fcHearts(state) {
-        const lives = state ? state.lives : 0;
-        const max = state ? state.max_lives : 5;
-        const bonus = state ? state.bonus_lives : 0;
-        let html = "";
-        for (let i = 0; i < max; i++) {
-            html += `<i class="${i < lives ? "fa-solid" : "fa-regular"} fa-heart"></i>`;
-        }
-        for (let i = 0; i < bonus; i++) {
-            html += '<i class="fa-solid fa-heart is-bonus"></i>';
-        }
-        return html;
+        return window.CobraGameKit ? window.CobraGameKit.hearts(state) : "";
+    }
+
+    // The cobra's health bar: the regular lives (max 5); while only the daily
+    // reserve is left, the reserve - never more than 5 segments.
+    function heroLives(state) {
+        return Math.min(state.max_lives, state.lives > 0 ? state.lives : state.total_lives);
     }
 
     function fcLivesCount(state) {
-        return state ? `${state.total_lives}/${state.max_lives}` : "";
+        return window.CobraGameKit ? window.CobraGameKit.livesText(state) : "";
     }
 
     function activityIdOf(activity) {
@@ -281,10 +276,12 @@
                         <span class="fc-chip" data-c="qmeta"></span>
                         <span class="fc-chip is-muted">Type the back of the card</span>
                     </div>
+                    <div data-c="timerHost"></div>
                     <div class="fc-card">
                         <span class="fc-card-label">Front</span>
                         <div class="fc-card-front" data-c="front"></div>
                     </div>
+                    <p class="fc-hint" data-c="hint" hidden></p>
                     <div class="fc-answer-row" data-c="answerRow">
                         <textarea class="fc-answer-input" data-c="input" rows="1" autocomplete="off" spellcheck="false" placeholder="Type the answer on the back of the card..." aria-label="Your answer"></textarea>
                         <button type="button" class="fc-primary-btn" data-c="checkBtn" disabled><i class="fa-solid fa-bolt"></i> Throw answer</button>
@@ -323,6 +320,9 @@
         let revealedAnswer = null;  // the card's back, revealed after a wrong answer
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
+        // feat/question-timer: above the question AND inside the game stage (phones, full screen)
+        const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBars([ui.timerHost, ui.canvas.parentElement]) : null;
+        let leaveGuard = null;
 
         // duel animation state (display only - the server owns the real numbers)
         const fx = {
@@ -339,12 +339,31 @@
             root.dataset.mode = next;
             // Results, an error and "out of lives" always show in the normal page.
             if (next === "done" || next === "error" || next === "cooldown") setFocus(false);
+            if (timer && (next === "done" || next === "error" || next === "cooldown")) timer.hide();
             updateControls();
         }
 
         function applyState(state) {
             server = state;
+            // feat/question-pool-draw: the play's drawn cards (revealed ones in full).
+            if (state && Array.isArray(state.items) && state.items.length) {
+                cards = state.items.map((card) => (card.hidden
+                    ? { flashcard_id: card.flashcard_id, front_text: "", hint: "", hidden: true } : card));
+                total = cards.length;
+            }
+            if (timer && state && state.timer) {
+                if (state.current_item_id && state.current_revealed && !state.completed) timer.sync(state.timer, state.current_item_id);
+                else timer.hide();
+            }
             updateHUD();
+        }
+
+        // NullScorpion's health (feat/lives-5v5): one point per drawn card,
+        // each correct card takes one - in a retake it carries on.
+        function syncBugBars() {
+            if (!server) return;
+            fx.foeMax = Math.max(1, server.bug_max || total || 1);
+            fx.foeHP = Math.max(0, server.bug_hp ?? (total - server.solved_count));
         }
 
         function updateHUD() {
@@ -375,12 +394,10 @@
             const playing = mode === "playing";
             ui.input.disabled = !playing;
             ui.checkBtn.disabled = !playing || !ui.input.value.trim();
-            // Answer-bar Skip: free once this card was answered wrong,
-            // otherwise -1 life (same rule as the preview skip).
-            const skipCostsLife = !wrongOnCurrent;
-            ui.playSkipText.textContent = skipCostsLife ? "Skip (−1 life)" : "Skip";
-            ui.playSkipBtn.setAttribute("aria-label", skipCostsLife ? "Skip this card, costs 1 life" : "Skip this card");
-            ui.playSkipBtn.disabled = !playing || (skipCostsLife && (!server || server.total_lives <= 0));
+            // Skip always costs 1 life (feat/one-attempt-flow).
+            ui.playSkipText.textContent = "Skip (−1 life)";
+            ui.playSkipBtn.setAttribute("aria-label", "Skip this card, costs 1 life");
+            ui.playSkipBtn.disabled = !playing || !server || server.total_lives <= 0;
             ui.answerRow.hidden = mode === "review";
         }
 
@@ -483,7 +500,8 @@
                         <span class="fc-card-label" data-c="pvMeta"></span>
                         <div class="fc-preview-front" data-c="pvFront"></div>
                     </div>
-                    <p>Type what's on the back of this card. Get it right and Cobra flings the card at NullScorpion; get it wrong and the scorpion stings back (−1 life).</p>
+                    <p class="fc-hint" data-c="pvHint" hidden></p>
+                    <p>Type what's on the back of this card before the bar runs out. One try: get it right and Cobra flings the card at NullScorpion; get it wrong, skip or run out of time and the scorpion stings back (−1 life).</p>
                     <div class="fc-keys"><kbd>Enter = new line</kbd></div>
                     <div class="fc-overlay-actions">
                         <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
@@ -496,6 +514,9 @@
                 : copy.eyebrow;
             overlayNode("pvMeta").textContent = `Card ${qIndex + 1} of ${total}`;
             fcRenderCard(overlayNode("pvFront"), currentCard().front_text);
+            const pvHint = overlayNode("pvHint");
+            pvHint.textContent = currentCard().hint ? `Hint: ${currentCard().hint}` : "";
+            pvHint.hidden = !currentCard().hint;
             overlayNode("pvBtnText").textContent = copy.btn;
             const startFromPreview = async () => {
                 if (mode !== "ready") return;   // already starting (second click / Enter)
@@ -535,23 +556,31 @@
         // Wrong answer: show why, then MOVE ON (adviser's rule - the first
         // answer counts; a missed card is fixed later in a retake round).
         // The server already moved the play to the next card (or finished).
-        function showWrongAndNext(feedback) {
+        function showWrongAndNext(feedback, title, syntaxError) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
             const last = !!(server && server.completed);
             showOverlay(`
                 <div class="fc-overlay-card">
                     <i class="fa-solid fa-circle-xmark fc-overlay-icon is-danger"></i>
-                    <h4>Not quite</h4>
+                    <h4 data-c="taTitle">Not quite</h4>
                     <p class="fc-tryagain-feedback" data-c="taFeedback"></p>
+                    <div class="fib-console-out is-error" data-c="taError" hidden>
+                        <span class="fib-console-label">Python error</span>
+                        <pre data-c="taErrorText"></pre>
+                    </div>
                     <div class="fc-reveal" data-c="taReveal" hidden></div>
-                    <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} is marked wrong - you can fix it later in a retake if your module needs one.</p>
+                    <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.</p>
                     <div class="fc-overlay-actions">
                         <button type="button" class="fc-primary-btn" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
                     </div>
                 </div>
             `);
+            if (title) overlayNode("taTitle").textContent = title;
             overlayNode("taFeedback").textContent = feedback || "That's not what's on the back of this card.";
+            // A code answer that is not valid Python shows the real SyntaxError.
+            overlayNode("taError").hidden = !syntaxError;
+            overlayNode("taErrorText").textContent = syntaxError || "";
             fillReveal(overlayNode("taReveal"));
             const btn = overlayNode("taBtn");
             btn.addEventListener("click", () => {
@@ -563,12 +592,94 @@
                     finish();
                     return;
                 }
-                qIndex = Math.min(server.current_index, total - 1);
-                loadCard();
-                if (server.total_lives <= 0) enterCooldown();
-                else showPreview("next");
+                revealNext();
             });
             btn.focus({ preventScroll: true });
+        }
+
+        // The next card is revealed (and its clock started) by the server
+        // only now - never while feedback is shown or at 0 lives.
+        async function revealNext() {
+            if (disposed) return;
+            if (server.completed) {
+                setMode("busy");
+                finish();
+                return;
+            }
+            if (server.total_lives <= 0) {
+                qIndex = Math.min(server.current_index, total - 1);
+                loadCard();
+                enterCooldown();
+                return;
+            }
+            if (!PREVIEW) {
+                setMode("busy");
+                let data = null;
+                try {
+                    data = await postJson("flashcard-start", { la_id: laId });
+                } catch (err) {
+                    if (!disposed) showError(err.message);
+                    return;
+                }
+                if (disposed) return;
+                applyState(data.state);
+                if (server.completed || server.session_status !== "in_progress") {
+                    resyncFromState();
+                    return;
+                }
+            }
+            qIndex = Math.min(server.current_index, total - 1);
+            loadCard();
+            showPreview("next");
+        }
+
+        // feat/question-timer: the bar ran out - the server checks its own clock.
+        async function onTimerExpired(cardId) {
+            if (disposed || !server || server.current_item_id !== cardId) return;
+            if (mode !== "playing" && mode !== "ready") return;
+            setMode("busy");
+            let data = null;
+            try {
+                data = await postJson("game/timeout", { la_id: laId, item_id: cardId });
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (!data.timed_out) {
+                resyncFromState();
+                return;
+            }
+            streak = 0;
+            bump(ui.livesStat);
+            fx.glow = "bad";
+            stingAnim();
+            updateHUD();
+            setTimeout(() => {
+                if (disposed) return;
+                showWrongAndNext(data.feedback, "Time's up");
+            }, FC_ANIM.sting);
+        }
+
+        // feat/leave-detection: what the server decided when the learner came back.
+        function onLeaveResult(data) {
+            if (disposed || !data || !data.state) return;
+            applyState(data.state);
+            const event = data.event;
+            if (!event) return;
+            if (window.CobraGameKit) {
+                window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed",
+                    event.message);
+            }
+            if (event.type === "leave_forfeit") {
+                streak = 0;
+                bump(ui.livesStat);
+                fx.heroHP = heroLives(server);
+                drawBars();
+                hideOverlay();
+                revealNext();
+            }
         }
 
         function enterCooldown() {
@@ -631,7 +742,7 @@
             showOverlay(`
                 <div class="fc-overlay-card">
                     <i class="fa-solid fa-trophy fc-overlay-icon"></i>
-                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : "NullScorpion defeated"}</h4>
+                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : (server && server.bug_hp === 0 ? "NullScorpion defeated" : "Activity complete")}</h4>
                     <div class="fc-results">
                         <div><b>${rt ? `${Number(rt.fixed)}/${Number(rt.total)}` : `${firstTry}/${total}`}</b><span>${rt ? "Fixed" : "First try"}</span></div>
                         <div><b>${bestStreak}</b><span>Best streak</span></div>
@@ -715,6 +826,8 @@
             const card = currentCard();
             ui.qmeta.textContent = `Card ${qIndex + 1} of ${total}`;
             fcRenderCard(ui.front, card.front_text);
+            ui.hint.textContent = card.hint ? `Hint: ${card.hint}` : "";   // feat/hints-feedback
+            ui.hint.hidden = !card.hint;
             ui.input.value = "";
             autoResizeInput();
             ui.feedback.hidden = true;
@@ -740,11 +853,10 @@
         // ---- play flow ----
         function resyncFromState() {
             hideOverlay();
-            fx.foeMax = Math.max(1, total);
-            fx.foeHP = Math.max(0, total - server.solved_count);
+            syncBugBars();
             fx.collected = server.solved_count;
-            fx.heroMax = Math.max(server.max_lives, server.total_lives);
-            fx.heroHP = server.total_lives;
+            fx.heroMax = server.max_lives;   // feat/lives-5v5: the bar never shows more than 5
+            fx.heroHP = heroLives(server);
             fx.heroDown = server.total_lives <= 0;
             fx.defeated = fx.foeHP === 0;
             drawBars();
@@ -756,7 +868,7 @@
             loadCard();
             if (server.total_lives <= 0) enterCooldown();
             else if (server.session_status === "paused") showPreview("resume");
-            else if (server.session_status === "in_progress") showPreview("continue");
+            else if (server.session_status === "in_progress" && server.solved_count > 0) showPreview("continue");
             else showPreview("start");
         }
 
@@ -778,8 +890,8 @@
                 return false;
             }
             fx.heroDown = false;
-            fx.heroHP = server.total_lives;
-            fx.heroMax = Math.max(fx.heroMax, server.total_lives);
+            fx.heroHP = heroLives(server);
+            fx.heroMax = server.max_lives;
             drawBars();
             if (Math.min(server.current_index, total - 1) !== qIndex) {
                 qIndex = Math.min(server.current_index, total - 1);
@@ -848,7 +960,7 @@
             setMode("busy");
             setTimeout(() => {
                 if (disposed) return;
-                showWrongAndNext(result.feedback);
+                showWrongAndNext(result.feedback, null, result.syntax_error);
             }, FC_ANIM.sting);
         }
 
@@ -858,7 +970,7 @@
         async function skipFromBar() {
             if (disposed || mode !== "playing") return;
             setMode("busy");
-            await sendSkip(!wrongOnCurrent, false);
+            await sendSkip(true, false);
         }
 
         // Skip from the card preview (the card was never played): costs 1
@@ -900,10 +1012,7 @@
                         setTimeout(() => { if (!disposed) finish(); }, fx.anim ? FC_ANIM.death : 0);
                         return;
                     }
-                    qIndex = Math.min(server.current_index, total - 1);
-                    loadCard();
-                    if (server.total_lives <= 0) enterCooldown();
-                    else showPreview("next");
+                    revealNext();
                 }, FC_ANIM.win + 60);
             };
             if (!fromPreview) {
@@ -926,9 +1035,7 @@
                 setTimeout(() => { if (!disposed) finish(); }, wait);
                 return;
             }
-            qIndex = Math.min(server.current_index, total - 1);
-            loadCard();
-            showPreview("next");
+            revealNext();
         }
 
         // ---- duel animations ----
@@ -939,7 +1046,8 @@
 
         function winAnim(skipped) {
             playAnim("win", () => {
-                fx.foeHP = Math.max(0, fx.foeHP - 1);
+                // Only a correct card takes NullScorpion's health (feat/lives-5v5).
+                if (!skipped) fx.foeHP = Math.max(0, fx.foeHP - 1);
                 fx.collected += 1;
                 fx.flashFoe = 1;
                 fx.shake = skipped ? 6 : 16;
@@ -960,7 +1068,7 @@
 
         function stingAnim() {
             playAnim("sting", () => {
-                fx.heroHP = server ? server.total_lives : Math.max(0, fx.heroHP - 1);
+                fx.heroHP = server ? heroLives(server) : Math.max(0, fx.heroHP - 1);
                 fx.flashHero = 1;
                 fx.shake = 14;
                 if (stage3d) {
@@ -1039,8 +1147,8 @@
                 const play = await fetchPlay(laId);
                 if (disposed) return;
                 applyState(play.state);
-                fx.heroMax = Math.max(fx.heroMax, play.state.total_lives);
-                fx.heroHP = play.state.total_lives;
+                fx.heroMax = play.state.max_lives;
+                fx.heroHP = heroLives(play.state);
                 fx.heroDown = play.state.total_lives <= 0;
                 drawBars();
                 syncCooldown();
@@ -1197,6 +1305,8 @@
                 window.visualViewport.removeEventListener("scroll", syncViewport);
             }
             if (resizeObserver) resizeObserver.disconnect();
+            if (timer) timer.dispose();
+            if (leaveGuard) leaveGuard.dispose();
             root.classList.remove("is-focus");
             document.documentElement.classList.remove("fc-focus-lock");
             if (stage3d && stage3d.dispose) stage3d.dispose();
@@ -1220,7 +1330,7 @@
 
             let play;
             try {
-                play = await fetchPlay(laId);
+                play = PREVIEW ? await fetchPlay(laId) : await postJson("flashcard-start", { la_id: laId, boot: true });
             } catch (err) {
                 console.error("Error loading Flashcards:", err);
                 if (!disposed) showError(err.message);
@@ -1230,12 +1340,12 @@
 
             cards = play.cards || [];
             total = cards.length;
-            if (total === 0) {
+            applyState(play.state);
+            if (total === 0 && !(play.state && play.state.completed)) {
                 dispose();
                 onActivityDone();
                 return;
             }
-            applyState(play.state);
             score = play.state.first_try_correct * 100
                 + Math.max(0, play.state.solved_count - play.state.first_try_correct) * 50;
 
@@ -1257,6 +1367,21 @@
             if (disposed) return;
 
             booted = true;
+            if (timer) timer.onExpire(onTimerExpired);
+            if (!PREVIEW && window.CobraGameKit) {
+                leaveGuard = window.CobraGameKit.leaveGuard({
+                    url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
+                    body: () => ({ la_id: laId }),
+                    isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
+                        && server.total_lives > 0 && root.isConnected),
+                    onResult: onLeaveResult
+                });
+                (play.state.events || []).forEach((event) => {
+                    if (event.type === "leave_warning" || event.type === "leave_forfeit") {
+                        window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
+                    }
+                });
+            }
             document.addEventListener("keydown", onKeyDown);
             document.addEventListener("visibilitychange", onVisibility);
             if (window.visualViewport) {

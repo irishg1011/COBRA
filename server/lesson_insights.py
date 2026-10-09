@@ -36,7 +36,7 @@ Pure DB helpers, caller's cursor, never raises (an error -> no insights).
 from mysql.connector import Error
 
 from cobradb import get_db_connection
-from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, item_ids_for_activity
+from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, item_ids_for_activity, activity_standing
 from weak_spots import _course_lessons, _build, _published_game_activities
 from learner_exercise import exercise_score, EXERCISE_ITEMS
 
@@ -86,16 +86,8 @@ def _first_try_counts(cursor, acc_id, activity_type, item_ids):
 def _exercise_first_try(cursor, acc_id, resource_id):
     """(items total, items right on the first submission, attempts, skipped for now) or None.
     An exercise is one item (learner_exercise.EXERCISE_ITEMS): right when the first attempt was correct."""
-    cursor.execute(
-        """SELECT ce.exercise_id
-           FROM coding_exercises_tbl ce
-           JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-           WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-             AND COALESCE(ce.is_archived, 0) = 0
-           ORDER BY ce.exercise_id DESC LIMIT 1""",
-        (resource_id,)
-    )
-    row = cursor.fetchone()
+    from exercise_pool import assigned_exercise_row   # feat/exercise-pool: their own exercise
+    row = assigned_exercise_row(cursor, acc_id, resource_id)
     if not row:
         return None
     cursor.execute(
@@ -142,10 +134,15 @@ def lesson_insights(cursor, acc_id, resource_id, groups=None):
         per_type = {}
         for act in _published_game_activities(cursor, resource_id):
             activity_type = act["activity_type_name"]
-            ids = item_ids_for_activity(cursor, activity_type, act["la_id"])
-            answered, right = _first_try_counts(cursor, acc_id, activity_type, ids)
+            standing = activity_standing(cursor, acc_id, activity_type, act["la_id"])
+            if standing["model"] == "legacy":
+                ids = item_ids_for_activity(cursor, activity_type, act["la_id"])
+                answered, right = _first_try_counts(cursor, acc_id, activity_type, ids)
+            else:
+                # feat/question-pool-draw: the questions drawn for the FIRST play
+                answered, right = standing["first_answered"], standing["first_correct"]
             entry = per_type.setdefault(activity_type, {"total": 0, "answered": 0, "right": 0})
-            entry["total"] += len(ids)
+            entry["total"] += standing["slots"]
             entry["answered"] += answered
             entry["right"] += right
 

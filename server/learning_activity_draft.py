@@ -341,6 +341,8 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
 
     try:
         ensure_title_history(connection)  # before any write - DDL commits implicitly
+        from game_plays import ensure_play_schema
+        ensure_play_schema(connection)    # hint / feedback / console columns - DDL first too
         draft_status_id = get_la_draft_status_id(connection)
         if not draft_status_id:
             return False, "Could not resolve the Draft status.", None, 0

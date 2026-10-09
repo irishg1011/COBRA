@@ -17,7 +17,7 @@ Registered onto the main app in login.py via:
 
 from flask import Blueprint, jsonify, request
 from learner_routes import get_current_learner_acc_id
-from lesson_fill_blanks import get_fib_play, submit_fib_answer, skip_fib_item
+from lesson_fill_blanks import get_fib_play, start_fib_play, submit_fib_answer, skip_fib_item
 
 learner_fib_bp = Blueprint("learner_fib_bp", __name__)
 
@@ -35,6 +35,22 @@ def fib_play():
     play, error_message, status = get_fib_play(acc_id, la_id)
     if play is None:
         return jsonify({"success": False, "message": error_message}), status
+    return jsonify({"success": True, **play}), 200
+
+
+# feat/question-pool-draw: start-or-resume the ONE play and reveal its
+# current item - called right before an item is shown (boot, Next puzzle).
+@learner_fib_bp.route("/api/lesson-activities/fib-start", methods=["POST"])
+def fib_start():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    data = request.get_json(silent=True) or {}
+    play, error_message = start_fib_play(acc_id, data.get("la_id"), boot=data.get("boot") is True)
+    if play is None:
+        status = 404 if error_message == "This activity is not available." else 400
+        return jsonify({"success": False, "message": error_message or "Could not start."}), status
     return jsonify({"success": True, **play}), 200
 
 

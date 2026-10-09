@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
     <link rel="stylesheet" href="../learner/css/learner-responsive.css">
     <link rel="stylesheet" href="/static/code-editor.css">
+    <link rel="stylesheet" href="../learner/css/clipboard-guard.css">
 </head>
 <body data-auth-guard-mode="refresh">
 
@@ -88,7 +89,8 @@
             </div>
         </div>
 
-        <div class="sandbox-grid">
+        <!-- feat/copy-paste-block: pasting here only accepts text copied inside CobraByte -->
+        <div class="sandbox-grid" data-clip="inside-only">
 
             <!-- Code Editor Panel -->
             <div class="code-panel">
@@ -141,6 +143,7 @@
          Learning Resources lesson editor's Interactive Exercise blocks
          (see editor-toolbar.js) - loaded lazily by sandbox.js the first
          time Run Code is actually clicked, not on page load. -->
+    <script src="../learner/js/clipboard-guard.js"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
     <script src="../learner/js/sandbox.js"></script>
     <script src="../learner/js/learner.js"></script>

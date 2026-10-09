@@ -58,6 +58,14 @@ class ContentInUseError(Exception):
     """A question/item learners already answered was removed - the save is refused."""
 
 
+class FibOutputMismatchError(ContentInUseError):
+    """
+    feat/fib-console: a console item's code, run with its correct answer,
+    does not print its Expected Output - the save is refused (same path as
+    ContentInUseError, so the mentor sees the message).
+    """
+
+
 def _int_or_none(value):
     try:
         return int(value) if value not in (None, "", "null") else None
@@ -152,15 +160,21 @@ class MCQActivityController:
         # which is the order Quiz learners get them in.
         for sort_order, (q, q_id) in enumerate(zip(incoming, matched)):
             text = capitalize_first_only(q.get("text").strip())
+            # feat/hints-feedback: one correct + one wrong text per question
+            correct_fb = _fmt_optional(q.get("correct_feedback") or q.get("correctFeedback"))
+            wrong_fb = _fmt_optional(q.get("incorrect_feedback") or q.get("incorrectFeedback"))
             if q_id:
                 cursor.execute(
-                    f"UPDATE {MCQ_QUESTIONS_TABLE} SET question_text = %s, sort_order = %s WHERE q_id = %s",
-                    (text, sort_order, q_id)
+                    f"""UPDATE {MCQ_QUESTIONS_TABLE} SET question_text = %s, sort_order = %s,
+                            correct_feedback = %s, incorrect_feedback = %s WHERE q_id = %s""",
+                    (text, sort_order, correct_fb, wrong_fb, q_id)
                 )
             else:
                 cursor.execute(
-                    f"INSERT INTO {MCQ_QUESTIONS_TABLE} (la_id, question_text, sort_order) VALUES (%s, %s, %s)",
-                    (la_id, text, sort_order)
+                    f"""INSERT INTO {MCQ_QUESTIONS_TABLE}
+                        (la_id, question_text, sort_order, correct_feedback, incorrect_feedback)
+                        VALUES (%s, %s, %s, %s, %s)""",
+                    (la_id, text, sort_order, correct_fb, wrong_fb)
                 )
                 q_id = cursor.lastrowid
             kept.add(q_id)
@@ -224,7 +238,8 @@ class MCQActivityController:
     @staticmethod
     def fetch(cursor, la_id):
         cursor.execute(
-            f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
+            f"""SELECT q_id, question_text, correct_feedback, incorrect_feedback
+                FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC""",
             (la_id,)
         )
         question_rows = cursor.fetchall()
@@ -253,6 +268,8 @@ class MCQActivityController:
                 "text": q["question_text"],
                 "options": options,
                 "correct_option": correct_option,
+                "correct_feedback": q.get("correct_feedback") or "",
+                "incorrect_feedback": q.get("incorrect_feedback") or "",
             })
         return questions
 
@@ -344,25 +361,67 @@ class FillBlanksActivityController(_SimpleItemController):
     ID = "fib_id"
     ANSWERS_TABLE = FIB_ANSWERS_TABLE
     LABEL = "item"
-    COLUMNS = ("content", "correct_answer", "correct_feedback", "incorrect_feedback")
+    COLUMNS = ("content", "correct_answer", "correct_feedback", "incorrect_feedback",
+               "instruction", "code_text", "expected_output", "hint", "must_contain")
 
     @classmethod
     def _values(cls, fb):
-        content = (fb.get("content") or fb.get("text") or "").strip()
+        """
+        feat/fib-console: a console item has a Question (instruction), the Code
+        with its blank (code_text), the Correct answer and the Expected output
+        (+ optional Hint and Must contain). `content` keeps question + code
+        for every older reader (weak spots, staff views). An item with no
+        code is an older text-match item and is saved as before.
+        """
         answer = (fb.get("correct_answer") or fb.get("answer") or "").strip()
-        if not content or not answer:
-            return None
+        code = (fb.get("code_text") or "").rstrip()
+        question = (fb.get("instruction") or "").strip()
+        expected = (fb.get("expected_output") or "").strip()
+        if code.strip():
+            if not question or not answer:
+                return None
+            content = f"{question}\n{code}"
+        else:
+            content = (fb.get("content") or fb.get("text") or "").strip()
+            if not content or not answer:
+                return None
+            code, expected = None, None
         return (
-            content,  # FIB sentence - saved exactly as typed (only trimmed)
+            content,
             answer,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fb.get("correct_feedback") or fb.get("correctFeedback")),
             _fmt_optional(fb.get("incorrect_feedback") or fb.get("incorrectFeedback")),
+            question or None,
+            code,
+            expected,
+            (fb.get("hint") or "").strip() or None,
+            (fb.get("must_contain") or "").strip() or None,
         )
+
+    @classmethod
+    def save(cls, cursor, la_id, items):
+        # feat/fib-console: the code is filled with the correct answer and
+        # really run; a mismatch with the Expected output refuses the save.
+        from lesson_fill_blanks import check_fib_item_for_save
+        for number, item in enumerate(items or [], start=1):
+            values = cls._values(item)
+            if values is None or not values[5]:
+                continue
+            ok, actual, error = check_fib_item_for_save(values[5], values[1], values[6])
+            if not ok:
+                got = f"the code stopped with an error:\n{error}" if error else f'it printed:\n{actual or "(nothing)"}'
+                raise FibOutputMismatchError(
+                    f"Item {number}: with the correct answer in the blank, {got}\n"
+                    f"but the Expected output is:\n{values[6] or '(empty)'}\n"
+                    "Fix the code, the answer or the expected output (or use Generate expected output)."
+                )
+        super().save(cursor, la_id, items)
 
     @staticmethod
     def fetch(cursor, la_id):
         cursor.execute(
-            f"""SELECT fib_id, content, correct_answer, correct_feedback, incorrect_feedback
+            f"""SELECT fib_id, content, correct_answer, correct_feedback, incorrect_feedback,
+                       instruction, code_text, expected_output, hint, must_contain
                 FROM {FILL_BLANKS_TABLE} WHERE la_id = %s ORDER BY fib_id ASC""",
             (la_id,)
         )
@@ -377,6 +436,11 @@ class FillBlanksActivityController(_SimpleItemController):
                 "correctFeedback": row.get("correct_feedback") or "",
                 "incorrect_feedback": row.get("incorrect_feedback") or "",
                 "incorrectFeedback": row.get("incorrect_feedback") or "",
+                "instruction": row.get("instruction") or "",
+                "code_text": row.get("code_text") or "",
+                "expected_output": row.get("expected_output") or "",
+                "hint": row.get("hint") or "",
+                "must_contain": row.get("must_contain") or "",
             }
             for row in cursor.fetchall()
         ]
@@ -390,7 +454,7 @@ class FlashcardsActivityController(_SimpleItemController):
     ID = "flashcard_id"
     ANSWERS_TABLE = FLASHCARD_ANSWERS_TABLE
     LABEL = "flashcard"
-    COLUMNS = ("front_text", "back_text", "correct_feedback", "incorrect_feedback")
+    COLUMNS = ("front_text", "back_text", "correct_feedback", "incorrect_feedback", "hint")
 
     @classmethod
     def _values(cls, fc):
@@ -398,17 +462,25 @@ class FlashcardsActivityController(_SimpleItemController):
         back = (fc.get("back") or fc.get("back_text") or "").strip()
         if not front or not back:
             return None
+        # The editor keeps the question and the code in separate boxes; the
+        # card stores them together, the code in a ``` block - the format
+        # the card game already draws as a code box. The code is never re-cased.
+        code = (fc.get("front_code") or "").strip("\n").rstrip()
+        front = format_display_name(front)
+        if code.strip():
+            front = f"{front}\n```\n{code}\n```"
         return (
-            format_display_name(front),
+            front,
             back,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fc.get("correct_feedback") or fc.get("correctFeedback")),
             _fmt_optional(fc.get("incorrect_feedback") or fc.get("incorrectFeedback")),
+            (fc.get("hint") or "").strip() or None,   # feat/hints-feedback
         )
 
     @staticmethod
     def fetch(cursor, la_id):
         cursor.execute(
-            f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback
+            f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback, hint
                 FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC""",
             (la_id,)
         )
@@ -423,6 +495,7 @@ class FlashcardsActivityController(_SimpleItemController):
                 "correctFeedback": row.get("correct_feedback") or "",
                 "incorrect_feedback": row.get("incorrect_feedback") or "",
                 "incorrectFeedback": row.get("incorrect_feedback") or "",
+                "hint": row.get("hint") or "",
             }
             for row in cursor.fetchall()
         ]
@@ -506,11 +579,13 @@ def get_activity_content(la_id):
         return empty
 
     from cobradb import get_db_connection
+    from game_plays import ensure_play_schema   # the hint / feedback / console columns
     connection = get_db_connection()
     if connection is None:
         return empty
 
     try:
+        ensure_play_schema(connection)
         cursor = connection.cursor(dictionary=True)
         questions = MCQActivityController.fetch(cursor, la_id)
         fill_blanks = FillBlanksActivityController.fetch(cursor, la_id)

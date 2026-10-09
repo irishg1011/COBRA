@@ -6,25 +6,23 @@
  * activities.js just hands the activity over through
  * window.cobraByteRenderFillBlanks(activity, container, onActivityDone).
  *
- * Rules (all enforced server-side - see lesson_fill_blanks.py):
- *   - One FIB lives pool per learner, shared across all lessons (same
- *     learner_lives_tbl rules as every game): 5 regular lives, all
- *     refilled 10 minutes after the first one is lost, plus 5 bonus
- *     lives every day at 8:00 AM PH time (spent first, not refilled by
- *     the timer). The HUD shows total/5, e.g. "7/5".
- *   - Wrong answer: -1 life; the correct answer is revealed and the
- *     learner picks Try again (same item) or Skip puzzle (next item,
- *     no life, no score). Until they pick one, the answer is LOCKED
- *     (feat/fib-lock-after-check): the input box / tiles and Check
- *     answer are disabled, so a checked answer can't be edited - the
- *     same "tryagain" step Multiple Choice has after a wrong answer.
- *   - Correct answer: Cobra strikes SyntaxBug, next item.
- *   - 0 lives: the play pauses on its item; review the lesson and come
- *     back - it resumes the same play once a life is back.
- *   - Saved score = first-attempt correct count. No replay.
+ * Rules (all enforced server-side - see game_plays.py):
+ *   - Each play draws 5 items the learner has not seen (feat/question-pool-draw).
+ *   - ONE attempt per item (feat/one-attempt-flow): wrong, Skip, running out
+ *     of time or leaving the page twice cost 1 life; the feedback shows
+ *     (never the answer) and Next puzzle moves on. No Try again.
+ *   - Lives (feat/lives-5v5): 5 regular hearts, the daily bonus is a
+ *     separate reserve used only after them. SyntaxBug has 5 health, one
+ *     per drawn puzzle; each correct answer takes one.
+ *   - Timer (feat/question-timer): a slim bar per puzzle; the server decides.
+ *   - 0 lives: the play pauses BEFORE the next puzzle is revealed.
+ *   - Console items (feat/fib-console): question, hint, the code with its
+ *     blank and the expected output; the answer is put in the blank and
+ *     the code really runs - the console shows the real output or error.
  *
- * Items come from GET /api/lesson-activities/fib-play (never includes
- * the correct answer); answers go to POST /api/lesson-activities/fib-answer.
+ * POST /api/lesson-activities/fib-start reveals the current item (and is
+ * the only call that does); GET fib-play reads the state; answers go to
+ * POST fib-answer. Neither ever includes the correct answer.
  * The 3D stage (battle3d.js) is loaded only when this activity opens.
  * Its scenery follows activity.terrain ("land" forest / "water" ship,
  * from the chapter's side on the Learning Map), and the cobra slithers
@@ -70,24 +68,19 @@
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }
 
-    // Regular hearts (red, filled/empty out of max_lives) followed by the
-    // bonus hearts still left today (gold).
+    // feat/lives-5v5: 5 regular hearts + the daily bonus as a separate reserve.
     function fibHearts(state) {
-        const lives = state ? state.lives : 0;
-        const max = state ? state.max_lives : 5;
-        const bonus = state ? state.bonus_lives : 0;
-        let html = "";
-        for (let i = 0; i < max; i++) {
-            html += `<i class="${i < lives ? "fa-solid" : "fa-regular"} fa-heart"></i>`;
-        }
-        for (let i = 0; i < bonus; i++) {
-            html += '<i class="fa-solid fa-heart is-bonus"></i>';
-        }
-        return html;
+        return window.CobraGameKit ? window.CobraGameKit.hearts(state) : "";
+    }
+
+    // The cobra's health bar: the regular lives (max 5); while only the daily
+    // reserve is left, the reserve - never more than 5 segments.
+    function heroLives(state) {
+        return Math.min(state.max_lives, state.lives > 0 ? state.lives : state.total_lives);
     }
 
     function fibLivesCount(state) {
-        return state ? `${state.total_lives}/${state.max_lives}` : "";
+        return window.CobraGameKit ? window.CobraGameKit.livesText(state) : "";
     }
 
     // The activities list has used both "la_id" and "activity_id" for the
@@ -120,6 +113,33 @@
             credentials: "include"
         });
         const data = await readJson(response, "fib-play");
+        if (!response.ok || !data.success) throw new Error(data.message || `Request failed (HTTP ${response.status}).`);
+        return data;
+    }
+
+    // Start-or-resume the play and reveal its current item (learners only -
+    // the admin preview keeps its own fib-play flow).
+    async function startPlay(laId, boot) {
+        if (PREVIEW) return fetchPlay(laId);
+        const response = await fetch(`${API_BASE_URL}/api/lesson-activities/fib-start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ la_id: laId, boot: !!boot })
+        });
+        const data = await readJson(response, "fib-start");
+        if (!response.ok || !data.success) throw new Error(data.message || `Request failed (HTTP ${response.status}).`);
+        return data;
+    }
+
+    async function postJson(path, payload) {
+        const response = await fetch(`${API_BASE_URL}/api/lesson-activities/${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(payload)
+        });
+        const data = await readJson(response, path);
         if (!response.ok || !data.success) throw new Error(data.message || `Request failed (HTTP ${response.status}).`);
         return data;
     }
@@ -212,8 +232,18 @@
                         <span class="fib-chip" data-f="qmeta"></span>
                         <span class="fib-chip is-muted" data-f="modeChip"></span>
                     </div>
-                    <p class="fib-instruction" data-f="instruction" hidden></p>
+                    <div data-f="timerHost"></div>
+                    <p class="fib-instruction fib-question" data-f="instruction" hidden></p>
+                    <p class="fib-hint" data-f="hint" hidden></p>
                     <div class="fib-code" data-f="code"></div>
+                    <div class="fib-expected" data-f="expected" hidden>
+                        <span class="fib-expected-label">Expected output</span>
+                        <pre data-f="expectedText"></pre>
+                    </div>
+                    <div class="fib-console-out" data-f="consoleOut" hidden>
+                        <span class="fib-console-label" data-f="consoleLabel">Your output</span>
+                        <pre data-f="consoleText"></pre>
+                    </div>
                     <div class="fib-tray-head" data-f="trayHead">
                         <h4>Choices</h4>
                         <span class="fib-keyhint">Click or drag a tile into the blank · <kbd>1</kbd>–<kbd>9</kbd> pick · <kbd>Backspace</kbd> clear · <kbd>Enter</kbd> check</span>
@@ -231,10 +261,7 @@
                             <p class="fib-feedback-answer" data-f="fbAnswer" hidden></p>
                         </div>
                         <button type="button" class="fib-primary-btn" data-f="nextBtn" hidden>Next puzzle</button>
-                        <div class="fib-feedback-actions" data-f="fbActions" hidden>
-                            <button type="button" class="fib-ghost-btn" data-f="skipBtn"><i class="fa-solid fa-forward"></i> Skip puzzle</button>
-                            <button type="button" class="fib-primary-btn" data-f="retryBtn"><i class="fa-solid fa-rotate-right"></i> Try again</button>
-                        </div>
+                        <div class="fib-feedback-actions" data-f="fbActions" hidden></div>
                     </div>
                 </section>
                 <div class="fib-overlay" data-f="overlay" hidden></div>
@@ -263,6 +290,9 @@
         let slotEl = null, slotInput = null;
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
+        // feat/question-timer: above the question AND inside the game stage (phones, full screen)
+        const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBars([ui.timerHost, ui.stage]) : null;
+        let leaveGuard = null;
 
         // battle animation state (display only - the server owns the real numbers)
         const bt = {
@@ -280,12 +310,31 @@
             root.dataset.mode = next;
             // Results, an error and "out of lives" always show in the normal page.
             if (next === "done" || next === "error" || next === "cooldown") setFocus(false);
+            if (timer && (next === "done" || next === "error" || next === "cooldown")) timer.hide();
             updateControls();
         }
 
         function applyState(state) {
             server = state;
+            // feat/question-pool-draw: the play's drawn items (revealed ones in full).
+            if (state && Array.isArray(state.items) && state.items.length) {
+                items = state.items.map((item) => (item.hidden
+                    ? { fib_id: item.fib_id, content: "", choices: [], hidden: true } : item));
+                total = items.length;
+            }
+            if (timer && state && state.timer) {
+                if (state.current_item_id && state.current_revealed && !state.completed) timer.sync(state.timer, state.current_item_id);
+                else timer.hide();
+            }
             updateHUD();
+        }
+
+        // SyntaxBug's health (feat/lives-5v5): one point per drawn puzzle,
+        // each correct answer takes one - in a retake it carries on.
+        function syncBugBars() {
+            if (!server) return;
+            bt.foeMax = Math.max(1, server.bug_max || total || 1);
+            bt.foeHP = Math.max(0, server.bug_hp ?? (total - server.solved_count));
         }
 
         function updateHUD() {
@@ -333,7 +382,7 @@
                 <div class="fib-overlay-card">
                     <i class="fa-solid ${restored ? "fa-heart" : "fa-code"} fib-overlay-icon"></i>
                     <h4>${title}</h4>
-                    <p>Each puzzle hides part of a Python line. Fill the blank and Cobra strikes SyntaxBug. A wrong answer lets the bug bite back and costs a life, then you try again.</p>
+                    <p>Each puzzle hides part of the code. Fill the blank - the code really runs - and Cobra strikes SyntaxBug. You get one try per puzzle: a wrong answer, a skip or running out of time lets the bug bite back (−1 life).</p>
                     <div class="fib-keys"><kbd>1–9 pick a tile</kbd><kbd>Backspace clear</kbd><kbd>Enter check</kbd></div>
                     <div class="fib-overlay-actions">
                         <button type="button" class="fib-ghost-btn" data-f="startSkipBtn" aria-label="Skip this puzzle, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
@@ -350,6 +399,22 @@
             };
             ui.overlay.querySelector('[data-f="startBtn"]').addEventListener("click", startFromReady);
             ui.overlay.querySelector('[data-f="startSkipBtn"]').addEventListener("click", () => skipItem(true));
+        }
+
+        async function resumeFromCooldown() {
+            if (disposed || mode !== "cooldown") return;
+            setMode("busy");
+            let play = null;
+            try {
+                play = await startPlay(laId, false);
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(play.state);
+            bt.heroDown = server.total_lives <= 0;
+            resyncFromState(true);
         }
 
         function enterCooldown() {
@@ -380,7 +445,7 @@
             showOverlay(`
                 <div class="fib-overlay-card">
                     <i class="fa-solid fa-trophy fib-overlay-icon"></i>
-                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : "SyntaxBug defeated"}</h4>
+                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : (server && server.bug_hp === 0 ? "SyntaxBug defeated" : "Activity complete")}</h4>
                     <div class="fib-results">
                         <div><b>${rt ? `${Number(rt.fixed)}/${Number(rt.total)}` : `${firstTry}/${total}`}</b><span>${rt ? "Fixed" : "First try"}</span></div>
                         <div><b>${bestStreak}</b><span>Best streak</span></div>
@@ -465,6 +530,15 @@
             ui.modeChip.textContent = isTyping() ? "Type the answer" : "Pick a tile";
             ui.instruction.textContent = item.instruction || "";
             ui.instruction.hidden = !item.instruction;
+            // feat/fib-console + feat/hints-feedback: hint and expected output
+            // show while answering; the console shows the real run afterwards.
+            ui.hint.textContent = item.hint ? `Hint: ${item.hint}` : "";
+            ui.hint.hidden = !item.hint;
+            // The expected output is not shown while answering - only the
+            // real output after a correct answer (showConsole).
+            ui.expectedText.textContent = "";
+            ui.expected.hidden = true;
+            ui.consoleOut.hidden = true;
             hideFeedback();
             ui.trayHead.hidden = isTyping();
             ui.tray.hidden = isTyping();
@@ -635,15 +709,10 @@
             const hasAnswer = items.length > 0 && !!currentAnswer();
             ui.checkBtn.disabled = !playing || !hasAnswer;
             ui.clearBtn.disabled = !playing || !hasAnswer;
-            // Answer-bar Skip: free once this puzzle was answered wrong,
-            // otherwise -1 life (same rule as the intro-card skip). Hidden
-            // while the after-wrong feedback (with its own Skip) is open.
-            const skipCostsLife = !wrongOnCurrent;
-            ui.playSkipText.textContent = skipCostsLife ? "Skip (−1 life)" : "Skip";
-            ui.playSkipBtn.setAttribute("aria-label", skipCostsLife ? "Skip this puzzle, costs 1 life" : "Skip this puzzle");
-            ui.playSkipBtn.disabled = !playing || items.length === 0
-                || (skipCostsLife && (!server || server.total_lives <= 0));
-            ui.playSkipBtn.hidden = !ui.fbActions.hidden;
+            // Skip always costs 1 life (feat/one-attempt-flow).
+            ui.playSkipText.textContent = "Skip (−1 life)";
+            ui.playSkipBtn.setAttribute("aria-label", "Skip this puzzle, costs 1 life");
+            ui.playSkipBtn.disabled = !playing || items.length === 0 || !server || server.total_lives <= 0;
             ui.controls.hidden = mode === "review";
             if (slotInput) slotInput.disabled = !playing;
             paintTray();
@@ -656,26 +725,35 @@
             ui.fbAnswer.hidden = true;
         }
 
+        function showConsole(consoleResult) {
+            if (!consoleResult) {
+                ui.consoleOut.hidden = true;
+                return;
+            }
+            // Correct -> the program's output (exactly the expected output).
+            // Wrong -> the Python error, or what their code printed instead.
+            const isError = !!consoleResult.error;
+            const correct = !!consoleResult.correct;
+            ui.consoleOut.hidden = false;
+            ui.consoleOut.classList.toggle("is-error", !correct);
+            ui.consoleLabel.textContent = correct ? "Output" : isError ? "Python error" : "Your output (not what the question asks for)";
+            ui.consoleText.textContent = isError ? consoleResult.error : (consoleResult.output || "(nothing was printed)");
+        }
+
         function showFeedback(result) {
             ui.feedback.hidden = false;
             ui.feedback.classList.toggle("is-correct", !!result.is_correct);
             ui.feedback.classList.toggle("is-incorrect", !result.is_correct);
             ui.fbTitle.textContent = result.is_correct ? "Correct!"
-                : result.is_close ? "Almost there" : "Not quite";
+                : result.timed_out ? "Time's up" : result.is_close ? "Almost there" : "Not quite";
             ui.fbText.textContent = result.is_correct
                 ? (result.feedback || "")
-                : `${result.feedback || ""} SyntaxBug bites back (−1 life). This puzzle is marked wrong - you can fix it later in a retake if your module needs one.`.trim();
-            // Right or wrong, the only way forward is the next puzzle
-            // (adviser's rule: the first answer counts; no Try again).
-            const reveal = !result.is_correct && !!result.correct_answer;
-            ui.fbAnswer.hidden = !reveal;
+                : `${result.feedback || ""} SyntaxBug bites back (−1 life). This puzzle counts as missed.`.trim();
+            showConsole(result.console ? Object.assign({ correct: !!result.is_correct }, result.console) : null);
+            // One try per puzzle: the only way forward is the next puzzle.
+            // The correct answer is never shown.
+            ui.fbAnswer.hidden = true;
             ui.fbAnswer.innerHTML = "";
-            if (reveal) {
-                ui.fbAnswer.appendChild(document.createTextNode("Correct answer: "));
-                const code = el("code");
-                code.textContent = result.correct_answer;
-                ui.fbAnswer.appendChild(code);
-            }
             ui.fbActions.hidden = true;
             ui.nextBtn.hidden = false;
             ui.nextBtn.textContent = server.completed ? "See results" : "Next puzzle";
@@ -710,6 +788,7 @@
 
             showFeedback(result);
             if (result.is_correct) {
+                syncBugBars();
                 if (slotEl) slotEl.classList.add("is-right");
                 streak += 1;
                 bestStreak = Math.max(bestStreak, streak);
@@ -740,30 +819,16 @@
             ui.nextBtn.focus({ preventScroll: true });
         }
 
-        // Skip the current puzzle: no score - the server logs it as 'skipped'.
-        //   - after a wrong answer (feedback Skip): no life
-        //   - from the intro card (fromPreview, puzzle never tried): -1 life
-        //   - from the answer bar (fromBar): free if this puzzle was already
-        //     answered wrong, otherwise -1 life like the intro-card skip
-        async function skipItem(fromPreview, fromBar) {
-            fromPreview = fromPreview === true;   // the feedback button passes a click event
-            fromBar = fromBar === true;
-            const costsLife = fromPreview || (fromBar && !wrongOnCurrent);
-            // feat/fib-lock-after-check: the feedback row's Skip is pressed
-            // while the answer is locked ("tryagain").
-            const canSkip = fromPreview ? mode === "ready" : (mode === "playing" || mode === "tryagain");
+        // Skip the current puzzle: always -1 life, no score - the server
+        // logs it as 'skipped' (counts as missed). fromPreview: the intro card.
+        async function skipItem(fromPreview) {
+            fromPreview = fromPreview === true;   // the button passes a click event
+            const canSkip = fromPreview ? mode === "ready" : mode === "playing";
             if (disposed || !canSkip) return;
             setMode("busy");
             let data = null;
             try {
-                const response = await fetch(`${API_BASE_URL}/api/lesson-activities/fib-skip`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify({ la_id: laId, fib_id: currentItem().fib_id, from_preview: costsLife })
-                });
-                data = await readJson(response, "fib-skip");
-                if (!response.ok || !data.success) throw new Error(data.message || `Request failed (HTTP ${response.status}).`);
+                data = await postJson("fib-skip", { la_id: laId, fib_id: currentItem().fib_id, from_preview: true });
             } catch (err) {
                 if (!disposed) showError(err.message);
                 return;
@@ -782,49 +847,100 @@
                 hideOverlay();
                 if (stage3d) stage3d.playIntro();
             }
-            if (costsLife) {
-                // SyntaxBug bites (-1 life) for a skip on an untried puzzle.
-                bump(ui.livesStat);
-                bt.heroHP = server.total_lives;
-                foeStrike();
-            }
-            // The skipped puzzle leaves SyntaxBug's HP bar like a solved one.
-            bt.foeHP = Math.max(0, total - server.solved_count);
-            drawBars();
+            // SyntaxBug bites (-1 life) for a skip.
+            bump(ui.livesStat);
+            bt.heroHP = heroLives(server);
+            foeStrike();
             if (stage3d) stage3d.float("foe", "Skipped", "#64748b");
             updateHUD();
-            if (server.completed) {
-                if (bt.foeHP === 0) {
-                    playAnim("death", null, () => { bt.defeated = true; });
-                    setTimeout(() => { if (!disposed) finish(); }, FIB_ANIM.death);
-                } else {
+            setTimeout(() => {
+                if (disposed) return;
+                if (server.completed) {
                     finish();
+                    return;
                 }
+                revealNext();
+            }, FIB_ANIM.foebite);
+        }
+
+        // feat/question-timer: the bar ran out - the server checks its own clock.
+        async function onTimerExpired(fibId) {
+            if (disposed || !server || server.current_item_id !== fibId) return;
+            if (mode !== "playing" && mode !== "ready") return;
+            if (mode === "ready") hideOverlay();
+            setMode("busy");
+            let data = null;
+            try {
+                data = await postJson("game/timeout", { la_id: laId, item_id: fibId });
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (!data.timed_out) {
+                resyncFromState();
+                return;
+            }
+            streak = 0;
+            bump(ui.livesStat);
+            bt.heroHP = heroLives(server);
+            foeStrike();
+            showFeedback({ is_correct: false, timed_out: true, feedback: data.feedback });
+            setMode("review");
+            ui.nextBtn.focus({ preventScroll: true });
+        }
+
+        // feat/leave-detection: what the server decided when the learner came back.
+        function onLeaveResult(data) {
+            if (disposed || !data || !data.state) return;
+            applyState(data.state);
+            const event = data.event;
+            if (!event) return;
+            if (window.CobraGameKit) {
+                window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed",
+                    event.message);
+            }
+            if (event.type === "leave_forfeit") {
+                streak = 0;
+                bump(ui.livesStat);
+                bt.heroHP = heroLives(server);
+                hideFeedback();
+                if (server.completed) finish();
+                else revealNext();
+            }
+        }
+
+        // The next puzzle is revealed (and its clock started) by the server
+        // only now - never while feedback is shown or at 0 lives.
+        async function revealNext() {
+            if (disposed) return;
+            if (server.total_lives <= 0) {
+                qIndex = Math.min(server.current_index, total - 1);
+                setMode("busy");
+                loadItem();
+                enterCooldown();
+                return;
+            }
+            setMode("busy");
+            let play = null;
+            try {
+                play = await startPlay(laId, false);
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(play.state);
+            if (server.completed) {
+                finish();
                 return;
             }
             qIndex = Math.min(server.current_index, total - 1);
-            if (costsLife && server.total_lives <= 0) {
-                // That skip used the last life: next puzzle waits behind the cooldown.
-                setMode("busy");
-                loadItem();
-                setTimeout(() => { if (!disposed) enterCooldown(); }, FIB_ANIM.foebite);
-                return;
-            }
             setMode("playing");
             loadItem();
-        }
-
-        function retryItem() {
-            // feat/fib-lock-after-check: Try again is what unlocks the answer.
-            if (mode !== "tryagain") return;
-            setMode("playing");
-            hideFeedback();
-            clearSlot();
-            if (slotInput) {
-                slotInput.value = "";
-                slotInput.focus({ preventScroll: true });
-            }
-            updateControls();
+            if (server.total_lives <= 0 || (!PREVIEW && server.session_status !== "in_progress")) enterCooldown();
+            else if (slotInput) slotInput.focus({ preventScroll: true });
         }
 
         function advance() {
@@ -838,19 +954,15 @@
                 }
                 return;
             }
-            qIndex = Math.min(server.current_index, total - 1);
-            setMode("playing");
-            loadItem();
-            if (server.total_lives <= 0) enterCooldown();
+            revealNext();
         }
 
-        function resyncFromState() {
+        function resyncFromState(restored) {
             hideOverlay();
-            bt.foeMax = Math.max(1, total);
-            bt.foeHP = Math.max(0, total - server.solved_count);
+            syncBugBars();
             // Cobra's HP bar: the regular 5 plus any bonus lives left today.
-            bt.heroMax = Math.max(server.max_lives, server.total_lives);
-            bt.heroHP = server.total_lives;
+            bt.heroMax = server.max_lives;   // feat/lives-5v5: the bar never shows more than 5
+            bt.heroHP = heroLives(server);
             bt.heroDown = server.total_lives <= 0;
             bt.defeated = bt.foeHP === 0;
             drawBars();
@@ -861,8 +973,8 @@
             qIndex = Math.min(server.current_index, total - 1);
             setMode("ready");
             loadItem();
-            if (server.total_lives <= 0) enterCooldown();
-            else showReady(false);
+            if (server.total_lives <= 0 || server.session_status === "paused") enterCooldown();
+            else showReady(!!restored);
         }
 
         async function refreshState() {
@@ -872,11 +984,11 @@
                 const play = await fetchPlay(laId);
                 if (disposed) return;
                 applyState(play.state);
-                bt.heroMax = Math.max(bt.heroMax, play.state.total_lives);
-                bt.heroHP = play.state.total_lives;
+                bt.heroMax = play.state.max_lives;
+                bt.heroHP = heroLives(play.state);
                 bt.heroDown = play.state.total_lives <= 0;
                 drawBars();
-                if (mode === "cooldown" && play.state.total_lives > 0) showReady(true);
+                if (mode === "cooldown" && play.state.total_lives > 0) resumeFromCooldown();
             } catch (err) {
                 if (server) {                    // retry shortly
                     server.seconds_to_refill = Math.max(server.seconds_to_refill, 5);
@@ -929,7 +1041,7 @@
 
         function foeStrike() {
             playAnim("foebite", () => {
-                bt.heroHP = server ? server.total_lives : Math.max(0, bt.heroHP - 1);
+                bt.heroHP = server ? heroLives(server) : Math.max(0, bt.heroHP - 1);
                 bt.flashHero = 1;
                 bt.shake = 14;
                 if (stage3d) {
@@ -1018,7 +1130,6 @@
             } else if (e.key === "Enter") {
                 if (mode === "playing" && currentAnswer()) { e.preventDefault(); submitAnswer(); }
                 else if (mode === "review") { e.preventDefault(); advance(); }
-                else if (mode === "tryagain") { e.preventDefault(); retryItem(); }   // feat/fib-lock-after-check
             }
         }
 
@@ -1112,6 +1223,8 @@
                 window.visualViewport.removeEventListener("scroll", syncViewport);
             }
             if (resizeObserver) resizeObserver.disconnect();
+            if (timer) timer.dispose();
+            if (leaveGuard) leaveGuard.dispose();
             root.classList.remove("is-focus");
             document.documentElement.classList.remove("fib-focus-lock");
             if (stage3d && stage3d.dispose) stage3d.dispose();
@@ -1122,9 +1235,7 @@
         ui.checkBtn.addEventListener("click", submitAnswer);
         ui.clearBtn.addEventListener("click", () => { if (mode === "playing") clearSlot(); });
         ui.nextBtn.addEventListener("click", advance);
-        ui.skipBtn.addEventListener("click", skipItem);
-        ui.playSkipBtn.addEventListener("click", () => skipItem(false, true));
-        ui.retryBtn.addEventListener("click", retryItem);
+        ui.playSkipBtn.addEventListener("click", () => skipItem(false));
 
         // ---- boot ----
         async function boot() {
@@ -1141,7 +1252,7 @@
 
             let play;
             try {
-                play = await fetchPlay(laId);
+                play = await startPlay(laId, true);
             } catch (err) {
                 console.error("Error loading fill-in-the-blanks activity:", err);
                 if (!disposed) showError(`Could not load this activity. ${err.message || ""}`.trim());
@@ -1151,12 +1262,12 @@
 
             items = play.items || [];
             total = items.length;
-            if (total === 0) {
+            applyState(play.state);
+            if (total === 0 && !(play.state && play.state.completed)) {
                 dispose();
                 onActivityDone();
                 return;
             }
-            applyState(play.state);
             score = play.state.first_try_correct * 100
                 + Math.max(0, play.state.solved_count - play.state.first_try_correct) * 50;
 
@@ -1179,6 +1290,21 @@
             if (disposed) return;
 
             booted = true;
+            if (timer) timer.onExpire(onTimerExpired);
+            if (!PREVIEW && window.CobraGameKit) {
+                leaveGuard = window.CobraGameKit.leaveGuard({
+                    url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
+                    body: () => ({ la_id: laId }),
+                    isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
+                        && server.total_lives > 0 && root.isConnected),
+                    onResult: onLeaveResult
+                });
+                (play.state.events || []).forEach((event) => {
+                    if (event.type === "leave_warning" || event.type === "leave_forfeit") {
+                        window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
+                    }
+                });
+            }
             document.addEventListener("keydown", onKeyDown);
             document.addEventListener("visibilitychange", onVisibility);
             if (window.visualViewport) {

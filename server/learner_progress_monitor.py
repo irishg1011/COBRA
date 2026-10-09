@@ -47,7 +47,7 @@ from cobradb import get_db_connection
 from live_cache import live_cached  # 10-second memory for the auto-refreshing admin pages
 from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
 from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
-from activity_retakes import ensure_retake_schema, PASS_PERCENT
+from activity_retakes import ensure_retake_schema, PASS_PERCENT, DRAW_SIZE
 from module_review import module_review_summary  # Module Review status in the Course Progress modal
 from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 from learner_exercise import EXERCISE_ITEMS  # an exercise is one gradable item
@@ -226,7 +226,7 @@ def _load_lesson_structure(cursor, resource_ids):
             "la_id": r["la_id"],
             "title": r["activity_title"],
             "type": activity_type or "—",
-            "item_total": int(item_total or 0),
+            "item_total": min(DRAW_SIZE, int(item_total or 0)),   # feat/question-pool-draw: 5 drawn per play
         })
 
     # Latest published, non-archived exercise per lesson - one gradable item
@@ -414,13 +414,24 @@ def _evaluate_rows(cursor, rows):
 
     acc_ids = sorted({r["acc_id"] for r in rows})
     la_ids = sorted({a["la_id"] for lesson in lessons.values() for a in lesson["activities"]})
-    exercise_ids = sorted({lesson["exercise"]["exercise_id"] for lesson in lessons.values() if lesson["exercise"]})
+    # feat/exercise-pool: each learner is graded on THEIR exercise of the lesson's pool.
+    from exercise_pool import assigned_exercise_map
+    own = assigned_exercise_map(cursor, acc_ids, resource_ids)
+    exercise_ids = sorted({lesson["exercise"]["exercise_id"] for lesson in lessons.values() if lesson["exercise"]}
+                          | set(own.values()))
 
     act_progress = _load_activity_progress(cursor, acc_ids, la_ids)
     ex_passed, submissions = _load_exercise_results(cursor, acc_ids, exercise_ids)
 
+    def lesson_for(row):
+        lesson = lessons[row["resource_id"]]
+        exercise_id = own.get((row["acc_id"], row["resource_id"]))
+        if lesson["exercise"] and exercise_id and exercise_id != lesson["exercise"]["exercise_id"]:
+            lesson = dict(lesson, exercise=dict(lesson["exercise"], exercise_id=exercise_id))
+        return lesson
+
     return [
-        _evaluate(row, lessons[row["resource_id"]], act_progress, ex_passed, submissions)
+        _evaluate(row, lesson_for(row), act_progress, ex_passed, submissions)
         for row in rows
     ]
 
@@ -456,6 +467,21 @@ TABLE_KEYS = ("progress_id", "acc_id", "name", "lesson", "score", "completion",
 # dropdowns; Started / Completed ranges and Status pick which records are
 # counted. The four stat cards keep their meaning: every record matching
 # search + dropdowns + dates (never the status filter).
+def _attach_leaves(connection, items):
+    """feat/leave-detection: how many times each learner left an activity page."""
+    if not items:
+        return
+    from game_plays import leave_counts, ensure_play_schema
+    ensure_play_schema(connection)
+    cursor = connection.cursor(dictionary=True)
+    counts = leave_counts(cursor, [i["acc_id"] for i in items])
+    cursor.close()
+    for item in items:
+        c = counts.get(item["acc_id"]) or {"total": 0, "warnings": 0, "forfeits": 0}
+        item["leaves"] = c["total"]
+        item["leave_forfeits"] = c["forfeits"]
+
+
 def _lesson_paths(cursor, resource_ids):
     """{resource_id: {lesson, module_id, module, cat_id, chapter, order}}"""
     if not resource_ids:
@@ -1045,6 +1071,7 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
 
         learners = [_strip_private(s) for s in summaries[offset:offset + per_page]]
         _attach_avatars(connection, learners)
+        _attach_leaves(connection, learners)
 
         return {
             "learners": learners,
@@ -1172,6 +1199,22 @@ def get_learner_course_detail(acc_id):
         result = _strip_private(summary)
         result["chapters"] = chapters_out
         result["avatar_url"] = avatar_url
+        # feat/leave-detection: every time this learner left a game or an exercise
+        from game_plays import leave_log, ensure_play_schema
+        ensure_play_schema(connection)
+        log_cursor = connection.cursor(dictionary=True)
+        result["leave_log"] = [{
+            "where": r["activity_title"] or r["exercise_title"] or "—",
+            "context": "Coding exercise" if r["context"] == "exercise" else "Activity",
+            "leave_no": r["leave_no"],
+            "action": {"warning": "Warning", "forfeit": "Question forfeited, rest replaced",
+                       "swap": "Exercise replaced"}.get(r["action"], r["action"]),
+            "reason": {"closed_or_refreshed": "Closed or refreshed the page", "blur": "Switched window",
+                       "hidden": "Switched tab / app or locked the screen"}.get(r["reason"] or "", r["reason"] or ""),
+            "away_seconds": r["away_seconds"],
+            "left_at": fmt_datetime(r["left_at"]),
+        } for r in leave_log(log_cursor, acc_id)]
+        log_cursor.close()
         return result
 
     except Error as e:

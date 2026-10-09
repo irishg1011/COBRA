@@ -3552,6 +3552,45 @@ def learner_progress_learners_data():
     return jsonify({"success": True, **overview}), 200
 
 
+@admin_bp.route('/api/fib-run', methods=['POST'])
+def fib_run_code():
+    """
+    feat/fib-console: the activity editor's "Generate expected output" -
+    fills the blank of {code} with {answer}, runs it once (time-limited)
+    and returns what it printed, or the Python error.
+    """
+    from lesson_fill_blanks import run_fib_code
+    from exercise_tips import normalize_output
+    data = request.get_json(silent=True) or {}
+    code = data.get('code') or ''
+    if not str(code).strip():
+        return jsonify({"success": False, "message": "Write the code with its blank first."}), 400
+    run = run_fib_code(code, (data.get('answer') or '').strip())
+    return jsonify({"success": True, "output": normalize_output(run["output"]), "error": run["error"]}), 200
+
+
+@admin_bp.route('/api/game-settings', methods=['GET', 'POST'])
+def game_settings():
+    """
+    feat/question-timer: the game rules that can change after testing with
+    real learners, without a code edit - seconds per question for each
+    activity type, the timer grace, the leave threshold and the pool
+    targets (game_plays.DEFAULT_SETTINGS). GET reads, POST {key: number}.
+    """
+    from game_plays import get_settings, save_settings, DEFAULT_SETTINGS
+    if request.method == 'POST':
+        values, error = save_settings(request.get_json(silent=True) or {})
+        if values is None:
+            return jsonify({"success": False, "message": error}), 400
+    else:
+        values = get_settings(fresh=True)
+    return jsonify({
+        "success": True,
+        "settings": [{"key": k, "value": values.get(k, v), "description": d}
+                     for k, (v, d) in DEFAULT_SETTINGS.items()],
+    }), 200
+
+
 @admin_bp.route('/learner-progress/learner-detail/<acc_id>')
 def learner_progress_learner_detail(acc_id):
     """One learner's course breakdown (Chapter -> Module -> Lesson)."""
@@ -4314,7 +4353,22 @@ def create_learning_activity_lessons_by_module():
         return jsonify({"success": True, "lessons": []}), 200
 
     lessons = get_resources_by_module(module_id)
-    return jsonify({"success": True, "lessons": lessons}), 200
+    # feat/exercise-pool: how many coding exercises each lesson already has
+    # (the editor shows "3 / 5" and stops at 5).
+    from exercise_pool import lesson_exercise_count, EXERCISE_POOL_MAX
+    connection = get_db_connection()
+    if connection is not None:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            for lesson in lessons:
+                lesson["exercise_count"] = lesson_exercise_count(cursor, lesson["resource_id"])
+            cursor.close()
+        except Error as e:
+            print(f"admin_routes: could not count exercises per lesson: {e}")
+        finally:
+            if connection.is_connected():
+                connection.close()
+    return jsonify({"success": True, "lessons": lessons, "exercise_pool_max": EXERCISE_POOL_MAX}), 200
 
 
 @admin_bp.route('/create-learning-activity', methods=['GET'])
@@ -4522,7 +4576,22 @@ def coding_exercises_lessons_by_module():
         return jsonify({"success": True, "lessons": []}), 200
 
     lessons = get_resources_by_module(module_id)
-    return jsonify({"success": True, "lessons": lessons}), 200
+    # feat/exercise-pool: how many coding exercises each lesson already has
+    # (the editor shows "3 / 5" and stops at 5).
+    from exercise_pool import lesson_exercise_count, EXERCISE_POOL_MAX
+    connection = get_db_connection()
+    if connection is not None:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            for lesson in lessons:
+                lesson["exercise_count"] = lesson_exercise_count(cursor, lesson["resource_id"])
+            cursor.close()
+        except Error as e:
+            print(f"admin_routes: could not count exercises per lesson: {e}")
+        finally:
+            if connection.is_connected():
+                connection.close()
+    return jsonify({"success": True, "lessons": lessons, "exercise_pool_max": EXERCISE_POOL_MAX}), 200
 
 
 @admin_bp.route('/coding-exercises/check-title', methods=['GET', 'POST'])

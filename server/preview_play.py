@@ -39,7 +39,7 @@ from lesson_fill_blanks import (
     FALLBACK_INCORRECT_FEEDBACK as FIB_INCORRECT_FEEDBACK,
 )
 from lesson_flashcards import (
-    grade_flashcard, _load_cards as load_flashcards, _learner_card as learner_flashcard,
+    grade_flashcard, answer_syntax_error, _load_cards as load_flashcards, _learner_card as learner_flashcard,
     FLASHCARD_TYPE_NAME, CLOSE_FEEDBACK as FC_CLOSE_FEEDBACK,
     FALLBACK_CORRECT_FEEDBACK as FC_CORRECT_FEEDBACK,
     FALLBACK_INCORRECT_FEEDBACK as FC_INCORRECT_FEEDBACK,
@@ -498,7 +498,10 @@ def preview_fib(store, la_id, action, data=None):
     total = len(fib_ids)
 
     if action == "play":
-        return {"items": [learner_fib_item(r) for r in items], "state": _fib_state(play, total)}, None
+        # feat/fib-console: the SAME learner shape as the real game (question,
+        # hint, code with the blank - never the answer or the expected output).
+        from game_plays import learner_item, FIB_TYPE
+        return {"items": [learner_item(FIB_TYPE, r) for r in items], "state": _fib_state(play, total)}, None
 
     fib_id = _to_int(data.get("fib_id"))
     on_item = not play["completed"] and play["index"] < total and fib_ids[play["index"]] == fib_id
@@ -512,16 +515,13 @@ def preview_fib(store, la_id, action, data=None):
         if not on_item:
             return {"graded": False, "state": _fib_state(play, total)}, None
         item = items[play["index"]]
-        result = compare_fib_answer(answer, item.get("correct_answer"))
-        is_correct = result == "correct"
-        is_close = result == "close"
-        # Same feedback priority as submit_fib_answer().
-        if is_correct:
-            feedback = item.get("correct_feedback") or FIB_CORRECT_FEEDBACK
-        elif is_close:
-            feedback = f"{FIB_CLOSE_FEEDBACK} {item.get('incorrect_feedback') or ''}".strip()
-        else:
-            feedback = item.get("incorrect_feedback") or FIB_INCORRECT_FEEDBACK
+        # feat/fib-console: graded exactly like the learner game - the answer
+        # goes in the blank and the code really runs (game_plays.grade).
+        from game_plays import grade, FIB_TYPE
+        result = grade(FIB_TYPE, item, {"answer": answer})
+        is_correct = result["outcome"] == "correct"
+        is_close = bool(result["extra"].get("is_close"))
+        feedback = result["feedback"]
         attempt_number = _attempt(play, fib_id)
         if is_correct and attempt_number == 1:
             play["first_try"] += 1
@@ -537,6 +537,7 @@ def preview_fib(store, la_id, action, data=None):
             "is_close": is_close,
             "first_try": is_correct and attempt_number == 1,
             "feedback": feedback,
+            "console": result["extra"].get("console"),
             "state": _fib_state(play, total),
         }, None
 
@@ -601,7 +602,8 @@ def preview_flashcards(store, la_id, action, data=None):
     card_ids = [c["flashcard_id"] for c in cards]
 
     if action == "play":
-        return {"cards": [learner_flashcard(c) for c in cards], "state": _fc_state(play, card_ids)}, None
+        from game_plays import learner_item, FLASHCARD_TYPE   # front + hint (feat/hints-feedback)
+        return {"cards": [learner_item(FLASHCARD_TYPE, c) for c in cards], "state": _fc_state(play, card_ids)}, None
 
     if action == "start":
         if not play["completed"] and card_ids:
@@ -645,6 +647,7 @@ def preview_flashcards(store, la_id, action, data=None):
             "attempt_number": attempt_number,
             "feedback": feedback,
             "answer": (card["back_text"] or "").strip() if passed else None,
+            "syntax_error": None if passed else answer_syntax_error(answer, card["back_text"]),
             "state": _fc_state(play, card_ids),
         }, None
 

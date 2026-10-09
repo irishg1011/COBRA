@@ -1244,6 +1244,84 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // ---------------- feat/exercise-pool ----------------
+    // Each learner gets one exercise of the lesson's pool. A retake (module
+    // below the pass mark, exercise not passed) gives another unseen one;
+    // leaving the page twice while working on it swaps it and clears the
+    // editor (feat/leave-detection - same rule as the games).
+    let exerciseLeaveGuard = null;
+    function exerciseUrl() {
+        return `/lesson-content?resource_id=${encodeURIComponent(resourceId)}&step=exercise`;
+    }
+
+    function setupExercisePool(data) {
+        const retakeBtn = document.getElementById('exerciseRetakeBtn');
+        if (retakeBtn) {
+            retakeBtn.hidden = !data.exercise_retake_allowed;
+            retakeBtn.onclick = () => {
+                const run = async () => {
+                    retakeBtn.disabled = true;
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/api/lesson-exercise/retake`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ resource_id: resourceId })
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            window.location.href = exerciseUrl();
+                            return;
+                        }
+                        exerciseResultBox.style.display = 'block';
+                        exerciseResultBox.className = 'exercise-result fail';
+                        exerciseResultBox.textContent = result.message || 'Could not start the retake.';
+                    } catch (err) {
+                        console.error('Error starting the exercise retake:', err);
+                    }
+                    retakeBtn.disabled = false;
+                };
+                if (window.CobraProceed) {
+                    window.CobraProceed.open({
+                        icon: 'fa-rotate-right',
+                        title: 'Retake with a new exercise?',
+                        text: 'You will get another exercise from this lesson that you have not seen yet. Passing it raises your module score.',
+                        yesLabel: 'Yes, give me a new one',
+                        noLabel: 'Keep this one',
+                        onYes: run
+                    });
+                } else {
+                    run();
+                }
+            };
+        }
+        if (exerciseLeaveGuard || !window.CobraGameKit || data.exercise_completed) return;
+        const step = document.getElementById('exerciseStep');
+        exerciseLeaveGuard = window.CobraGameKit.leaveGuard({
+            url: `${API_BASE_URL}/api/lesson-exercise/leave`,
+            body: () => ({ exercise_id: lessonData && lessonData.exercise ? lessonData.exercise.exercise_id : null }),
+            isActive: () => !!(step && step.style.display !== 'none' && lessonData && lessonData.exercise
+                && !(exerciseState && exerciseState.passed)),
+            onResult: (result) => {
+                const event = result && result.event;
+                if (!event) return;
+                if (event.type === 'leave_warning') {
+                    window.CobraGameKit.notice('Please stay on this page', event.message);
+                    return;
+                }
+                exerciseCodeBox.textContent = '# Write your code here\n';
+                if (window.CobraProceed) {
+                    window.CobraProceed.open({
+                        icon: 'fa-shuffle', title: 'New exercise', text: event.message,
+                        yesLabel: 'Show my new exercise', noLabel: false, href: exerciseUrl()
+                    });
+                } else {
+                    window.location.href = exerciseUrl();
+                }
+            }
+        });
+    }
+
     async function skipExercise() {
         exerciseSkipBtn.disabled = true;
         try {
@@ -1778,6 +1856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 renderExerciseState();
                 updateSubmitLock();
+                if (!PREVIEW) setupExercisePool(data);
             }
 
             // Admin preview: only this preview's games and/or exercise,

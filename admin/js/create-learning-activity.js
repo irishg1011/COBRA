@@ -58,6 +58,9 @@ const ADD_MANY_MAX = 20;
 const MCQ_DEFAULT_OPTIONS = 4;
 const MCQ_MIN_OPTIONS = 2;
 const MCQ_MAX_OPTIONS = 6;
+// feat/question-pool-draw: each activity's pool aims for this many items
+// (learners get 5 drawn per play). Under it is a warning, never a block.
+const POOL_TARGET = 50;
 
 /** Value of an "Add [n]" box, clamped to 1-20 (empty/invalid -> 1). Writes the clamped value back. */
 function readAddManyCount(inputId) {
@@ -207,8 +210,10 @@ function refreshQuestionFieldTrackers(scopeEl) {
  */
 function isExactAnswerField(el) {
     const name = el.getAttribute('name') || '';
-    return /^fill_blanks\[\d+\]\[correct_answer\]$/.test(name) ||
-           /^flashcards\[\d+\]\[back\]$/.test(name);
+    // feat/fib-console + feat/hints-feedback: code, expected output, the
+    // must-contain text and hints are code-like - never re-cased.
+    return /^fill_blanks\[\d+\]\[(correct_answer|code_text|expected_output|must_contain|hint)\]$/.test(name) ||
+           /^flashcards\[\d+\]\[(back|hint|front_code)\]$/.test(name);
 }
 
 function handleActivityFieldInput(e) {
@@ -219,6 +224,81 @@ function handleActivityFieldInput(e) {
         applyActivityFieldCasing(el);
     }
     updateAddButtonsState();
+    const card = el.closest('.question-card, .fill-blank-card, .flashcard-card');
+    if (card) checkAnswerLeaks(card);
+}
+
+// ------------------------------------------------------------------
+// feat/hints-feedback: answer-leak check (a warning, not a block). A hint
+// or a wrong-answer feedback that contains the correct answer text would
+// hand the answer to the learner.
+// ------------------------------------------------------------------
+function leakWarningFor(card) {
+    let answer = '';
+    const texts = [];
+    if (card.classList.contains('question-card')) {
+        const checked = card.querySelector('input[type="radio"]:checked');
+        const row = checked ? checked.closest('.answer-row') : null;
+        const input = row ? row.querySelector('input[type="text"]') : null;
+        answer = input ? input.value.trim() : '';
+        const wrong = card.querySelector('[name$="[incorrect_feedback]"]');
+        if (wrong) texts.push(['Wrong-answer feedback', wrong.value]);
+    } else {
+        const ans = card.querySelector('[name$="[correct_answer]"], [name$="[back]"]');
+        answer = ans ? ans.value.trim() : '';
+        const hint = card.querySelector('[name$="[hint]"]');
+        const wrong = card.querySelector('[name$="[incorrect_feedback]"]');
+        if (hint) texts.push(['Hint', hint.value]);
+        if (wrong) texts.push(['Wrong-answer feedback', wrong.value]);
+    }
+    if (answer.length < 2) return '';
+    const needle = answer.toLowerCase();
+    const leaks = texts.filter(([, value]) => value.toLowerCase().includes(needle)).map(([label]) => label);
+    return leaks.length ? `${leaks.join(' and ')} contain${leaks.length === 1 ? 's' : ''} the correct answer - learners would see it.` : '';
+}
+
+function checkAnswerLeaks(card) {
+    let note = card.querySelector('.leak-warning');
+    const message = leakWarningFor(card);
+    if (!message) {
+        if (note) note.remove();
+        return;
+    }
+    if (!note) {
+        note = document.createElement('p');
+        note.className = 'leak-warning';
+        note.setAttribute('role', 'status');
+        card.appendChild(note);
+    }
+    note.textContent = message;
+}
+
+document.addEventListener('change', (e) => {
+    const card = e.target && e.target.closest ? e.target.closest('.question-card, .fill-blank-card, .flashcard-card') : null;
+    if (card) checkAnswerLeaks(card);
+});
+
+// ------------------------------------------------------------------
+// feat/question-pool-draw: pool count against the target ("23 / 50").
+// ------------------------------------------------------------------
+function updatePoolCount(activityType, totalItems) {
+    const sectionId = isMcqBuilderType(activityType) ? 'multipleChoiceSection'
+        : activityType === 'Fill in the Blanks' ? 'fillBlanksSection'
+        : activityType === 'Flashcards' ? 'flashcardsSection' : null;
+    document.querySelectorAll('.pool-count').forEach((n) => { if (!sectionId || !n.closest('#' + sectionId)) n.remove(); });
+    const section = sectionId ? document.getElementById(sectionId) : null;
+    if (!section) return;
+    let badge = section.querySelector('.pool-count');
+    if (!badge) {
+        badge = document.createElement('p');
+        badge.className = 'pool-count';
+        section.insertBefore(badge, section.firstChild);
+    }
+    const under = totalItems < POOL_TARGET;
+    badge.classList.toggle('is-under', under);
+    badge.textContent = under
+        ? `Pool: ${totalItems} / ${POOL_TARGET} items. Learners get 5 random unseen items per play - add ${POOL_TARGET - totalItems} more so they can't memorize answers (you can still save and publish).`
+        : `Pool: ${totalItems} / ${POOL_TARGET} items. Learners get 5 random unseen items per play.`;
 }
 
 document.addEventListener('input', handleActivityFieldInput);
@@ -357,15 +437,10 @@ function canAddNewQuestion(sourceCard = null) {
 function isFillBlankCardComplete(card) {
     if (!card) return false;
 
-    const textarea = card.querySelector('textarea');
-    const content = textarea ? textarea.value.trim() : '';
-    if (!content) return false;
-
-    const answerInput = card.querySelector('input[name*="[correct_answer]"]');
-    const answer = answerInput ? answerInput.value.trim() : '';
-    if (!answer) return false;
-
-    return true;
+    const val = (field) => { const el = card.querySelector(`[name$="[${field}]"]`); return el ? el.value.trim() : ''; };
+    if (!val('correct_answer')) return false;
+    if (val('code_text')) return !!(val('instruction') && val('expected_output'));
+    return !!val('content');   // an item saved before the console
 }
 
 /**
@@ -389,8 +464,8 @@ function canAddNewFillBlank(sourceCard = null) {
     const lastCard = cards[cards.length - 1];
     if (!isFillBlankCardComplete(lastCard)) {
         showActivityAlert(
-            'Please complete the current item first - the question/content and ' +
-            'correct answer are required before adding or duplicating another item.',
+            'Please complete the current item first - the question, code with blank, ' +
+            'correct answer and expected output are required before adding or duplicating another item.',
             'Incomplete Item'
         );
         return false;
@@ -953,6 +1028,7 @@ function updatePointsTotal() {
     if (pointsInput) {
         pointsInput.value = totalItems;
     }
+    updatePoolCount(activityType, totalItems);
 }
 
 // Add a brand new question card
@@ -974,6 +1050,8 @@ function addNewQuestionCard(prefilledData = null) {
     if (prefilledData && prefilledData.q_id) card.dataset.itemId = prefilledData.q_id;
     
     let questionTextVal = prefilledData ? prefilledData.text : '';
+    const qCorrectFb = prefilledData ? (prefilledData.correct_feedback || '') : '';
+    const qWrongFb = prefilledData ? (prefilledData.incorrect_feedback || '') : '';
 
     // feat/activity-add-many: a NEW question starts with A-D. Saved and
     // duplicated questions keep exactly the options they have.
@@ -1043,6 +1121,19 @@ function addNewQuestionCard(prefilledData = null) {
             <button type="button" class="add-sub-question-btn mt-14" onclick="addOptionRow(this, ${qIndex})">
                 <i class="fa-solid fa-plus"></i> Add Option
             </button>
+
+            <!-- feat/hints-feedback: one text for a right answer, one for any miss (never the answer) -->
+            <div class="fill-blank-grid-2 mt-16">
+                <div class="form-group">
+                    <label class="form-label">Feedback when correct</label>
+                    <input type="text" name="questions[${qIndex}][correct_feedback]" class="form-control" value="${escapeAttr(qCorrectFb)}" placeholder="Why this answer is right">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Feedback when wrong</label>
+                    <input type="text" name="questions[${qIndex}][incorrect_feedback]" class="form-control" value="${escapeAttr(qWrongFb)}" placeholder="Why it is off - without giving the answer">
+                </div>
+            </div>
+            <p class="form-hint">Empty? The option's own feedback above is shown instead.</p>
         </div>
     `;
 
@@ -1222,6 +1313,10 @@ function reindexAllQuestions() {
 
         const textarea = c.querySelector('.question-textarea');
         if (textarea) textarea.name = `questions[${idx}][text]`;
+        const qCorrect = c.querySelector('[name$="[correct_feedback]"]:not([name*="[options]"])');
+        const qWrong = c.querySelector('[name$="[incorrect_feedback]"]:not([name*="[options]"])');
+        if (qCorrect) qCorrect.name = `questions[${idx}][correct_feedback]`;
+        if (qWrong) qWrong.name = `questions[${idx}][incorrect_feedback]`;
 
         const rows = c.querySelectorAll('.answer-row');
         rows.forEach((r, optIdx) => {
@@ -1314,14 +1409,26 @@ function duplicateQuestionCard(btn) {
         options.push({ text: sText, feedback: sFeedback });
     });
 
+    const qCorrect = card.querySelector('[name$="[correct_feedback]"]');
+    const qWrong = card.querySelector('[name$="[incorrect_feedback]"]');
     addNewQuestionCard({
         text: textVal,
         correct_option: correctOptionIdx,
-        options: options
+        options: options,
+        correct_feedback: qCorrect ? qCorrect.value : '',
+        incorrect_feedback: qWrong ? qWrong.value : ''
     });
 }
 
 // Add a brand new Fill in the Blank Card
+// feat/fib-console: Question, Code with blank, Correct answer, Expected
+// output (+ Generate), Hint, Must contain, and the two feedback texts.
+// Items saved before this release (no code) show their old text box and
+// keep the old text-match grading until the mentor adds code.
+function fibField(card, field) {
+    return card.querySelector(`[name$="[${field}]"]`);
+}
+
 function addNewFillBlankCard(prefilledData = null) {
     const container = document.getElementById('fillBlanksContainer');
     const emptyMsg = document.getElementById('noFillBlanksMessage');
@@ -1336,10 +1443,10 @@ function addNewFillBlankCard(prefilledData = null) {
     card.dataset.index = index;
     if (prefilledData && prefilledData.fib_id) card.dataset.itemId = prefilledData.fib_id; // feat/publishing-tree
 
-    let textVal = prefilledData ? (prefilledData.text || prefilledData.content || '') : '';
-    let answerVal = prefilledData ? (prefilledData.answer || prefilledData.correct_answer || '') : '';
-    let correctFeedbackVal = prefilledData ? (prefilledData.correctFeedback || prefilledData.correct_feedback || '') : '';
-    let incorrectFeedbackVal = prefilledData ? (prefilledData.incorrectFeedback || prefilledData.incorrect_feedback || '') : '';
+    const v = (key, alt) => (prefilledData ? (prefilledData[key] || (alt ? prefilledData[alt] : '') || '') : '');
+    const codeVal = v('code_text');
+    const legacyVal = codeVal ? '' : v('content', 'text');
+    const isLegacy = !!(prefilledData && !codeVal && legacyVal);
 
     card.innerHTML = `
         <div class="fill-blank-card-header">
@@ -1353,24 +1460,52 @@ function addNewFillBlankCard(prefilledData = null) {
         </div>
 
         <div class="form-group mb-20 form-group-relative">
-            <label class="form-label">Question / Content (Include the blank) *</label>
-            <textarea name="fill_blanks[${index}][content]" class="form-control question-textarea" rows="3" placeholder="e.g. To define a function in Python, we use the [_____] keyword." required>${escapeAttr(textVal)}</textarea>
-            <span class="char-counter">${textVal.length} / 500</span>
+            <label class="form-label">Question *</label>
+            <textarea name="fill_blanks[${index}][instruction]" class="form-control question-textarea fib-question-input" rows="2" placeholder="e.g. Put the text hi, in quotes, into the blank so the program prints it.">${escapeAttr(v('instruction'))}</textarea>
+            <span class="char-counter">${v('instruction').length} / 500</span>
         </div>
 
         <div class="form-group mb-20">
-            <label class="form-label">Correct Answer (word, value, or code to fill in) *</label>
-            <input type="text" name="fill_blanks[${index}][correct_answer]" class="form-control" value="${escapeAttr(answerVal)}" placeholder="e.g. def" required>
+            <label class="form-label">Code with blank * <small class="text-muted">(mark the blank with ___ )</small></label>
+            <textarea name="fill_blanks[${index}][code_text]" class="form-control fib-code-input" rows="4" spellcheck="false" placeholder="message = ___&#10;print(message)">${escapeAttr(codeVal)}</textarea>
         </div>
 
         <div class="fill-blank-grid-2">
             <div class="form-group">
-                <label class="form-label">Correct Feedback</label>
-                <input type="text" name="fill_blanks[${index}][correct_feedback]" class="form-control" value="${escapeAttr(correctFeedbackVal)}" placeholder="Feedback shown when the learner answers correctly">
+                <label class="form-label">Correct Answer (what goes in the blank) *</label>
+                <input type="text" name="fill_blanks[${index}][correct_answer]" class="form-control" value="${escapeAttr(v('correct_answer', 'answer'))}" placeholder='e.g. "hi"' required>
             </div>
             <div class="form-group">
-                <label class="form-label">Incorrect Feedback</label>
-                <input type="text" name="fill_blanks[${index}][incorrect_feedback]" class="form-control" value="${escapeAttr(incorrectFeedbackVal)}" placeholder="Feedback shown when the learner answers incorrectly">
+                <label class="form-label">Must contain <small class="text-muted">(optional)</small></label>
+                <input type="text" name="fill_blanks[${index}][must_contain]" class="form-control" value="${escapeAttr(v('must_contain'))}" placeholder="e.g. + (so typing the output itself is not enough)">
+            </div>
+        </div>
+
+        <div class="form-group mb-20">
+            <label class="form-label">Expected output *</label>
+            <textarea name="fill_blanks[${index}][expected_output]" class="form-control fib-code-input" rows="2" spellcheck="false" placeholder="What the code prints with the correct answer">${escapeAttr(v('expected_output'))}</textarea>
+            <button type="button" class="add-sub-question-btn mt-8 fib-generate-btn" onclick="generateExpectedOutput(this)"><i class="fa-solid fa-play"></i> Generate expected output</button>
+            <p class="form-hint fib-run-note" hidden></p>
+        </div>
+
+        <div class="form-group mb-20">
+            <label class="form-label">Hint <small class="text-muted">(shown while answering - never the answer)</small></label>
+            <input type="text" name="fill_blanks[${index}][hint]" class="form-control" value="${escapeAttr(v('hint'))}" placeholder="e.g. Text in Python goes inside quotes.">
+        </div>
+
+        <div class="form-group mb-20 fib-legacy-content"${isLegacy ? '' : ' hidden'}>
+            <label class="form-label">Old item text <small class="text-muted">(saved before the console - graded by text match until Code is filled in)</small></label>
+            <textarea name="fill_blanks[${index}][content]" class="form-control" rows="3">${escapeAttr(legacyVal)}</textarea>
+        </div>
+
+        <div class="fill-blank-grid-2">
+            <div class="form-group">
+                <label class="form-label">Feedback when correct</label>
+                <input type="text" name="fill_blanks[${index}][correct_feedback]" class="form-control" value="${escapeAttr(v('correct_feedback', 'correctFeedback'))}" placeholder="Why the answer is right">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Feedback when wrong</label>
+                <input type="text" name="fill_blanks[${index}][incorrect_feedback]" class="form-control" value="${escapeAttr(v('incorrect_feedback', 'incorrectFeedback'))}" placeholder="Why it is off - without giving the answer">
             </div>
         </div>
     `;
@@ -1378,8 +1513,45 @@ function addNewFillBlankCard(prefilledData = null) {
     container.appendChild(card);
     setupTextareaCounters(card);
     refreshActivityFieldTrackers(card);
+    checkAnswerLeaks(card);
     updatePointsTotal();
     updateAddButtonsState();
+}
+
+// feat/fib-console: fills Expected output from a real run of the code with
+// the correct answer in its blank (POST /admin/api/fib-run).
+async function generateExpectedOutput(btn) {
+    const card = btn.closest('.fill-blank-card');
+    const note = card.querySelector('.fib-run-note');
+    const code = fibField(card, 'code_text').value;
+    const answer = fibField(card, 'correct_answer').value;
+    note.hidden = false;
+    if (!code.trim() || !answer.trim()) {
+        note.textContent = 'Write the code with its blank and the correct answer first.';
+        return;
+    }
+    btn.disabled = true;
+    note.textContent = 'Running the code...';
+    try {
+        const response = await fetch('/admin/api/fib-run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ code, answer })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Could not run the code.');
+        if (data.error) {
+            note.textContent = `The code stopped with an error: ${data.error}`;
+        } else {
+            fibField(card, 'expected_output').value = data.output;
+            note.textContent = 'Expected output filled in from a real run.';
+        }
+    } catch (err) {
+        note.textContent = err.message;
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 // Remove Fill in the Blank Card
@@ -1418,15 +1590,13 @@ function duplicateFillBlankCard(btn) {
     const card = btn.closest('.fill-blank-card');
     if (!canAddNewFillBlank(card)) return;
 
-    const textarea = card.querySelector('textarea');
-    const inputs = card.querySelectorAll('input[type="text"]');
-
-    addNewFillBlankCard({
-        text: textarea ? textarea.value : '',
-        answer: inputs[0] ? inputs[0].value : '',
-        correctFeedback: inputs[1] ? inputs[1].value : '',
-        incorrectFeedback: inputs[2] ? inputs[2].value : ''
+    const copy = {};
+    ['instruction', 'code_text', 'correct_answer', 'expected_output', 'hint', 'must_contain',
+        'content', 'correct_feedback', 'incorrect_feedback'].forEach((field) => {
+        const el = fibField(card, field);
+        copy[field] = el ? el.value : '';
     });
+    addNewFillBlankCard(copy);
 }
 
 // Move Fill in the Blank Item Up
@@ -1459,13 +1629,9 @@ function reindexAllFillBlanks() {
         card.dataset.index = idx;
         card.querySelector('.fill-blank-title').textContent = `Item ${idx + 1}`;
 
-        const textarea = card.querySelector('textarea');
-        if (textarea) textarea.name = `fill_blanks[${idx}][content]`;
-
-        const inputs = card.querySelectorAll('input[type="text"]');
-        if (inputs[0]) inputs[0].name = `fill_blanks[${idx}][correct_answer]`;
-        if (inputs[1]) inputs[1].name = `fill_blanks[${idx}][correct_feedback]`;
-        if (inputs[2]) inputs[2].name = `fill_blanks[${idx}][incorrect_feedback]`;
+        card.querySelectorAll('[name^="fill_blanks["]').forEach((el) => {
+            el.name = el.name.replace(/^fill_blanks\[\d+\]/, `fill_blanks[${idx}]`);
+        });
     });
 }
 
@@ -1484,10 +1650,15 @@ function addNewFlashcardCard(prefilledData = null) {
     card.dataset.index = index;
     if (prefilledData && prefilledData.flashcard_id) card.dataset.itemId = prefilledData.flashcard_id; // feat/publishing-tree
 
-    let frontVal = prefilledData ? (prefilledData.front || prefilledData.front_text || '') : '';
+    // The card's question and its code are edited in separate boxes; a saved
+    // card keeps its code in a ``` block inside the front text.
+    const split = splitFlashcardFront(prefilledData ? (prefilledData.front || prefilledData.front_text || '') : '');
+    let frontVal = split.question;
+    const frontCodeVal = prefilledData && prefilledData.front_code !== undefined ? prefilledData.front_code : split.code;
     let backVal = prefilledData ? (prefilledData.back || prefilledData.back_text || '') : '';
     let correctFeedbackVal = prefilledData ? (prefilledData.correctFeedback || prefilledData.correct_feedback || '') : '';
     let incorrectFeedbackVal = prefilledData ? (prefilledData.incorrectFeedback || prefilledData.incorrect_feedback || '') : '';
+    const hintVal = prefilledData ? (prefilledData.hint || '') : '';
 
     card.innerHTML = `
         <div class="flashcard-card-header">
@@ -1500,11 +1671,16 @@ function addNewFlashcardCard(prefilledData = null) {
             </div>
         </div>
 
-        <div class="flashcard-grid-2">
+        <!-- Question - Code - Back in one row -->
+        <div class="flashcard-grid-3">
             <div class="form-group form-group-relative">
                 <label class="form-label">Front Card *</label>
                 <textarea name="flashcards[${index}][front]" class="form-control question-textarea" rows="3" placeholder="Prompt, term, or question on the front" required>${escapeAttr(frontVal)}</textarea>
                 <span class="char-counter">${frontVal.length} / 500</span>
+            </div>
+            <div class="form-group form-group-relative">
+                <label class="form-label">Code on the card <small class="text-muted">(optional)</small></label>
+                <textarea name="flashcards[${index}][front_code]" class="form-control fc-code-input" rows="3" spellcheck="false" placeholder="e.g. x = 5&#10;print(x * 2)">${escapeAttr(frontCodeVal)}</textarea>
             </div>
             <div class="form-group form-group-relative">
                 <label class="form-label">Back Card *</label>
@@ -1513,14 +1689,19 @@ function addNewFlashcardCard(prefilledData = null) {
             </div>
         </div>
 
+        <div class="form-group mt-16">
+            <label class="form-label">Hint <small class="text-muted">(shown while answering - never the answer)</small></label>
+            <input type="text" name="flashcards[${index}][hint]" class="form-control" value="${escapeAttr(hintVal)}" placeholder="Points the way without giving the answer">
+        </div>
+
         <div class="flashcard-grid-2 mt-16">
             <div class="form-group">
-                <label class="form-label">Correct Feedback</label>
-                <input type="text" name="flashcards[${index}][correct_feedback]" class="form-control" value="${escapeAttr(correctFeedbackVal)}" placeholder="Feedback shown when the learner answer correctly">
+                <label class="form-label">Feedback when correct</label>
+                <input type="text" name="flashcards[${index}][correct_feedback]" class="form-control" value="${escapeAttr(correctFeedbackVal)}" placeholder="Why the answer is right">
             </div>
             <div class="form-group">
-                <label class="form-label">Incorrect Feedback</label>
-                <input type="text" name="flashcards[${index}][incorrect_feedback]" class="form-control" value="${escapeAttr(incorrectFeedbackVal)}" placeholder="Feedback shown when the learner answer incorrectly">
+                <label class="form-label">Feedback when wrong</label>
+                <input type="text" name="flashcards[${index}][incorrect_feedback]" class="form-control" value="${escapeAttr(incorrectFeedbackVal)}" placeholder="Why it is off - without giving the answer">
             </div>
         </div>
     `;
@@ -1530,6 +1711,15 @@ function addNewFlashcardCard(prefilledData = null) {
     refreshActivityFieldTrackers(card);
     updatePointsTotal();
     updateAddButtonsState();
+}
+
+// The question and the ``` code block of a saved card front.
+function splitFlashcardFront(text) {
+    const source = String(text || '').replace(/\r\n?/g, '\n');
+    const m = source.match(/```(?:[ \t]*(?:python3?|py)?[ \t]*\n)?([\s\S]*?)(?:```|$)/i);
+    if (!m) return { question: source.trim(), code: '' };
+    const question = (source.slice(0, m.index) + source.slice(m.index + m[0].length)).trim();
+    return { question, code: m[1].replace(/^\n+|\s+$/g, '') };
 }
 
 // Remove Flashcard Card
@@ -1572,13 +1762,9 @@ function reindexAllFlashcards() {
         card.dataset.index = idx;
         card.querySelector('.flashcard-title').textContent = `Flashcard ${idx + 1}`;
 
-        const textareas = card.querySelectorAll('textarea');
-        if (textareas[0]) textareas[0].name = `flashcards[${idx}][front]`;
-        if (textareas[1]) textareas[1].name = `flashcards[${idx}][back]`;
-
-        const inputs = card.querySelectorAll('input[type="text"]');
-        if (inputs[0]) inputs[0].name = `flashcards[${idx}][correct_feedback]`;
-        if (inputs[1]) inputs[1].name = `flashcards[${idx}][incorrect_feedback]`;
+        card.querySelectorAll('[name^="flashcards["]').forEach((el) => {
+            el.name = el.name.replace(/^flashcards\[\d+\]/, `flashcards[${idx}]`);
+        });
     });
 }
 
@@ -1587,14 +1773,14 @@ function duplicateFlashcardCard(btn) {
     const card = btn.closest('.flashcard-card');
     if (!canAddNewFlashcard(card)) return;
 
-    const textareas = card.querySelectorAll('textarea');
-    const inputs = card.querySelectorAll('input[type="text"]');
-
+    const val = (field) => { const el = card.querySelector(`[name$="[${field}]"]`); return el ? el.value : ''; };
     addNewFlashcardCard({
-        front: textareas[0] ? textareas[0].value : '',
-        back: textareas[1] ? textareas[1].value : '',
-        correctFeedback: inputs[0] ? inputs[0].value : '',
-        incorrectFeedback: inputs[1] ? inputs[1].value : ''
+        front: val('front'),
+        front_code: val('front_code'),
+        back: val('back'),
+        hint: val('hint'),
+        correctFeedback: val('correct_feedback'),
+        incorrectFeedback: val('incorrect_feedback')
     });
 }
 

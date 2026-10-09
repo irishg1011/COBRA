@@ -167,8 +167,9 @@ def _check_exercise(cursor, exercise_id):
                          AND COALESCE(s.la_stats_name, '') != 'Archived' LIMIT 1""",
             (row["name"], exercise_id)):
         return row["name"], f'A coding exercise named "{row["name"]}" already exists.'
-    if row["resource_id"] and lesson_already_has(cursor, "exercise", row["resource_id"], exclude_id=exercise_id):
-        return row["name"], "Its lesson already has a coding exercise. Each lesson can have only one."
+    from exercise_pool import lesson_exercise_count, EXERCISE_POOL_MAX   # feat/exercise-pool
+    if row["resource_id"] and lesson_exercise_count(cursor, row["resource_id"], exclude_id=exercise_id) >= EXERCISE_POOL_MAX:
+        return row["name"], f"Its lesson already has {EXERCISE_POOL_MAX} coding exercises, the most a lesson can have."
     return row["name"], None
 
 

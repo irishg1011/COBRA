@@ -93,16 +93,8 @@ def _module_row(cursor, module_id):
 
 def _exercise_result(cursor, acc_id, resource_id):
     """{"title", "attempts", "passed", "skipped"} for the lesson's published exercise, or None."""
-    cursor.execute(
-        """SELECT ce.exercise_id, ce.exercise_title
-           FROM coding_exercises_tbl ce
-           JOIN learning_activities_stats_tbl las ON ce.exercise_stats_id = las.la_stats_id
-           WHERE ce.resource_id = %s AND las.la_stats_name = 'Published'
-             AND COALESCE(ce.is_archived, 0) = 0
-           ORDER BY ce.exercise_id DESC LIMIT 1""",
-        (resource_id,)
-    )
-    row = cursor.fetchone()
+    from exercise_pool import assigned_exercise_row   # feat/exercise-pool: their own exercise
+    row = assigned_exercise_row(cursor, acc_id, resource_id)
     if not row:
         return None
     score = exercise_score(cursor, acc_id, row["exercise_id"])

@@ -355,3 +355,9 @@ textarea.field-error {
     tab-size: 4;
     resize: vertical;
 }
+
+/* feat/exercise-pool: "3 / 5" exercises in the lesson */
+.exercise-pool-count { margin: 6px 0 0; font-size: 0.85rem; color: #0f766e; }
+.exercise-pool-count.is-under { color: #b45309; }
+.exercise-pool-count.is-full { color: #b91c1c; font-weight: 600; }
+.exercise-pool-count[hidden] { display: none; }
