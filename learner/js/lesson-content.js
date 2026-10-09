@@ -164,6 +164,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await loadYouTubeApi();
 
+        // Watching a lesson video counts as activity (idle-logout.js) -
+        // the YouTube frame swallows the page's mouse and key events.
+        setInterval(() => {
+            if (window.cobraIdle && ytPlayer && typeof ytPlayer.getPlayerState === "function"
+                && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                window.cobraIdle.markActive();
+            }
+        }, 30 * 1000);
         ytPlayer = new YT.Player('ytPlayerTarget', {
             videoId: video.video_id,
             playerVars: { rel: 0 },

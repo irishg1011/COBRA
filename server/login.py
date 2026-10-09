@@ -85,6 +85,12 @@ app.register_blueprint(consent_bp)
 from contact_routes import contact_bp
 from client_ip import get_client_ip  # real visitor IP behind the proxy (Login Logs)
 app.register_blueprint(contact_bp)
+
+# Idle logout: learners after 1 hour, staff after 2 hours without real
+# activity (LEARNER_IDLE_MINUTES / STAFF_IDLE_MINUTES). Registered before
+# the learner keep-alive below, so an idle session is ended first.
+from idle_logout import init_idle_logout
+init_idle_logout(app)
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
