@@ -118,7 +118,7 @@ def item_ids_for_activity(cursor, activity_type, la_id):
         return []
     _, id_col, items_table, order_by = GAME_TABLES[activity_type]
     cursor.execute(
-        f"SELECT {id_col} AS item_id FROM {items_table} WHERE la_id = %s ORDER BY {order_by}",
+        f"SELECT {id_col} AS item_id FROM {items_table} WHERE la_id = %s AND is_removed = 0 ORDER BY {order_by}",
         (la_id,)
     )
     return [_row_value(r, "item_id") for r in cursor.fetchall()]

@@ -702,13 +702,13 @@ def get_activities_for_resource(resource_id):
 
             if activity_type == "Multiple Choice":
                 cursor.execute(
-                    "SELECT q_id, question_text FROM mcq_questions_tbl WHERE la_id = %s ORDER BY q_id ASC",
+                    "SELECT q_id, question_text FROM mcq_questions_tbl WHERE la_id = %s AND is_removed = 0 ORDER BY q_id ASC",
                     (la_id,)
                 )
                 for q in cursor.fetchall():
                     cursor.execute(
                         """SELECT option_id, option_letter, option_text, is_correct
-                           FROM mcq_options_tbl WHERE q_id = %s ORDER BY option_letter ASC""",
+                           FROM mcq_options_tbl WHERE q_id = %s AND is_removed = 0 ORDER BY option_letter ASC""",
                         (q["q_id"],)
                     )
                     options = cursor.fetchall()
@@ -728,7 +728,7 @@ def get_activities_for_resource(resource_id):
 
             elif activity_type == "Fill in the Blanks":
                 cursor.execute(
-                    "SELECT fib_id, content, correct_answer FROM fill_blanks_tbl WHERE la_id = %s ORDER BY fib_id ASC",
+                    "SELECT fib_id, content, correct_answer FROM fill_blanks_tbl WHERE la_id = %s AND is_removed = 0 ORDER BY fib_id ASC",
                     (la_id,)
                 )
                 for row2 in cursor.fetchall():
@@ -740,7 +740,7 @@ def get_activities_for_resource(resource_id):
 
             elif activity_type == "Flashcards":
                 cursor.execute(
-                    "SELECT flashcard_id, front_text, back_text FROM flashcards_tbl WHERE la_id = %s ORDER BY flashcard_id ASC",
+                    "SELECT flashcard_id, front_text, back_text FROM flashcards_tbl WHERE la_id = %s AND is_removed = 0 ORDER BY flashcard_id ASC",
                     (la_id,)
                 )
                 for row2 in cursor.fetchall():

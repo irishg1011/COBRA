@@ -281,7 +281,7 @@ def _missed_items(cursor, acc_id, resource_id, tracking=False):
             cursor.execute(
                 f"""SELECT q.q_id AS item_id, q.question_text AS prompt,
                            (SELECT o.option_text FROM mcq_options_tbl o
-                            WHERE o.q_id = q.q_id AND o.is_correct = 1 LIMIT 1) AS correct
+                            WHERE o.q_id = q.q_id AND o.is_correct = 1 AND o.is_removed = 0 LIMIT 1) AS correct
                     FROM mcq_questions_tbl q WHERE q.q_id IN ({placeholders})""",
                 tuple(missed)
             )

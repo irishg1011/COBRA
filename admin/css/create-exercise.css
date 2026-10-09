@@ -361,3 +361,52 @@ textarea.field-error {
 .exercise-pool-count.is-under { color: #b45309; }
 .exercise-pool-count.is-full { color: #b91c1c; font-weight: 600; }
 .exercise-pool-count[hidden] { display: none; }
+
+/* feat/exercise-cards: one card per coding exercise of the lesson */
+.exercise-pool-count { margin: 0 0 14px; }
+.exercise-card.is-dirty { border-color: #f59e0b; }
+.exercise-card.is-focused { box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35); transition: box-shadow 0.3s; }
+.exercise-card .fill-blank-title { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.exercise-card .form-group { margin-bottom: 16px; }
+.exercise-status-chip,
+.exercise-points-chip {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+}
+.exercise-status-chip.is-draft { background: #fef3c7; color: #92400e; }
+.exercise-status-chip.is-ready-to-publish { background: #dbeafe; color: #1e40af; }
+.exercise-status-chip.is-published { background: #dcfce7; color: #166534; }
+.exercise-status-chip.is-new { background: #f1f5f9; color: #64748b; }
+/* create-learning-activity.css resets every header button with !important */
+.exercise-card .card-controls .exercise-status-btn {
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    border-radius: 999px !important;
+    padding: 4px 12px !important;
+    font-size: 0.78rem !important;
+    font-weight: 600;
+}
+.exercise-card .card-controls .exercise-status-btn.is-ready { border-color: #16a34a !important; color: #15803d !important; }
+.exercise-card .card-controls .exercise-status-btn.is-danger { border-color: #dc2626 !important; color: #b91c1c !important; }
+.exercise-status-btn:disabled { opacity: 0.6; cursor: default; }
+.form-hint-inline { font-weight: 400; color: #94a3b8; font-size: 0.8rem; }
+.required-tags-details { margin-top: 10px; }
+.required-tags-details > summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #0f766e;
+    margin-bottom: 10px;
+}
+.legacy-exercise-note[hidden],
+.add-many-row[hidden],
+#noExercisesMessage[hidden] { display: none; }
+@media (max-width: 760px) {
+    .exercise-card .form-grid-3,
+    .exercise-card .form-grid-2 { grid-template-columns: 1fr; }
+}

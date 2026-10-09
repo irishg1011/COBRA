@@ -159,7 +159,7 @@ def get_published_activities_for_resource(resource_id, acc_id=None):
                 entry["pool_size"] = _pool_size(cursor, activity_type, la_id)
             elif activity_type == MCQ_TYPE_NAME:
                 cursor.execute(
-                    f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
+                    f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY sort_order ASC, q_id ASC",
                     (la_id,)
                 )
                 # feat/learner-shuffle: with acc_id (the learner's lesson page) the
@@ -171,7 +171,7 @@ def get_published_activities_for_resource(resource_id, acc_id=None):
                 for q in questions:
                     cursor.execute(
                         f"""SELECT option_id, option_letter, option_text
-                            FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC""",
+                            FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s AND is_removed = 0 ORDER BY option_letter ASC""",
                         (q["q_id"],)
                     )
                     options = shuffle_options(acc_id, q["q_id"], cursor.fetchall())
@@ -186,7 +186,7 @@ def get_published_activities_for_resource(resource_id, acc_id=None):
 
             elif activity_type == "Fill in the Blanks":
                 cursor.execute(
-                    f"SELECT fib_id, content FROM {FILL_BLANKS_TABLE} WHERE la_id = %s ORDER BY fib_id ASC",
+                    f"SELECT fib_id, content FROM {FILL_BLANKS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY fib_id ASC",
                     (la_id,)
                 )
                 for row2 in order_rows(acc_id, activity_scope(la_id), cursor.fetchall(), "fib_id"):
@@ -194,7 +194,7 @@ def get_published_activities_for_resource(resource_id, acc_id=None):
 
             elif activity_type == "Flashcards":
                 cursor.execute(
-                    f"SELECT flashcard_id, front_text, back_text FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC",
+                    f"SELECT flashcard_id, front_text, back_text FROM {FLASHCARDS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY flashcard_id ASC",
                     (la_id,)
                 )
                 for row2 in order_rows(acc_id, activity_scope(la_id), cursor.fetchall(), "flashcard_id"):
@@ -221,7 +221,7 @@ def _pool_size(cursor, activity_type, la_id):
              "Flashcards": FLASHCARDS_TABLE}.get(activity_type)
     if not table:
         return 0
-    cursor.execute(f"SELECT COUNT(*) AS cnt FROM {table} WHERE la_id = %s", (la_id,))
+    cursor.execute(f"SELECT COUNT(*) AS cnt FROM {table} WHERE la_id = %s AND is_removed = 0", (la_id,))
     return cursor.fetchone()["cnt"]
 
 
@@ -460,9 +460,9 @@ def settle_lesson_activities(acc_id, resource_id):
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             f"""SELECT la.la_id, la.activity_title, atp.activity_type_name,
-                       (SELECT COUNT(*) FROM {MCQ_QUESTIONS_TABLE} q WHERE q.la_id = la.la_id) AS mcq_n,
-                       (SELECT COUNT(*) FROM {FILL_BLANKS_TABLE} f WHERE f.la_id = la.la_id) AS fib_n,
-                       (SELECT COUNT(*) FROM {FLASHCARDS_TABLE} c WHERE c.la_id = la.la_id) AS fc_n,
+                       (SELECT COUNT(*) FROM {MCQ_QUESTIONS_TABLE} q WHERE q.la_id = la.la_id AND q.is_removed = 0) AS mcq_n,
+                       (SELECT COUNT(*) FROM {FILL_BLANKS_TABLE} f WHERE f.la_id = la.la_id AND f.is_removed = 0) AS fib_n,
+                       (SELECT COUNT(*) FROM {FLASHCARDS_TABLE} c WHERE c.la_id = la.la_id AND c.is_removed = 0) AS fc_n,
                        EXISTS(SELECT 1 FROM {PROGRESS_TABLE} p
                               WHERE p.acc_id = %s AND p.la_id = la.la_id
                                 AND p.status = 'completed') AS is_done

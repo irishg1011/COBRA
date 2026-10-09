@@ -18,7 +18,6 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
     <link rel="stylesheet" href="/static/code-editor.css">
 </head>
-{% set item_status = (existing_exercise.status if existing_exercise and existing_exercise.status else 'Draft') %}
 {% set lock = prefill and prefill.lock %}
 <body data-return-url="{{ return_url or '' }}">
 
@@ -50,65 +49,33 @@
                             <small id="current-date"></small>
                         </div>
                         <div class="page-header-actions">
-                            <button type="button" class="btn-pill-light" id="previewExerciseBtn">
-                                <i class="fa-regular fa-eye"></i> Preview Exercise
-                            </button>
-                            <!-- feat/publishing-tree: Save never changes the status.
-                                 Draft -> Mark Ready, Ready -> Move to Draft,
-                                 Published -> Unpublish. Exercises go live
-                                 from the Publishing page. -->
-                            <button type="button" class="btn-pill-light" id="saveDraftBtn" data-is-published="{{ 'true' if item_status == 'Published' else 'false' }}" data-status="{{ item_status }}">
+                            <!-- feat/exercise-cards: Save saves every card of the lesson.
+                                 Each card has its own Preview and status button
+                                 (Mark Ready / Move to Draft / Unpublish) - they go
+                                 live from the Publishing page. -->
+                            <button type="button" class="btn-pill-light" id="saveDraftBtn">
                                 <i class="fa-regular fa-floppy-disk"></i> Save
                             </button>
-                            {% if item_status == 'Published' %}
-                            <button type="button" class="btn-pill-danger js-editor-status-action"
-                                    data-kind="exercise" data-id="{{ existing_exercise.exercise_id }}" data-action="unpublish" data-tab="ready"
-                                    data-fallback="{{ url_for('admin_bp.coding_exercises') }}"
-                                    data-title="Unpublish Coding Exercise?"
-                                    data-confirm="Unpublish this coding exercise? Learners won't see it until it's published again. Their submissions are kept.">
-                                <i class="fa-solid fa-arrow-rotate-left"></i> Unpublish
-                            </button>
-                            {% elif item_status == 'Ready to Publish' %}
-                            <button type="button" class="btn-pill-light js-editor-status-action"
-                                    data-kind="exercise" data-id="{{ existing_exercise.exercise_id }}" data-action="move-to-draft" data-tab="draft"
-                                    data-fallback="{{ url_for('admin_bp.coding_exercises') }}"
-                                    data-title="Move to Draft?"
-                                    data-confirm="Move this coding exercise back to Draft?">
-                                <i class="fa-solid fa-rotate-left"></i> Move to Draft
-                            </button>
-                            {% else %}
-                            <button type="submit" form="createExerciseForm" class="btn-pill-green" id="publishExerciseBtn">
-                                <i class="fa-solid fa-circle-check"></i> Mark Ready
-                            </button>
-                            {% endif %}
                         </div>
                     </div>
                 </div>
 
-                <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST" novalidate>
-                    <input type="hidden" name="exercise_id" id="exerciseIdInput" value="{{ existing_exercise.exercise_id if existing_exercise else '' }}">
+                <form id="createExerciseForm" action="{{ url_for('admin_bp.create_coding_exercise') }}" method="POST" novalidate
+                      data-focus-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}">
                     <!-- feat/publishing-tree: sends the admin back to the Publishing page after Save / Mark Ready -->
                     <input type="hidden" name="return_to" value="{{ 'publishing' if return_url else '' }}">
                     <input type="hidden" name="tab" value="ready">
-                    
-                    <!-- Section 1: Exercise Information -->
+
+                    <!-- Section 1: the lesson. feat/exercise-cards: every coding
+                         exercise of the lesson is edited on this one page, one
+                         card each ("Coding Exercise 1", "2", ... up to 5). -->
                     <div class="card-box padded-card mb-24">
                             <div class="form-section-header">
                                 <div class="step-badge">1</div>
-                                <h3>Exercise Information</h3>
+                                <h3>Lesson</h3>
                             </div>
 
-                            <!-- Row 1: Exercise Title - feat/exercise-auto-title: built from the
-                                 Lesson ("Variables – Coding Exercise") by create-exercise.js, like
-                                 the activity titles. Read-only; the server builds it again on every save. -->
-                            <div class="mb-20">
-                                <label class="form-label" for="exerciseTitle">Exercise Title * <i class="fa-solid fa-lock exercise-title-lock-icon" aria-hidden="true"></i></label>
-                                <input type="text" id="exerciseTitle" name="title" class="form-control exercise-title-locked" placeholder="Select a lesson" maxlength="{{ title_limits.exercise }}" value="{{ existing_exercise.exercise_title if existing_exercise else '' }}" data-exercise-id="{{ existing_exercise.exercise_id if existing_exercise else '' }}" readonly aria-readonly="true" tabindex="-1" title="Filled automatically from the lesson" autocomplete="off">
-                                <small class="char-counter" data-counter-for="exerciseTitle"></small>
-                            </div>
-
-                            <!-- Row 2: Category, Module, and Lesson in the same line -->
-                            <div class="form-grid-3 mb-20">
+                            <div class="form-grid-3 mb-0">
                                 <div>
                                     <label class="form-label" for="exerciseCategory">Category *</label>
                                     <select id="exerciseCategory" name="category" class="form-control-select{{ ' select-locked' if lock }}" required{% if lock %} tabindex="-1" aria-disabled="true"{% endif %}>
@@ -129,192 +96,147 @@
                                     <select id="exerciseLesson" name="resource_id" class="form-control-select{{ ' select-locked' if lock }}" required disabled{% if lock %} tabindex="-1" aria-disabled="true"{% endif %} data-preselect-resource-id="{{ existing_exercise.resource_id if existing_exercise else (prefill.resource_id if prefill and prefill.resource_id else '') }}">
                                         <option value="" disabled selected>Select lesson</option>
                                     </select>
-                                    <p class="exercise-pool-count" id="exercisePoolCount" hidden></p>
                                 </div>
                             </div>
+                    </div>
 
-                            <!-- Row 3: Points & Status -->
-                            <div class="form-grid-2">
-                                <div>
-                                    <label class="form-label" for="exercisePoints">Points *</label>
-                                    <input type="number" id="exercisePoints" name="points" class="form-control" placeholder="e.g., 10" min="1" value="{{ existing_exercise.points if existing_exercise else 10 }}" readonly required>
-                                </div>
-                                <div>
-                                    <label class="form-label" for="exerciseStatus">Status *</label>
-                                    <input type="text" id="exerciseStatus" name="status" class="form-control" value="{{ item_status }}" readonly required>
-                                </div>
-                            </div>
-                        </div>
-
-                    <!-- Section 2: Instruction -->
+                    <!-- Section 2: the lesson's coding exercises -->
                     <div class="card-box padded-card mb-24">
                         <div class="form-section-header">
                             <div class="step-badge">2</div>
-                            <h3>Instruction</h3>
+                            <h3>Coding Exercises</h3>
                         </div>
-                        <p class="form-label section-hint mb-20">Provide clear instructions on what the learner needs to do.</p>
-
-                        <div class="form-group mb-0 form-group-relative">
-                            <textarea id="exerciseInstruction" name="instruction" class="form-control question-textarea" rows="3" placeholder="Write instructions here..." required>{{ existing_exercise.instruction if existing_exercise else '' }}</textarea>
-                            <span class="char-counter">0 / 1000</span>
+                        <p class="exercise-pool-count" id="exercisePoolCount" hidden></p>
+                        <div id="exerciseCards">
+                            <div class="text-muted text-center placeholder-box" id="noExercisesMessage">
+                                Select a lesson to see its coding exercises.
+                            </div>
+                        </div>
+                        <div class="add-many-row" id="addExerciseRow" hidden>
+                            <button type="button" id="addExerciseBtn" class="btn btn-success-custom">
+                                <i class="fa-solid fa-plus"></i> Add
+                            </button>
+                            <span class="add-many-label">exercise</span>
                         </div>
                     </div>
+                </form>
 
-                    <!-- Section 3: Problem Statement -->
-                    <div class="card-box padded-card mb-24">
-                        <div class="form-section-header">
-                            <div class="step-badge">3</div>
-                            <h3>Problem Statement</h3>
+                <!-- One coding exercise (cloned per card by create-exercise.js).
+                     Fields carry data-field, never name/id - Save sends each card
+                     on its own. The tag list comes from server/exercise_tags.py. -->
+                <template id="exerciseCardTemplate">
+                    <div class="fill-blank-card exercise-card">
+                        <div class="fill-blank-card-header">
+                            <span class="fill-blank-title"><span class="js-ex-title">Coding Exercise</span>
+                                <span class="exercise-status-chip js-ex-status">New</span>
+                                <span class="exercise-points-chip js-ex-points">10 pts</span></span>
+                            <div class="fill-blank-controls card-controls">
+                                <button type="button" class="icon-control-btn js-ex-preview" title="Preview"><i class="fa-regular fa-eye"></i></button>
+                                <span class="js-ex-status-action"></span>
+                                <button type="button" class="icon-control-btn text-danger js-ex-delete" title="Delete Exercise"><i class="fa-regular fa-trash-can"></i></button>
+                            </div>
                         </div>
-                        <p class="form-label section-hint mb-20">Define the problem using the three components below.</p>
+                        <p class="legacy-exercise-note js-ex-legacy" role="status" hidden>
+                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                            This exercise was made with test cases. Expected Output and Given input were filled in from its first test case - check them, then save.
+                        </p>
+
+                        <div class="form-group form-group-relative">
+                            <label class="form-label">Instruction *</label>
+                            <textarea data-field="instruction" data-max="1000" class="form-control question-textarea" rows="3" placeholder="Write instructions here..."></textarea>
+                            <span class="char-counter">0 / 1000</span>
+                        </div>
 
                         <div class="form-grid-3">
                             <div class="form-group form-group-relative">
-                                <label class="form-label" for="problemSituation">Situation *</label>
-                                <textarea id="problemSituation" name="situation" class="form-control question-textarea" rows="3" placeholder="Describe the situation..." required>{{ existing_exercise.situation if existing_exercise else '' }}</textarea>
+                                <label class="form-label">Situation *</label>
+                                <textarea data-field="situation" data-max="500" class="form-control question-textarea" rows="3" placeholder="Describe the situation..."></textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                             <div class="form-group form-group-relative">
-                                <label class="form-label" for="problemQuestion">Question *</label>
-                                <textarea id="problemQuestion" name="problem_question" class="form-control question-textarea" rows="3" placeholder="State the question..." required>{{ existing_exercise.problem_question if existing_exercise else '' }}</textarea>
+                                <label class="form-label">Question *</label>
+                                <textarea data-field="problem_question" data-max="500" class="form-control question-textarea" rows="3" placeholder="State the question..."></textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                             <div class="form-group form-group-relative">
-                                <label class="form-label" for="problemClue">Clue (hint) *</label>
-                                <textarea id="problemClue" name="clue" class="form-control question-textarea" rows="3" placeholder="Provide a helpful hint..." required>{{ existing_exercise.clue if existing_exercise else '' }}</textarea>
+                                <label class="form-label">Clue (hint) *</label>
+                                <textarea data-field="clue" data-max="500" class="form-control question-textarea" rows="3" placeholder="Provide a helpful hint..."></textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Section 4 & 5: Expected Output (+ Given input) & Correct Feedback -->
-                    <div class="form-grid-2 mb-24">
-                        <div class="card-box padded-card mb-0">
-                            <div class="form-section-header">
-                                <div class="step-badge">4</div>
-                                <h3>Expected Output</h3>
-                            </div>
-                            <p class="form-label section-hint mb-20">Exactly what the learner's program should print.</p>
-                            {% if existing_exercise and existing_exercise.legacy_prefilled %}
-                            <p class="legacy-exercise-note" role="status">
-                                <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                                This exercise was made with test cases. Expected Output and Given input were filled in from its first test case - check them, then save.
-                            </p>
-                            {% endif %}
-
-                            <div class="form-group mb-20 form-group-relative">
-                                <textarea id="expectedAnswer" name="expected_answer" class="form-control question-textarea output-textarea" rows="4" spellcheck="false" placeholder="e.g., Welcome to the School Portal!" required>{{ existing_exercise.expected_answer if existing_exercise else '' }}</textarea>
+                        <div class="form-grid-2">
+                            <div class="form-group form-group-relative">
+                                <label class="form-label">Expected Output * <span class="form-hint-inline">(exactly what the program should print)</span></label>
+                                <textarea data-field="expected_answer" data-max="1000" class="form-control question-textarea output-textarea" rows="4" spellcheck="false" placeholder="e.g., Welcome to the School Portal!"></textarea>
                                 <span class="char-counter">0 / 1000</span>
                             </div>
-
-                            <div class="form-group mb-0">
-                                <label class="form-label" for="givenInput">Given input (optional)</label>
-                                <textarea id="givenInput" name="given_input" class="form-control question-textarea output-textarea" rows="2" spellcheck="false" placeholder="e.g., Alice">{{ (existing_exercise.given_input or '') if existing_exercise else '' }}</textarea>
-                                <small class="given-input-hint">One value per line, fed to the learner's input() calls in order. The text an input() prompt shows is not part of the output.</small>
-                            </div>
-                        </div>
-
-                        <div class="card-box padded-card mb-0">
-                            <div class="form-section-header">
-                                <div class="step-badge">5</div>
-                                <h3>Correct Feedback</h3>
-                            </div>
-                            <p class="form-label section-hint mb-20">Feedback shown when the solution is correct.</p>
-                            
-                            <div class="form-group mb-0 form-group-relative">
-                                <textarea id="correctFeedback" name="correct_feedback" class="form-control question-textarea" rows="3" placeholder="Feedback message..." required>{{ existing_exercise.correct_feedback if existing_exercise else '' }}</textarea>
+                            <div class="form-group form-group-relative">
+                                <label class="form-label">Correct Feedback *</label>
+                                <textarea data-field="correct_feedback" data-max="500" class="form-control question-textarea" rows="4" placeholder="Feedback message..."></textarea>
                                 <span class="char-counter">0 / 500</span>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Section 6: Required in the code - the tag list comes from
-                         server/exercise_tags.py (catalog_for_form), never from here. -->
-                    {% set selected_tags = (existing_exercise.required_tags if existing_exercise and existing_exercise.required_tags else []) %}
-                    <div class="card-box padded-card mb-24" id="requiredTagsSection"
-                         data-max-name-length="{{ tag_catalog.max_name_length }}"
-                         data-keywords="{{ tag_catalog.keywords | join(' ') }}">
-                        <div class="form-section-header">
-                            <div class="step-badge">6</div>
-                            <h3>Required in the code</h3>
-                        </div>
-                        <p class="form-label section-hint mb-20">Pick what the learner's code must use, so printing the answer directly doesn't pass. Leave it empty to grade on the output only.</p>
-
-                        <div class="required-tags-selected" id="requiredTagsSelected" aria-live="polite">
-                            {% for tag in selected_tags %}
-                            <span class="required-tag-chip" data-key="{{ tag.kind }}:{{ tag.value }}">
-                                <span class="required-tag-chip-label">{{ tag.label }}</span>
-                                <button type="button" class="required-tag-remove" aria-label="Remove {{ tag.label }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-                                <input type="hidden" name="required_tags" value="{{ tag.kind }}:{{ tag.value }}">
-                            </span>
-                            {% endfor %}
-                            <span class="required-tags-empty" id="requiredTagsEmpty"{% if selected_tags %} hidden{% endif %}>No tags yet - only the output is checked.</span>
+                        <div class="form-group">
+                            <label class="form-label">Given input (optional)</label>
+                            <textarea data-field="given_input" class="form-control question-textarea output-textarea" rows="2" spellcheck="false" placeholder="e.g., Alice"></textarea>
+                            <small class="given-input-hint">One value per line, fed to the learner's input() calls in order. The text an input() prompt shows is not part of the output.</small>
                         </div>
 
-                        <div class="required-tags-picker" id="requiredTagsPicker">
-                            {% for group in tag_catalog.chapters %}
-                            <div class="required-tags-group">
-                                <p class="required-tags-group-title">{{ group.chapter }}</p>
-                                <div class="required-tags-options">
-                                    {% for concept in group.concepts %}
-                                    <button type="button" class="required-tag-option" data-key="concept:{{ concept }}" data-label="{{ concept }}" aria-pressed="false">{{ concept }}</button>
+                        <div class="required-tags-block js-tags"
+                             data-max-name-length="{{ tag_catalog.max_name_length }}"
+                             data-keywords="{{ tag_catalog.keywords | join(' ') }}">
+                            <label class="form-label">Required in the code</label>
+                            <p class="form-label section-hint">Pick what the learner's code must use, so printing the answer directly doesn't pass. Leave it empty to grade on the output only.</p>
+                            <div class="required-tags-selected js-tags-selected" aria-live="polite">
+                                <span class="required-tags-empty js-tags-empty">No tags yet - only the output is checked.</span>
+                            </div>
+                            <details class="required-tags-details">
+                                <summary>Pick tags</summary>
+                                <div class="required-tags-picker js-tags-picker">
+                                    {% for group in tag_catalog.chapters %}
+                                    <div class="required-tags-group">
+                                        <p class="required-tags-group-title">{{ group.chapter }}</p>
+                                        <div class="required-tags-options">
+                                            {% for concept in group.concepts %}
+                                            <button type="button" class="required-tag-option" data-key="concept:{{ concept }}" data-label="{{ concept }}" aria-pressed="false">{{ concept }}</button>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
                                     {% endfor %}
+                                    <div class="required-tags-group">
+                                        <p class="required-tags-group-title">Functions</p>
+                                        <div class="required-tags-options">
+                                            {% for name in tag_catalog.functions %}
+                                            <button type="button" class="required-tag-option" data-key="function:{{ name }}" data-label="{{ name }}()" aria-pressed="false">{{ name }}()</button>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="required-tags-group">
+                                        <p class="required-tags-group-title">Methods</p>
+                                        <div class="required-tags-options">
+                                            {% for name in tag_catalog.methods %}
+                                            <button type="button" class="required-tag-option" data-key="method:{{ name }}" data-label=".{{ name }}()" aria-pressed="false">.{{ name }}()</button>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            {% endfor %}
-                            <div class="required-tags-group">
-                                <p class="required-tags-group-title">Functions</p>
-                                <div class="required-tags-options">
-                                    {% for name in tag_catalog.functions %}
-                                    <button type="button" class="required-tag-option" data-key="function:{{ name }}" data-label="{{ name }}()" aria-pressed="false">{{ name }}()</button>
-                                    {% endfor %}
+                                <div class="required-tags-custom">
+                                    <label class="form-label">Add another function or method</label>
+                                    <div class="required-tags-custom-row">
+                                        <input type="text" class="form-control js-tags-custom" maxlength="{{ tag_catalog.max_name_length + 1 }}" placeholder="e.g., enumerate or .split" autocomplete="off" spellcheck="false">
+                                        <button type="button" class="add-sub-question-btn js-tags-custom-add">
+                                            <i class="fa-solid fa-plus"></i> Add
+                                        </button>
+                                    </div>
+                                    <span class="field-error-message js-tags-custom-error"></span>
+                                    <small class="given-input-hint">A name like enumerate means a function call. Start with a dot (.split) for a method.</small>
                                 </div>
-                            </div>
-                            <div class="required-tags-group">
-                                <p class="required-tags-group-title">Methods</p>
-                                <div class="required-tags-options">
-                                    {% for name in tag_catalog.methods %}
-                                    <button type="button" class="required-tag-option" data-key="method:{{ name }}" data-label=".{{ name }}()" aria-pressed="false">.{{ name }}()</button>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="required-tags-custom">
-                            <label class="form-label" for="customTagInput">Add another function or method</label>
-                            <div class="required-tags-custom-row">
-                                <input type="text" id="customTagInput" class="form-control" maxlength="{{ tag_catalog.max_name_length + 1 }}" placeholder="e.g., enumerate or .split" autocomplete="off" spellcheck="false">
-                                <button type="button" id="addCustomTagBtn" class="add-sub-question-btn">
-                                    <i class="fa-solid fa-plus"></i> Add
-                                </button>
-                            </div>
-                            <span id="customTagError" class="field-error-message"></span>
-                            <small class="given-input-hint">A name like enumerate means a function call. Start with a dot (.split) for a method.</small>
+                            </details>
                         </div>
                     </div>
-
-                    <!-- Section 7: Options
-                   <div class="card-box padded-card">
-                        <div class="form-section-header">
-                            <div class="step-badge">7</div>
-                            <h3>Options</h3>
-                        </div>
-
-                        <div class="options-checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="visible_to_students"> Visible to students
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="allow_multiple_attempts"> Allow multiple attempts
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="show_hints"> Show hints to students
-                            </label>
-                        </div>
-                    </div> 
-                     -->
-
-                </form>
+                </template>
 
             </div>
         </main>

@@ -721,6 +721,42 @@ def load_exercise_spec(cursor, exercise_id):
     return spec
 
 
+def get_lesson_exercises(resource_id):
+    """
+    feat/exercise-cards: every non-archived coding exercise of a lesson, in
+    number order (Coding Exercise 1, 2, ...), each shaped like
+    get_coding_exercise() plus its "number" - for the one-page editor.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return []
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            f"""SELECT ce.exercise_id FROM {CODING_EXERCISES_TABLE} ce
+                LEFT JOIN {LA_STATS_TABLE} s ON ce.exercise_stats_id = s.la_stats_id
+                WHERE ce.resource_id = %s AND COALESCE(ce.is_archived, 0) = 0
+                  AND COALESCE(s.la_stats_name, '') != 'Archived'""",
+            (resource_id,)
+        )
+        ids = [r["exercise_id"] for r in cursor.fetchall()]
+        cursor.close()
+    except Error as e:
+        print(f"coding_exercises: failed to list lesson {resource_id} exercises: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            connection.close()
+    exercises = []
+    for exercise_id in ids:
+        exercise = get_coding_exercise(exercise_id)
+        if exercise:
+            exercise["number"] = exercise_number(exercise.get("exercise_title"))
+            exercises.append(exercise)
+    exercises.sort(key=lambda e: (e["number"], e["exercise_id"]))
+    return exercises
+
+
 def save_coding_exercise(data: dict, status: str = 'Draft', uploaded_by: str = None):
     """
     Task #76: Persists a coding exercise with its Given input and required

@@ -243,6 +243,7 @@ ENDPOINT_ROLES = {
     "admin_bp.archive_coding_exercise": MENTOR,
     "admin_bp.coding_exercises_modules_by_category": MENTOR,
     "admin_bp.coding_exercises_lessons_by_module": MENTOR,
+    "admin_bp.coding_exercises_of_lesson": MENTOR,   # feat/exercise-cards
     "admin_bp.coding_exercises_check_title": MENTOR,
     "admin_bp.create_coding_exercise": MENTOR,
     "admin_bp.save_coding_exercise_draft": MENTOR,

@@ -42,7 +42,6 @@
         ? new URL(".", document.currentScript.src).href
         : "";
     const FC_ANIM = { win: 1700, sting: 1300, death: 1700 };
-    const FC_FLY_MS = 560;   // preview card flying to the floating card in the stage
 
     // ---------------- small helpers ----------------
     function el(tag, className) {
@@ -313,6 +312,8 @@
         let mode = "loading";   // loading | ready | playing | busy | review | tryagain | cooldown | done | error
         let wrongOnCurrent = false;  // learner already got THIS card wrong -> answer-bar Skip is free
         let booted = false;
+        let firstOpen = true;       // the first reveal after opening the page reports an unclosed leave
+        let counting = false;       // a 3 - 2 - 1 is running
         let disposed = false;
         let stage3d = null;
         let qIndex = 0;
@@ -331,7 +332,10 @@
             thrown: false, glow: "", defeated: false, heroDown: false, t: 0, lastTs: 0
         };
 
-        function currentCard() { return cards[qIndex]; }
+        // Before the play exists (a new learner, before Start) there is no
+        // card at all - the board shows this empty one.
+        const NOT_YET = { flashcard_id: null, front_text: "", hint: "", hidden: true };
+        function currentCard() { return cards[qIndex] || NOT_YET; }
 
         // ---- HUD ----
         function setMode(next) {
@@ -411,133 +415,77 @@
             ui.overlay.hidden = true;
             ui.overlay.innerHTML = "";
             ui.overlay.classList.remove("is-leaving");
-            revealStageCard(false);   // the floating card is only hidden while a preview is open
+            if (!currentCard().hidden) revealStageCard(false);
         }
 
-        // ---- preview card -> the floating card in the stage ----
-        // While a card preview is open the floating 3D card is hidden. On
-        // Start / Continue / Play card the preview card flies to where the
-        // floating card lives and shrinks to its size, the rest of the
-        // preview fades away, and the floating card pops in as it lands.
-        // No stage (no WebGL, or hidden behind the phone keyboard) or
-        // "reduce motion" switched on in the device: no flight, the card is
-        // simply shown. Styles: .fc-overlay.is-leaving in the CSS file.
-        const reduceMotionQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
-
+        // The floating 3D card stays hidden during the Start card and the
+        // 3 - 2 - 1, and pops in when its card is revealed.
         function revealStageCard(animated) {
             if (stage3d && stage3d.showCard) stage3d.showCard(animated);
-        }
-
-        // Resolves when the flight is over (or right away when there is none).
-        function flyPreviewToCard() {
-            return new Promise((resolve) => {
-                const card = ui.overlay.querySelector(".fc-preview-card");
-                const canFly = !!card && typeof card.animate === "function"
-                    && !!stage3d && typeof stage3d.cardRect === "function"
-                    && !(reduceMotionQuery && reduceMotionQuery.matches);
-                if (!canFly) {
-                    revealStageCard(false);
-                    resolve();
-                    return;
-                }
-
-                let finished = false;
-                let safety = null;
-                const finish = () => {
-                    if (finished) return;
-                    finished = true;
-                    clearTimeout(safety);
-                    revealStageCard(false);   // does nothing when the pop-in already started
-                    resolve();
-                };
-                // Never leave the play waiting on an animation (e.g. the tab was hidden mid-flight).
-                safety = setTimeout(finish, FC_FLY_MS + 700);
-
-                // One frame later, so a layout change made by the same click
-                // (full screen on phones) is already drawn before measuring.
-                requestAnimationFrame(() => {
-                    if (finished || disposed || !stage3d) { finish(); return; }
-                    const from = card.getBoundingClientRect();
-                    const to = stage3d.cardRect();   // where the floating card is on screen
-                    if (!to || from.width < 1 || to.width < 8) { finish(); return; }
-
-                    ui.overlay.classList.add("is-leaving");
-                    const scale = to.width / from.width;
-                    const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
-                    const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
-                    const landed = `translate(${dx}px, ${dy}px) scale(${scale})`;
-                    const flight = card.animate([
-                        { transform: "translate(0px, 0px) scale(1)", opacity: 1, offset: 0 },
-                        { transform: landed, opacity: 1, offset: 0.8 },
-                        { transform: landed, opacity: 0, offset: 1 }
-                    ], { duration: FC_FLY_MS, easing: "cubic-bezier(0.45, 0, 0.2, 1)", fill: "forwards" });
-                    // The floating card pops in while the flying one fades out on top of it.
-                    setTimeout(() => { if (!finished) revealStageCard(true); }, FC_FLY_MS * 0.6);
-                    flight.onfinish = finish;
-                    flight.oncancel = finish;
-                });
-            });
         }
 
         function overlayNode(name) {
             return ui.overlay.querySelector(`[data-c="${name}"]`);
         }
 
-        // Preview: read the card's front BEFORE it is played.
-        //   kind: start | continue | resume | next
-        function showPreview(kind) {
+        // feat/game-countdown: the duel waits behind a blurred Start card -
+        // no card is on screen (or in the browser) before its clock starts.
+        // Start -> 3 - 2 - 1 -> the server reveals the card (its timer
+        // starts) and it shows.   kind: start | continue | resume
+        function showStartCard(kind) {
             setMode("ready");
+            hideOverlay();
             const copy = {
-                start: { eyebrow: "Read the card first", btn: "Start duel" },
-                continue: { eyebrow: "Pick up where you left off", btn: "Continue" },
-                resume: { eyebrow: "Your lives are back - resuming where you stopped", btn: "Resume" },
-                next: { eyebrow: "Next card", btn: "Play card" }
-            }[kind];
-            showOverlay(`
-                <div class="fc-overlay-card fc-preview">
-                    <span class="fc-preview-eyebrow" data-c="pvEyebrow"></span>
-                    <div class="fc-preview-card">
-                        <span class="fc-card-label" data-c="pvMeta"></span>
-                        <div class="fc-preview-front" data-c="pvFront"></div>
-                    </div>
-                    <p class="fc-hint" data-c="pvHint" hidden></p>
-                    <p>Type what's on the back of this card before the bar runs out. One try: get it right and Cobra flings the card at NullScorpion; get it wrong, skip or run out of time and the scorpion stings back (−1 life).</p>
-                    <div class="fc-keys"><kbd>Enter = new line</kbd></div>
-                    <div class="fc-overlay-actions">
-                        <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
-                        <button type="button" class="fc-primary-btn" data-c="pvBtn"><i class="fa-solid fa-play"></i> <span data-c="pvBtnText"></span></button>
-                    </div>
-                </div>
-            `);
-            overlayNode("pvEyebrow").textContent = (server && server.retake)
-                ? `Retake round ${server.retake.round} · ${copy.eyebrow}`
-                : copy.eyebrow;
-            overlayNode("pvMeta").textContent = `Card ${qIndex + 1} of ${total}`;
-            fcRenderCard(overlayNode("pvFront"), currentCard().front_text);
-            const pvHint = overlayNode("pvHint");
-            pvHint.textContent = currentCard().hint ? `Hint: ${currentCard().hint}` : "";
-            pvHint.hidden = !currentCard().hint;
-            overlayNode("pvBtnText").textContent = copy.btn;
-            const startFromPreview = async () => {
-                if (mode !== "ready") return;   // already starting (second click / Enter)
-                enterFocusIfPhone();   // phones: the game goes full screen
-                if (kind === "next") {
-                    setMode("busy");
-                    await flyPreviewToCard();   // the preview card becomes the floating card
-                    if (disposed) return;
-                    hideOverlay();
-                    setMode("playing");
-                    ui.input.focus({ preventScroll: true });
-                    return;
-                }
-                beginPlay();
-            };
-            const btn = overlayNode("pvBtn");
-            btn.addEventListener("click", startFromPreview);
-            overlayNode("pvSkipBtn").addEventListener("click", () => skipFromPreview(kind));
-            btn.focus({ preventScroll: true });
-            // The floating card waits out of sight until this preview card lands on it.
+                start: { title: "Ready to duel?", btn: "Start duel" },
+                continue: { title: "Pick up where you left off", btn: "Continue" },
+                resume: { title: "Your lives are back", btn: "Resume" }
+            }[kind] || { title: "Ready to duel?", btn: "Start duel" };
+            const limit = server && server.timer ? server.timer.limit : 0;
+            const left = Math.max(0, total - (server ? server.current_index || 0 : 0));
             if (stage3d && stage3d.hideCard) stage3d.hideCard();
+            window.CobraGameKit.startCard(root, {
+                eyebrow: (server && server.retake) ? `Retake round ${server.retake.round} · Flashcards` : "Flashcards",
+                title: copy.title,
+                lines: [
+                    kind === "start" ? `${total} cards, one try each` : `${left} card${left === 1 ? "" : "s"} left`,
+                    PREVIEW ? "" : (limit ? `${limit} seconds per card` : ""),
+                    "Type what's on the back of each card."
+                ],
+                note: PREVIEW ? "Preview: no timer, nothing is saved." : "The timer starts the moment each card appears.",
+                button: copy.btn
+            }).then(() => {
+                if (disposed) return;
+                enterFocusIfPhone();   // phones: the game goes full screen
+                startWithCountdown(true);
+            });
+        }
+
+        // 3 - 2 - 1, THEN ask the server for the card (which starts its clock).
+        //   intro: the cobra slithers in (first start / resume only)
+        async function startWithCountdown(intro) {
+            if (disposed || counting) return;
+            counting = true;
+            setMode("busy");
+            hideOverlay();
+            if (stage3d && stage3d.hideCard) stage3d.hideCard();   // no old card behind the 3 - 2 - 1
+            const kit = window.CobraGameKit;
+            const next = Math.min((server ? server.current_index : qIndex) + 1, total);
+            await kit.countdown(root, { label: `Card ${next} of ${total}` });
+            if (disposed) return;
+            counting = false;
+            // (in the admin preview, "start" only marks the run started - it is
+            // what lets the preview grade the answers)
+            if (!(await openPlay())) {
+                if (mode !== "ready") kit.hideCover(root);   // out of lives / results are not covered
+                return;
+            }
+            qIndex = Math.min(server.current_index, total - 1);
+            loadCard();   // the card just revealed
+            kit.hideCover(root);
+            if (intro && stage3d) stage3d.playIntro();   // cobra slithers in
+            revealStageCard(true);
+            setMode("playing");
+            ui.input.focus({ preventScroll: true });
         }
 
         function fillReveal(node) {
@@ -598,7 +546,7 @@
         }
 
         // The next card is revealed (and its clock started) by the server
-        // only now - never while feedback is shown or at 0 lives.
+        // only after its 3 - 2 - 1 - never while feedback is shown or at 0 lives.
         async function revealNext() {
             if (disposed) return;
             if (server.completed) {
@@ -612,25 +560,7 @@
                 enterCooldown();
                 return;
             }
-            if (!PREVIEW) {
-                setMode("busy");
-                let data = null;
-                try {
-                    data = await postJson("flashcard-start", { la_id: laId });
-                } catch (err) {
-                    if (!disposed) showError(err.message);
-                    return;
-                }
-                if (disposed) return;
-                applyState(data.state);
-                if (server.completed || server.session_status !== "in_progress") {
-                    resyncFromState();
-                    return;
-                }
-            }
-            qIndex = Math.min(server.current_index, total - 1);
-            loadCard();
-            showPreview("next");
+            startWithCountdown(false);   // 3 - 2 - 1, then the next card and its clock
         }
 
         // feat/question-timer: the bar ran out - the server checks its own clock.
@@ -727,7 +657,11 @@
                 window.location.href = (link && link.getAttribute("href") && link.getAttribute("href") !== "#")
                     ? link.href : "/lessons";
             });
-            overlayNode("cdResumeBtn").addEventListener("click", beginPlay);
+            overlayNode("cdResumeBtn").addEventListener("click", () => {
+                if (mode !== "cooldown") return;
+                enterFocusIfPhone();
+                startWithCountdown(true);
+            });
             syncCooldown();
         }
 
@@ -836,7 +770,9 @@
         function loadCard() {
             const card = currentCard();
             ui.qmeta.textContent = `Card ${qIndex + 1} of ${total}`;
-            fcRenderCard(ui.front, card.front_text);
+            // feat/game-countdown: nothing of a card exists before its clock starts.
+            if (card.hidden) ui.front.textContent = "The card appears after the 3 - 2 - 1 countdown.";
+            else fcRenderCard(ui.front, card.front_text);
             ui.hint.textContent = card.hint ? `Hint: ${card.hint}` : "";   // feat/hints-feedback
             ui.hint.hidden = !card.hint;
             ui.input.value = "";
@@ -846,7 +782,13 @@
             wrongOnCurrent = false;
             fx.thrown = false;
             fx.glow = "";
-            if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, fcParseCard(card.front_text), "?");
+            if (stage3d) {
+                if (card.hidden) {
+                    if (stage3d.hideCard) stage3d.hideCard();
+                } else {
+                    stage3d.setCard(`Card ${qIndex + 1} of ${total}`, fcParseCard(card.front_text), "?");
+                }
+            }
             updateHUD();
             updateControls();
         }
@@ -878,9 +820,9 @@
             qIndex = Math.min(server.current_index, total - 1);
             loadCard();
             if (server.total_lives <= 0) enterCooldown();
-            else if (server.session_status === "paused") showPreview("resume");
-            else if (server.session_status === "in_progress" && server.solved_count > 0) showPreview("continue");
-            else showPreview("start");
+            else if (server.session_status === "paused") showStartCard("resume");
+            else if (server.session_status === "in_progress" && server.solved_count > 0) showStartCard("continue");
+            else showStartCard("start");
         }
 
         // Starts the ONE play on the server, or continues/resumes that same
@@ -889,7 +831,8 @@
         async function openPlay() {
             let data = null;
             try {
-                data = await postJson("flashcard-start", { la_id: laId });
+                data = await postJson("flashcard-start", { la_id: laId, boot: firstOpen });
+                firstOpen = false;
             } catch (err) {
                 if (!disposed) showError(err.message);
                 return false;
@@ -909,19 +852,6 @@
                 loadCard();
             }
             return true;
-        }
-
-        // Start the ONE play, or continue/resume that same play.
-        async function beginPlay() {
-            if (disposed || mode === "busy") return;
-            setMode("busy");
-            if (!(await openPlay())) return;
-            if (stage3d) stage3d.playIntro();   // cobra slithers in (on open and on resume)
-            await flyPreviewToCard();           // the preview card becomes the floating card
-            if (disposed) return;
-            hideOverlay();
-            setMode("playing");
-            ui.input.focus({ preventScroll: true });
         }
 
         async function submitAnswer() {
@@ -982,16 +912,6 @@
             if (disposed || mode !== "playing") return;
             setMode("busy");
             await sendSkip(true, false);
-        }
-
-        // Skip from the card preview (the card was never played): costs 1
-        // life (NullScorpion stings), no score - logged as 'skipped'.
-        // Start/continue/resume previews open the play first.
-        async function skipFromPreview(kind) {
-            if (disposed || mode !== "ready") return;
-            setMode("busy");
-            if (kind !== "next" && !(await openPlay())) return;
-            await sendSkip(true, kind !== "next");
         }
 
         async function sendSkip(fromPreview, needsIntro) {
@@ -1220,7 +1140,7 @@
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "BUTTON")) return;
             if (mode === "ready") {
-                const btn = overlayNode("pvBtn");
+                const btn = root.querySelector(".game-ready-btn");
                 if (btn) { e.preventDefault(); btn.click(); }
             } else if (mode === "review") {
                 e.preventDefault();
@@ -1344,7 +1264,8 @@
 
             let play;
             try {
-                play = PREVIEW ? await fetchPlay(laId) : await postJson("flashcard-start", { la_id: laId, boot: true });
+                // feat/game-countdown: opening the page never reveals a card.
+                play = await fetchPlay(laId);
             } catch (err) {
                 console.error("Error loading Flashcards:", err);
                 if (!disposed) showError(err.message);
@@ -1353,7 +1274,8 @@
             if (disposed) return;
 
             cards = play.cards || [];
-            total = cards.length;
+            // No play yet (a new learner, before Start): its 5 cards are drawn on Start.
+            total = cards.length || (PREVIEW ? 0 : Math.min(5, (play.state && play.state.pool_size) || 0));
             applyState(play.state);
             if (total === 0 && !(play.state && play.state.completed)) {
                 dispose();
@@ -1386,16 +1308,12 @@
                 leaveGuard = window.CobraGameKit.leaveGuard({
                     url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
                     body: () => ({ la_id: laId }),
+                    // only while a card is on screen (not on the Start card / 3 - 2 - 1)
                     isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
-                        && server.total_lives > 0 && root.isConnected),
+                        && server.total_lives > 0 && server.current_revealed && root.isConnected),
                     // the server's leave_min_seconds: shorter absences never cover the game
                     minSeconds: () => (server && server.leave ? server.leave.min_seconds : 2),
                     onResult: onLeaveResult
-                });
-                (play.state.events || []).forEach((event) => {
-                    if (event.type === "leave_warning" || event.type === "leave_forfeit") {
-                        window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
-                    }
                 });
             }
             document.addEventListener("keydown", onKeyDown);
@@ -1409,7 +1327,33 @@
             countdownTimer = setInterval(tick, 1000);
             rafId = requestAnimationFrame(loop);
 
+            // A card whose clock was already running (page refreshed or
+            // reopened mid-card) can't wait for a countdown - it shows now.
+            if (!PREVIEW && server.current_revealed && !server.completed
+                && server.session_status === "in_progress" && server.total_lives > 0) {
+                const ok = await openPlay();   // also counts a tab closed mid-card
+                if (disposed) return;
+                showLeaveEvents();
+                if (ok && server.current_revealed) {
+                    resyncFromState();
+                    window.CobraGameKit.hideCover(root);
+                    if (stage3d) stage3d.skipIntro();
+                    revealStageCard(false);
+                    setMode("playing");
+                    ui.input.focus({ preventScroll: true });
+                }
+                return;
+            }
             resyncFromState();
+        }
+
+        function showLeaveEvents() {
+            if (PREVIEW || !window.CobraGameKit || !server || !server.events) return;
+            server.events.forEach((event) => {
+                if (event.type === "leave_warning" || event.type === "leave_forfeit") {
+                    window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
+                }
+            });
         }
 
         boot();

@@ -65,536 +65,649 @@ function showInfoModal(message, title = "Required Field Missing", onOk = null) {
 }
 
 /* =================================================================
-   Task #113: Exercise Form Validation with Red Border Highlighting
-==================================================================== */
-function validateExerciseForm(isPublish = false) {
-    let isValid = true;
-    let firstErrorMsg = "";
-    let firstErrorField = null;
+   feat/exercise-cards: ONE page for all coding exercises of a lesson
+   -----------------------------------------------------------------
+   A lesson holds a pool of up to EXERCISE_POOL_MAX (5) coding exercises
+   (each learner gets one at random). Like the activity editor's items,
+   every exercise is a card ("Coding Exercise 1", "2", ...), "+ Add"
+   adds one, the trash icon removes one, and the header Save saves
+   every changed card (each through /admin/coding-exercises/save-draft,
+   so all the old save rules still run on the server).
 
-    const titleInput = document.getElementById("exerciseTitle");
-    const categorySelect = document.getElementById("exerciseCategory");
-    const moduleSelect = document.getElementById("exerciseModule");
+   Each card keeps its own status (Draft / Ready to Publish / Published)
+   and its own Preview and status button. Exercises still go live from
+   the Publishing page.
+==================================================================== */
+const EXERCISE_POOL_MAX = 5;
+const EXERCISE_FIELDS = ["instruction", "situation", "problem_question", "clue",
+    "expected_answer", "given_input", "correct_feedback"];
+// First letter capital, the rest as typed (Expected Output / Given input
+// are kept exactly as typed).
+const EXERCISE_CASED_FIELDS = ["instruction", "situation", "problem_question", "clue", "correct_feedback"];
+const TAG_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+let currentLessonId = "";
+let lessonLoadToken = 0;
+
+function exerciseCards() {
+    return Array.from(document.querySelectorAll("#exerciseCards .exercise-card"));
+}
+
+function cardField(card, field) {
+    return card.querySelector(`[data-field="${field}"]`);
+}
+
+function cardValues(card) {
+    const values = {};
+    EXERCISE_FIELDS.forEach((field) => {
+        const el = cardField(card, field);
+        values[field] = el ? el.value : "";
+    });
+    values.required_tags = Array.from(card.querySelectorAll(".js-tags-selected .required-tag-chip"))
+        .map((chip) => chip.dataset.key);
+    return values;
+}
+
+function cardSnapshot(card) {
+    return JSON.stringify(cardValues(card));
+}
+
+function cardIsDirty(card) {
+    return card.dataset.snapshot !== cardSnapshot(card);
+}
+
+function cardHasContent(card) {
+    const v = cardValues(card);
+    return EXERCISE_FIELDS.some((f) => (v[f] || "").trim()) || v.required_tags.length > 0;
+}
+
+function hasUnsavedExerciseChanges() {
+    return exerciseCards().some((card) => card.dataset.exerciseId ? cardIsDirty(card) : cardHasContent(card));
+}
+// Old name, still used by the unsaved-changes guard below.
+function hasPopulatedExerciseInputs() {
+    return hasUnsavedExerciseChanges();
+}
+
+function lessonName() {
     const lessonSelect = document.getElementById("exerciseLesson");
-    const pointsInput = document.getElementById("exercisePoints");
-    const instructionTextarea = document.getElementById("exerciseInstruction");
-    const situationTextarea = document.getElementById("problemSituation");
-    const questionTextarea = document.getElementById("problemQuestion");
-    const clueTextarea = document.getElementById("problemClue");
-    const expectedAnswerTextarea = document.getElementById("expectedAnswer");
-    const correctFeedbackTextarea = document.getElementById("correctFeedback");
-    const saveDraftBtn = document.getElementById("saveDraftBtn");
-    const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
+    if (!lessonSelect || !lessonSelect.value) return "";
+    const option = lessonSelect.options[lessonSelect.selectedIndex];
+    return option ? option.textContent.trim() : "";
+}
 
-    // 1. Exercise Title - feat/exercise-auto-title: built from the Lesson,
-    //    so the Category / Module / Lesson check below covers it.
+function cardTitle(card) {
+    const number = card.dataset.number;
+    const lesson = lessonName();
+    const label = number ? `Coding Exercise ${number}` : "New Coding Exercise";
+    return lesson ? `${lesson} – ${label}` : label;
+}
 
-    // 2. Category, Module, Lesson
-    const catVal = categorySelect ? categorySelect.value : "";
-    const modVal = moduleSelect ? moduleSelect.value : "";
-    const lesVal = lessonSelect ? lessonSelect.value : "";
+/* ---------------- one card ---------------- */
+const STATUS_BUTTONS = {
+    "Draft": { action: "mark-ready", icon: "fa-circle-check", label: "Mark Ready", cls: "is-ready" },
+    "Ready to Publish": { action: "move-to-draft", icon: "fa-rotate-left", label: "Move to Draft", cls: "" },
+    "Published": { action: "unpublish", icon: "fa-arrow-rotate-left", label: "Unpublish", cls: "is-danger" },
+};
 
-    let hasDropdownError = false;
-    if (!catVal) {
-        isValid = false;
-        hasDropdownError = true;
-        if (categorySelect) categorySelect.classList.add("field-error");
-    } else {
-        if (categorySelect) categorySelect.classList.remove("field-error");
-    }
+function renderCardHeader(card) {
+    card.querySelector(".js-ex-title").textContent = card.dataset.number
+        ? `Coding Exercise ${card.dataset.number}` : "New Coding Exercise";
+    const status = card.dataset.status || "";
+    const chip = card.querySelector(".js-ex-status");
+    chip.textContent = status || "Not saved yet";
+    chip.className = "exercise-status-chip js-ex-status is-" + (status || "new").toLowerCase().replace(/\s+/g, "-");
+    card.querySelector(".js-ex-points").textContent = `${card.dataset.points || 10} pts`;
 
-    if (!modVal) {
-        isValid = false;
-        hasDropdownError = true;
-        if (moduleSelect) moduleSelect.classList.add("field-error");
-    } else {
-        if (moduleSelect) moduleSelect.classList.remove("field-error");
-    }
+    const slot = card.querySelector(".js-ex-status-action");
+    slot.innerHTML = "";
+    const def = STATUS_BUTTONS[status];
+    if (!def) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `exercise-status-btn js-ex-status-btn ${def.cls}`;
+    btn.dataset.action = def.action;
+    btn.innerHTML = `<i class="fa-solid ${def.icon}"></i> ${def.label}`;
+    slot.appendChild(btn);
+}
 
-    if (!lesVal) {
-        isValid = false;
-        hasDropdownError = true;
-        if (lessonSelect) lessonSelect.classList.add("field-error");
-    } else {
-        if (lessonSelect) lessonSelect.classList.remove("field-error");
-    }
+function setupCardCounters(card) {
+    card.querySelectorAll("textarea[data-max]").forEach((textarea) => {
+        const counter = textarea.parentElement.querySelector(".char-counter");
+        const max = Number(textarea.dataset.max);
+        const update = () => {
+            if (!counter) return;
+            counter.textContent = `${textarea.value.length} / ${max}`;
+            counter.style.color = textarea.value.length >= max ? "#ef4444" : "#94a3b8";
+        };
+        textarea.maxLength = max;
+        update();
+        textarea.addEventListener("input", update);
+    });
+}
 
-    if (hasDropdownError && !firstErrorMsg) {
-        firstErrorMsg = isPublish
-            ? "Please select Category, Module, and Lesson before publishing."
-            : `Please select Category, Module, and Lesson before ${isPublished ? "saving" : "saving a draft"}.`;
-        if (!firstErrorField) {
-            firstErrorField = !catVal ? categorySelect : (!modVal ? moduleSelect : lessonSelect);
-        }
-    }
-
-    // If publishing, check all remaining sections
-    if (isPublish) {
-        // Points
-        const pointsVal = pointsInput ? parseInt(pointsInput.value, 10) : NaN;
-        if (!pointsInput || isNaN(pointsVal) || pointsVal <= 0) {
-            isValid = false;
-            if (pointsInput) pointsInput.classList.add("field-error");
-            if (!firstErrorMsg) {
-                firstErrorMsg = "Please enter valid Points for the exercise before publishing.";
-                firstErrorField = pointsInput;
-            }
-        } else {
-            if (pointsInput) pointsInput.classList.remove("field-error");
-        }
-
-        // Instruction
-        const instructionVal = instructionTextarea ? instructionTextarea.value.trim() : "";
-        if (!instructionVal) {
-            isValid = false;
-            if (instructionTextarea) instructionTextarea.classList.add("field-error");
-            if (!firstErrorMsg) {
-                firstErrorMsg = "Please provide Instructions before publishing.";
-                firstErrorField = instructionTextarea;
-            }
-        } else {
-            if (instructionTextarea) instructionTextarea.classList.remove("field-error");
-        }
-
-        // Problem Situation
-        const situationVal = situationTextarea ? situationTextarea.value.trim() : "";
-        if (!situationVal) {
-            isValid = false;
-            if (situationTextarea) situationTextarea.classList.add("field-error");
-            if (!firstErrorMsg) {
-                firstErrorMsg = "Please describe the Problem Situation before publishing.";
-                firstErrorField = situationTextarea;
-            }
-        } else {
-            if (situationTextarea) situationTextarea.classList.remove("field-error");
-        }
-
-        // Problem Question
-        const questionVal = questionTextarea ? questionTextarea.value.trim() : "";
-        if (!questionVal) {
-            isValid = false;
-            if (questionTextarea) questionTextarea.classList.add("field-error");
-            if (!firstErrorMsg) {
-                firstErrorMsg = "Please state the Problem Question before publishing.";
-                firstErrorField = questionTextarea;
-            }
-        } else {
-            if (questionTextarea) questionTextarea.classList.remove("field-error");
-        }
-
-        // Problem Clue
-        const clueVal = clueTextarea ? clueTextarea.value.trim() : "";
-        if (!clueVal) {
-            isValid = false;
-            if (clueTextarea) clueTextarea.classList.add("field-error");
-            if (!firstErrorMsg) {
-                firstErrorMsg = "Please provide a Clue (hint) before publishing.";
-                firstErrorField = clueTextarea;
-            }
-        } else {
-            if (clueTextarea) clueTextarea.classList.remove("field-error");
-        }
-
-        // Expected Answer
-        const expectedVal = expectedAnswerTextarea ? expectedAnswerTextarea.value.trim() : "";
-        if (!expectedVal) {
-            isValid = false;
-            if (expectedAnswerTextarea) expectedAnswerTextarea.classList.add("field-error");
-            if (!firstErrorMsg) {
-                firstErrorMsg = "Please provide the Expected Output before marking this exercise ready.";
-                firstErrorField = expectedAnswerTextarea;
-            }
-        } else {
-            if (expectedAnswerTextarea) expectedAnswerTextarea.classList.remove("field-error");
-        }
-
-        // Correct Feedback
-        const feedbackVal = correctFeedbackTextarea ? correctFeedbackTextarea.value.trim() : "";
-        if (!feedbackVal) {
-            isValid = false;
-            if (correctFeedbackTextarea) correctFeedbackTextarea.classList.add("field-error");
-            if (!firstErrorMsg) {
-                firstErrorMsg = "Please provide Correct Feedback before publishing.";
-                firstErrorField = correctFeedbackTextarea;
-            }
-        } else {
-            if (correctFeedbackTextarea) correctFeedbackTextarea.classList.remove("field-error");
-        }
-
-        // Required tags are optional (zero is allowed) - nothing to check.
-    }
-
-    if (!isValid) {
-        showInfoModal(firstErrorMsg, "Required Field Missing", () => {
-            if (firstErrorField && typeof firstErrorField.focus === "function") {
-                firstErrorField.focus();
-            }
+function setupCardCasing(card) {
+    EXERCISE_CASED_FIELDS.forEach((field) => {
+        const input = cardField(card, field);
+        if (!input) return;
+        input.addEventListener("input", () => {
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            input.value = input.value.replace(/^(\s*)(\S)/, (m, space, ch) => space + ch.toUpperCase());
+            if (start !== null && end !== null) input.setSelectionRange(start, end);
         });
-    }
-
-    return isValid;
-}
-
-/* =================================================================
-   Task #113: Realtime Error Clearing on User Input / Change
-==================================================================== */
-function setupRealtimeErrorClearing() {
-    const form = document.getElementById("createExerciseForm");
-    if (!form) return;
-
-    form.addEventListener("input", (e) => {
-        if (e.target && e.target.classList.contains("field-error")) {
-            e.target.classList.remove("field-error");
-        }
-    });
-
-    form.addEventListener("change", (e) => {
-        if (e.target && e.target.classList.contains("field-error")) {
-            e.target.classList.remove("field-error");
-        }
     });
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    console.log("Create Exercise frontend script loaded successfully.");
+// "Required in the code" picker, one per card. Each chip carries its
+// "kind:value" key; Save sends the card's keys as required_tags.
+function setupCardTags(card, tags) {
+    const block = card.querySelector(".js-tags");
+    const selected = card.querySelector(".js-tags-selected");
+    const picker = card.querySelector(".js-tags-picker");
+    const emptyNote = card.querySelector(".js-tags-empty");
+    const customInput = card.querySelector(".js-tags-custom");
+    const customBtn = card.querySelector(".js-tags-custom-add");
+    const customError = card.querySelector(".js-tags-custom-error");
+    const maxLength = parseInt(block.dataset.maxNameLength, 10) || 50;
+    const keywords = new Set((block.dataset.keywords || "").split(" ").filter(Boolean));
 
-    // Task #69 & Task #72: Setup live casing normalization on specified text fields
-    setupFieldCasingNormalization('exerciseInstruction');
-    setupFieldCasingNormalization('problemSituation');
-    setupFieldCasingNormalization('problemQuestion');
-    setupFieldCasingNormalization('problemClue');
-    setupFieldCasingNormalization('correctFeedback');
-    setupFieldCasingNormalization('incorrectFeedback');
+    const chipFor = (key) => Array.from(selected.querySelectorAll(".required-tag-chip")).find((c) => c.dataset.key === key);
+    const optionFor = (key) => Array.from(picker.querySelectorAll(".required-tag-option")).find((o) => o.dataset.key === key);
 
-    // feat/exercise-auto-title: the title follows the Lesson (replaces the
-    // typed title + its live duplicate check), and Mark Ready validates first.
-    setupExerciseAutoTitle();
-    setupMarkReadyValidation();
-
-    // Task #70 & Fix #1: Setup Category -> Module -> Lesson dependent dropdowns
-    setupDependentDropdowns();
-
-    // Task #73 & Fix #3: Setup Back / Cancel protective confirmation guard
-    setupBackCancelGuard();
-
-    // Task #76 & Fix #3: Setup Save Draft button handler
-    setupSaveDraftHandler();
-
-    // Task #111: Setup Unpublish button handler & confirmation modal
-    setupUnpublishHandler();
-
-    // Task #113: Setup realtime error clearing
-    setupRealtimeErrorClearing();
-
-    // Dynamic character counters setup with immediate count initialization (Fix #1)
-    setupCharacterCounter('exerciseInstruction', 'instructionCount', 1000);
-    setupCharacterCounter('problemSituation', 'situationCount', 500);
-    setupCharacterCounter('problemQuestion', 'questionCount', 500);
-    setupCharacterCounter('problemClue', 'clueCount', 500);
-    setupCharacterCounter('expectedAnswer', 'expectedAnswerCount', 1000);
-    setupCharacterCounter('correctFeedback', 'correctFeedbackCount', 500);
-
-    // Section 6: "Required in the code" tag picker
-    setupRequiredTagsPicker();
-
-    // Form submit listener to set isSubmitting = true (Fix #3 & #4)
-    const form = document.getElementById('createExerciseForm');
-    if (form) {
-        form.addEventListener('submit', function () {
-            isSubmitting = true;
+    function refresh() {
+        const keys = new Set(Array.from(selected.querySelectorAll(".required-tag-chip")).map((c) => c.dataset.key));
+        picker.querySelectorAll(".required-tag-option").forEach((option) => {
+            const on = keys.has(option.dataset.key);
+            option.classList.toggle("is-selected", on);
+            option.setAttribute("aria-pressed", on ? "true" : "false");
         });
+        if (emptyNote) emptyNote.hidden = keys.size > 0;
     }
-});
 
-/* =================================================================
-   Task #69 & Task #72: Live Text Fields Casing Normalization
-==================================================================== */
-function formatSentenceCaseLive(value) {
-    if (!value) return value;
-    // Only the first letter becomes capital - the rest stays as typed.
-    return value.replace(/^(\s*)(\S)/, (m, space, ch) => space + ch.toUpperCase());
-}
+    function addChip(key, label, silent) {
+        if (chipFor(key)) return;
+        const chip = document.createElement("span");
+        chip.className = "required-tag-chip";
+        chip.dataset.key = key;
+        const text = document.createElement("span");
+        text.className = "required-tag-chip-label";
+        text.textContent = label;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "required-tag-remove";
+        remove.setAttribute("aria-label", `Remove ${label}`);
+        remove.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+        chip.append(text, remove);
+        selected.insertBefore(chip, emptyNote || null);
+        refresh();
+        if (!silent) updateExercisePageState();
+    }
 
-function setupFieldCasingNormalization(elementOrId) {
-    const input = (typeof elementOrId === 'string')
-        ? (document.getElementById(elementOrId) || document.querySelector(`[name="${elementOrId}"]`))
-        : elementOrId;
+    function removeChip(key) {
+        const chip = chipFor(key);
+        if (!chip) return;
+        chip.remove();
+        refresh();
+        updateExercisePageState();
+    }
 
-    if (!input) return;
+    picker.addEventListener("click", (e) => {
+        const option = e.target.closest(".required-tag-option");
+        if (!option) return;
+        if (chipFor(option.dataset.key)) removeChip(option.dataset.key);
+        else addChip(option.dataset.key, option.dataset.label);
+    });
+    selected.addEventListener("click", (e) => {
+        const removeBtn = e.target.closest(".required-tag-remove");
+        if (removeBtn) removeChip(removeBtn.closest(".required-tag-chip").dataset.key);
+    });
 
-    input.addEventListener('input', function () {
-        const start = input.selectionStart;
-        const end = input.selectionEnd;
-
-        input.value = formatSentenceCaseLive(input.value);
-
-        if (start !== null && end !== null) {
-            input.setSelectionRange(start, end);
+    function showCustomError(message) {
+        if (customError) customError.textContent = message;
+        if (customInput) customInput.classList.toggle("field-error", !!message);
+    }
+    function addCustomTag() {
+        // Exactly as typed - no first-letter capital. A leading dot means a method.
+        let name = customInput.value.trim();
+        const isMethod = name.startsWith(".");
+        name = name.replace(/^\./, "").replace(/\(\)$/, "");
+        if (!name) {
+            showCustomError("Type a function or method name first.");
+            return;
+        }
+        if (name.length > maxLength || !TAG_NAME_RE.test(name) || keywords.has(name)) {
+            showCustomError(`Use a Python name: letters, digits and _ only, not starting with a digit, up to ${maxLength} characters (and not a keyword like "for").`);
+            return;
+        }
+        const kind = isMethod ? "method" : "function";
+        const key = `${kind}:${name}`;
+        const option = optionFor(key);
+        addChip(key, option ? option.dataset.label : (isMethod ? `.${name}()` : `${name}()`));
+        customInput.value = "";
+        showCustomError("");
+    }
+    customBtn.addEventListener("click", addCustomTag);
+    customInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();   // never submit the whole form from here
+            addCustomTag();
         }
     });
+    customInput.addEventListener("input", () => showCustomError(""));
+
+    (tags || []).forEach((tag) => addChip(`${tag.kind}:${tag.value}`, tag.label, true));
+    refresh();
 }
 
-function setupTitleCasingNormalization(inputId) {
-    setupFieldCasingNormalization(inputId);
+function buildExerciseCard(data) {
+    const template = document.getElementById("exerciseCardTemplate");
+    const card = template.content.firstElementChild.cloneNode(true);
+    data = data || {};
+    if (data.exercise_id) card.dataset.exerciseId = data.exercise_id;
+    if (data.number) card.dataset.number = data.number;
+    card.dataset.status = data.status || "";
+    card.dataset.points = data.points || 10;
+    EXERCISE_FIELDS.forEach((field) => {
+        const el = cardField(card, field);
+        if (el) el.value = data[field] || "";
+    });
+    card.querySelector(".js-ex-legacy").hidden = !data.legacy_prefilled;
+    setupCardTags(card, data.required_tags);
+    setupCardCounters(card);
+    setupCardCasing(card);
+    renderCardHeader(card);
+    // A legacy exercise was filled in from its test case - unsaved until saved.
+    card.dataset.snapshot = data.legacy_prefilled ? "" : cardSnapshot(card);
+    card.addEventListener("input", (e) => {
+        if (e.target.classList.contains("field-error")) e.target.classList.remove("field-error");
+        updateExercisePageState();
+    });
+    return card;
 }
 
-/* =================================================================
-   Task #74 & Fix #2: Exercise Title Global Duplication Prevention
-==================================================================== */
-const EXERCISE_TITLE_SEPARATOR = " \u2013 ";
-const EXERCISE_TITLE_TYPE = "Coding Exercise";
-
-// "<Lesson> – Coding Exercise N", read-only (feat/exercise-pool: a lesson
-// holds up to 5 exercises, numbered 1-5 so titles stay unique). The server
-// builds it again on every save and ignores what is sent; a saved exercise
-// keeps its number.
-const EXERCISE_POOL_TARGET = 5;
-
-function updateExerciseTitle() {
-    const titleInput = document.getElementById('exerciseTitle');
-    const lessonSelect = document.getElementById('exerciseLesson');
-    if (!titleInput || !lessonSelect) return;
-    const option = lessonSelect.value ? lessonSelect.options[lessonSelect.selectedIndex] : null;
-    const lesson = option ? option.textContent.trim() : '';
-    const savedLesson = lessonSelect.dataset.preselectResourceId || '';
-    const isSavedHere = !!(document.getElementById('exerciseIdInput') || {}).value && savedLesson === lessonSelect.value;
-    const count = option ? Number(option.dataset.exerciseCount || 0) : 0;
-    const savedNumber = (titleInput.dataset.savedTitle || titleInput.value || '').match(/Coding Exercise (\d+)$/);
-    const number = isSavedHere ? (savedNumber ? savedNumber[1] : '1') : String(count + 1);
-    titleInput.value = lesson ? `${lesson}${EXERCISE_TITLE_SEPARATOR}${EXERCISE_TITLE_TYPE} ${number}` : '';
-    if (!titleInput.dataset.savedTitle && isSavedHere) titleInput.dataset.savedTitle = titleInput.value;
-    const note = document.getElementById('exercisePoolCount');
+/* ---------------- the page ---------------- */
+function updateExercisePageState() {
+    const cards = exerciseCards();
+    const lesson = lessonName();
+    const note = document.getElementById("exercisePoolCount");
+    const addRow = document.getElementById("addExerciseRow");
+    const addBtn = document.getElementById("addExerciseBtn");
+    const empty = document.getElementById("noExercisesMessage");
+    if (empty) {
+        empty.hidden = !!(lesson && cards.length);
+        empty.textContent = lesson ? "This lesson has no coding exercises yet. Click Add below."
+            : "Select a lesson to see its coding exercises.";
+    }
+    if (addRow) addRow.hidden = !lesson;
+    if (addBtn) addBtn.disabled = cards.length >= EXERCISE_POOL_MAX;
     if (note) {
         note.hidden = !lesson;
-        const shown = isSavedHere ? count : count + 1;
-        note.classList.toggle('is-under', shown < EXERCISE_POOL_TARGET);
-        note.classList.toggle('is-full', !isSavedHere && count >= EXERCISE_POOL_TARGET);
-        note.textContent = !isSavedHere && count >= EXERCISE_POOL_TARGET
-            ? `This lesson already has ${count} / ${EXERCISE_POOL_TARGET} coding exercises - the most it can have.`
-            : `This lesson will have ${shown} / ${EXERCISE_POOL_TARGET} coding exercises. Each learner gets one of them at random`
-              + (shown < EXERCISE_POOL_TARGET ? ` - add ${EXERCISE_POOL_TARGET - shown} more (you can still save and publish).` : '.');
+        const n = cards.length;
+        note.classList.toggle("is-under", n < EXERCISE_POOL_MAX);
+        note.classList.toggle("is-full", n >= EXERCISE_POOL_MAX);
+        note.textContent = n >= EXERCISE_POOL_MAX
+            ? `This lesson has ${n} / ${EXERCISE_POOL_MAX} coding exercises - the most it can have. Each learner gets one of them at random.`
+            : `This lesson has ${n} / ${EXERCISE_POOL_MAX} coding exercises. Each learner gets one of them at random - add ${EXERCISE_POOL_MAX - n} more (you can still save and publish).`;
     }
-    titleInput.classList.remove('field-error');
-    if (typeof window.cobraByteRefreshCharCounters === 'function') window.cobraByteRefreshCharCounters();
+    cards.forEach((card) => card.classList.toggle("is-dirty", card.dataset.exerciseId ? cardIsDirty(card) : cardHasContent(card)));
 }
 
-function setupExerciseAutoTitle() {
-    const lessonSelect = document.getElementById('exerciseLesson');
-    if (lessonSelect) lessonSelect.addEventListener('change', updateExerciseTitle);
-    // A reopened exercise keeps its saved title until its lesson list loads
-    // (setupDependentDropdowns calls updateExerciseTitle() when it does).
+function addExerciseCard(data, scroll) {
+    if (exerciseCards().length >= EXERCISE_POOL_MAX) {
+        showInfoModal(`A lesson can have at most ${EXERCISE_POOL_MAX} coding exercises.`, "Pool is full");
+        return null;
+    }
+    const card = buildExerciseCard(data);
+    document.getElementById("exerciseCards").appendChild(card);
+    updateExercisePageState();
+    if (scroll) {
+        card.scrollIntoView({ behavior: "smooth", block: "start" });
+        const first = cardField(card, "instruction");
+        if (first) first.focus({ preventScroll: true });
+    }
+    return card;
 }
 
-function setupMarkReadyValidation() {
-    const form = document.getElementById('createExerciseForm');
-    if (!form) return;
-    form.addEventListener('submit', function (e) {
-        if (!validateExerciseForm(true)) {
-            e.preventDefault();
-            return false;
-        }
-        isSubmitting = true;
+async function loadLessonExercises() {
+    const lessonSelect = document.getElementById("exerciseLesson");
+    const container = document.getElementById("exerciseCards");
+    const lessonId = lessonSelect && lessonSelect.value ? lessonSelect.value : "";
+    const token = ++lessonLoadToken;
+    currentLessonId = lessonId;
+    exerciseCards().forEach((card) => card.remove());
+    updateExercisePageState();
+    if (!lessonId) return;
+    try {
+        const response = await fetch(`/admin/coding-exercises/lesson-exercises?resource_id=${encodeURIComponent(lessonId)}`,
+            { credentials: "include" });
+        const result = await response.json();
+        if (token !== lessonLoadToken) return;   // the lesson changed again meanwhile
+        (result.exercises || []).forEach((ex) => container.appendChild(buildExerciseCard(ex)));
+    } catch (err) {
+        console.error("create-exercise: failed to load the lesson's exercises:", err);
+    }
+    if (token !== lessonLoadToken) return;
+    updateExercisePageState();
+
+    const form = document.getElementById("createExerciseForm");
+    const focusId = form ? form.dataset.focusExerciseId : "";
+    const focusCard = focusId && exerciseCards().find((c) => c.dataset.exerciseId === String(focusId));
+    if (focusCard) {
+        focusCard.classList.add("is-focused");
+        focusCard.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => focusCard.classList.remove("is-focused"), 2500);
+    } else if (!focusId && exerciseCards().length < EXERCISE_POOL_MAX) {
+        // Opened to create one ("Create Exercise" / Publishing "+"): a blank card.
+        addExerciseCard(null, exerciseCards().length > 0);
+    }
+}
+
+/* ---------------- checks ---------------- */
+const REQUIRED_FOR_READY = [
+    ["instruction", "Please provide Instructions"],
+    ["situation", "Please describe the Problem Situation"],
+    ["problem_question", "Please state the Problem Question"],
+    ["clue", "Please provide a Clue (hint)"],
+    ["expected_answer", "Please provide the Expected Output"],
+    ["correct_feedback", "Please provide Correct Feedback"],
+];
+
+function lessonSelected() {
+    const ids = ["exerciseCategory", "exerciseModule", "exerciseLesson"];
+    let ok = true;
+    ids.forEach((id) => {
+        const el = document.getElementById(id);
+        const has = !!(el && el.value);
+        if (el) el.classList.toggle("field-error", !has);
+        if (!has) ok = false;
+    });
+    if (!ok) showInfoModal("Please select Category, Module, and Lesson first.", "Required Field Missing");
+    return ok;
+}
+
+// full = every required field (Mark Ready); otherwise just "has something".
+function validateExerciseCard(card, full) {
+    let firstField = null;
+    let message = "";
+    const label = card.querySelector(".js-ex-title").textContent;
+    if (full) {
+        REQUIRED_FOR_READY.forEach(([field, text]) => {
+            const el = cardField(card, field);
+            const empty = !el || !el.value.trim();
+            if (el) el.classList.toggle("field-error", empty);
+            if (empty && !firstField) {
+                firstField = el;
+                message = `${label}: ${text} before marking it ready.`;
+            }
+        });
+    } else if (!cardHasContent(card)) {
+        const el = cardField(card, "instruction");
+        if (el) el.classList.add("field-error");
+        firstField = el;
+        message = `${label} is empty - fill it in, or delete it with its trash icon.`;
+    }
+    if (firstField) {
+        showInfoModal(message, "Required Field Missing", () => {
+            firstField.scrollIntoView({ behavior: "smooth", block: "center" });
+            firstField.focus({ preventScroll: true });
+        });
+        return false;
+    }
+    return true;
+}
+
+// Kept for admin-editor-preview.js (it checks this exists).
+function validateExerciseForm() {
+    return lessonSelected();
+}
+
+/* ---------------- save ---------------- */
+function cardPayload(card, action) {
+    const values = cardValues(card);
+    return Object.assign(values, {
+        exercise_id: card.dataset.exerciseId || "",
+        resource_id: currentLessonId,
+        points: card.dataset.points || 10,
+        action: action || "draft",
     });
 }
 
-/* =================================================================
-   Task #76, #111, #113 & Fix #3: Save / Save Draft Handler & Persistence Sync
-==================================================================== */
-function setupSaveDraftHandler() {
-    const saveDraftBtn = document.getElementById('saveDraftBtn');
-    const form = document.getElementById('createExerciseForm');
-    if (!saveDraftBtn || !form) return;
+async function postExerciseCard(card, url, action) {
+    const response = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+        body: JSON.stringify(cardPayload(card, action)),
+    });
+    const result = await response.json().catch(() => ({ success: false, message: "Unexpected server response." }));
+    if (result.success && result.exercise_id) {
+        card.dataset.exerciseId = result.exercise_id;
+        card.dataset.snapshot = cardSnapshot(card);
+    }
+    return result;
+}
 
-    saveDraftBtn.addEventListener('click', async function (e) {
-        e.preventDefault();
+function returnUrlAfterSave(exerciseId) {
+    const fallback = `/admin/coding-exercises/create?exercise_id=${encodeURIComponent(exerciseId || "")}`;
+    const url = typeof window.cobraEditorReturnUrl === "function"
+        ? window.cobraEditorReturnUrl("/admin/coding-exercises", "exercise", exerciseId) : "/admin/coding-exercises";
+    return url || fallback;
+}
 
-        const isPublished = saveDraftBtn.dataset.isPublished === "true";
-        const titleInput = document.getElementById('exerciseTitle');
-        const exerciseIdInput = document.getElementById('exerciseIdInput');
-
-        if (!validateExerciseForm(false)) {
-            return;
+// Saves every changed card in order (new ones get the next free number).
+// Returns the id of the last saved card, or null when something failed.
+async function saveAllExercises() {
+    if (!lessonSelected()) return null;
+    const toSave = exerciseCards().filter((card) => card.dataset.exerciseId ? cardIsDirty(card) : true);
+    for (const card of toSave) {
+        if (!validateExerciseCard(card, false)) return null;
+    }
+    let lastId = exerciseCards().length ? exerciseCards()[0].dataset.exerciseId : null;
+    for (const card of toSave) {
+        const result = await postExerciseCard(card, "/admin/coding-exercises/save-draft", "draft");
+        if (!result.success) {
+            showInfoModal(`${card.querySelector(".js-ex-title").textContent}: ${result.message || "Could not save."}`, "Save Error");
+            card.scrollIntoView({ behavior: "smooth", block: "start" });
+            return null;
         }
+        lastId = result.exercise_id;
+    }
+    return lastId || "saved";
+}
 
-        const formData = new FormData(form);
-        formData.append('action', isPublished ? 'save' : 'draft');
-        formData.append('preserve_status', isPublished ? 'true' : 'false');
-
-        const originalHtml = saveDraftBtn.innerHTML;
-
+function setupSaveAllHandler() {
+    const saveBtn = document.getElementById("saveDraftBtn");
+    if (!saveBtn) return;
+    saveBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const originalHtml = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
         try {
-            saveDraftBtn.disabled = true;
-            saveDraftBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-
-            const response = await fetch('/admin/coding-exercises/save-draft', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                credentials: 'include'
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                isSubmitting = true; // Suppress beforeunload warning
-                if (result.exercise_id) {
-                    if (exerciseIdInput) exerciseIdInput.value = result.exercise_id;
-                    if (titleInput) titleInput.dataset.exerciseId = result.exercise_id;
-                }
-                window.location.href = result.redirect_url || '/admin/coding-exercises';
-            } else {
-                showInfoModal(result.message || (isPublished ? 'Failed to save coding exercise.' : 'Failed to save draft.'), 'Save Error');
-                saveDraftBtn.disabled = false;
-                saveDraftBtn.innerHTML = originalHtml;
+            const savedId = await saveAllExercises();
+            if (savedId) {
+                isSubmitting = true;
+                if (typeof window.cobraEditorToast === "function") window.cobraEditorToast("Coding exercises saved.");
+                window.location.href = returnUrlAfterSave(savedId === "saved" ? "" : savedId);
+                return;
             }
         } catch (err) {
-            console.error('Failed to save exercise:', err);
-            showInfoModal('An unexpected error occurred while saving.', 'Save Error');
-            saveDraftBtn.disabled = false;
-            saveDraftBtn.innerHTML = originalHtml;
+            console.error("Failed to save exercises:", err);
+            showInfoModal("An unexpected error occurred while saving.", "Save Error");
         }
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalHtml;
     });
 }
 
-/* =================================================================
-   Task #111 & #113: Unpublish Exercise Handler & Confirmation Modal
-==================================================================== */
-function setupUnpublishHandler() {
-    const unpublishBtn = document.getElementById('unpublishExerciseBtn');
-    const exerciseIdInput = document.getElementById('exerciseIdInput');
-    const confirmActionModal = document.getElementById('confirmActionModal');
-    const confirmActionTitle = document.getElementById('confirmActionTitle');
-    const confirmActionText = document.getElementById('confirmActionText');
-    const confirmActionCancelBtn = document.getElementById('confirmActionCancelBtn');
-    const confirmActionConfirmBtn = document.getElementById('confirmActionConfirmBtn');
+/* ---------------- per-card buttons ---------------- */
+function reloadThisLesson(exerciseId) {
+    isSubmitting = true;
+    const params = new URLSearchParams(window.location.search);
+    if (exerciseId) params.set("exercise_id", exerciseId);
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
 
-    if (!unpublishBtn) return;
+function otherCardsDirty(card) {
+    return exerciseCards().some((c) => c !== card && (c.dataset.exerciseId ? cardIsDirty(c) : cardHasContent(c)));
+}
 
-    function showConfirmModal(message, onConfirm, title) {
-        if (!confirmActionModal) {
-            if (window.confirm(message)) onConfirm();
-            return;
-        }
-        if (confirmActionTitle) confirmActionTitle.textContent = title || "Unpublish Coding Exercise?";
-        if (confirmActionText) confirmActionText.textContent = message;
-        if (confirmActionCancelBtn) confirmActionCancelBtn.style.display = "";
-        if (confirmActionConfirmBtn) {
-            confirmActionConfirmBtn.textContent = "Confirm";
-            confirmActionConfirmBtn.className = "modal-btn-save";
-        }
-        confirmActionModal.classList.remove('modal-hidden');
-        confirmActionModal.style.display = 'flex';
-
-        function cleanup() {
-            confirmActionModal.classList.add('modal-hidden');
-            confirmActionModal.style.display = 'none';
-            if (confirmActionCancelBtn) confirmActionCancelBtn.removeEventListener('click', onCancel);
-            if (confirmActionConfirmBtn) confirmActionConfirmBtn.removeEventListener('click', onOk);
-            confirmActionModal.removeEventListener('click', onOverlay);
-        }
-
-        function onCancel() {
-            cleanup();
-        }
-
-        function onOk() {
-            cleanup();
-            onConfirm();
-        }
-
-        function onOverlay(e) {
-            if (e.target === confirmActionModal) cleanup();
-        }
-
-        if (confirmActionCancelBtn) confirmActionCancelBtn.addEventListener('click', onCancel);
-        if (confirmActionConfirmBtn) confirmActionConfirmBtn.addEventListener('click', onOk);
-        confirmActionModal.addEventListener('click', onOverlay);
+async function onStatusButton(card, btn) {
+    const action = btn.dataset.action;
+    if (otherCardsDirty(card)) {
+        showInfoModal("Other exercises on this page have unsaved changes. Click Save first, then change this one's status.", "Save first");
+        return;
     }
-
-    unpublishBtn.addEventListener('click', function (e) {
-        e.preventDefault();
-
-        const exerciseId = unpublishBtn.dataset.exerciseId || (exerciseIdInput ? exerciseIdInput.value : '');
-        if (!exerciseId) {
-            showInfoModal('Could not find exercise ID to unpublish.', 'Error');
+    if (action === "mark-ready") {
+        if (!lessonSelected() || !validateExerciseCard(card, true)) return;
+        btn.disabled = true;
+        // Saves this card and marks it Ready to Publish (same as the old Mark Ready).
+        const result = await postExerciseCard(card, "/admin/coding-exercises/create", "publish");
+        if (!result.success) {
+            showInfoModal(result.message || "Could not mark it ready.", "Error");
+            btn.disabled = false;
             return;
         }
+        if (typeof window.cobraEditorToast === "function") window.cobraEditorToast(result.message || "Marked ready.");
+        setTimeout(() => reloadThisLesson(result.exercise_id), 900);
+        return;
+    }
+    if (cardIsDirty(card)) {
+        showInfoModal("Save this exercise's changes first.", "Save first");
+        return;
+    }
+    const texts = {
+        "move-to-draft": ["Move to Draft?", "Move this coding exercise back to Draft?"],
+        "unpublish": ["Unpublish Coding Exercise?", "Unpublish this coding exercise? Learners won't see it until it's published again. Their submissions are kept."],
+    }[action];
+    window.cobraEditorConfirm(texts[1], texts[0], async () => {
+        btn.disabled = true;
+        const result = await window.cobraEditorStatusAction("exercise", card.dataset.exerciseId, action);
+        if (!result.success) {
+            window.cobraEditorToast(result.message || "Could not change the status.", true);
+            btn.disabled = false;
+            return;
+        }
+        window.cobraEditorToast(result.message || "Status updated.");
+        setTimeout(() => reloadThisLesson(card.dataset.exerciseId), 900);
+    });
+}
 
-        showConfirmModal(
-            'Are you sure you want to unpublish this coding exercise? It will be moved back to Draft and will no longer be visible to learners.',
-            async function () {
-                const originalHtml = unpublishBtn.innerHTML;
-                unpublishBtn.disabled = true;
-                unpublishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Unpublishing...';
+async function onDeleteCard(card) {
+    const exerciseId = card.dataset.exerciseId;
+    const title = card.querySelector(".js-ex-title").textContent;
+    if (!exerciseId) {
+        if (!cardHasContent(card)) {
+            card.remove();
+            updateExercisePageState();
+            return;
+        }
+        window.cobraEditorConfirm(`Delete ${title}? It was never saved.`, "Delete Exercise?", () => {
+            card.remove();
+            updateExercisePageState();
+        });
+        return;
+    }
+    // A saved exercise is archived (its learners' submissions are kept) -
+    // the same rules as the Archive button on the Coding Exercises page.
+    try {
+        const check = await (await fetch(`/admin/coding-exercises/${exerciseId}/archive-check`, { credentials: "include" })).json();
+        if (!check.success) {
+            showInfoModal(check.message || "Could not check this exercise.", "Error");
+            return;
+        }
+        if (!check.eligible) {
+            // The only blocker an exercise has is its own Published status.
+            showInfoModal(`${title} is published - unpublish it first (its Unpublish button), then delete it.`, "Can't delete yet");
+            return;
+        }
+    } catch (err) {
+        showInfoModal("Could not reach the server. Please try again.", "Error");
+        return;
+    }
+    window.cobraEditorConfirm(`Delete ${title}? It moves to Archived - learners' submissions are kept and it can be restored.`,
+        "Delete Exercise?", async () => {
+            const result = await (await fetch(`/admin/coding-exercises/${exerciseId}/archive`, {
+                method: "POST", credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" },
+            })).json().catch(() => ({ success: false }));
+            if (!result.success) {
+                showInfoModal(result.message || "Could not delete the exercise.", "Error");
+                return;
+            }
+            window.cobraEditorToast(result.message || "Exercise deleted.");
+            card.remove();
+            updateExercisePageState();
+        });
+}
 
-                try {
-                    const response = await fetch(`/admin/coding-exercises/${exerciseId}/unpublish`, {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        isSubmitting = true;
-                        window.location.href = '/admin/coding-exercises';
-                    } else {
-                        showInfoModal(result.message || 'Failed to unpublish coding exercise.', 'Error');
-                        unpublishBtn.disabled = false;
-                        unpublishBtn.innerHTML = originalHtml;
-                    }
-                } catch (err) {
-                    console.error('Failed to unpublish exercise:', err);
-                    showInfoModal('An unexpected error occurred while unpublishing the exercise.', 'Error');
-                    unpublishBtn.disabled = false;
-                    unpublishBtn.innerHTML = originalHtml;
-                }
-            },
-            'Unpublish Coding Exercise?'
-        );
+function setupCardButtons() {
+    const container = document.getElementById("exerciseCards");
+    container.addEventListener("click", (e) => {
+        const card = e.target.closest(".exercise-card");
+        if (!card) return;
+        const statusBtn = e.target.closest(".js-ex-status-btn");
+        if (statusBtn) {
+            e.preventDefault();
+            onStatusButton(card, statusBtn);
+            return;
+        }
+        if (e.target.closest(".js-ex-delete")) {
+            e.preventDefault();
+            onDeleteCard(card);
+            return;
+        }
+        if (e.target.closest(".js-ex-preview")) {
+            e.preventDefault();
+            if (typeof window.cobraPreviewExerciseCard === "function") {
+                const v = cardValues(card);
+                window.cobraPreviewExerciseCard({
+                    title: cardTitle(card),
+                    situation: v.situation,
+                    question: v.problem_question,
+                    clue: v.clue,
+                    expected: v.expected_answer,
+                    tags: Array.from(card.querySelectorAll(".js-tags-selected .required-tag-chip-label")).map((l) => l.textContent),
+                    isNew: !card.dataset.exerciseId,
+                    dirty: card.dataset.exerciseId ? cardIsDirty(card) : cardHasContent(card),
+                });
+            }
+        }
+    });
+    document.getElementById("addExerciseBtn").addEventListener("click", () => addExerciseCard(null, true));
+}
+
+// Switching the lesson would drop unsaved cards - ask first.
+function setupLessonSwitchGuard() {
+    ["exerciseCategory", "exerciseModule", "exerciseLesson"].forEach((id) => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        let previous = select.value;
+        select.addEventListener("focus", () => { previous = select.value; });
+        select.addEventListener("change", (e) => {
+            if (hasUnsavedExerciseChanges()
+                && !window.confirm("Switching the lesson drops the unsaved changes on this page. Continue?")) {
+                e.stopImmediatePropagation();
+                select.value = previous;
+                return;
+            }
+            previous = select.value;
+            if (id === "exerciseLesson") loadLessonExercises();
+        }, true);
     });
 }
 
 /* =================================================================
    Task #73, #111, #113 & Fix #3: Back & Cancel Unsaved Changes Protective Guard
 ==================================================================== */
-function hasPopulatedExerciseInputs() {
-    const title = (document.getElementById('exerciseTitle')?.value || '').trim();
-    const category = (document.getElementById('exerciseCategory')?.value || '').trim();
-    const moduleVal = (document.getElementById('exerciseModule')?.value || '').trim();
-    const lesson = (document.getElementById('exerciseLesson')?.value || '').trim();
-    const points = (document.getElementById('exercisePoints')?.value || '').trim();
-    const instruction = (document.getElementById('exerciseInstruction')?.value || '').trim();
-    const situation = (document.getElementById('problemSituation')?.value || '').trim();
-    const question = (document.getElementById('problemQuestion')?.value || '').trim();
-    const clue = (document.getElementById('problemClue')?.value || '').trim();
-    const expected = (document.getElementById('expectedAnswer')?.value || '').trim();
-    const givenInput = (document.getElementById('givenInput')?.value || '').trim();
-    const feedback = (document.getElementById('correctFeedback')?.value || '').trim();
-    const hasTags = document.querySelectorAll('#requiredTagsSelected .required-tag-chip').length > 0;
-
-    return !!(title || category || moduleVal || lesson || points || instruction || situation || question
-        || clue || expected || givenInput || feedback || hasTags);
-}
-
 function setupBackCancelGuard() {
     const backBtn = document.getElementById('backExerciseBtn') || document.querySelector('.btn-back-custom');
-    const cancelBtn = document.getElementById('cancelExerciseBtn');
-    const form = document.getElementById('createExerciseForm');
     const unsavedModal = document.getElementById('unsavedChangesModal');
     const stayBtn = document.getElementById('unsavedStayBtn');
     const leaveBtn = document.getElementById('unsavedLeaveBtn');
     const saveAndLeaveBtn = document.getElementById('unsavedSaveAndLeaveBtn');
 
     let pendingNavigation = null;
-
-    if (form) {
-        form.addEventListener('submit', function () {
-            isSubmitting = true;
-        });
-    }
 
     function showUnsavedWarning(targetUrl, e) {
         if (!hasPopulatedExerciseInputs()) {
@@ -607,7 +720,7 @@ function setupBackCancelGuard() {
         if (unsavedModal) {
             unsavedModal.classList.remove('modal-hidden');
         } else {
-            const confirmed = window.confirm("You have unsaved changes in this coding exercise. Are you sure you want to leave without saving?");
+            const confirmed = window.confirm("You have unsaved changes in these coding exercises. Are you sure you want to leave without saving?");
             if (confirmed && targetUrl) {
                 isSubmitting = true;
                 window.location.href = targetUrl;
@@ -629,13 +742,7 @@ function setupBackCancelGuard() {
         });
     }
 
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', function (e) {
-            showUnsavedWarning(cancelBtn.href, e);
-        });
-    }
-
-    // Also guard sidebar link navigation while form is dirty
+    // Also guard sidebar link navigation while there are unsaved changes
     document.querySelectorAll('.admin-sidebar a, .sidebar-nav a').forEach(link => {
         link.addEventListener('click', function (e) {
             if (link.getAttribute('href') && !link.getAttribute('href').startsWith('#')) {
@@ -661,43 +768,12 @@ function setupBackCancelGuard() {
 
     if (saveAndLeaveBtn) {
         saveAndLeaveBtn.addEventListener('click', async function () {
-            if (!validateExerciseForm(false)) {
-                return;
-            }
-
-            if (!form) {
+            const target = pendingNavigation || '/admin/coding-exercises';
+            hideUnsavedModal();
+            const savedId = await saveAllExercises();
+            if (savedId) {
                 isSubmitting = true;
-                hideUnsavedModal();
-                window.location.href = '/admin/coding-exercises';
-                return;
-            }
-
-            const saveDraftBtn = document.getElementById('saveDraftBtn');
-            const isPublished = saveDraftBtn ? saveDraftBtn.dataset.isPublished === "true" : false;
-            const formData = new FormData(form);
-            formData.append('action', isPublished ? 'save' : 'draft');
-            formData.append('preserve_status', isPublished ? 'true' : 'false');
-
-            try {
-                const response = await fetch('/admin/coding-exercises/save-draft', {
-                    method: 'POST',
-                    body: formData,
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'include'
-                });
-                const result = await response.json();
-                if (result.success) {
-                    isSubmitting = true;
-                    hideUnsavedModal();
-                    window.location.href = result.redirect_url || '/admin/coding-exercises';
-                } else {
-                    showInfoModal(result.message || (isPublished ? 'Failed to save.' : 'Failed to save draft.'), 'Save Error');
-                }
-            } catch (err) {
-                console.error('Failed to save & leave:', err);
-                isSubmitting = true;
-                hideUnsavedModal();
-                window.location.href = '/admin/coding-exercises';
+                window.location.href = target;
             }
         });
     }
@@ -710,6 +786,24 @@ function setupBackCancelGuard() {
         }
     });
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('createExerciseForm');
+    if (form) {
+        // Nothing on this page posts the form - each card is saved on its own.
+        form.addEventListener('submit', (e) => e.preventDefault());
+    }
+    setupCardButtons();
+    setupSaveAllHandler();
+    setupBackCancelGuard();
+    // Before the dropdowns' own listeners, so it can stop a lesson switch.
+    setupLessonSwitchGuard();
+    setupDependentDropdowns();
+    document.querySelectorAll('#exerciseCategory, #exerciseModule, #exerciseLesson').forEach((el) => {
+        el.addEventListener('change', () => el.classList.remove('field-error'));
+    });
+    updateExercisePageState();
+});
 
 /* =================================================================
    Task #70 & Fix #1: Category -> Module -> Lesson Cascading Dropdowns
@@ -738,7 +832,7 @@ function setupDependentDropdowns() {
     function resetLessonDropdown() {
         lessonSelect.innerHTML = LESSON_PLACEHOLDER_HTML;
         lessonSelect.disabled = true;
-        updateExerciseTitle();
+        loadLessonExercises();
     }
 
     async function loadLessonsForModule(moduleId, preselectResourceId = null) {
@@ -769,7 +863,7 @@ function setupDependentDropdowns() {
             if (preselectResourceId && lessonSelect.querySelector(`option[value="${preselectResourceId}"]`)) {
                 lessonSelect.value = String(preselectResourceId);
             }
-            updateExerciseTitle();   // setting the value by script fires no "change"
+            loadLessonExercises();   // setting the value by script fires no "change"
         } catch (err) {
             console.error("create-exercise: failed to load lessons for module:", err);
             resetLessonDropdown();
@@ -831,159 +925,3 @@ function setupDependentDropdowns() {
     }
 }
 
-/* =================================================================
-   Fix #1: Character Counter with Immediate Value Synchronization
-==================================================================== */
-function setupCharacterCounter(textareaId, counterId, maxLength) {
-    const textarea = document.getElementById(textareaId);
-    if (!textarea) return;
-    
-    let counter = document.getElementById(counterId);
-    if (!counter) {
-        counter = textarea.parentElement.querySelector('.char-counter');
-    }
-
-    if (textarea && counter) {
-        const updateCount = () => {
-            const currentLength = textarea.value.length;
-            counter.textContent = `${currentLength} / ${maxLength}`;
-            if (currentLength >= maxLength) {
-                counter.style.color = '#ef4444';
-            } else {
-                counter.style.color = '#94a3b8';
-            }
-        };
-
-        // Initialize immediately with current/loaded value
-        updateCount();
-        textarea.addEventListener('input', updateCount);
-    }
-}
-
-/* =================================================================
-   Section 6: "Required in the code" tag picker (feat/output-based-exercises)
-   The tag list is rendered by the server from server/exercise_tags.py -
-   this only adds/removes chips. Each chip carries a hidden
-   required_tags input ("kind:value"), saved with the form.
-==================================================================== */
-const TAG_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-function setupRequiredTagsPicker() {
-    const section = document.getElementById('requiredTagsSection');
-    const selected = document.getElementById('requiredTagsSelected');
-    const picker = document.getElementById('requiredTagsPicker');
-    const emptyNote = document.getElementById('requiredTagsEmpty');
-    const customInput = document.getElementById('customTagInput');
-    const customBtn = document.getElementById('addCustomTagBtn');
-    const customError = document.getElementById('customTagError');
-    if (!section || !selected || !picker) return;
-
-    const maxLength = parseInt(section.dataset.maxNameLength, 10) || 50;
-    const keywords = new Set((section.dataset.keywords || '').split(' ').filter(Boolean));
-
-    const chipFor = (key) => Array.from(selected.querySelectorAll('.required-tag-chip')).find((c) => c.dataset.key === key);
-    const optionFor = (key) => Array.from(picker.querySelectorAll('.required-tag-option')).find((o) => o.dataset.key === key);
-
-    function refresh() {
-        const keys = new Set(Array.from(selected.querySelectorAll('.required-tag-chip')).map((c) => c.dataset.key));
-        picker.querySelectorAll('.required-tag-option').forEach((option) => {
-            const on = keys.has(option.dataset.key);
-            option.classList.toggle('is-selected', on);
-            option.setAttribute('aria-pressed', on ? 'true' : 'false');
-        });
-        if (emptyNote) emptyNote.hidden = keys.size > 0;
-    }
-
-    // Programmatic changes don't fire "input" on the form - tell the
-    // unsaved-changes tracking (admin-editor-preview.js) explicitly.
-    function markChanged() {
-        selected.dispatchEvent(new CustomEvent('requiredtagschange', { bubbles: true }));
-    }
-
-    function addChip(key, label) {
-        if (chipFor(key)) return;
-        const chip = document.createElement('span');
-        chip.className = 'required-tag-chip';
-        chip.dataset.key = key;
-
-        const text = document.createElement('span');
-        text.className = 'required-tag-chip-label';
-        text.textContent = label;
-
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'required-tag-remove';
-        remove.setAttribute('aria-label', `Remove ${label}`);
-        remove.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
-
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = 'required_tags';
-        hidden.value = key;
-
-        chip.append(text, remove, hidden);
-        selected.insertBefore(chip, emptyNote || null);
-        refresh();
-        markChanged();
-    }
-
-    function removeChip(key) {
-        const chip = chipFor(key);
-        if (!chip) return;
-        chip.remove();
-        refresh();
-        markChanged();
-    }
-
-    picker.addEventListener('click', (e) => {
-        const option = e.target.closest('.required-tag-option');
-        if (!option) return;
-        if (chipFor(option.dataset.key)) removeChip(option.dataset.key);
-        else addChip(option.dataset.key, option.dataset.label);
-    });
-
-    selected.addEventListener('click', (e) => {
-        const removeBtn = e.target.closest('.required-tag-remove');
-        if (removeBtn) removeChip(removeBtn.closest('.required-tag-chip').dataset.key);
-    });
-
-    function showCustomError(message) {
-        if (customError) customError.textContent = message;
-        if (customInput) customInput.classList.toggle('field-error', !!message);
-    }
-
-    function addCustomTag() {
-        if (!customInput) return;
-        // Exactly as typed - no first-letter capital. A leading dot means a method.
-        let name = customInput.value.trim();
-        const isMethod = name.startsWith('.');
-        name = name.replace(/^\./, '').replace(/\(\)$/, '');
-        if (!name) {
-            showCustomError('Type a function or method name first.');
-            return;
-        }
-        if (name.length > maxLength || !TAG_NAME_RE.test(name) || keywords.has(name)) {
-            showCustomError(`Use a Python name: letters, digits and _ only, not starting with a digit, up to ${maxLength} characters (and not a keyword like "for").`);
-            return;
-        }
-        const kind = isMethod ? 'method' : 'function';
-        const key = `${kind}:${name}`;
-        const option = optionFor(key);
-        addChip(key, option ? option.dataset.label : (isMethod ? `.${name}()` : `${name}()`));
-        customInput.value = '';
-        showCustomError('');
-    }
-
-    if (customBtn) customBtn.addEventListener('click', addCustomTag);
-    if (customInput) {
-        customInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();   // never submit the whole form from here
-                addCustomTag();
-            }
-        });
-        customInput.addEventListener('input', () => showCustomError(''));
-    }
-
-    refresh();
-}

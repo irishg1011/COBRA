@@ -4,7 +4,8 @@
  * Wires the Preview button on the 3 editor pages:
  *   - Preview Lesson   (#previewLessonBtn   - upload-resource.html)
  *   - Preview Activity (#previewActivityBtn - create-learning-activity.html)
- *   - Preview Exercise (#previewExerciseBtn - create-coding-exercise.html)
+ *   - Preview on each exercise card (create-coding-exercise.html, via
+ *     window.cobraPreviewExerciseCard - feat/exercise-cards)
  *
  * Rules (same on all 3 pages):
  *   1. Runs the SAME checks the page's Save button runs first. If
@@ -859,21 +860,6 @@
     // (lesson-content.html): title, Situation / Problem / Clue,
     // code + output panes. Run and Submit are disabled.
     // ============================================================
-    let exerciseDirty = false;
-
-    function trackExerciseChanges() {
-        const form = document.getElementById("createExerciseForm");
-        if (!form) return;
-        // Only real user actions count (isTrusted) - the dropdowns
-        // filling themselves on page load never mark it as changed.
-        const mark = (e) => { if (e.isTrusted) exerciseDirty = true; };
-        form.addEventListener("input", mark);
-        form.addEventListener("change", mark);
-        // The "Required in the code" picker (create-exercise.js) adds and
-        // removes chips without an input event - it announces each change.
-        form.addEventListener("requiredtagschange", () => { exerciseDirty = true; });
-    }
-
     function exercisePromptLine(label, value) {
         const p = el("p");
         p.appendChild(el("strong", "", label + " "));
@@ -897,31 +883,29 @@
         return pane;
     }
 
-    function previewExercise() {
-        if (typeof validateExerciseForm !== "function") return;
+    // feat/exercise-cards: each exercise card has its own Preview button
+    // (create-exercise.js passes that card's values).
+    function previewExercise(card) {
+        if (typeof validateExerciseForm === "function" && !validateExerciseForm(false)) return;
 
-        if (!validateExerciseForm(false)) return;
-
-        const isNew = !fieldValue("exerciseIdInput");
         const body = openPreviewModal(
-            fieldValue("exerciseTitle"),
-            getNoticeText("exercise", isNew, exerciseDirty)
+            card.title,
+            getNoticeText("exercise", card.isNew, card.dirty)
         );
 
         body.appendChild(el("p", "lesson-step-eyebrow", "Coding Exercise"));
-        body.appendChild(el("h2", "exercise-title", fieldValue("exerciseTitle")));
+        body.appendChild(el("h2", "exercise-title", card.title));
 
         const prompt = el("div", "exercise-prompt");
-        prompt.appendChild(exercisePromptLine("Situation:", fieldValue("problemSituation")));
-        prompt.appendChild(exercisePromptLine("Problem:", fieldValue("problemQuestion")));
+        prompt.appendChild(exercisePromptLine("Situation:", card.situation));
+        prompt.appendChild(exercisePromptLine("Problem:", card.question));
         const clue = el("p", "exercise-clue");
-        clue.innerHTML = '<i class="fa-solid fa-lightbulb"></i> ' + escapeHtml(fieldValue("problemClue") || "-");
+        clue.innerHTML = '<i class="fa-solid fa-lightbulb"></i> ' + escapeHtml(card.clue || "-");
         prompt.appendChild(clue);
         body.appendChild(prompt);
 
         // Same rows the learner sees (lesson-content.html): required tags + expected output.
-        const tagLabels = Array.from(document.querySelectorAll("#requiredTagsSelected .required-tag-chip-label"))
-            .map((label) => label.textContent);
+        const tagLabels = card.tags || [];
         if (tagLabels.length) {
             const tagsRow = el("div", "exercise-required-row");
             tagsRow.appendChild(el("span", "exercise-required-label", "You must use:"));
@@ -930,10 +914,9 @@
             tagsRow.appendChild(chips);
             body.appendChild(tagsRow);
         }
-        const expected = document.getElementById("expectedAnswer");
         const expectedPane = el("div", "exercise-pane exercise-expected");
         expectedPane.appendChild(el("div", "exercise-pane-head", "Your output should look like this"));
-        expectedPane.appendChild(el("pre", "exercise-output-box exercise-expected-box", expected ? expected.value : ""));
+        expectedPane.appendChild(el("pre", "exercise-output-box exercise-expected-box", card.expected || ""));
         body.appendChild(expectedPane);
 
         const grid = el("div", "exercise-editor-grid");
@@ -949,6 +932,7 @@
         footer.appendChild(submitBtn);
         body.appendChild(footer);
     }
+    window.cobraPreviewExerciseCard = previewExercise;
 
     // ------------------------------------------------------------
     // Wire whichever Preview button this page has.
@@ -956,7 +940,6 @@
     document.addEventListener("DOMContentLoaded", () => {
         const lessonBtn = document.getElementById("previewLessonBtn");
         const activityBtn = document.getElementById("previewActivityBtn");
-        const exerciseBtn = document.getElementById("previewExerciseBtn");
 
         if (lessonBtn) {
             lessonBtn.addEventListener("click", (e) => {
@@ -968,13 +951,6 @@
             activityBtn.addEventListener("click", (e) => {
                 e.preventDefault();
                 previewActivity();
-            });
-        }
-        if (exerciseBtn) {
-            trackExerciseChanges();
-            exerciseBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                previewExercise();
             });
         }
     });

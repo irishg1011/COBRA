@@ -42,7 +42,35 @@ def get_db_connection():
             time_zone=DB_TIME_ZONE,
         )
         if connection.is_connected():
+            _ensure_item_removal_schema(connection)
             return connection
     except Error as e:
         print(f"Error connecting to MySQL database: {e}")
         return None
+
+
+# ------------------------------------------------------------------
+# Removed activity items (Multiple Choice questions and answer options,
+# Fill in the Blanks items, Flashcards). A removed item that learners already answered (or
+# saw - a time-out, skip or leave is saved too) is hidden with
+# is_removed = 1 instead of deleted, so their answers, scores and
+# analytics keep pointing at it. Every query that lists an activity's
+# items reads only is_removed = 0; reads of one item by id (history) don't.
+# Added on the first connection, before any query can read the column.
+# ------------------------------------------------------------------
+ITEM_TABLES_WITH_REMOVAL = ("mcq_questions_tbl", "mcq_options_tbl", "fill_blanks_tbl", "flashcards_tbl")
+_item_removal_ready = False
+
+
+def _ensure_item_removal_schema(connection):
+    global _item_removal_ready
+    if _item_removal_ready:
+        return
+    try:
+        cursor = connection.cursor()
+        for table in ITEM_TABLES_WITH_REMOVAL:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS is_removed TINYINT(1) NOT NULL DEFAULT 0")
+        cursor.close()
+        _item_removal_ready = True
+    except Error as e:
+        print(f"cobradb: could not add is_removed to the activity item tables: {e}")

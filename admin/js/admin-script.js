@@ -137,3 +137,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 })();
+
+// Idle logout (learners 1 hour, staff 2 hours) - static/idle-logout.js
+(function () {
+    if (document.querySelector('script[data-idle-logout]')) return;
+    const script = document.createElement('script');
+    script.src = '/static/idle-logout.js';
+    script.defer = true;
+    script.dataset.idleLogout = '1';
+    document.head.appendChild(script);
+})();

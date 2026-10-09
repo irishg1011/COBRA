@@ -33,7 +33,8 @@ create-learning-activity.js when the activity is reopened):
     - no id      -> INSERT a new row
     - existing row not sent back (the admin removed it):
           nobody answered it -> DELETE
-          learners answered   -> ContentInUseError, nothing is saved
+          learners answered   -> hidden (is_removed = 1) - their answers,
+                                 scores and analytics keep pointing at it
 If a request carries NO ids at all (old/no-JS form post), rows are matched
 by position instead, so a plain edit still keeps its ids.
 
@@ -114,7 +115,8 @@ class MCQActivityController:
     @staticmethod
     def _existing_questions(cursor, la_id):
         cursor.execute(
-            f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
+            f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0 "
+            "ORDER BY sort_order ASC, q_id ASC",
             (la_id,)
         )
         return cursor.fetchall()
@@ -122,24 +124,25 @@ class MCQActivityController:
     @staticmethod
     def _existing_options(cursor, q_id):
         cursor.execute(
-            f"SELECT option_id, option_text FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC, option_id ASC",
+            f"SELECT option_id, option_text FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s AND is_removed = 0 ORDER BY option_letter ASC, option_id ASC",
             (q_id,)
         )
         return cursor.fetchall()
 
     @staticmethod
     def _delete_questions(cursor, rows):
-        """rows: [(q_id, text), ...] - refuses if any learner answered them."""
+        """
+        rows: [(q_id, text), ...]. A question learners already answered (or
+        saw) is hidden (is_removed = 1) so their history keeps it; any other
+        one is deleted.
+        """
         if not rows:
             return
         answered = _answered_ids(cursor, MCQ_ANSWERS_TABLE, "q_id", [r[0] for r in rows])
-        if answered:
-            text = next(r[1] for r in rows if r[0] in answered)
-            raise ContentInUseError(
-                f'Learners already answered the question "{_short(text)}", so it can\'t be removed. '
-                "Edit its text instead, or keep it."
-            )
         for q_id, _text in rows:
+            if q_id in answered:
+                cursor.execute(f"UPDATE {MCQ_QUESTIONS_TABLE} SET is_removed = 1 WHERE q_id = %s", (q_id,))
+                continue
             cursor.execute(f"DELETE FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s", (q_id,))
             cursor.execute(f"DELETE FROM {MCQ_QUESTIONS_TABLE} WHERE q_id = %s", (q_id,))
 
@@ -225,21 +228,23 @@ class MCQActivityController:
 
         removed = [r for r in existing if r[0] not in kept]
         if removed:
+            # An option learners already picked is hidden (their answer keeps
+            # pointing at it); any other one is deleted.
             answered = _answered_ids(cursor, MCQ_ANSWERS_TABLE, "option_id", [r[0] for r in removed])
-            if answered:
-                text = next(r[1] for r in removed if r[0] in answered)
-                raise ContentInUseError(
-                    f'Learners already picked the answer option "{_short(text)}", so it can\'t be removed. '
-                    "Edit its text instead, or keep it."
-                )
             for option_id, _text in removed:
+                if option_id in answered:
+                    cursor.execute(
+                        f"UPDATE {MCQ_OPTIONS_TABLE} SET is_removed = 1 WHERE option_id = %s",
+                        (option_id,)
+                    )
+                    continue
                 cursor.execute(f"DELETE FROM {MCQ_OPTIONS_TABLE} WHERE option_id = %s", (option_id,))
 
     @staticmethod
     def fetch(cursor, la_id):
         cursor.execute(
             f"""SELECT q_id, question_text, correct_feedback, incorrect_feedback
-                FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC""",
+                FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY sort_order ASC, q_id ASC""",
             (la_id,)
         )
         question_rows = cursor.fetchall()
@@ -248,7 +253,7 @@ class MCQActivityController:
         for q in question_rows:
             cursor.execute(
                 f"""SELECT option_id, option_letter, option_text, is_correct, feedback
-                    FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC, option_id ASC""",
+                    FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s AND is_removed = 0 ORDER BY option_letter ASC, option_id ASC""",
                 (q["q_id"],)
             )
             option_rows = cursor.fetchall()
@@ -294,7 +299,7 @@ class _SimpleItemController:
     @classmethod
     def _existing(cls, cursor, la_id):
         cursor.execute(
-            f"SELECT {cls.ID}, {cls.COLUMNS[0]} FROM {cls.TABLE} WHERE la_id = %s ORDER BY {cls.ID} ASC",
+            f"SELECT {cls.ID}, {cls.COLUMNS[0]} FROM {cls.TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY {cls.ID} ASC",
             (la_id,)
         )
         return cursor.fetchall()
@@ -303,14 +308,12 @@ class _SimpleItemController:
     def _delete(cls, cursor, rows):
         if not rows:
             return
+        # Answered (or seen) items are hidden, not deleted - see _delete_questions.
         answered = _answered_ids(cursor, cls.ANSWERS_TABLE, cls.ID, [r[0] for r in rows])
-        if answered:
-            text = next(r[1] for r in rows if r[0] in answered)
-            raise ContentInUseError(
-                f'Learners already answered the {cls.LABEL} "{_short(text)}", so it can\'t be removed. '
-                "Edit it instead, or keep it."
-            )
         for row_id, _text in rows:
+            if row_id in answered:
+                cursor.execute(f"UPDATE {cls.TABLE} SET is_removed = 1 WHERE {cls.ID} = %s", (row_id,))
+                continue
             cursor.execute(f"DELETE FROM {cls.TABLE} WHERE {cls.ID} = %s", (row_id,))
 
     @classmethod
@@ -427,7 +430,7 @@ class FillBlanksActivityController(_SimpleItemController):
         cursor.execute(
             f"""SELECT fib_id, content, correct_answer, correct_feedback, incorrect_feedback,
                        instruction, code_text, expected_output, hint, must_contain
-                FROM {FILL_BLANKS_TABLE} WHERE la_id = %s ORDER BY fib_id ASC""",
+                FROM {FILL_BLANKS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY fib_id ASC""",
             (la_id,)
         )
         return [
@@ -486,7 +489,7 @@ class FlashcardsActivityController(_SimpleItemController):
     def fetch(cursor, la_id):
         cursor.execute(
             f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback, hint
-                FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC""",
+                FROM {FLASHCARDS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY flashcard_id ASC""",
             (la_id,)
         )
         return [
