@@ -73,3 +73,19 @@
     z-index: 5;
     pointer-events: none;
 }
+
+/* fix/leave-guard-spam: while a leave notice ("Please stay on this page" /
+   "Questions changed") is open, or the server is still deciding on a leave,
+   the game behind it can't be read or used. game-kit.js sets both classes
+   on <html>; the notice popup is outside these blocks, so it stays sharp. */
+html.game-notice-open .mcq-arena-root,
+html.game-notice-open .fib-root,
+html.game-notice-open .fc-root,
+html.game-leave-check .mcq-arena-root,
+html.game-leave-check .fib-root,
+html.game-leave-check .fc-root {
+    filter: blur(16px);
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+}

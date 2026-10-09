@@ -892,22 +892,34 @@
         }
 
         // feat/leave-detection: what the server decided when the learner came back.
+        // fix/leave-guard-spam: the game behind the notice is blurred (game-kit.css)
+        // and nothing moves on until the learner presses "I understand" - the next
+        // puzzle is only asked for (and its clock started) after that.
         function onLeaveResult(data) {
             if (disposed || !data || !data.state) return;
             applyState(data.state);
             const event = data.event;
             if (!event) return;
-            if (window.CobraGameKit) {
-                window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed",
-                    event.message);
-            }
-            if (event.type === "leave_forfeit") {
+            const forfeit = event.type === "leave_forfeit";
+            if (forfeit) {
+                setMode("busy");   // the forfeited puzzle can't be answered any more
                 streak = 0;
                 bump(ui.livesStat);
                 bt.heroHP = heroLives(server);
+                drawBars();
                 hideFeedback();
+                updateHUD();
+            }
+            const afterNotice = () => {
+                if (disposed || !forfeit) return;
                 if (server.completed) finish();
                 else revealNext();
+            };
+            if (window.CobraGameKit) {
+                window.CobraGameKit.notice(forfeit ? "Questions changed" : "Please stay on this page",
+                    event.message, null, afterNotice);
+            } else {
+                afterNotice();
             }
         }
 
@@ -1114,6 +1126,7 @@
         // ---- input + lifecycle ----
         function onKeyDown(e) {
             if (disposed || !items.length || !isShown()) return;
+            if (window.CobraGameKit && window.CobraGameKit.noticeOpen()) return;   // a leave notice is open: no game keys
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
             if (target && target.closest && target.closest("button") && e.key === "Enter") return; // let the focused button handle it
@@ -1134,7 +1147,8 @@
         }
 
         function onVisibility() {
-            if (!document.hidden && server) {
+            // (when the leave guard is reporting, its answer already brings the fresh state)
+            if (!document.hidden && server && !(leaveGuard && leaveGuard.isReporting())) {
                 refreshState(); // timers are throttled in background tabs
             }
         }
@@ -1297,6 +1311,8 @@
                     body: () => ({ la_id: laId }),
                     isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
                         && server.total_lives > 0 && root.isConnected),
+                    // the server's leave_min_seconds: shorter absences never cover the game
+                    minSeconds: () => (server && server.leave ? server.leave.min_seconds : 2),
                     onResult: onLeaveResult
                 });
                 (play.state.events || []).forEach((event) => {

@@ -663,22 +663,33 @@
         }
 
         // feat/leave-detection: what the server decided when the learner came back.
+        // fix/leave-guard-spam: the game behind the notice is blurred (game-kit.css)
+        // and nothing moves on until the learner presses "I understand" - the next
+        // card is only asked for (and its clock started) after that.
         function onLeaveResult(data) {
             if (disposed || !data || !data.state) return;
             applyState(data.state);
             const event = data.event;
             if (!event) return;
-            if (window.CobraGameKit) {
-                window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed",
-                    event.message);
-            }
-            if (event.type === "leave_forfeit") {
+            const forfeit = event.type === "leave_forfeit";
+            if (forfeit) {
+                setMode("busy");   // the forfeited card can't be answered any more
                 streak = 0;
                 bump(ui.livesStat);
                 fx.heroHP = heroLives(server);
                 drawBars();
+                updateHUD();
+            }
+            const afterNotice = () => {
+                if (disposed || !forfeit) return;
                 hideOverlay();
                 revealNext();
+            };
+            if (window.CobraGameKit) {
+                window.CobraGameKit.notice(forfeit ? "Questions changed" : "Please stay on this page",
+                    event.message, null, afterNotice);
+            } else {
+                afterNotice();
             }
         }
 
@@ -1204,6 +1215,7 @@
 
         function onKeyDown(e) {
             if (disposed || !isShown()) return;
+            if (window.CobraGameKit && window.CobraGameKit.noticeOpen()) return;   // a leave notice is open: no game keys
             if (e.key !== "Enter") return;
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "BUTTON")) return;
@@ -1217,7 +1229,9 @@
         }
 
         function onVisibility() {
-            if (!document.hidden && server) refreshState();   // timers are throttled in background tabs
+            // (when the leave guard is reporting, its answer already brings the fresh state)
+            if (document.hidden || !server || (leaveGuard && leaveGuard.isReporting())) return;
+            refreshState();   // timers are throttled in background tabs
         }
 
         function onResize() {
@@ -1374,6 +1388,8 @@
                     body: () => ({ la_id: laId }),
                     isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
                         && server.total_lives > 0 && root.isConnected),
+                    // the server's leave_min_seconds: shorter absences never cover the game
+                    minSeconds: () => (server && server.leave ? server.leave.min_seconds : 2),
                     onResult: onLeaveResult
                 });
                 (play.state.events || []).forEach((event) => {
