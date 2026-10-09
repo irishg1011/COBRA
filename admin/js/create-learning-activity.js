@@ -1671,22 +1671,22 @@ function addNewFlashcardCard(prefilledData = null) {
             </div>
         </div>
 
-        <div class="flashcard-grid-2">
+        <!-- Question - Code - Back in one row -->
+        <div class="flashcard-grid-3">
             <div class="form-group form-group-relative">
                 <label class="form-label">Front Card *</label>
                 <textarea name="flashcards[${index}][front]" class="form-control question-textarea" rows="3" placeholder="Prompt, term, or question on the front" required>${escapeAttr(frontVal)}</textarea>
                 <span class="char-counter">${frontVal.length} / 500</span>
             </div>
             <div class="form-group form-group-relative">
+                <label class="form-label">Code on the card <small class="text-muted">(optional)</small></label>
+                <textarea name="flashcards[${index}][front_code]" class="form-control fc-code-input" rows="3" spellcheck="false" placeholder="e.g. x = 5&#10;print(x * 2)">${escapeAttr(frontCodeVal)}</textarea>
+            </div>
+            <div class="form-group form-group-relative">
                 <label class="form-label">Back Card *</label>
                 <textarea name="flashcards[${index}][back]" class="form-control question-textarea" rows="3" placeholder="Answer or definition revealed on the back" required>${escapeAttr(backVal)}</textarea>
                 <span class="char-counter">${backVal.length} / 500</span>
             </div>
-        </div>
-
-        <div class="form-group mt-16">
-            <label class="form-label">Code on the card <small class="text-muted">(optional - shown under the front question)</small></label>
-            <textarea name="flashcards[${index}][front_code]" class="form-control fc-code-input" rows="3" spellcheck="false" placeholder="e.g. x = 5&#10;print(x * 2)">${escapeAttr(frontCodeVal)}</textarea>
         </div>
 
         <div class="form-group mt-16">

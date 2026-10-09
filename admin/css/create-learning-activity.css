@@ -596,3 +596,13 @@ textarea.field-error {
     font-size: 0.9rem;
     white-space: pre;
 }
+
+/* Flashcard: Question - Code - Back in one row (stacks on narrow screens) */
+.flashcard-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+@media (max-width: 900px) {
+    .flashcard-grid-3 { grid-template-columns: 1fr; }
+}
