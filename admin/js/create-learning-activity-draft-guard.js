@@ -163,13 +163,7 @@
                     });
                 });
 
-                // feat/hints-feedback: one correct + one wrong text per question
-                const qFb = (field) => {
-                    const el = card.querySelector(`[name$="[${field}]"]:not([name*="[options]"])`);
-                    return el ? el.value.trim() : "";
-                };
-                questions.push({ q_id: card.dataset.itemId || null, text: text, options: options, correct_option: correctOption,
-                    correct_feedback: qFb("correct_feedback"), incorrect_feedback: qFb("incorrect_feedback") });
+                questions.push({ q_id: card.dataset.itemId || null, text: text, options: options, correct_option: correctOption });
             });
             return questions;
         }

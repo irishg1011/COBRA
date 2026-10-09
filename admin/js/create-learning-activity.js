@@ -241,8 +241,13 @@ function leakWarningFor(card) {
         const row = checked ? checked.closest('.answer-row') : null;
         const input = row ? row.querySelector('input[type="text"]') : null;
         answer = input ? input.value.trim() : '';
-        const wrong = card.querySelector('[name$="[incorrect_feedback]"]');
-        if (wrong) texts.push(['Wrong-answer feedback', wrong.value]);
+        // Multiple Choice feedback lives on each option: the WRONG options'
+        // feedback must not name the correct answer.
+        card.querySelectorAll('.answer-row').forEach((r) => {
+            if (r === row) return;
+            const fb = r.querySelectorAll('input[type="text"]')[1];
+            if (fb && fb.value.trim()) texts.push(['A wrong option\'s feedback', fb.value]);
+        });
     } else {
         const ans = card.querySelector('[name$="[correct_answer]"], [name$="[back]"]');
         answer = ans ? ans.value.trim() : '';
@@ -1050,8 +1055,6 @@ function addNewQuestionCard(prefilledData = null) {
     if (prefilledData && prefilledData.q_id) card.dataset.itemId = prefilledData.q_id;
     
     let questionTextVal = prefilledData ? prefilledData.text : '';
-    const qCorrectFb = prefilledData ? (prefilledData.correct_feedback || '') : '';
-    const qWrongFb = prefilledData ? (prefilledData.incorrect_feedback || '') : '';
 
     // feat/activity-add-many: a NEW question starts with A-D. Saved and
     // duplicated questions keep exactly the options they have.
@@ -1122,18 +1125,6 @@ function addNewQuestionCard(prefilledData = null) {
                 <i class="fa-solid fa-plus"></i> Add Option
             </button>
 
-            <!-- feat/hints-feedback: one text for a right answer, one for any miss (never the answer) -->
-            <div class="fill-blank-grid-2 mt-16">
-                <div class="form-group">
-                    <label class="form-label">Feedback when correct</label>
-                    <input type="text" name="questions[${qIndex}][correct_feedback]" class="form-control" value="${escapeAttr(qCorrectFb)}" placeholder="Why this answer is right">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Feedback when wrong</label>
-                    <input type="text" name="questions[${qIndex}][incorrect_feedback]" class="form-control" value="${escapeAttr(qWrongFb)}" placeholder="Why it is off - without giving the answer">
-                </div>
-            </div>
-            <p class="form-hint">Empty? The option's own feedback above is shown instead.</p>
         </div>
     `;
 
@@ -1313,10 +1304,6 @@ function reindexAllQuestions() {
 
         const textarea = c.querySelector('.question-textarea');
         if (textarea) textarea.name = `questions[${idx}][text]`;
-        const qCorrect = c.querySelector('[name$="[correct_feedback]"]:not([name*="[options]"])');
-        const qWrong = c.querySelector('[name$="[incorrect_feedback]"]:not([name*="[options]"])');
-        if (qCorrect) qCorrect.name = `questions[${idx}][correct_feedback]`;
-        if (qWrong) qWrong.name = `questions[${idx}][incorrect_feedback]`;
 
         const rows = c.querySelectorAll('.answer-row');
         rows.forEach((r, optIdx) => {
@@ -1409,14 +1396,10 @@ function duplicateQuestionCard(btn) {
         options.push({ text: sText, feedback: sFeedback });
     });
 
-    const qCorrect = card.querySelector('[name$="[correct_feedback]"]');
-    const qWrong = card.querySelector('[name$="[incorrect_feedback]"]');
     addNewQuestionCard({
         text: textVal,
         correct_option: correctOptionIdx,
-        options: options,
-        correct_feedback: qCorrect ? qCorrect.value : '',
-        incorrect_feedback: qWrong ? qWrong.value : ''
+        options: options
     });
 }
 
@@ -1483,7 +1466,7 @@ function addNewFillBlankCard(prefilledData = null) {
 
         <div class="form-group mb-20">
             <label class="form-label">Expected output *</label>
-            <textarea name="fill_blanks[${index}][expected_output]" class="form-control fib-code-input" rows="2" spellcheck="false" placeholder="What the code prints with the correct answer">${escapeAttr(v('expected_output'))}</textarea>
+            <textarea name="fill_blanks[${index}][expected_output]" class="form-control fib-code-input fib-expected-readonly" rows="2" spellcheck="false" readonly tabindex="-1" placeholder="Click Generate expected output - the code runs with the correct answer">${escapeAttr(v('expected_output'))}</textarea>
             <button type="button" class="add-sub-question-btn mt-8 fib-generate-btn" onclick="generateExpectedOutput(this)"><i class="fa-solid fa-play"></i> Generate expected output</button>
             <p class="form-hint fib-run-note" hidden></p>
         </div>
@@ -1517,6 +1500,22 @@ function addNewFillBlankCard(prefilledData = null) {
     updatePointsTotal();
     updateAddButtonsState();
 }
+
+// Expected output is read-only: only a real run fills it. Changing the code
+// or the correct answer clears it, so it always matches what the code prints.
+document.addEventListener('input', (e) => {
+    const name = (e.target && e.target.getAttribute && e.target.getAttribute('name')) || '';
+    if (!/^fill_blanks\[\d+\]\[(code_text|correct_answer)\]$/.test(name)) return;
+    const card = e.target.closest('.fill-blank-card');
+    const expected = card && fibField(card, 'expected_output');
+    if (!expected || !expected.value) return;
+    expected.value = '';
+    const note = card.querySelector('.fib-run-note');
+    if (note) {
+        note.hidden = false;
+        note.textContent = 'The code or the answer changed - click Generate expected output again.';
+    }
+});
 
 // feat/fib-console: fills Expected output from a real run of the code with
 // the correct answer in its blank (POST /admin/api/fib-run).
