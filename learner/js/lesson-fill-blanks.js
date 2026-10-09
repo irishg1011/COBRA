@@ -290,7 +290,8 @@
         let slotEl = null, slotInput = null;
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
-        const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBar(ui.timerHost) : null;
+        // feat/question-timer: above the question AND inside the game stage (phones, full screen)
+        const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBars([ui.timerHost, ui.stage]) : null;
         let leaveGuard = null;
 
         // battle animation state (display only - the server owns the real numbers)
