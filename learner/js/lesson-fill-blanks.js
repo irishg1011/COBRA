@@ -280,6 +280,8 @@
         let server = null;          // last state the server sent
         let mode = "loading";       // loading | ready | playing | busy | review | cooldown | done | error
         let booted = false;
+        let firstOpen = true;       // the first reveal after opening the page reports an unclosed leave
+        let counting = false;       // a 3 - 2 - 1 is running
         let disposed = false;
         let stage3d = null;         // battle3d.js api, null when WebGL/Three is unavailable
         let qIndex = 0;
@@ -301,7 +303,10 @@
             defeated: false, heroDown: false, t: 0, lastTs: 0
         };
 
-        function currentItem() { return items[qIndex]; }
+        // Before the play exists (a new learner, before Start) there is no
+        // puzzle at all - the board shows this empty one.
+        const NOT_YET = { fib_id: null, content: "", choices: [], hidden: true };
+        function currentItem() { return items[qIndex] || NOT_YET; }
         function isTyping() { return !(currentItem().choices && currentItem().choices.length); }
 
         // ---- HUD ----
@@ -372,33 +377,72 @@
             ui.overlay.innerHTML = "";
         }
 
+        // feat/game-countdown: the game waits behind a blurred Start card -
+        // no puzzle is on screen (or in the browser) before its clock starts.
+        // Start -> 3 - 2 - 1 -> the server reveals the puzzle (its timer
+        // starts) and it shows.
         function showReady(restored) {
             setMode("ready");
+            hideOverlay();
             let title = restored ? `Your lives are back (${fibLivesCount(server)})`
                 : (server && server.solved_count > 0) ? "Pick up where you left off"
                 : "Forge the missing code";
-            if (server && server.retake) title = `Retake round ${Number(server.retake.round)} · ${title}`;
-            showOverlay(`
-                <div class="fib-overlay-card">
-                    <i class="fa-solid ${restored ? "fa-heart" : "fa-code"} fib-overlay-icon"></i>
-                    <h4>${title}</h4>
-                    <p>Each puzzle hides part of the code. Fill the blank - the code really runs - and Cobra strikes SyntaxBug. You get one try per puzzle: a wrong answer, a skip or running out of time lets the bug bite back (−1 life).</p>
-                    <div class="fib-keys"><kbd>1–9 pick a tile</kbd><kbd>Backspace clear</kbd><kbd>Enter check</kbd></div>
-                    <div class="fib-overlay-actions">
-                        <button type="button" class="fib-ghost-btn" data-f="startSkipBtn" aria-label="Skip this puzzle, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
-                        <button type="button" class="fib-primary-btn" data-f="startBtn">${(server && server.solved_count > 0) || restored ? "Resume" : "Start activity"}</button>
-                    </div>
-                </div>
-            `);
-            const startFromReady = () => {
+            const limit = server && server.timer ? server.timer.limit : 0;
+            const left = Math.max(0, total - (server ? server.current_index || 0 : 0));
+            window.CobraGameKit.startCard(root, {
+                eyebrow: (server && server.retake) ? `Retake round ${Number(server.retake.round)} · Fill in the Blanks` : "Fill in the Blanks",
+                title,
+                lines: [
+                    (server && server.solved_count > 0) || restored ? `${left} puzzle${left === 1 ? "" : "s"} left` : `${total} puzzles, one try each`,
+                    PREVIEW ? "" : (limit ? `${limit} seconds per puzzle` : ""),
+                    "Fill the blank - the code really runs."
+                ],
+                note: PREVIEW ? "Preview: no timer, nothing is saved." : "The timer starts the moment each puzzle appears.",
+                button: (server && server.solved_count > 0) || restored ? "Resume" : "Start activity"
+            }).then(() => {
+                if (disposed) return;
                 enterFocusIfPhone();   // phones: the game goes full screen
-                hideOverlay();
-                if (stage3d) stage3d.playIntro();   // cobra slithers in (on open and on resume)
-                setMode("playing");
-                if (slotInput) slotInput.focus({ preventScroll: true });
-            };
-            ui.overlay.querySelector('[data-f="startBtn"]').addEventListener("click", startFromReady);
-            ui.overlay.querySelector('[data-f="startSkipBtn"]').addEventListener("click", () => skipItem(true));
+                startWithCountdown(true);
+            });
+        }
+
+        // 3 - 2 - 1, THEN ask the server for the puzzle (which starts its clock).
+        //   intro: the cobra slithers in (first start / resume only)
+        async function startWithCountdown(intro) {
+            if (disposed || counting) return;
+            counting = true;
+            setMode("busy");
+            hideOverlay();
+            const kit = window.CobraGameKit;
+            const next = Math.min((server ? server.current_index : qIndex) + 1, total);
+            await kit.countdown(root, { label: `Puzzle ${next} of ${total}` });
+            if (disposed) return;
+            counting = false;
+            let play = null;
+            try {
+                play = await startPlay(laId, firstOpen);
+                firstOpen = false;
+            } catch (err) {
+                kit.hideCover(root);
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(play.state);
+            kit.hideCover(root);
+            if (server.completed) {
+                finish();
+                return;
+            }
+            qIndex = Math.min(server.current_index, total - 1);
+            loadItem();
+            if (server.total_lives <= 0 || (!PREVIEW && server.session_status !== "in_progress")) {
+                enterCooldown();
+                return;
+            }
+            if (intro && stage3d) stage3d.playIntro();   // cobra slithers in
+            setMode("playing");
+            if (slotInput) slotInput.focus({ preventScroll: true });
         }
 
         async function resumeFromCooldown() {
@@ -406,7 +450,7 @@
             setMode("busy");
             let play = null;
             try {
-                play = await startPlay(laId, false);
+                play = await fetchPlay(laId);   // the Start card reveals the puzzle
             } catch (err) {
                 if (!disposed) showError(err.message);
                 return;
@@ -604,6 +648,19 @@
         }
 
         function renderCode() {
+            if (currentItem().hidden) {
+                // feat/game-countdown: nothing of a puzzle exists before its clock starts.
+                ui.code.innerHTML = "";
+                const row = el("div", "fib-code-row");
+                const ln = el("span", "fib-ln");
+                ln.textContent = 1;
+                const body = el("span", "fib-code-line");
+                body.textContent = "# The puzzle appears after the 3 - 2 - 1 countdown.";
+                row.appendChild(ln);
+                row.appendChild(body);
+                ui.code.appendChild(row);
+                return;
+            }
             const content = String(currentItem().content || "").replace(/\r\n?/g, "\n");
             const lines = content.split("\n");
             const blankLine = lines.findIndex((line) => FIB_BLANK_PATTERN.test(line));
@@ -820,11 +877,9 @@
         }
 
         // Skip the current puzzle: always -1 life, no score - the server
-        // logs it as 'skipped' (counts as missed). fromPreview: the intro card.
-        async function skipItem(fromPreview) {
-            fromPreview = fromPreview === true;   // the button passes a click event
-            const canSkip = fromPreview ? mode === "ready" : mode === "playing";
-            if (disposed || !canSkip) return;
+        // logs it as 'skipped' (counts as missed).
+        async function skipItem() {
+            if (disposed || mode !== "playing") return;
             setMode("busy");
             let data = null;
             try {
@@ -841,12 +896,6 @@
             }
             streak = 0;
             hideFeedback();
-            if (fromPreview) {
-                // Leave the intro card first.
-                enterFocusIfPhone();   // the play starts here too (phones: full screen)
-                hideOverlay();
-                if (stage3d) stage3d.playIntro();
-            }
             // SyntaxBug bites (-1 life) for a skip.
             bump(ui.livesStat);
             bt.heroHP = heroLives(server);
@@ -924,7 +973,7 @@
         }
 
         // The next puzzle is revealed (and its clock started) by the server
-        // only now - never while feedback is shown or at 0 lives.
+        // only after its 3 - 2 - 1 - never while feedback is shown or at 0 lives.
         async function revealNext() {
             if (disposed) return;
             if (server.total_lives <= 0) {
@@ -934,25 +983,7 @@
                 enterCooldown();
                 return;
             }
-            setMode("busy");
-            let play = null;
-            try {
-                play = await startPlay(laId, false);
-            } catch (err) {
-                if (!disposed) showError(err.message);
-                return;
-            }
-            if (disposed) return;
-            applyState(play.state);
-            if (server.completed) {
-                finish();
-                return;
-            }
-            qIndex = Math.min(server.current_index, total - 1);
-            setMode("playing");
-            loadItem();
-            if (server.total_lives <= 0 || (!PREVIEW && server.session_status !== "in_progress")) enterCooldown();
-            else if (slotInput) slotInput.focus({ preventScroll: true });
+            startWithCountdown(false);   // 3 - 2 - 1, then the next puzzle and its clock
         }
 
         function advance() {
@@ -1249,7 +1280,7 @@
         ui.checkBtn.addEventListener("click", submitAnswer);
         ui.clearBtn.addEventListener("click", () => { if (mode === "playing") clearSlot(); });
         ui.nextBtn.addEventListener("click", advance);
-        ui.playSkipBtn.addEventListener("click", () => skipItem(false));
+        ui.playSkipBtn.addEventListener("click", () => skipItem());
 
         // ---- boot ----
         async function boot() {
@@ -1264,9 +1295,10 @@
             // Fetch the 3D stage's files while the server answers, not after it.
             const stageFiles = import(FIB_JS_BASE + "battle3d.js").then((mod) => ({ mod }), (error) => ({ error }));
 
+            // feat/game-countdown: opening the page never reveals a puzzle.
             let play;
             try {
-                play = await startPlay(laId, true);
+                play = await fetchPlay(laId);
             } catch (err) {
                 console.error("Error loading fill-in-the-blanks activity:", err);
                 if (!disposed) showError(`Could not load this activity. ${err.message || ""}`.trim());
@@ -1275,7 +1307,8 @@
             if (disposed) return;
 
             items = play.items || [];
-            total = items.length;
+            // No play yet (a new learner, before Start): its 5 puzzles are drawn on Start.
+            total = items.length || (PREVIEW ? 0 : Math.min(5, (play.state && play.state.pool_size) || 0));
             applyState(play.state);
             if (total === 0 && !(play.state && play.state.completed)) {
                 dispose();
@@ -1309,16 +1342,12 @@
                 leaveGuard = window.CobraGameKit.leaveGuard({
                     url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
                     body: () => ({ la_id: laId }),
+                    // only while a puzzle is on screen (not on the Start card / 3 - 2 - 1)
                     isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
-                        && server.total_lives > 0 && root.isConnected),
+                        && server.total_lives > 0 && server.current_revealed && root.isConnected),
                     // the server's leave_min_seconds: shorter absences never cover the game
                     minSeconds: () => (server && server.leave ? server.leave.min_seconds : 2),
                     onResult: onLeaveResult
-                });
-                (play.state.events || []).forEach((event) => {
-                    if (event.type === "leave_warning" || event.type === "leave_forfeit") {
-                        window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
-                    }
                 });
             }
             document.addEventListener("keydown", onKeyDown);
@@ -1332,7 +1361,41 @@
             countdownTimer = setInterval(tick, 1000);
             rafId = requestAnimationFrame(loop);
 
+            // A puzzle whose clock was already running (page refreshed or
+            // reopened mid-puzzle) can't wait for a countdown - it shows now.
+            if (!PREVIEW && server.current_revealed && !server.completed
+                && server.session_status === "in_progress" && server.total_lives > 0) {
+                try {
+                    const again = await startPlay(laId, true);   // also counts a tab closed mid-puzzle
+                    firstOpen = false;
+                    if (disposed) return;
+                    applyState(again.state);
+                    showLeaveEvents();
+                    resyncFromState();
+                    if (!server.completed && server.current_revealed && server.total_lives > 0
+                        && server.session_status === "in_progress") {
+                        window.CobraGameKit.hideCover(root);
+                        hideOverlay();
+                        if (stage3d) stage3d.skipIntro();
+                        setMode("playing");
+                        if (slotInput) slotInput.focus({ preventScroll: true });
+                    }
+                    return;
+                } catch (err) {
+                    if (!disposed) showError(err.message);
+                    return;
+                }
+            }
             resyncFromState();
+        }
+
+        function showLeaveEvents() {
+            if (PREVIEW || !window.CobraGameKit || !server || !server.events) return;
+            server.events.forEach((event) => {
+                if (event.type === "leave_warning" || event.type === "leave_forfeit") {
+                    window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
+                }
+            });
         }
 
         boot();
