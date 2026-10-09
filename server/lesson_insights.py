@@ -36,7 +36,7 @@ Pure DB helpers, caller's cursor, never raises (an error -> no insights).
 from mysql.connector import Error
 
 from cobradb import get_db_connection
-from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, item_ids_for_activity
+from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, item_ids_for_activity, activity_standing
 from weak_spots import _course_lessons, _build, _published_game_activities
 from learner_exercise import exercise_score, EXERCISE_ITEMS
 
@@ -142,10 +142,15 @@ def lesson_insights(cursor, acc_id, resource_id, groups=None):
         per_type = {}
         for act in _published_game_activities(cursor, resource_id):
             activity_type = act["activity_type_name"]
-            ids = item_ids_for_activity(cursor, activity_type, act["la_id"])
-            answered, right = _first_try_counts(cursor, acc_id, activity_type, ids)
+            standing = activity_standing(cursor, acc_id, activity_type, act["la_id"])
+            if standing["model"] == "legacy":
+                ids = item_ids_for_activity(cursor, activity_type, act["la_id"])
+                answered, right = _first_try_counts(cursor, acc_id, activity_type, ids)
+            else:
+                # feat/question-pool-draw: the questions drawn for the FIRST play
+                answered, right = standing["first_answered"], standing["first_correct"]
             entry = per_type.setdefault(activity_type, {"total": 0, "answered": 0, "right": 0})
-            entry["total"] += len(ids)
+            entry["total"] += standing["slots"]
             entry["answered"] += answered
             entry["right"] += right
 

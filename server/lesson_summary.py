@@ -30,7 +30,7 @@ project's existing convention.
 
 from mysql.connector import Error
 from cobradb import get_db_connection
-from activity_retakes import ensure_retake_schema
+from activity_retakes import ensure_retake_schema, DRAW_SIZE
 from module_performance import module_performance, lesson_grade_percent, lesson_content_progress
 from learner_exercise import exercise_score
 
@@ -95,7 +95,8 @@ def get_lesson_performance_summary(acc_id, resource_id):
                 cursor.execute("SELECT COUNT(*) AS cnt FROM flashcards_tbl WHERE la_id = %s", (la_id,))
             else:
                 cursor.execute("SELECT 0 AS cnt")
-            item_total = cursor.fetchone()["cnt"]
+            # feat/question-pool-draw: a play draws DRAW_SIZE (5) of the pool
+            item_total = min(DRAW_SIZE, cursor.fetchone()["cnt"])
 
             cursor.execute(
                 "SELECT status, score FROM learner_activity_progress_tbl WHERE acc_id = %s AND la_id = %s",

@@ -48,10 +48,10 @@ def flashcard_start():
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
     data = request.get_json(silent=True) or {}
-    state, error_message = start_flashcard_play(acc_id, data.get("la_id"))
+    state, error_message = start_flashcard_play(acc_id, data.get("la_id"), boot=data.get("boot") is True)
     if state is None:
         return _fail(error_message)
-    return jsonify({"success": True, "state": state}), 200
+    return jsonify({"success": True, "state": state, "cards": state["items"]}), 200
 
 
 @learner_flashcard_bp.route("/api/lesson-activities/flashcard-answer", methods=["POST"])

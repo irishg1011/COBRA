@@ -343,3 +343,59 @@ def stop_run(run_id, acc_id):
             return False
     _finish_run(run_id, stopped_by_user=True)
     return True
+
+# ------------------------------------------------------------------
+# ONE-SHOT RUN (feat/fib-console) - Fill in the Blanks runs the item's
+# code with the learner's answer in the blank, start to finish, and
+# compares what it printed with the item's Expected Output. Same child
+# process rules as the sandbox (-I, temp dir, POSIX resource caps), but
+# no stdin (Fill in the Blanks code must not need input()) and a short
+# wall-clock limit so a loop that never ends cannot hang the game.
+# ------------------------------------------------------------------
+ONE_SHOT_SECONDS = 3
+
+
+def run_once(code, timeout=ONE_SHOT_SECONDS):
+    """
+    Runs `code` once. Returns {"output": str, "error": str, "timed_out": bool}.
+    `error` is the Python traceback (stderr) when the code stopped with one,
+    or a short message when it was stopped by the time limit.
+    """
+    code = "" if code is None else str(code)
+    if len(code) > MAX_CODE_LENGTH:
+        return {"output": "", "error": "The code is too long to run.", "timed_out": False}
+    temp_dir = tempfile.mkdtemp(prefix="cobrabyte_once_")
+    script_path = os.path.join(temp_dir, "main.py")
+    try:
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        kwargs = dict(
+            args=[sys.executable, "-I", script_path],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            cwd=temp_dir,
+            timeout=timeout,
+        )
+        if os.name != "nt":
+            kwargs["preexec_fn"] = _limit_resources
+        try:
+            done = subprocess.run(**kwargs)
+        except subprocess.TimeoutExpired as e:
+            partial = e.stdout or ""
+            if isinstance(partial, bytes):
+                partial = partial.decode("utf-8", "replace")
+            return {
+                "output": partial[:MAX_OUTPUT_CHARS],
+                "error": f"TimeoutError: the code was stopped after {timeout} seconds (is there a loop that never ends?)",
+                "timed_out": True,
+            }
+        error = (done.stderr or "").strip()
+        # Tracebacks name the temp file; show it the way exercises do.
+        error = error.replace(f'File "{script_path}"', 'File "<string>"')
+        return {"output": (done.stdout or "")[:MAX_OUTPUT_CHARS], "error": error if done.returncode else "",
+                "timed_out": False}
+    except Exception as e:
+        return {"output": "", "error": f"Could not run the code: {e}", "timed_out": False}
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)

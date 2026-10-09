@@ -87,6 +87,10 @@ def ensure_retake_schema(connection):
             cursor.execute(
                 f"ALTER TABLE {answers_table} ADD INDEX IF NOT EXISTS idx_retake_id (retake_id)"
             )
+            # feat/question-pool-draw: answers given in a play (see game_plays.py)
+            cursor.execute(
+                f"ALTER TABLE {answers_table} ADD COLUMN IF NOT EXISTS play_id INT(10) DEFAULT NULL"
+            )
         cursor.close()
         _retake_schema_ensured = True
         return True
@@ -134,7 +138,7 @@ def passed_item_ids(cursor, acc_id, activity_type, item_ids):
 
     cursor.execute(
         f"""SELECT DISTINCT {id_col} AS item_id FROM {answers_table}
-            WHERE acc_id = %s AND attempt_number = 1 AND status = 'correct'
+            WHERE acc_id = %s AND attempt_number = 1 AND status = 'correct' AND play_id IS NULL
               AND {id_col} IN ({placeholders})""",
         params
     )
@@ -145,7 +149,8 @@ def passed_item_ids(cursor, acc_id, activity_type, item_ids):
             FROM {answers_table} a
             JOIN (SELECT MIN(answer_id) AS first_id
                   FROM {answers_table}
-                  WHERE acc_id = %s AND retake_id IS NOT NULL AND {id_col} IN ({placeholders})
+                  WHERE acc_id = %s AND retake_id IS NOT NULL AND play_id IS NULL
+                    AND {id_col} IN ({placeholders})
                   GROUP BY retake_id, {id_col}) f ON a.answer_id = f.first_id
             WHERE a.status = 'correct'""",
         params
@@ -154,11 +159,151 @@ def passed_item_ids(cursor, acc_id, activity_type, item_ids):
     return passed
 
 
-def missed_item_ids(cursor, acc_id, activity_type, la_id):
-    """Items of this activity (in play order) the learner still has to retake."""
+# ---------------- feat/question-pool-draw: standing per DRAWN slots ----------------
+# Since the pool + draw release, an activity is scored on the questions the
+# learner's FIRST PLAY drew (5), not on the whole pool (50):
+#     slots    = items drawn in the first play
+#     passed   = correct in the first play + correct answers in retake plays
+#                (each correct retake answer turns one missed slot into passed)
+#     missed   = slots - passed
+# Learners who played before the release keep their old results: no first
+# play row -> the old per-item rule (passed_item_ids) over the whole activity.
+PLAYS_TABLE = "activity_plays_tbl"
+PLAY_ITEMS_TABLE = "activity_play_items_tbl"
+DRAW_SIZE = 5
+
+
+def _plays_exist(cursor):
+    cursor.execute("SHOW TABLES LIKE %s", (PLAYS_TABLE,))
+    found = cursor.fetchone() is not None
+    return found
+
+
+def _first_play_items(cursor, acc_id, la_id):
+    """[(item_id, outcome)] of the learner's first play (None when there is none)."""
+    if not _plays_exist(cursor):
+        return None
+    cursor.execute(
+        f"""SELECT play_id FROM {PLAYS_TABLE}
+            WHERE acc_id = %s AND la_id = %s AND play_kind = 'first'
+            ORDER BY play_id ASC LIMIT 1""",
+        (acc_id, la_id)
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    play_id = _row_value(row, "play_id")
+    cursor.execute(
+        f"""SELECT item_id, outcome FROM {PLAY_ITEMS_TABLE}
+            WHERE play_id = %s AND (outcome IS NULL OR outcome <> 'replaced')
+            ORDER BY position ASC, play_item_id ASC""",
+        (play_id,)
+    )
+    out = []
+    for r in cursor.fetchall():
+        out.append((_row_value(r, "item_id"), r["outcome"] if isinstance(r, dict) else r[1]))
+    return out
+
+
+def _retake_correct(cursor, acc_id, la_id):
+    if not _plays_exist(cursor):
+        return 0
+    cursor.execute(
+        f"""SELECT COUNT(*) AS cnt FROM {PLAY_ITEMS_TABLE} pi
+            JOIN {PLAYS_TABLE} p ON p.play_id = pi.play_id
+            WHERE p.acc_id = %s AND p.la_id = %s AND p.play_kind = 'retake' AND pi.outcome = 'correct'""",
+        (acc_id, la_id)
+    )
+    return _row_value(cursor.fetchone(), "cnt") or 0
+
+
+def _has_legacy_answers(cursor, acc_id, activity_type, item_ids):
+    if not item_ids:
+        return False
+    answers_table, id_col, _, _ = GAME_TABLES[activity_type]
+    placeholders = ",".join(["%s"] * len(item_ids))
+    cursor.execute(
+        f"SELECT 1 FROM {answers_table} WHERE acc_id = %s AND play_id IS NULL AND {id_col} IN ({placeholders}) LIMIT 1",
+        tuple([acc_id] + list(item_ids))
+    )
+    return cursor.fetchone() is not None
+
+
+def activity_standing(cursor, acc_id, activity_type, la_id):
+    """
+    {"model": "pool"|"legacy"|"new", "slots", "passed", "missed",
+     "first_correct", "first_answered", "first_missed_ids"} for one learner
+    and one activity. "new" = not played yet (slots = what the draw will give).
+    """
+    if activity_type not in GAME_TABLES:
+        return {"model": "none", "slots": 0, "passed": 0, "missed": 0, "first_correct": 0,
+                "first_answered": 0, "first_missed_ids": []}
+    first = _first_play_items(cursor, acc_id, la_id)
+    retake_correct = _retake_correct(cursor, acc_id, la_id)
+    if first is not None:
+        slots = len(first)
+        first_correct = sum(1 for _i, o in first if o == "correct")
+        passed = min(slots, first_correct + retake_correct)
+        return {
+            "model": "pool", "slots": slots, "passed": passed, "missed": slots - passed,
+            "first_correct": first_correct,
+            "first_answered": sum(1 for _i, o in first if o is not None),
+            "first_missed_ids": [i for i, o in first if o is not None and o != "correct"],
+        }
     item_ids = item_ids_for_activity(cursor, activity_type, la_id)
-    passed = passed_item_ids(cursor, acc_id, activity_type, item_ids)
-    return [i for i in item_ids if i not in passed], len(item_ids)
+    if not _has_legacy_answers(cursor, acc_id, activity_type, item_ids):
+        slots = min(DRAW_SIZE, len(item_ids))
+        return {"model": "new", "slots": slots, "passed": 0, "missed": slots, "first_correct": 0,
+                "first_answered": 0, "first_missed_ids": []}
+    passed_set = passed_item_ids(cursor, acc_id, activity_type, item_ids)
+    first_ok = _first_try_correct_ids(cursor, acc_id, activity_type, item_ids)
+    slots = len(item_ids)
+    passed = min(slots, len(passed_set) + retake_correct)
+    return {
+        "model": "legacy", "slots": slots, "passed": passed, "missed": slots - passed,
+        "first_correct": len(first_ok),
+        "first_answered": len(_first_answered_ids(cursor, acc_id, activity_type, item_ids)),
+        "first_missed_ids": [i for i in item_ids if i not in first_ok],
+    }
+
+
+def _first_try_correct_ids(cursor, acc_id, activity_type, item_ids):
+    answers_table, id_col, _, _ = GAME_TABLES[activity_type]
+    placeholders = ",".join(["%s"] * len(item_ids))
+    cursor.execute(
+        f"""SELECT DISTINCT {id_col} AS item_id FROM {answers_table}
+            WHERE acc_id = %s AND attempt_number = 1 AND status = 'correct' AND play_id IS NULL
+              AND {id_col} IN ({placeholders})""",
+        tuple([acc_id] + list(item_ids))
+    )
+    return {_row_value(r, "item_id") for r in cursor.fetchall()}
+
+
+def _first_answered_ids(cursor, acc_id, activity_type, item_ids):
+    answers_table, id_col, _, _ = GAME_TABLES[activity_type]
+    placeholders = ",".join(["%s"] * len(item_ids))
+    cursor.execute(
+        f"""SELECT DISTINCT {id_col} AS item_id FROM {answers_table}
+            WHERE acc_id = %s AND attempt_number = 1 AND play_id IS NULL AND {id_col} IN ({placeholders})""",
+        tuple([acc_id] + list(item_ids))
+    )
+    return {_row_value(r, "item_id") for r in cursor.fetchall()}
+
+
+def first_play_missed_ids(cursor, acc_id, activity_type, la_id):
+    """Items missed in the FIRST play - weak-spot analysis; retakes never change it."""
+    return activity_standing(cursor, acc_id, activity_type, la_id)["first_missed_ids"]
+
+
+def missed_item_ids(cursor, acc_id, activity_type, la_id):
+    """
+    (missed ids, slots): the first play's missed items still not made up by
+    retakes (len = missed slots), and the activity's slot count. Used for
+    tracking (mentor recommendations resolve as retakes fix slots).
+    """
+    standing = activity_standing(cursor, acc_id, activity_type, la_id)
+    ids = standing["first_missed_ids"][:standing["missed"]]
+    return ids, standing["slots"]
 
 
 def open_retake(cursor, acc_id, la_id, lock=True):

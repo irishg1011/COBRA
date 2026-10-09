@@ -54,8 +54,8 @@ RECOMMENDATIONS_TABLE = "lesson_recommendations_tbl"
 #                  one was lost.
 #   bonus_lives    0..MAX_BONUS_LIVES (5), handed out every day at 8:00 AM
 #                  Philippine time (with a full regular refill), so a day
-#                  starts at 10. Spent BEFORE regular lives and never
-#                  refilled by the 10-minute timer.
+#                  starts at 10. A separate RESERVE (feat/lives-5v5): used only once
+#                  the regular lives are at 0; never refilled by the 10-minute timer.
 #
 # Every lives timestamp is Philippine time (UTC+8), taken from the
 # database's UTC clock, so neither the server's nor MySQL's timezone
@@ -152,7 +152,12 @@ def get_published_activities_for_resource(resource_id, acc_id=None):
 
             # Multiple Choice is rendered as the cobra arena on the learner
             # page - options go out WITHOUT is_correct/feedback.
-            if activity_type == MCQ_TYPE_NAME:
+            if acc_id:
+                # feat/question-pool-draw: a learner never gets the pool. Each
+                # play's drawn questions come with the game's own state, one
+                # at a time as they are revealed (game_plays.py).
+                entry["pool_size"] = _pool_size(cursor, activity_type, la_id)
+            elif activity_type == MCQ_TYPE_NAME:
                 cursor.execute(
                     f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
                     (la_id,)
@@ -209,6 +214,15 @@ def get_published_activities_for_resource(resource_id, acc_id=None):
     finally:
         if connection.is_connected():
             connection.close()
+
+
+def _pool_size(cursor, activity_type, la_id):
+    table = {MCQ_TYPE_NAME: MCQ_QUESTIONS_TABLE, "Fill in the Blanks": FILL_BLANKS_TABLE,
+             "Flashcards": FLASHCARDS_TABLE}.get(activity_type)
+    if not table:
+        return 0
+    cursor.execute(f"SELECT COUNT(*) AS cnt FROM {table} WHERE la_id = %s", (la_id,))
+    return cursor.fetchone()["cnt"]
 
 
 def check_mcq_answer(q_id, selected_option_id):
@@ -597,17 +611,11 @@ def get_activity_type_name(la_id):
 #   learner_activity_progress_tbl         written ONLY on completion
 #                                         (status + first-attempt score)
 #
-# Rules:
-#   - wrong answer: -1 life, logged 'incorrect' and the play MOVES ON to
-#     the next question (adviser's rule: the first try is what counts; a
-#     missed question is fixed later in a retake round, not by retrying)
-#   - skip (from the question preview): -1 life, logged 'skipped', moves on
-#   - correct answer: move to the next question
-#   - wall hit / self-bite: -1 life, nothing logged as an answer
-#   - 0 lives: the play is paused on its current question - never reset
-#   - lives: 5 regular (full refill 10 min after the first loss) + 5
-#     daily bonus lives at 8:00 AM PH time, bonus spent first
-#   - resuming continues the SAME play (no new session row)
+# Rules (feat/question-pool-draw .. feat/leave-detection): see
+# game_plays.py - each play draws 5 unseen questions, one attempt per
+# question (wrong / skip / time out / leaving = -1 life, then the next
+# question), 0 lives pauses the play before the next question is
+# revealed, resuming continues the SAME play.
 # ============================================================
 def ensure_activity_game_schema(connection):
     """
@@ -770,18 +778,18 @@ def _total_lives(pool):
 
 def _take_life(pool):
     """
-    -1 life: bonus lives go first, then regular lives. Losing the first
-    regular life starts the 10-minute full-refill timer (later losses
-    don't restart it).
+    -1 life (feat/lives-5v5): the regular lives (max 5) go first; the daily
+    bonus lives are a separate reserve, used only once the regular lives
+    are at 0. Losing the first regular life starts the 10-minute full-refill
+    timer (later losses don't restart it).
     """
+    if pool["lives"] > 0:
+        pool["lives"] -= 1
+        if pool["regen_at"] is None:
+            pool["regen_at"] = pool["db_now"]
+        return
     if pool["bonus"] > 0:
         pool["bonus"] -= 1
-        return
-    if pool["lives"] <= 0:
-        return
-    pool["lives"] -= 1
-    if pool["regen_at"] is None:
-        pool["regen_at"] = pool["db_now"]
 
 
 def _save_lives(cursor, pool):
@@ -799,8 +807,10 @@ def _save_lives(cursor, pool):
 
 def lives_payload(pool):
     """
-    What any game's browser code gets about lives. The HUD shows
-    total_lives / max_lives (e.g. "7/5": 5 regular + 2 bonus).
+    What any game's browser code gets about lives (feat/lives-5v5): the
+    main bar shows the regular lives out of max_lives (never more than 5);
+    the daily bonus is shown beside it as a separate reserve
+    (reserve_lives). total_lives (regular + reserve) is what decides a pause.
     """
     now = pool["db_now"]
     refill_in = 0
@@ -811,6 +821,7 @@ def lives_payload(pool):
         "lives": pool["lives"],
         "bonus_lives": pool["bonus"],
         "total_lives": _total_lives(pool),
+        "reserve_lives": pool["bonus"],
         "max_lives": MAX_LIVES,
         "max_bonus_lives": MAX_BONUS_LIVES,
         "refill_seconds": LIFE_REFILL_SECONDS,
@@ -828,586 +839,36 @@ total_lives = _total_lives
 
 
 # ---------------- Multiple Choice play ----------------
-def _first_attempt_score(cursor, acc_id, la_id):
-    """Questions in la_id answered correctly on attempt_number = 1."""
-    cursor.execute(
-        f"""SELECT COUNT(*) AS cnt
-            FROM {MCQ_ANSWERS_TABLE} a
-            JOIN {MCQ_QUESTIONS_TABLE} q ON a.q_id = q.q_id
-            WHERE a.acc_id = %s AND q.la_id = %s
-              AND a.attempt_number = 1 AND a.status = 'correct'""",
-        (acc_id, la_id)
-    )
-    return cursor.fetchone()["cnt"]
-
-
-def _solved_q_ids(cursor, acc_id, q_ids):
-    """
-    Questions this learner is DONE with in the first play: answered
-    (right or wrong - a wrong answer moves on) or skipped. Retake rounds
-    keep their own list (activity_retakes.py).
-    """
-    if not q_ids:
-        return set()
-    placeholders = ",".join(["%s"] * len(q_ids))
-    cursor.execute(
-        f"""SELECT DISTINCT q_id FROM {MCQ_ANSWERS_TABLE}
-            WHERE acc_id = %s AND status IN ('correct', 'incorrect', 'skipped')
-              AND retake_id IS NULL AND q_id IN ({placeholders})""",
-        tuple([acc_id] + q_ids)
-    )
-    return {r["q_id"] for r in cursor.fetchall()}
-
-
-def _first_unsolved_index(cursor, acc_id, q_ids):
-    """
-    Fallback position when the stored current_q_id no longer exists
-    (question removed after the learner started): the first question
-    in order that this learner hasn't answered correctly (or skipped) yet.
-    """
-    if not q_ids:
-        return 0
-    solved = _solved_q_ids(cursor, acc_id, q_ids)
-    for i, q_id in enumerate(q_ids):
-        if q_id not in solved:
-            return i
-    return len(q_ids)
-
-
-def _open_mcq(cursor, acc_id, la_id):
-    """
-    Shared opening for every Multiple Choice arena call: confirms la_id
-    is a Published Multiple Choice activity, loads its ordered question
-    ids, locks the learner's lives pool (applying regen) and their latest
-    play for this activity. Returns None if it isn't one.
-    """
-    cursor.execute(
-        f"""SELECT la.activity_type_id
-            FROM {LEARNING_ACTIVITIES_TABLE} la
-            JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
-            JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
-            WHERE la.la_id = %s AND las.la_stats_name = 'Published'
-              AND atp.activity_type_name = %s""",
-        (la_id, MCQ_TYPE_NAME)
-    )
-    activity = cursor.fetchone()
-    if activity is None:
-        return None
-
-    cursor.execute(
-        f"SELECT q_id FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY sort_order ASC, q_id ASC",
-        (la_id,)
-    )
-    # feat/learner-shuffle: this learner's own question order (stable for them).
-    q_ids = learner_order(acc_id, activity_scope(la_id), [r["q_id"] for r in cursor.fetchall()])
-
-    # Lock order everywhere: lives pool first, then the session row.
-    pool = _load_lives(cursor, acc_id, activity["activity_type_id"])
-
-    cursor.execute(
-        f"""SELECT session_id, current_q_id, score, status
-            FROM {MCQ_SESSIONS_TABLE}
-            WHERE acc_id = %s AND la_id = %s
-            ORDER BY session_id DESC LIMIT 1 FOR UPDATE""",
-        (acc_id, la_id)
-    )
-    session_row = cursor.fetchone()
-
-    cursor.execute(
-        f"""SELECT 1 FROM {PROGRESS_TABLE}
-            WHERE acc_id = %s AND la_id = %s AND status = 'completed' LIMIT 1""",
-        (acc_id, la_id)
-    )
-    progress_done = cursor.fetchone() is not None
-    completed = progress_done or bool(session_row and session_row["status"] == "completed")
-
-    # Repair: the play finished (session completed) but the activity's
-    # progress row isn't 'completed' - e.g. it was removed while testing.
-    # Without this the game shows "Activity complete" while the lesson
-    # refuses to finish, because lesson completion reads the progress row.
-    if completed and not progress_done:
-        _save_mcq_progress(cursor, acc_id, la_id, _first_attempt_score(cursor, acc_id, la_id))
-
-    if session_row and session_row["current_q_id"] in q_ids:
-        index = q_ids.index(session_row["current_q_id"])
-    elif session_row:
-        index = _first_unsolved_index(cursor, acc_id, q_ids)
-    else:
-        index = 0
-
-    ctx = {
-        "acc_id": acc_id,
-        "la_id": la_id,
-        "q_ids": q_ids,
-        "pool": pool,
-        "session": session_row,
-        "index": index,
-        "completed": completed,
-        "retake": None,
-    }
-    retake = open_retake(cursor, acc_id, la_id)
-    if retake:
-        _enter_mcq_retake(cursor, ctx, retake)
-    return ctx
-
-
-def _enter_mcq_retake(cursor, ctx, retake):
-    """
-    Retake mode (Module 85% gate): an in-progress retake round exists, so
-    this play covers ONLY that round's questions. Position comes from the
-    answers already given in the round; the round has no session row -
-    its "session" lives in memory: in_progress while there are lives,
-    paused at 0 (same rules as a normal play). The normal play's session
-    and its first-attempt score are never touched.
-    """
-    q_ids = [q for q in retake["item_ids"] if q in ctx["q_ids"]]
-    done, _ = retake_progress(cursor, ctx["acc_id"], MCQ_TYPE_NAME, retake)
-    ctx["q_ids"] = q_ids
-    ctx["index"] = next((i for i, q in enumerate(q_ids) if q not in done), len(q_ids))
-    ctx["completed"] = False
-    ctx["retake"] = retake
-    ctx["session"] = {
-        "session_id": None,
-        "current_q_id": q_ids[ctx["index"]] if ctx["index"] < len(q_ids) else None,
-        "score": 0,
-        "status": "in_progress" if _total_lives(ctx["pool"]) > 0 else "paused",
-    }
-
-
-def _retake_id(ctx):
-    """retake_id to stamp on an answer row (None for the normal play)."""
-    return ctx["retake"]["retake_id"] if ctx.get("retake") else None
-
-
-def _mcq_state(cursor, ctx):
-    """The only Multiple Choice arena state the browser ever receives."""
-    pool = ctx["pool"]
-    session_row = ctx["session"]
-    q_ids = ctx["q_ids"]
-    index = ctx["index"]
-    state = lives_payload(pool)
-    state.update({
-        "session_status": session_row["status"] if session_row else None,
-        "current_index": index,
-        "current_q_id": q_ids[index] if index < len(q_ids) else None,
-        "total": len(q_ids),
-        "score": _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]),
-        "completed": ctx["completed"],
-        "retake": None,
-    })
-    retake = ctx.get("retake")
-    if retake:
-        _, fixed = retake_progress(cursor, ctx["acc_id"], MCQ_TYPE_NAME, retake)
-        state["retake"] = retake_payload(retake, len(q_ids), len(fixed & set(q_ids)), ctx["completed"])
-    return state
-
-
-def _save_mcq_progress(cursor, acc_id, la_id, score):
-    """learner_activity_progress_tbl row -> completed with this score."""
-    cursor.execute(
-        f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
-        (acc_id, la_id)
-    )
-    existing = cursor.fetchone()
-    if existing:
-        cursor.execute(
-            f"""UPDATE {PROGRESS_TABLE}
-                SET status = 'completed', score = %s, completed_at = NOW()
-                WHERE progress_id = %s""",
-            (score, existing["progress_id"])
-        )
-    else:
-        cursor.execute(
-            f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
-                VALUES (%s, %s, 'completed', %s, NOW())""",
-            (acc_id, la_id, score)
-        )
-
-
-def _complete_mcq(cursor, ctx):
-    """
-    Finishes the play: session -> completed, and the existing
-    learner_activity_progress_tbl row -> completed with the
-    first-attempt score. No answer rows are touched.
-    """
-    if ctx.get("retake"):
-        # Retake round finished: only the round closes - the activity's
-        # progress row and first-attempt score stay as they were.
-        complete_retake(cursor, ctx["retake"]["retake_id"])
-        ctx["session"]["status"] = "completed"
-        ctx["completed"] = True
-        ctx["index"] = len(ctx["q_ids"])
-        return
-    acc_id, la_id = ctx["acc_id"], ctx["la_id"]
-    score = _first_attempt_score(cursor, acc_id, la_id)
-    session_row = ctx["session"]
-    if session_row:
-        cursor.execute(
-            f"""UPDATE {MCQ_SESSIONS_TABLE}
-                SET status = 'completed', score = %s, current_q_id = NULL, completed_at = NOW()
-                WHERE session_id = %s""",
-            (score, session_row["session_id"])
-        )
-        session_row["status"] = "completed"
-
-    cursor.execute(
-        f"SELECT progress_id FROM {PROGRESS_TABLE} WHERE acc_id = %s AND la_id = %s ORDER BY progress_id ASC LIMIT 1",
-        (acc_id, la_id)
-    )
-    existing = cursor.fetchone()
-    if existing:
-        cursor.execute(
-            f"""UPDATE {PROGRESS_TABLE}
-                SET status = 'completed', score = %s, completed_at = NOW()
-                WHERE progress_id = %s""",
-            (score, existing["progress_id"])
-        )
-    else:
-        cursor.execute(
-            f"""INSERT INTO {PROGRESS_TABLE} (acc_id, la_id, status, score, completed_at)
-                VALUES (%s, %s, 'completed', %s, NOW())""",
-            (acc_id, la_id, score)
-        )
-    ctx["completed"] = True
-    ctx["index"] = len(ctx["q_ids"])
-
-
-def _pause_if_out_of_lives(cursor, ctx):
-    """
-    0 lives -> the in-progress play is paused on its current question.
-    Also catches lives spent on ANOTHER Multiple Choice activity (the
-    pool is shared) since this play was last touched.
-    """
-    session_row = ctx["session"]
-    if (session_row and session_row["status"] == "in_progress"
-            and _total_lives(ctx["pool"]) <= 0 and not ctx["completed"]):
-        if ctx.get("retake"):
-            session_row["status"] = "paused"   # retake rounds pause in memory only
-            return
-        cursor.execute(
-            f"UPDATE {MCQ_SESSIONS_TABLE} SET status = 'paused', paused_at = NOW() WHERE session_id = %s",
-            (session_row["session_id"],)
-        )
-        session_row["status"] = "paused"
-
-
-def _settle_position(cursor, ctx):
-    """
-    Keeps the stored position valid: finishes the play if every
-    question is already behind the learner (e.g. questions were removed
-    after they started), otherwise re-points current_q_id if it drifted.
-    """
-    session_row = ctx["session"]
-    if not session_row or ctx["completed"]:
-        return
-    if ctx["index"] >= len(ctx["q_ids"]) and (ctx["q_ids"] or ctx.get("retake")):
-        _complete_mcq(cursor, ctx)
-        return
-    if ctx.get("retake"):
-        return
-    if ctx["q_ids"]:
-        wanted = ctx["q_ids"][ctx["index"]]
-        if session_row["current_q_id"] != wanted:
-            cursor.execute(
-                f"UPDATE {MCQ_SESSIONS_TABLE} SET current_q_id = %s WHERE session_id = %s",
-                (wanted, session_row["session_id"])
-            )
-            session_row["current_q_id"] = wanted
-
-
-def _run_mcq(acc_id, la_id, action, error_label):
-    """
-    Opens a connection + transaction, runs action(cursor, ctx) and
-    commits. action returns (payload, error_message). Shared by every
-    public Multiple Choice arena function below.
-    """
-    la_id = _to_int(la_id)
-    if not la_id:
-        return None, "la_id is required."
-    connection = get_db_connection()
-    if connection is None:
-        return None, "Could not connect to the database."
-    try:
-        ensure_activity_game_schema(connection)
-        cursor = connection.cursor(dictionary=True)
-        ctx = _open_mcq(cursor, acc_id, la_id)
-        if ctx is None:
-            connection.rollback()
-            cursor.close()
-            return None, "This activity is not available."
-
-        _settle_position(cursor, ctx)
-        _pause_if_out_of_lives(cursor, ctx)
-        payload, error_message = action(cursor, ctx)
-        if payload is None:
-            connection.rollback()
-            cursor.close()
-            return None, error_message
-
-        _save_lives(cursor, ctx["pool"])
-        connection.commit()
-        cursor.close()
-        return payload, None
-    except Error as e:
-        connection.rollback()
-        print(f"lesson_activities: {error_label} failed for la_id={la_id}: {e}")
-        return None, "Something went wrong. Your progress is saved."
-    finally:
-        if connection.is_connected():
-            connection.close()
-
-
+# feat/question-pool-draw: every rule of a play (draw of 5 unseen
+# questions, one attempt, timer, leaving the page, retakes) lives in
+# game_plays.py, shared by the three games. These keep the names the
+# routes always used.
 def get_mcq_activity_state(acc_id, la_id):
-    """
-    Current arena state for this learner (see _mcq_state()), with life
-    regeneration applied and saved. Never creates a play.
-    Returns (state, error_message).
-    """
-    def action(cursor, ctx):
-        return _mcq_state(cursor, ctx), None
-    return _run_mcq(acc_id, la_id, action, "load MCQ state")
+    """Current arena state (never creates a play). Returns (state, error)."""
+    from game_plays import get_state
+    return get_state(acc_id, la_id, MCQ_TYPE_NAME)
 
 
-def play_mcq_activity(acc_id, la_id):
-    """
-    Start-or-resume, the ONLY place a play is created:
-      - completed                -> nothing changes
-      - play in progress         -> same play continues (no new row)
-      - play paused, lives >= 1  -> same play resumes (resumed_at)
-      - play paused, 0 lives     -> stays paused
-      - no play yet, lives >= 1  -> ONE new play at the first question
-      - no play yet, 0 lives     -> nothing is created
-    Returns (state, error_message).
-    """
-    def action(cursor, ctx):
-        session_row = ctx["session"]
-        lives = _total_lives(ctx["pool"])
-        if ctx["completed"] or not ctx["q_ids"]:
-            return _mcq_state(cursor, ctx), None
-
-        if session_row and session_row["status"] == "paused":
-            if lives > 0:
-                if not ctx.get("retake"):
-                    cursor.execute(
-                        f"""UPDATE {MCQ_SESSIONS_TABLE}
-                            SET status = 'in_progress', resumed_at = NOW()
-                            WHERE session_id = %s""",
-                        (session_row["session_id"],)
-                    )
-                session_row["status"] = "in_progress"
-        elif not session_row and lives > 0:
-            index = _first_unsolved_index(cursor, ctx["acc_id"], ctx["q_ids"])
-            if index >= len(ctx["q_ids"]):
-                index = 0
-            cursor.execute(
-                f"""INSERT INTO {MCQ_SESSIONS_TABLE}
-                    (acc_id, la_id, current_q_id, score, status, started_at)
-                    VALUES (%s, %s, %s, 0, 'in_progress', NOW())""",
-                (ctx["acc_id"], ctx["la_id"], ctx["q_ids"][index])
-            )
-            ctx["session"] = {
-                "session_id": cursor.lastrowid,
-                "current_q_id": ctx["q_ids"][index],
-                "score": 0,
-                "status": "in_progress",
-            }
-            ctx["index"] = index
-        return _mcq_state(cursor, ctx), None
-    return _run_mcq(acc_id, la_id, action, "start/resume MCQ play")
-
-
-def _valid_recommendation_id(cursor, acc_id, recommendation_id):
-    """Only links a recommendation that exists and belongs to this learner."""
-    recommendation_id = _to_int(recommendation_id)
-    if not recommendation_id:
-        return None
-    cursor.execute(
-        f"SELECT 1 FROM {RECOMMENDATIONS_TABLE} WHERE recommendation_id = %s AND acc_id = %s",
-        (recommendation_id, acc_id)
-    )
-    return recommendation_id if cursor.fetchone() else None
+def play_mcq_activity(acc_id, la_id, boot=False):
+    """Start-or-resume the ONE play and reveal its current question."""
+    from game_plays import start_play
+    return start_play(acc_id, la_id, MCQ_TYPE_NAME, boot=boot)
 
 
 def submit_mcq_answer(acc_id, la_id, q_id, option_id, recommendation_id=None):
-    """
-    Grades the pellet the cobra ate and appends it to
-    mcq_learner_answers_tbl (never overwrites - attempt_number counts up
-    per learner/question, so attempt 1 stays the first attempt).
-
-      correct -> next question (or completes the activity)
-      wrong   -> -1 life and ALSO the next question (no retrying - the
-                 first try is what counts; retakes fix missed items);
-                 at 0 lives the play pauses on that next question
-
-    The correct option is never revealed after a wrong answer.
-    payload["graded"] is False when nothing was graded (no running play,
-    out of lives, completed, or the browser is on a different question)
-    and payload["state"] tells the browser where it really is.
-    """
-    q_id, option_id = _to_int(q_id), _to_int(option_id)
-    if not q_id or not option_id:
-        return None, "An answer needs q_id and option_id."
-
-    def action(cursor, ctx):
-        session_row = ctx["session"]
-        index = ctx["index"]
-        q_ids = ctx["q_ids"]
-        pool = ctx["pool"]
-
-        if (ctx["completed"] or not session_row or session_row["status"] != "in_progress"
-                or _total_lives(pool) <= 0 or index >= len(q_ids) or q_ids[index] != q_id):
-            return {"graded": False, "state": _mcq_state(cursor, ctx)}, None
-
-        cursor.execute(
-            f"SELECT option_id, option_letter, option_text, is_correct, feedback FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s",
-            (q_id,)
-        )
-        options = cursor.fetchall()
-        selected = next((o for o in options if o["option_id"] == option_id), None)
-        if selected is None:
-            return None, "That answer does not belong to this question."
-
-        is_correct = bool(selected["is_correct"])
-        feedback = selected.get("feedback") or ""
-        rec_id = _valid_recommendation_id(cursor, ctx["acc_id"], recommendation_id)
-
-        cursor.execute(
-            f"SELECT COUNT(*) AS cnt FROM {MCQ_ANSWERS_TABLE} WHERE acc_id = %s AND q_id = %s",
-            (ctx["acc_id"], q_id)
-        )
-        attempt_number = cursor.fetchone()["cnt"] + 1
-        cursor.execute(
-            f"""INSERT INTO {MCQ_ANSWERS_TABLE}
-                (acc_id, q_id, option_id, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at, retake_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)""",
-            (ctx["acc_id"], q_id, option_id, attempt_number,
-             "correct" if is_correct else "incorrect",
-             "recommendation" if rec_id else "self",
-             rec_id, feedback, _retake_id(ctx))
-        )
-
-        if is_correct:
-            _advance_mcq(cursor, ctx)
-        else:
-            _take_life(pool)
-            _advance_mcq(cursor, ctx)   # move on - the miss is kept for the retake
-            _pause_if_out_of_lives(cursor, ctx)
-
-        payload = {
-            "graded": True,
-            "is_correct": is_correct,
-            "attempt_number": attempt_number,
-            "feedback": feedback,
-            "state": _mcq_state(cursor, ctx),
-        }
-        # The correct option is never sent back, not even after a wrong
-        # answer - learners only get the chosen option's feedback.
-        return payload, None
-    return _run_mcq(acc_id, la_id, action, "grade MCQ answer")
+    """One attempt on the current question (see game_plays.submit_answer)."""
+    from game_plays import submit_answer
+    return submit_answer(acc_id, la_id, q_id, {"option_id": option_id, "recommendation_id": recommendation_id},
+                         MCQ_TYPE_NAME)
 
 
-def _advance_mcq(cursor, ctx):
-    """Moves the play to the next question, or completes it after the last."""
-    session_row = ctx["session"]
-    q_ids = ctx["q_ids"]
-    if ctx.get("retake"):
-        ctx["index"] = ctx["index"] + 1
-        if ctx["index"] >= len(q_ids):
-            _complete_mcq(cursor, ctx)
-            return
-        session_row["current_q_id"] = q_ids[ctx["index"]]
-        return
-
-    # feat/learner-shuffle: go to the next question that is still UNSOLVED
-    # (wrapping to the start), and finish only when none is left - the same
-    # rule Flashcards uses. For a learner who plays straight through this is
-    # simply "the next one". It only matters when the order changed under a
-    # play already in progress (the shuffle going live mid-activity): nothing
-    # they already solved is asked again and nothing unsolved is left out.
-    solved = _solved_q_ids(cursor, ctx["acc_id"], q_ids)
-    remaining = [i for i, q in enumerate(q_ids) if q not in solved]
-    if not remaining:
-        ctx["index"] = len(q_ids)
-        _complete_mcq(cursor, ctx)
-        return
-    ctx["index"] = next((i for i in remaining if i > ctx["index"]), remaining[0])
-    next_q = q_ids[ctx["index"]]
-    cursor.execute(
-        f"""UPDATE {MCQ_SESSIONS_TABLE}
-            SET current_q_id = %s, score = %s
-            WHERE session_id = %s""",
-        (next_q, _first_attempt_score(cursor, ctx["acc_id"], ctx["la_id"]), session_row["session_id"])
-    )
-    session_row["current_q_id"] = next_q
-
-
-def skip_mcq_question(acc_id, la_id, q_id, from_preview=False):
-    """
-    Skip the current question. Appends a status 'skipped' row
-    (option_id NULL, no score) and moves to the next question; skipping
-    the last one completes the play.
-      - after a wrong answer (from_preview=False): costs no life (the
-        wrong answer already did); needs a wrong answer on it first
-      - from the question preview (from_preview=True): costs 1 life and
-        needs no earlier answer; 0 lives afterwards pauses the play on
-        the next question
-    payload["skipped"] is False when it wasn't allowed (no running play,
-    0 lives, a different question, or - after-wrong skip only - no wrong
-    answer on it yet).
-    """
-    q_id = _to_int(q_id)
-    if not q_id:
-        return None, "A skip needs q_id."
-
-    def action(cursor, ctx):
-        session_row = ctx["session"]
-        index = ctx["index"]
-        q_ids = ctx["q_ids"]
-        allowed = (not ctx["completed"] and session_row and session_row["status"] == "in_progress"
-                   and _total_lives(ctx["pool"]) > 0 and index < len(q_ids) and q_ids[index] == q_id)
-        if allowed and not from_preview:
-            cursor.execute(
-                f"""SELECT COUNT(*) AS wrong FROM {MCQ_ANSWERS_TABLE}
-                    WHERE acc_id = %s AND q_id = %s AND status = 'incorrect'""",
-                (ctx["acc_id"], q_id)
-            )
-            allowed = cursor.fetchone()["wrong"] > 0
-        if not allowed:
-            return {"skipped": False, "state": _mcq_state(cursor, ctx)}, None
-
-        cursor.execute(
-            f"SELECT COUNT(*) AS cnt FROM {MCQ_ANSWERS_TABLE} WHERE acc_id = %s AND q_id = %s",
-            (ctx["acc_id"], q_id)
-        )
-        attempt_number = cursor.fetchone()["cnt"] + 1
-        cursor.execute(
-            f"""INSERT INTO {MCQ_ANSWERS_TABLE}
-                (acc_id, q_id, option_id, attempt_number, status, source,
-                 recommendation_id, feedback_given, answered_at, retake_id)
-                VALUES (%s, %s, NULL, %s, 'skipped', 'self', NULL, NULL, NOW(), %s)""",
-            (ctx["acc_id"], q_id, attempt_number, _retake_id(ctx))
-        )
-        if from_preview:
-            _take_life(ctx["pool"])
-        _advance_mcq(cursor, ctx)
-        if from_preview:
-            _pause_if_out_of_lives(cursor, ctx)
-        return {"skipped": True, "state": _mcq_state(cursor, ctx)}, None
-    return _run_mcq(acc_id, la_id, action, "skip MCQ question")
+def skip_mcq_question(acc_id, la_id, q_id, from_preview=True):
+    """Skip always costs 1 life and is logged 'skipped' (no free skip any more)."""
+    from game_plays import skip_item
+    return skip_item(acc_id, la_id, q_id, MCQ_TYPE_NAME)
 
 
 def lose_mcq_life(acc_id, la_id):
-    """
-    Wall hit / self-bite in the arena: -1 life without logging an answer
-    or changing the current question. At 0 lives the play pauses.
-    Returns (state, error_message).
-    """
-    def action(cursor, ctx):
-        session_row = ctx["session"]
-        if (not ctx["completed"] and session_row
-                and session_row["status"] == "in_progress" and _total_lives(ctx["pool"]) > 0):
-            _take_life(ctx["pool"])
-            _pause_if_out_of_lives(cursor, ctx)
-        return _mcq_state(cursor, ctx), None
-    return _run_mcq(acc_id, la_id, action, "take MCQ life")
+    """Wall hit / self-bite in the arena: -1 life, no answer logged."""
+    from game_plays import lose_life
+    return lose_life(acc_id, la_id, MCQ_TYPE_NAME)

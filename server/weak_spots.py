@@ -27,8 +27,10 @@ HOW A PART IS FOUND (automatic - no admin tagging):
 So an item sends the learner to its own lesson, and to an earlier one only
 when its own lesson has no matching part.
 
-"Missed" = the same items the retake uses (activity_retakes.missed_item_ids):
-first attempt wrong or skipped, and not fixed in a retake round yet.
+"Missed" (feat/retake-unseen) = the items missed in the learner's FIRST
+play (activity_retakes.first_play_missed_ids) - retakes draw new questions,
+so they never change this list. The mentor's recommendation tracking uses
+the ones still not made up by retakes (missed_item_ids).
 
 RECOMMENDATIONS (lesson_recommendations_tbl - feat/mentor-recommendations)
 One row per learner + recommended part (the lesson part to re-read). Rows
@@ -67,6 +69,7 @@ from activity_retakes import (
     ensure_retake_schema,
     item_ids_for_activity,
     missed_item_ids,
+    first_play_missed_ids,
 )
 from module_performance import lesson_performance, module_performance, module_lesson_ids
 
@@ -244,18 +247,30 @@ def _first_answer(cursor, acc_id, activity_type, item_id):
         return "", ""
     if row["status"] == "skipped":
         return "Skipped", SKIPPED_FEEDBACK
+    # feat/question-timer + feat/leave-detection outcomes
+    if row["status"] == "timed_out":
+        return "Time ran out", (row.get("feedback") or "").strip()
+    if row["status"] == "left":
+        return "Left the page", (row.get("feedback") or "").strip()
     return (row.get("given") or ""), (row.get("feedback") or "").strip()
 
 
-def _missed_items(cursor, acc_id, resource_id):
+def _missed_items(cursor, acc_id, resource_id, tracking=False):
     """
-    The lesson's missed items with the text needed to match and to show them:
+    The lesson's missed items with the text needed to match and to show them.
+    feat/retake-unseen: the learner's list is the items missed in the FIRST
+    play (retakes never change it); tracking=True (mentor recommendations)
+    keeps only as many as are still missed, so a recommendation resolves
+    once retakes made up its activity's missed questions.
     [{"label", "activity_type", "prompt", "correct", "your_answer", "answer_text", "prompt_text"}]
     """
     items = []
     for act in _published_game_activities(cursor, resource_id):
         activity_type = act["activity_type_name"]
-        missed, _ = missed_item_ids(cursor, acc_id, activity_type, act["la_id"])
+        if tracking:
+            missed, _ = missed_item_ids(cursor, acc_id, activity_type, act["la_id"])
+        else:
+            missed = first_play_missed_ids(cursor, acc_id, activity_type, act["la_id"])
         if not missed:
             continue
         order = item_ids_for_activity(cursor, activity_type, act["la_id"])
@@ -346,7 +361,7 @@ def _best_section(item, candidates):
     return best_index
 
 
-def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None):
+def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None, tracking=False):
     """
     Groups of {part -> missed items} for the given lessons (one course scan).
     candidates_cache: pass the same dict when building for several learners,
@@ -359,7 +374,7 @@ def _build(cursor, acc_id, lessons_in_scope, course, candidates_cache=None):
 
     for lesson in lessons_in_scope:
         resource_id = lesson["resource_id"]
-        items = _missed_items(cursor, acc_id, resource_id)
+        items = _missed_items(cursor, acc_id, resource_id, tracking)
         if not items:
             continue
         if resource_id not in candidates_cache:
@@ -522,7 +537,7 @@ def _sync_module(connection, cursor, acc_id, module_id, course=None, candidates_
         lessons = [by_id[rid] for rid in module_lesson_ids(cursor, module_id) if rid in by_id]
         if not lessons:
             return True   # module not published right now - leave its rows as they are
-        groups = _build(cursor, acc_id, lessons, course, candidates_cache)
+        groups = _build(cursor, acc_id, lessons, course, candidates_cache, tracking=True)
         titles = {l["resource_id"]: l["resource_title"] for l in course}
         _save_recommendations(cursor, acc_id, module_id, groups, titles)
         connection.commit()
@@ -564,6 +579,7 @@ def get_weak_spots(acc_id, resource_id, scope="lesson"):
         # Always build the whole module (it's what gets saved as recommendations),
         # then return the scope that was asked for.
         module_groups = _build(cursor, acc_id, [by_id[rid] for rid in module_ids], course)
+        tracking_groups = _build(cursor, acc_id, [by_id[rid] for rid in module_ids], course, tracking=True)
 
         if scope == "module":
             groups = module_groups
@@ -578,7 +594,7 @@ def get_weak_spots(acc_id, resource_id, scope="lesson"):
 
         # The parts shown now count as "opened by the learner" (In Progress).
         titles = {l["resource_id"]: l["resource_title"] for l in course}
-        _save_recommendations(cursor, acc_id, module_id, module_groups, titles,
+        _save_recommendations(cursor, acc_id, module_id, tracking_groups, titles,
                               viewed_keys={(g["resource_id"], g["heading"]) for g in groups})
         connection.commit()
 

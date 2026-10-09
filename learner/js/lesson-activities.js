@@ -81,198 +81,21 @@
     // Module info from /api/lesson-activities (pass mark, retake state).
     let lessonMeta = { passPercent: 80, moduleNeedsRetake: false, moduleId: null };
 
-    async function checkAnswer(payload) {
-        const response = await fetch(`${API_BASE_URL}/api/lesson-activities/check-answer`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(payload)
-        });
-        return response.json();
-    }
-
-    async function markActivityComplete(laId, score) {
-        const response = await fetch(`${API_BASE_URL}/api/lesson-activities/mark-complete`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ la_id: laId, score: score })
-        });
-        return response.json();
-    }
-
-    // ---------------- Fill in the Blanks ----------------
-    function renderFillBlanks(activity, container, onActivityDone) {
-        let currentIndex = 0;
-        let correctCount = 0;
-        const total = activity.items.length;
-
-        function renderItem() {
-            container.innerHTML = "";
-            const item = activity.items[currentIndex];
-
-            container.appendChild(el("p", "activity-progress-label", `Item ${currentIndex + 1} of ${total}`));
-            container.appendChild(el("p", "activity-question-text", item.content));
-
-            const input = el("input", "activity-fillblank-input");
-            input.type = "text";
-            input.placeholder = "Type your answer...";
-            container.appendChild(input);
-
-            const submitBtn = el("button", "activity-next-btn", "Submit");
-            submitBtn.type = "button";
-            container.appendChild(submitBtn);
-
-            const feedbackBox = el("div", "activity-feedback-box");
-            feedbackBox.style.display = "none";
-            container.appendChild(feedbackBox);
-
-            submitBtn.addEventListener("click", async () => {
-                if (submitBtn.textContent === "Submit") {
-                    const result = await checkAnswer({ type: "fill_blank", fib_id: item.fib_id, answer: input.value });
-                    input.disabled = true;
-                    if (result.is_correct) correctCount += 1;
-
-                    feedbackBox.style.display = "block";
-                    feedbackBox.className = "activity-feedback-box " + (result.is_correct ? "is-correct" : "is-incorrect");
-                    feedbackBox.textContent = result.is_correct
-                        ? (result.feedback || "Correct!")
-                        : (result.feedback || `Not quite. Correct answer: ${result.correct_answer}`);
-
-                    submitBtn.textContent = currentIndex === total - 1 ? "Finish" : "Next Item";
-                } else {
-                    currentIndex += 1;
-                    if (currentIndex >= total) {
-                        finishActivity();
-                    } else {
-                        renderItem();
-                    }
-                }
-            });
-        }
-
-        function finishActivity() {
-            container.innerHTML = "";
-            const summary = el("div", "activity-summary");
-            summary.innerHTML = `<p>You scored <strong>${correctCount} / ${total}</strong> on "${activity.activity_title}".</p>`;
-            container.appendChild(summary);
-            markActivityComplete(activity.la_id, correctCount).finally(() => onActivityDone());
-        }
-
-        renderItem();
-    }
-
-    // ---------------- Flashcards ----------------
-    // Type-and-check, not flip-and-click: grading always happens
-    // server-side (see /api/lesson-activities/check-answer, type
-    // "flashcard") the moment the learner submits a guess. The flip is
-    // purely a confirmation reveal AFTER grading, showing the real back
-    // side next to what they typed - it never gates the score itself.
-    function renderFlashcards(activity, container, onActivityDone) {
-        let currentIndex = 0;
-        let totalPoints = 0;
-        const total = activity.items.length;
-        let answered = false;
-        let lastResult = null; // { answer, status, correct_answer, feedback }
-
-        function renderCard() {
-            answered = false;
-            lastResult = null;
-            container.innerHTML = "";
-            const card = activity.items[currentIndex];
-
-            container.appendChild(el("p", "activity-progress-label", `Card ${currentIndex + 1} of ${total}`));
-
-            const scene = el("div", "flip-card-scene");
-            const inner = el("div", "flip-card-inner");
-            inner.id = "fcFlipInner";
-            const front = el("div", "flip-face front", card.front);
-            const back = el("div", "flip-face back");
-            back.id = "fcFlipBack";
-            inner.appendChild(front);
-            inner.appendChild(back);
-            scene.appendChild(inner);
-            container.appendChild(scene);
-
-            container.appendChild(el("p", "activity-flashcard-hint", "Type what the back of this card says."));
-            container.appendChild(el("p", "activity-question-text", "Your answer"));
-
-            const input = el("input", "activity-fillblank-input");
-            input.type = "text";
-            input.placeholder = "Type your answer...";
-            input.id = "fcInput";
-            container.appendChild(input);
-
-            const feedbackBox = el("div", "activity-feedback-box");
-            feedbackBox.style.display = "none";
-            feedbackBox.id = "fcFeedback";
-            container.appendChild(feedbackBox);
-
-            const actionBtn = el("button", "activity-next-btn", "Submit");
-            actionBtn.type = "button";
-            container.appendChild(actionBtn);
-
-            actionBtn.addEventListener("click", async () => {
-                if (!answered) {
-                    if (!input.value.trim()) { input.focus(); return; }
-                    actionBtn.disabled = true;
-                    const result = await checkAnswer({
-                        type: "flashcard",
-                        flashcard_id: card.flashcard_id,
-                        answer: input.value
-                    });
-                    actionBtn.disabled = false;
-
-                    lastResult = {
-                        answer: input.value.trim(),
-                        status: result.status,
-                        correct_answer: result.correct_answer,
-                        feedback: result.feedback
-                    };
-                    totalPoints += (result.points || 0);
-                    answered = true;
-                    input.disabled = true;
-
-                    // Fill the back face BEFORE flipping, then flip a beat
-                    // later so the reveal reads as deliberate.
-                    back.className = "flip-face back is-" + lastResult.status;
-                    back.innerHTML = `
-                        <div class="flip-back-label">${lastResult.status === "correct" ? "Match!" : lastResult.status === "close" ? "Almost — case differs" : "Expected answer"}</div>
-                        <div class="flip-back-answer">${lastResult.correct_answer}</div>
-                        <div class="flip-back-compare">You typed: <b>"${lastResult.answer}"</b></div>
-                    `;
-
-                    feedbackBox.style.display = "block";
-                    feedbackBox.className = "activity-feedback-box is-" + (lastResult.status === "incorrect" ? "incorrect" : "correct");
-                    feedbackBox.textContent = lastResult.feedback || (
-                        lastResult.status === "correct" ? "Correct! Full credit."
-                        : lastResult.status === "close" ? "Close — right word, wrong case. Half credit."
-                        : `Not quite. Correct answer: ${lastResult.correct_answer}`
-                    );
-
-                    setTimeout(() => inner.classList.add("flipped"), 150);
-                    actionBtn.textContent = currentIndex === total - 1 ? "Finish" : "Next Card";
-                } else {
-                    currentIndex += 1;
-                    if (currentIndex >= total) {
-                        finishActivity();
-                    } else {
-                        renderCard();
-                    }
-                }
-            });
-        }
-
-        function finishActivity() {
-            container.innerHTML = "";
-            const summary = el("div", "activity-summary");
-            const roundedScore = Math.round(totalPoints);
-            summary.innerHTML = `<p>You scored <strong>${totalPoints} / ${total}</strong> on "${activity.activity_title}".</p>`;
-            container.appendChild(summary);
-            markActivityComplete(activity.la_id, roundedScore).finally(() => onActivityDone());
-        }
-
-        renderCard();
+    // feat/one-attempt-flow: Fill in the Blanks and Flashcards are only
+    // played through their games (lesson-fill-blanks.js / lesson-flashcards.js),
+    // which keep the one-attempt rule, lives and the timer on the server. If
+    // a game script failed to load there is nothing safe to fall back to.
+    function renderGameUnavailable(activity, container, onActivityDone) {
+        container.innerHTML = "";
+        const box = el("div", "activity-summary");
+        const p = el("p");
+        p.textContent = `"${activity.activity_title}" could not load. Please reload the page to play it.`;
+        box.appendChild(p);
+        container.appendChild(box);
+        const reload = el("button", "activity-next-btn activity-next-btn-centered", "Reload page");
+        reload.type = "button";
+        reload.addEventListener("click", () => window.location.reload());
+        container.appendChild(reload);
     }
 
     // ---------------- Multiple Choice (cobra arena) ----------------
@@ -313,31 +136,23 @@
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }
 
-    // Regular hearts (red, filled/empty out of max_lives) followed by
-    // the bonus hearts still left today (gold).
+    // feat/lives-5v5: the 5 regular hearts, with the daily bonus shown
+    // beside them as a separate reserve (game-kit.js) - never "7/5".
     function heartsHtml(state) {
-        const lives = state ? state.lives : 0;
-        const max = state ? state.max_lives : 5;
-        const bonus = state ? state.bonus_lives : 0;
-        let html = "";
-        for (let i = 0; i < max; i++) {
-            html += `<i class="${i < lives ? "fa-solid" : "fa-regular"} fa-heart"></i>`;
-        }
-        for (let i = 0; i < bonus; i++) {
-            html += '<i class="fa-solid fa-heart is-bonus"></i>';
-        }
-        return html;
+        return window.CobraGameKit ? window.CobraGameKit.hearts(state) : "";
     }
 
     function livesCount(state) {
-        return state ? `${state.total_lives}/${state.max_lives}` : "";
+        return window.CobraGameKit ? window.CobraGameKit.livesText(state) : "";
     }
 
     async function mcqRequest(path, laId, extra) {
         const isGet = path === "state";
         const url = isGet
             ? `${API_BASE_URL}/api/lesson-activities/mcq/state?la_id=${encodeURIComponent(laId)}`
-            : `${API_BASE_URL}/api/lesson-activities/mcq/${path}`;
+            : path === "timeout"
+                ? `${API_BASE_URL}/api/lesson-activities/game/timeout`   // shared by the three games
+                : `${API_BASE_URL}/api/lesson-activities/mcq/${path}`;
         const response = await fetch(url, isGet ? { credentials: "include" } : {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -350,9 +165,12 @@
     }
 
     function renderMCQ(activity, container, onActivityDone) {
-        const questions = activity.items || [];
-        const total = questions.length;
-        if (total === 0) {
+        // feat/question-pool-draw: a learner gets the play's drawn questions
+        // from the server's state (state.items), one revealed at a time; the
+        // admin preview still sends every question up front.
+        const questions = (activity.items || []).slice();
+        let total = PREVIEW ? questions.length : Math.min(5, activity.pool_size || 0);
+        if ((PREVIEW && total === 0) || (!PREVIEW && !activity.pool_size)) {
             onActivityDone();
             return;
         }
@@ -378,6 +196,7 @@
             <section class="mcq-arena-qcard">
                 <div class="mcq-arena-qleft">
                     <div class="mcq-arena-qmeta" data-ui="qmeta"></div>
+                    <div data-ui="timerHost"></div>
                     <p class="mcq-arena-qtext" data-ui="qtext"></p>
                 </div>
                 <div class="mcq-arena-choices" data-ui="choices"></div>
@@ -389,7 +208,7 @@
                 <div class="mcq-arena-overlay" data-ui="overlay" hidden></div>
             </div>
             <div class="mcq-arena-toolbar">
-                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b>. A wrong letter or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one, and you get 5 bonus lives every day at 8:00 AM.</p>
+                <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b> before the bar runs out. One try per question: a wrong letter, a skip, running out of time or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one; the daily bonus lives are a reserve used after your 5 lives are gone.</p>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
                 <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn"><i class="fa-solid fa-compress"></i> <span>Exit full screen</span></button>
             </div>
@@ -424,11 +243,15 @@
         let rafId = null, countdownTimer = null, flashTimer = null;
         let refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
+        // feat/question-timer: the bar only draws the server's clock.
+        const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBar(ui.timerHost) : null;
+        let leaveGuard = null;
 
         // ---- HUD ----
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            if (timer && (next === "done" || next === "error" || next === "outoflives")) timer.hide();
             if (next === "done" || next === "error" || next === "outoflives") setFocus(false);
             ui.pauseBtn.innerHTML = next === "paused"
                 ? '<i class="fa-solid fa-play"></i> <span>Resume</span>'
@@ -438,6 +261,17 @@
 
         function applyState(state) {
             server = state;
+            // The play's drawn questions: revealed ones in full, the rest hidden.
+            if (state && Array.isArray(state.items) && state.items.length) {
+                questions.length = 0;
+                state.items.forEach((item) => questions.push(item.hidden
+                    ? { q_id: item.q_id, question_text: "", options: [], hidden: true } : item));
+                total = questions.length;
+            }
+            if (timer && state && state.timer) {
+                if (state.current_q_id && state.current_revealed && !state.completed) timer.sync(state.timer, state.current_q_id);
+                else timer.hide();
+            }
             updateHUD();
         }
 
@@ -611,7 +445,7 @@
                     <h4>Not quite</h4>
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
                     <div class="mcq-arena-reveal" data-ui="tryReveal" hidden></div>
-                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} is marked wrong - you can fix it later in a retake if your module needs one.</p>
+                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} counts as missed - if your module needs a retake, you'll get new questions.</p>
                     <div class="mcq-arena-overlay-actions">
                         <button type="button" class="mcq-arena-primary-btn" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
                     </div>
@@ -635,7 +469,7 @@
             if (kind !== "next" && !(await openPlay())) return;
             let data = null;
             try {
-                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id, from_preview: true });
+                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id });
             } catch (err) {
                 if (!disposed) showError(err.message);
                 return;
@@ -653,13 +487,8 @@
                 finish();
                 return;
             }
-            goToServerQuestion();
-            if (server.total_lives <= 0) {
-                showOutOfLives();
-                return;
-            }
-            showQuestionPreview("next");
             flash(`Question skipped · -1 life · ${server.total_lives} ${server.total_lives === 1 ? "life" : "lives"} left.`, false);
+            await revealNext();
         }
 
         function showOutOfLives() {
@@ -857,7 +686,7 @@
             goToServerQuestion();
             if (server.total_lives <= 0) showOutOfLives();
             else if (server.session_status === "paused") showQuestionPreview("resume");
-            else if (server.session_status === "in_progress") showQuestionPreview("continue");
+            else if (server.session_status === "in_progress" && server.solved_count > 0) showQuestionPreview("continue");
             else showQuestionPreview("start");
         }
 
@@ -953,8 +782,106 @@
                 finish();
                 return;
             }
+            revealNext();
+        }
+
+        // feat/question-pool-draw: the next question is only revealed (and
+        // its clock started) by the server right before it is shown - never
+        // while the feedback is on screen or the play is paused at 0 lives.
+        async function revealNext() {
+            if (disposed) return;
+            if (server.completed) {
+                finish();
+                return;
+            }
+            if (server.total_lives <= 0) {
+                goToServerQuestion();
+                showOutOfLives();
+                return;
+            }
+            if (!PREVIEW) {
+                setMode("busy");
+                let data = null;
+                try {
+                    data = await mcqRequest("play", activity.la_id);
+                } catch (err) {
+                    if (!disposed) showError(err.message);
+                    return;
+                }
+                if (disposed) return;
+                applyState(data.state);
+                if (server.completed || server.session_status !== "in_progress") {
+                    resyncFromState();
+                    return;
+                }
+            }
             goToServerQuestion();
             showQuestionPreview("next");   // read the next question before playing
+        }
+
+        // feat/question-timer: the bar ran out - the server checks its own clock.
+        async function onTimerExpired(qId) {
+            if (disposed || !server || server.current_q_id !== qId) return;
+            if (!["ready", "playing", "paused"].includes(mode)) return;
+            setMode("busy");
+            let data = null;
+            try {
+                data = await mcqRequest("timeout", activity.la_id, { item_id: qId });
+            } catch (err) {
+                if (!disposed) showError(err.message);
+                return;
+            }
+            if (disposed) return;
+            applyState(data.state);
+            if (!data.timed_out) {
+                resyncFromState();
+                return;
+            }
+            streak = 0;
+            bump(ui.livesStat);
+            showTimedOut(data.feedback);
+        }
+
+        function showTimedOut(feedback) {
+            setMode("tryagain");
+            const lives = server ? server.total_lives : 0;
+            const last = !!(server && server.completed);
+            showOverlay(`
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid fa-hourglass-end mcq-arena-overlay-icon is-danger"></i>
+                    <h4>Time's up</h4>
+                    <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
+                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. This question counts as missed.</p>
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
+                    </div>
+                </div>
+            `);
+            overlayNode("tryFeedback").textContent = feedback || "";
+            overlayNode("nextBtn").addEventListener("click", () => {
+                if (disposed || mode !== "tryagain") return;
+                hideOverlay();
+                advance();
+            });
+        }
+
+        // feat/leave-detection: what the server decided when the learner came back.
+        function onLeaveResult(data) {
+            if (disposed || !data || !data.state) return;
+            applyState(data.state);
+            const event = data.event;
+            if (!event) return;
+            if (window.CobraGameKit) {
+                window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed",
+                    event.message);
+            }
+            if (event.type === "leave_forfeit") {
+                if (mode === "playing") setMode("busy");
+                streak = 0;
+                bump(ui.livesStat);
+                if (server.completed) finish();
+                else revealNext();
+            }
         }
 
         async function handleCollision(reason) {
@@ -1225,6 +1152,8 @@
             document.removeEventListener("keydown", onKeyDown);
             document.removeEventListener("visibilitychange", onVisibility);
             if (resizeObserver) resizeObserver.disconnect();
+            if (timer) timer.dispose();
+            if (leaveGuard) leaveGuard.dispose();
             root.classList.remove("is-focus");
             document.documentElement.classList.remove("mcq-focus-lock");
             if (arena && arena.dispose) arena.dispose();
@@ -1276,7 +1205,8 @@
 
             let data;
             try {
-                data = await mcqRequest("state", activity.la_id);
+                data = PREVIEW ? await mcqRequest("state", activity.la_id)
+                    : await mcqRequest("play", activity.la_id, { boot: true });
             } catch (err) {
                 console.error("Error loading Multiple Choice state:", err);
                 if (!disposed) showError("Could not load this activity.");
@@ -1307,6 +1237,21 @@
             if (disposed) return;
 
             booted = true;
+            if (timer) timer.onExpire(onTimerExpired);
+            if (!PREVIEW && window.CobraGameKit) {
+                leaveGuard = window.CobraGameKit.leaveGuard({
+                    url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
+                    body: () => ({ la_id: activity.la_id }),
+                    isActive: () => !!(server && !server.completed && server.session_status === "in_progress"
+                        && server.total_lives > 0 && root.isConnected),
+                    onResult: onLeaveResult
+                });
+                if (server && server.events) server.events.forEach((event) => {
+                    if (event.type === "leave_warning" || event.type === "leave_forfeit") {
+                        window.CobraGameKit.notice(event.type === "leave_warning" ? "Please stay on this page" : "Questions changed", event.message);
+                    }
+                });
+            }
             document.addEventListener("keydown", onKeyDown);
             document.addEventListener("visibilitychange", onVisibility);
             if (resizeObserver) resizeObserver.observe(root);
@@ -1373,15 +1318,11 @@
             showActivityMessage(container, data.message || "Nothing to retake here.", onActivityDone);
             return;
         }
+        // feat/retake-unseen: the retake play holds NEW questions; every game
+        // gets them from its own state, one revealed at a time.
         const ids = (data.retake && data.retake.item_ids) || [];
-        const retakeActivity = Object.assign({}, activity, { completed: false });
-        if (activity.activity_type === "Multiple Choice") {
-            // The arena indexes questions by the server's position, which
-            // in a retake is a position in the round's own question list.
-            retakeActivity.items = ids
-                .map((id) => (activity.items || []).find((q) => q.q_id === id))
-                .filter(Boolean);
-        }
+        const retakeActivity = Object.assign({}, activity, { completed: false, items: [],
+            pool_size: Math.max(activity.pool_size || 0, ids.length) });
         container.innerHTML = "";
         renderGame(retakeActivity, container, onActivityDone);
     }
@@ -1425,7 +1366,7 @@
             ? ` You got <strong>${score}/${total}</strong> on your first try.` : "";
         let rule;
         if (activity.retake && activity.retake.allowed && missed > 0) {
-            rule = `Your module is below ${lessonMeta.passPercent}%, so you can retake the ${missed} item${missed === 1 ? "" : "s"} you missed`
+            rule = `Your module is below ${lessonMeta.passPercent}%, so you can retake ${missed} new question${missed === 1 ? "" : "s"} for the ${missed === 1 ? "one" : "ones"} you missed`
                 + (lessonMeta.moduleId
                     ? ` from your <a href="/module-review?module_id=${lessonMeta.moduleId}">Module Review</a> or the Retake button on the Lessons page.`
                     : " from the Retake button on the Lessons page.");
@@ -1454,7 +1395,7 @@
             if (typeof window.cobraByteRenderFillBlanks === "function") {
                 window.cobraByteRenderFillBlanks(activity, container, onActivityDone);
             } else {
-                renderFillBlanks(activity, container, onActivityDone);
+                renderGameUnavailable(activity, container, onActivityDone);
             }
         } else if (activity.activity_type === "Flashcards") {
             // Cobra's Card Duel (lesson-flashcards.js + flashcards3d.js).
@@ -1463,7 +1404,7 @@
             if (typeof window.cobraByteRenderFlashcards === "function") {
                 window.cobraByteRenderFlashcards(activity, container, onActivityDone);
             } else {
-                renderFlashcards(activity, container, onActivityDone);
+                renderGameUnavailable(activity, container, onActivityDone);
             }
         } else {
             onActivityDone();
@@ -1493,7 +1434,7 @@
         const gate = el("div", "activities-gate");
         gate.innerHTML = opts.retake ? `
             <h3><i class="fa-solid fa-rotate-right"></i> Retake</h3>
-            <p>Replay only the items you missed. Get them right on the first try to raise your module score to ${lessonMeta.passPercent}%.</p>
+            <p>You get new questions, as many as you missed. Each one you get right raises your module score toward ${lessonMeta.passPercent}%.</p>
             <button type="button" class="activities-proceed-btn">Start retake</button>
         ` : `
             <h3><i class="fa-solid fa-list-check"></i> Activities</h3>

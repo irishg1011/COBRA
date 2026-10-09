@@ -28,6 +28,7 @@ from admin_routes import admin_bp, staff_bp  # NEW: import admin blueprint (+ /s
 from learner_routes import learner_bp  # NEW: import learner blueprint|
 from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (own blueprint)
 from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
+from learner_game_routes import learner_game_bp  # shared game routes: question timer + leaving the page
 from learner_profile import learner_profile_bp  # Profile dropdown: View/Edit Profile, Change Password, badges
 from notifications import learner_notifications_bp, notify  # header bell notifications
 from session_tracker import end_session, touch_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
@@ -69,6 +70,7 @@ app.register_blueprint(learner_bp)
 
 app.register_blueprint(learner_fib_bp)
 app.register_blueprint(learner_flashcard_bp)
+app.register_blueprint(learner_game_bp)   # feat/question-timer + feat/leave-detection: shared game routes
 app.register_blueprint(learner_profile_bp)
 app.register_blueprint(learner_notifications_bp)
 

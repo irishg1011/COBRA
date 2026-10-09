@@ -58,3 +58,4 @@
     .proceed-actions { flex-direction: column-reverse; }
     .proceed-btn { width: 100%; }
 }
+.proceed-btn[hidden] { display: none; }

@@ -24,14 +24,16 @@ call it too, so every screen shows the same number)
     so a learner who went through the lesson never shows 0%, even with
     every activity answered wrong.
 
-An item is "passed" if its first attempt was correct OR its first
-answer in a retake round was correct (see activity_retakes.py). Lessons
+feat/question-pool-draw: each activity is scored on the questions DRAWN
+for the learner's first play (5 of the pool); every correct retake
+answer turns one missed slot into passed (activity_retakes.activity_standing).
+Learners who played before the release keep the old per-item rule. Lessons
 with nothing gradeable (no items, no test cases) are left out of the
 average. A module with no published lessons passes automatically, so an
 empty module can never block the ones after it.
 
-Below 85%, the learner retakes only what they missed - one retake round
-per activity, started by start_activity_retake().
+Below the pass mark, the learner retakes as many NEW unseen questions as
+they still miss in each activity - started by start_activity_retake().
 
 Only Published lessons/activities count, same as the Learning Map.
 Pure DB helpers + two public entry points that open their own
@@ -46,7 +48,7 @@ from activity_retakes import (
     PASS_PERCENT,
     GAME_TABLES,
     ensure_retake_schema,
-    missed_item_ids,
+    activity_standing,
     open_retake,
     create_retake,
 )
@@ -290,11 +292,14 @@ def lesson_performance(cursor, acc_id, resource_id):
         activity_type = act.get("activity_type_name") or ""
         if activity_type not in GAME_TABLES:
             continue
-        missed, item_total = missed_item_ids(cursor, acc_id, activity_type, act["la_id"])
-        activities[act["la_id"]] = {"type": activity_type, "missed": len(missed), "total": item_total}
-        missed_total += len(missed)
+        # feat/question-pool-draw: scored on the questions DRAWN for the
+        # learner (5), with retake answers making up missed slots.
+        standing = activity_standing(cursor, acc_id, activity_type, act["la_id"])
+        item_total, missed = standing["slots"], standing["missed"]
+        activities[act["la_id"]] = {"type": activity_type, "missed": missed, "total": item_total}
+        missed_total += missed
         if item_total > 0:
-            points_earned += item_total - len(missed)
+            points_earned += item_total - missed
             points_total += item_total
 
     ex_points, ex_total = _exercise_points(cursor, acc_id, resource_id)
@@ -446,12 +451,14 @@ def get_resource_retake_info(acc_id, resource_id):
         module = module_performance(cursor, acc_id, row["module_id"])
         perf = lesson_performance(cursor, acc_id, resource_id)
         activities = {}
+        from game_plays import open_retake_play
         for la_id, info in perf["activities"].items():
             retake = open_retake(cursor, acc_id, la_id, lock=False)
+            open_play = open_retake_play(cursor, acc_id, la_id)
             activities[la_id] = {
                 "missed": info["missed"],
                 "total": info["total"],
-                "open": retake is not None,
+                "open": retake is not None or open_play is not None,
                 "round": retake["round_no"] if retake else None,
             }
         cursor.close()
@@ -489,7 +496,9 @@ def start_activity_retake(acc_id, la_id):
     if connection is None:
         return None, "Could not connect to the database."
     try:
+        from game_plays import ensure_play_schema, open_retake_play, start_retake_play
         ensure_retake_schema(connection)   # DDL first - it commits implicitly
+        ensure_play_schema(connection)
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             """SELECT lr.module_id, atp.activity_type_name
@@ -514,7 +523,7 @@ def start_activity_retake(acc_id, la_id):
             }}
 
         retake = open_retake(cursor, acc_id, la_id)
-        if retake:
+        if retake and open_retake_play(cursor, acc_id, la_id):
             connection.commit()
             cursor.close()
             return started(retake), None
@@ -537,13 +546,24 @@ def start_activity_retake(acc_id, la_id):
                        else "Finish every lesson in this module first.")
             return {"started": False, "message": message}, None
 
-        missed, _ = missed_item_ids(cursor, acc_id, activity["activity_type_name"], la_id)
-        if not missed:
+        # feat/retake-unseen: N = questions still missed in this activity; the
+        # retake gets N NEW questions from the shared draw (unseen first,
+        # then the ones seen longest ago).
+        standing = activity_standing(cursor, acc_id, activity["activity_type_name"], la_id)
+        if standing["missed"] <= 0:
             connection.rollback()
             cursor.close()
             return {"started": False, "message": "Nothing to retake in this activity."}, None
 
-        retake = create_retake(cursor, acc_id, la_id, missed)
+        if retake:   # a round opened before this release, with no play yet
+            from activity_retakes import complete_retake
+            complete_retake(cursor, retake["retake_id"])
+        retake = create_retake(cursor, acc_id, la_id, [])
+        _play_id, drawn = start_retake_play(cursor, acc_id, la_id, activity["activity_type_name"],
+                                            retake["retake_id"], standing["missed"])
+        cursor.execute("UPDATE activity_retakes_tbl SET item_ids = %s WHERE retake_id = %s",
+                       (",".join(str(int(i)) for i in drawn), retake["retake_id"]))
+        retake["item_ids"] = drawn
         connection.commit()
         cursor.close()
         return started(retake), None

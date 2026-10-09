@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-activities.css') }}">
     <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-fill-blanks.css') }}">
     <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/lesson-flashcards.css') }}">
+    <link rel="stylesheet" href="{{ url_for('learner_bp.serve_learner_assets', filename='css/game-kit.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/preview-play.css') }}">
@@ -150,6 +151,7 @@
     <!-- Preview flag first, then the REAL learner scripts from the learner paths. -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-preview-play.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+    <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/game-kit.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-fill-blanks.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-flashcards.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-activities.js') }}"></script>

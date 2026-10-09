@@ -1213,35 +1213,11 @@ def lesson_activities_check_answer():
     if not acc_id:
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
-    data = request.get_json(silent=True) or {}
-    answer_type = data.get("type")
-
-    if answer_type == "fill_blank":
-        is_correct, feedback, correct_answer = check_fill_blank_answer(
-            data.get("fib_id"), data.get("answer")
-        )
-        return jsonify({
-            "success": True,
-            "is_correct": is_correct,
-            "feedback": feedback,
-            "correct_answer": correct_answer
-        }), 200
-
-    if answer_type == "flashcard":
-        result = check_flashcard_answer(acc_id, data.get("flashcard_id"), data.get("answer"))
-        if result is None:
-            return jsonify({"success": False, "message": "This flashcard could not be checked."}), 500
-        status, feedback, correct_answer = result
-        points = 1 if status == "correct" else 0.5 if status == "close" else 0
-        return jsonify({
-            "success": True,
-            "status": status,
-            "points": points,
-            "feedback": feedback,
-            "correct_answer": correct_answer
-        }), 200
-
-    return jsonify({"success": False, "message": "Unknown answer type."}), 400
+    # feat/one-attempt-flow: answers only go through the games' own play
+    # endpoints (one attempt per drawn question, lives, timer). This old
+    # stateless checker returned the correct answer and logged nothing
+    # against a play, so it is closed for learners.
+    return jsonify({"success": False, "message": "Answers are checked by the game itself."}), 410
 
 
 # ============================================================
@@ -1281,7 +1257,7 @@ def lesson_activities_mcq_play():
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
     data = request.get_json(silent=True) or {}
-    state, error_message = play_mcq_activity(acc_id, data.get("la_id"))
+    state, error_message = play_mcq_activity(acc_id, data.get("la_id"), boot=data.get("boot") is True)
     failed = _mcq_response(state, error_message)
     if failed:
         return failed
@@ -1312,9 +1288,7 @@ def lesson_activities_mcq_skip():
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
     data = request.get_json(silent=True) or {}
-    result, error_message = skip_mcq_question(
-        acc_id, data.get("la_id"), data.get("q_id"), data.get("from_preview") is True
-    )
+    result, error_message = skip_mcq_question(acc_id, data.get("la_id"), data.get("q_id"))
     failed = _mcq_response(result, error_message)
     if failed:
         return failed
@@ -1345,24 +1319,10 @@ def lesson_activities_mark_complete():
     if not acc_id:
         return jsonify({"success": False, "message": "Not logged in."}), 401
 
-    data = request.get_json(silent=True) or {}
-    la_id = data.get("la_id")
-    score = data.get("score")
-
-    if not la_id:
-        return jsonify({"success": False, "message": "la_id is required."}), 400
-
-    # Multiple Choice completes itself server-side when the last question
-    # is answered correctly (see submit_mcq_answer) - the browser can't
-    # mark it complete or choose its score.
-    if get_activity_type_name(la_id) == MCQ_TYPE_NAME:
-        return jsonify({"success": False, "message": "Multiple Choice completes automatically."}), 400
-
-    ok = record_activity_progress(acc_id, la_id, "completed", score)
-    if not ok:
-        return jsonify({"success": False, "message": "Could not record progress."}), 500
-
-    return jsonify({"success": True, "message": "Activity marked complete."}), 200
+    # feat/one-attempt-flow: every game completes itself server-side when
+    # the last drawn question of its first play is done (game_plays.py) -
+    # the browser can't mark an activity complete or choose its score.
+    return jsonify({"success": False, "message": "Activities complete automatically."}), 410
 
 
 # ============================================================

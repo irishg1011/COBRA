@@ -47,7 +47,7 @@ from cobradb import get_db_connection
 from live_cache import live_cached  # 10-second memory for the auto-refreshing admin pages
 from module_performance import lesson_grade_percent  # feat/grade-50-50: the one lesson grade rule
 from profile_avatar import get_avatar_url, get_avatar_urls  # learner photos in the tables / modals
-from activity_retakes import ensure_retake_schema, PASS_PERCENT
+from activity_retakes import ensure_retake_schema, PASS_PERCENT, DRAW_SIZE
 from module_review import module_review_summary  # Module Review status in the Course Progress modal
 from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 from learner_exercise import EXERCISE_ITEMS  # an exercise is one gradable item
@@ -226,7 +226,7 @@ def _load_lesson_structure(cursor, resource_ids):
             "la_id": r["la_id"],
             "title": r["activity_title"],
             "type": activity_type or "—",
-            "item_total": int(item_total or 0),
+            "item_total": min(DRAW_SIZE, int(item_total or 0)),   # feat/question-pool-draw: 5 drawn per play
         })
 
     # Latest published, non-archived exercise per lesson - one gradable item
