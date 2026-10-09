@@ -245,6 +245,8 @@
         let refreshing = false;
         let firstOpen = true;
         let counting = false;       // a 3 - 2 - 1 is running
+        let lastResult = null;      // the answer's verdict, shown during the next 3 - 2 - 1
+        let waitingForMove = false; // a new question: the cobra stays still until the first direction
         // Before the play exists (a new learner, before Start) there is no
         // question at all - the board draws this empty one.
         const NOT_YET = { q_id: null, question_text: "", options: [], hidden: true };       // the first "play" after opening the page reports an unclosed leave
@@ -312,6 +314,17 @@
             ui.flash.textContent = message;
             ui.flash.className = "mcq-arena-flash show " + (ok ? "is-ok" : "is-no");
             flashTimer = setTimeout(() => { ui.flash.className = "mcq-arena-flash"; }, 1600);
+        }
+
+        // Stays until the first direction (flash() fades out on its own).
+        function moveHint(on) {
+            clearTimeout(flashTimer);
+            if (!on) {
+                ui.flash.className = "mcq-arena-flash";
+                return;
+            }
+            ui.flash.textContent = "Read the question, then press an arrow key / WASD (or tap the arrows) to move.";
+            ui.flash.className = "mcq-arena-flash show is-ok";
         }
 
         // ---- overlays (only static markup goes through innerHTML; learner/DB text uses textContent) ----
@@ -382,17 +395,24 @@
             hideOverlay();
             const kit = window.CobraGameKit;
             const next = Math.min((server ? server.current_index : qIndex) + 1, total);
-            await kit.countdown(root, { label: `Question ${next} of ${total}` });
+            const result = lastResult;
+            lastResult = null;
+            await kit.countdown(root, { label: `Question ${next} of ${total}`, result });
             if (disposed) return;
             counting = false;
-            if (PREVIEW) {
-                goToServerQuestion();
-            } else if (!(await openPlay())) {
+            // (in the admin preview, "play" only marks the run started - it is
+            // what lets the preview grade the answers)
+            if (!(await openPlay())) {
                 if (mode !== "ready") kit.hideCover(root);   // out of lives / done screens are not covered
                 return;
             }
             kit.hideCover(root);
+            // The question is on screen and its clock runs - the cobra waits
+            // for the first direction, so it never eats a pellet while the
+            // learner is still reading.
+            waitingForMove = !fallback;
             go();
+            moveHint(waitingForMove);
         }
 
         function pause() {
@@ -477,7 +497,7 @@
             setMode("busy");
             let data = null;
             try {
-                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id });
+                data = await mcqRequest("skip", activity.la_id, { q_id: questions[qIndex].q_id, from_preview: true });
             } catch (err) {
                 if (!disposed) showError(err.message);
                 return;
@@ -756,6 +776,8 @@
                 if (chip) chip.classList.add("is-right");
                 bump(ui.scoreStat);
                 flash(result.feedback || `Correct: ${option.option_letter}. ${option.text}`, true);
+                // the verdict stays on screen above the next 3 - 2 - 1
+                lastResult = { ok: true, title: `Correct: ${option.option_letter}`, text: result.feedback || option.text };
                 setTimeout(() => { if (!disposed) advance(); }, fallback ? 1600 : 1100);
                 return;
             }
@@ -920,7 +942,14 @@
 
         function steer(name) {
             if (fallback) return false;
-            if (mode === "playing") { setDir(name); return true; }
+            if (mode === "playing") {
+                if (waitingForMove) {
+                    waitingForMove = false;
+                    moveHint(false);
+                }
+                setDir(name);
+                return true;
+            }
             if (mode === "paused") { setDir(name); resumePlay(); return true; }
             return false;
         }
@@ -1001,7 +1030,7 @@
 
             const dtMs = last ? Math.min(Math.max(ts - last, 0), 100) : 16;
             last = ts;
-            if (mode === "playing") {
+            if (mode === "playing" && !waitingForMove) {
                 acc += dtMs;
                 while (acc >= ARENA_STEP_MS && mode === "playing") {
                     step();
@@ -1009,7 +1038,7 @@
                 }
             }
             if (shake > 0) shake = Math.max(0, shake - dtMs * 0.05);
-            if (visible) draw(mode === "playing" ? Math.min(1, acc / ARENA_STEP_MS) : 1, dtMs / 1000);
+            if (visible) draw(mode === "playing" && !waitingForMove ? Math.min(1, acc / ARENA_STEP_MS) : 1, dtMs / 1000);
             rafId = requestAnimationFrame(loop);
         }
 

@@ -176,3 +176,17 @@ html.game-leave-check .fc-root {
 @media (prefers-reduced-motion: reduce) {
     .game-ready-count-number.is-tick { animation: none; }
 }
+.game-ready-result {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 420px;
+    margin-bottom: 10px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    text-shadow: none;
+}
+.game-ready-result b { font-size: 1rem; }
+.game-ready-result.is-ok { background: #dcfce7; color: #166534; }
+.game-ready-result.is-bad { background: #fee2e2; color: #991b1b; }

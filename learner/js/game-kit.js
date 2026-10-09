@@ -347,7 +347,8 @@
     //   startCard(host, opts) -> Promise, resolves when Start is pressed
     //     opts: { eyebrow, title, lines: [text...], button }
     //   countdown(host, opts) -> Promise, resolves after 3 - 2 - 1
-    //     opts: { label }  e.g. "Question 2 of 5"
+    //     opts: { label, result }  label e.g. "Question 2 of 5"; result
+    //     { ok, title, text } keeps the last answer's verdict on screen
     // The cover stays until hideCover(host) (or the next startCard/countdown),
     // so the game can fetch the question behind it without a flash.
     // ------------------------------------------------------------
@@ -423,6 +424,19 @@
         const box = document.createElement("div");
         box.className = "game-ready-count";
         box.setAttribute("aria-live", "assertive");
+        if (opts.result) {
+            const verdict = document.createElement("div");
+            verdict.className = "game-ready-result " + (opts.result.ok ? "is-ok" : "is-bad");
+            const head = document.createElement("b");
+            head.textContent = opts.result.title || (opts.result.ok ? "Correct!" : "Not quite");
+            verdict.appendChild(head);
+            if (opts.result.text) {
+                const body = document.createElement("span");
+                body.textContent = opts.result.text;
+                verdict.appendChild(body);
+            }
+            box.appendChild(verdict);
+        }
         const label = document.createElement("span");
         label.className = "game-ready-count-label";
         label.textContent = opts.label || "Get ready";

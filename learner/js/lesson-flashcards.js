@@ -473,7 +473,9 @@
             await kit.countdown(root, { label: `Card ${next} of ${total}` });
             if (disposed) return;
             counting = false;
-            if (!PREVIEW && !(await openPlay())) {
+            // (in the admin preview, "start" only marks the run started - it is
+            // what lets the preview grade the answers)
+            if (!(await openPlay())) {
                 if (mode !== "ready") kit.hideCover(root);   // out of lives / results are not covered
                 return;
             }
