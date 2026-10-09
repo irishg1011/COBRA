@@ -606,3 +606,10 @@ textarea.field-error {
 @media (max-width: 900px) {
     .flashcard-grid-3 { grid-template-columns: 1fr; }
 }
+
+/* Expected output is filled only by "Generate expected output" */
+.fill-blank-card .fib-expected-readonly {
+    background: #f1f5f9;
+    color: #0f172a;
+    cursor: not-allowed;
+}

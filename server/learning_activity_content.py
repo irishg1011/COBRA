@@ -407,6 +407,11 @@ class FillBlanksActivityController(_SimpleItemController):
             values = cls._values(item)
             if values is None or not values[5]:
                 continue
+            if not (values[6] or "").strip():
+                raise FibOutputMismatchError(
+                    f"Item {number}: click Generate expected output before saving "
+                    "(the code runs with the correct answer to fill it)."
+                )
             ok, actual, error = check_fib_item_for_save(values[5], values[1], values[6])
             if not ok:
                 got = f"the code stopped with an error:\n{error}" if error else f'it printed:\n{actual or "(nothing)"}'
