@@ -45,6 +45,7 @@ SERVER_GRACE_SECONDS = 120
 # Don't rewrite the session cookie on every request.
 ACTIVE_WRITE_EVERY_SECONDS = 30
 IDLE_COOKIE = "cobra_idle_logout"
+LOGIN_PAGES = ("/login", "/staff/login", "/")
 
 
 def _minutes(env_name, default):
@@ -136,7 +137,9 @@ def enforce_idle_logout():
         # The page's own guard (or the login page) takes it from here.
         _end_idle_session(role)
         return None
-    if _is_navigation():
+    # Opening a login page never rewrites the session cookie: right after an
+    # idle logout in another tab, that would save the old session again.
+    if _is_navigation() and path not in LOGIN_PAGES:
         _mark_active(now)
     return None
 

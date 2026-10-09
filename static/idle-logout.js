@@ -138,11 +138,13 @@
     async function logOut() {
         if (loggingOut) return;
         loggingOut = true;
-        // Every other tab of this browser shares the session - send them too.
-        try { window.localStorage.setItem(LOGOUT_KEY, String(Date.now())); } catch (e) { /* ignore */ }
         try {
             await fetch("/session/idle-logout", { method: "POST", credentials: "same-origin" });
         } catch (e) { /* the server ends it on the next request anyway */ }
+        // Every other tab of this browser shares the session - send them to
+        // the login page too, only now that it has really ended (a request
+        // sent earlier could otherwise save the old session cookie again).
+        try { window.localStorage.setItem(LOGOUT_KEY, String(Date.now())); } catch (e) { /* ignore */ }
         // An editor with unsaved changes still shows its own "leave?" prompt.
         goToLogin();
     }
