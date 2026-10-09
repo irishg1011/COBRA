@@ -340,7 +340,7 @@ def seen_summary(cursor, acc_id, la_id, activity_type):
     cursor.execute(
         f"""SELECT {id_col} AS item_id, MAX(answered_at) AS last_seen FROM {answers_table}
             WHERE acc_id = %s AND play_id IS NULL
-              AND {id_col} IN (SELECT {id_col} FROM {GAME_TABLES[activity_type][2]} WHERE la_id = %s)
+              AND {id_col} IN (SELECT {id_col} FROM {GAME_TABLES[activity_type][2]} WHERE la_id = %s AND is_removed = 0)
             GROUP BY {id_col}""",
         (acc_id, la_id)
     )
@@ -413,14 +413,14 @@ def _load_mcq(cursor, acc_id, item_ids):
         return out
     ph = ",".join(["%s"] * len(item_ids))
     cursor.execute(
-        f"""SELECT q_id, question_text, correct_feedback, incorrect_feedback
+        f"""SELECT q_id, question_text, correct_feedback, incorrect_feedback, is_removed
             FROM mcq_questions_tbl WHERE q_id IN ({ph})""",
         tuple(item_ids)
     )
     for q in cursor.fetchall():
         cursor.execute(
             """SELECT option_id, option_letter, option_text, is_correct, feedback
-               FROM mcq_options_tbl WHERE q_id = %s ORDER BY option_letter ASC""",
+               FROM mcq_options_tbl WHERE q_id = %s AND is_removed = 0 ORDER BY option_letter ASC""",
             (q["q_id"],)
         )
         q["options"] = shuffle_options(acc_id, q["q_id"], cursor.fetchall())
@@ -434,7 +434,7 @@ def _load_fib(cursor, acc_id, item_ids):
     ph = ",".join(["%s"] * len(item_ids))
     cursor.execute(
         f"""SELECT fib_id, instruction, content, correct_answer, answer_choices, correct_feedback,
-                   incorrect_feedback, code_text, expected_output, hint, must_contain
+                   incorrect_feedback, code_text, expected_output, hint, must_contain, is_removed
             FROM fill_blanks_tbl WHERE fib_id IN ({ph})""",
         tuple(item_ids)
     )
@@ -446,7 +446,7 @@ def _load_cards(cursor, acc_id, item_ids):
         return {}
     ph = ",".join(["%s"] * len(item_ids))
     cursor.execute(
-        f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback, hint
+        f"""SELECT flashcard_id, front_text, back_text, correct_feedback, incorrect_feedback, hint, is_removed
             FROM flashcards_tbl WHERE flashcard_id IN ({ph})""",
         tuple(item_ids)
     )
@@ -637,8 +637,10 @@ def _load_ctx_items(cursor, ctx):
     ctx["items"] = _load_play_items(cursor, ctx["play"]["play_id"])
     ids = [i["item_id"] for i in ctx["items"]]
     ctx["rows"] = LOADERS[ctx["type"]](cursor, ctx["acc_id"], ids)
-    # An item deleted from the pool after it was drawn can't be played.
-    ctx["items"] = [i for i in ctx["items"] if i["item_id"] in ctx["rows"]]
+    # An item deleted (or hidden - is_removed) from the pool after it was
+    # drawn can't be played; one already answered in this play stays.
+    ctx["items"] = [i for i in ctx["items"] if i["item_id"] in ctx["rows"]
+                    and (i["outcome"] is not None or not ctx["rows"][i["item_id"]].get("is_removed"))]
 
 
 def _current(ctx):

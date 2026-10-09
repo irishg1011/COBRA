@@ -323,13 +323,13 @@ def get_preview_activities(resource_id):
 
             if activity_type in ("Multiple Choice", "Quiz"):
                 cursor.execute(
-                    f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s ORDER BY q_id ASC",
+                    f"SELECT q_id, question_text FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY q_id ASC",
                     (la_id,)
                 )
                 for q in cursor.fetchall():
                     cursor.execute(
                         f"""SELECT option_id, option_letter, option_text
-                            FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s ORDER BY option_letter ASC""",
+                            FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s AND is_removed = 0 ORDER BY option_letter ASC""",
                         (q["q_id"],)
                     )
                     options = cursor.fetchall()
@@ -344,7 +344,7 @@ def get_preview_activities(resource_id):
 
             elif activity_type == "Fill in the Blanks":
                 cursor.execute(
-                    f"SELECT fib_id, content FROM {FILL_BLANKS_TABLE} WHERE la_id = %s ORDER BY fib_id ASC",
+                    f"SELECT fib_id, content FROM {FILL_BLANKS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY fib_id ASC",
                     (la_id,)
                 )
                 for row2 in cursor.fetchall():
@@ -352,7 +352,7 @@ def get_preview_activities(resource_id):
 
             elif activity_type == "Flashcards":
                 cursor.execute(
-                    f"SELECT flashcard_id, front_text, back_text FROM {FLASHCARDS_TABLE} WHERE la_id = %s ORDER BY flashcard_id ASC",
+                    f"SELECT flashcard_id, front_text, back_text FROM {FLASHCARDS_TABLE} WHERE la_id = %s AND is_removed = 0 ORDER BY flashcard_id ASC",
                     (la_id,)
                 )
                 for row2 in cursor.fetchall():
