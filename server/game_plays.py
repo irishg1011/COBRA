@@ -94,8 +94,8 @@ SETTINGS_TABLE = "game_settings_tbl"
 PROGRESS_TABLE = "learner_activity_progress_tbl"
 RECOMMENDATIONS_TABLE = "lesson_recommendations_tbl"
 
-DRAW_SIZE = 5
-POOL_TARGET = 50
+DRAW_SIZE = 5        # questions per play (activity_retakes.DRAW_SIZE scores on the same 5)
+POOL_TARGET = 50     # the mentor editor's pool target (create-learning-activity.js POOL_TARGET)
 
 # play item outcome -> answers table status
 ANSWER_STATUS = {
@@ -112,9 +112,6 @@ DEFAULT_SETTINGS = {
     "timer_seconds_flashcards": ("60", "Seconds per Flashcard"),
     "timer_grace_seconds": ("3", "Extra seconds allowed for network delay on a late answer"),
     "leave_min_seconds": ("2", "Absences shorter than this are ignored"),
-    "pool_target": (str(POOL_TARGET), "Items per activity pool the mentor editor aims for"),
-    "draw_size": (str(DRAW_SIZE), "Questions drawn per play"),
-    "exercise_pool_target": ("5", "Coding exercises per lesson pool"),
 }
 TIMER_KEYS = {MCQ_TYPE: "timer_seconds_mcq", FIB_TYPE: "timer_seconds_fib", FLASHCARD_TYPE: "timer_seconds_flashcards"}
 
@@ -827,8 +824,7 @@ def _start_or_resume(cursor, ctx, boot=False):
         _process_leave(cursor, ctx, away_seconds=None, reason="closed_or_refreshed", force=True)
         play = ctx["play"]
     if play is None and not ctx["progress_done"] and lives > 0:
-        size = setting_int(ctx["settings"], "draw_size", minimum=1)
-        ids = draw_items(cursor, ctx["acc_id"], ctx["la_id"], ctx["type"], size)
+        ids = draw_items(cursor, ctx["acc_id"], ctx["la_id"], ctx["type"], DRAW_SIZE)
         if not ids:
             return
         play_id = create_play(cursor, ctx["acc_id"], ctx["la_id"], ids, ctx["now"])
