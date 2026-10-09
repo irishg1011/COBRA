@@ -132,6 +132,11 @@
     const LOGOUT_KEY = "cobraIdleLoggedOut";
 
     function goToLogin() {
+        // The login page sends a tab that still has this flag to the dashboard.
+        try {
+            window.sessionStorage.removeItem("isAuthenticated");
+            window.sessionStorage.removeItem("userRole");
+        } catch (e) { /* ignore */ }
         window.location.href = `${loginUrl}?reason=idle`;
     }
 
