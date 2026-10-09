@@ -40,9 +40,9 @@
     }
 
     // ---------------- question timer ----------------
-    function timerBar(host) {
+    function timerBar(host, extraClass) {
         const bar = document.createElement("div");
-        bar.className = "game-timer";
+        bar.className = "game-timer" + (extraClass ? " " + extraClass : "");
         bar.setAttribute("role", "presentation");
         bar.innerHTML = '<div class="game-timer-fill"></div>';
         host.appendChild(bar);
@@ -93,6 +93,21 @@
                 this.stop();
                 bar.remove();
             }
+        };
+    }
+
+    // The same clock drawn in several places - above the question AND inside
+    // the game stage, so it stays in view when a phone shows the game full
+    // screen. hosts: [element, ...]; the first is the normal bar, the rest
+    // float over the stage. onExpire fires once.
+    function timerBars(hosts) {
+        const bars = hosts.filter(Boolean).map((host, i) => timerBar(host, i ? "is-stage" : ""));
+        return {
+            sync(timer, key) { bars.forEach((b) => b.sync(timer, key)); },
+            stop() { bars.forEach((b) => b.stop()); },
+            hide() { bars.forEach((b) => b.hide()); },
+            onExpire(fn) { if (bars[0]) bars[0].onExpire(fn); },
+            dispose() { bars.forEach((b) => b.dispose()); }
         };
     }
 
@@ -163,5 +178,5 @@
         }
     }
 
-    window.CobraGameKit = { hearts, livesText, timerBar, leaveGuard, notice };
+    window.CobraGameKit = { hearts, livesText, timerBar, timerBars, leaveGuard, notice };
 })();
