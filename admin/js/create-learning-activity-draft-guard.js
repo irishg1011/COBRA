@@ -211,6 +211,7 @@
                 items.push({
                     flashcard_id: card.dataset.itemId || null,
                     front: val("front"),
+                    front_code: (card.querySelector('[name$="[front_code]"]') || { value: "" }).value.replace(/\s+$/, ""),
                     back: val("back"),
                     hint: val("hint"),   // feat/hints-feedback
                     correct_feedback: val("correct_feedback"),

@@ -65,7 +65,7 @@ FILL_BLANK_FIELD_PATTERN = re.compile(
 
 # Matches "flashcards[<n>][front|back|correct_feedback|incorrect_feedback]"
 FLASHCARD_FIELD_PATTERN = re.compile(
-    r"^flashcards\[(\d+)\]\[(front|back|correct_feedback|incorrect_feedback|hint)\]$"   # hint: feat/hints-feedback
+    r"^flashcards\[(\d+)\]\[(front|front_code|back|correct_feedback|incorrect_feedback|hint)\]$"   # hint, front_code: feat/hints-feedback
 )
 
 

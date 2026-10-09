@@ -462,8 +462,15 @@ class FlashcardsActivityController(_SimpleItemController):
         back = (fc.get("back") or fc.get("back_text") or "").strip()
         if not front or not back:
             return None
+        # The editor keeps the question and the code in separate boxes; the
+        # card stores them together, the code in a ``` block - the format
+        # the card game already draws as a code box. The code is never re-cased.
+        code = (fc.get("front_code") or "").strip("\n").rstrip()
+        front = format_display_name(front)
+        if code.strip():
+            front = f"{front}\n```\n{code}\n```"
         return (
-            format_display_name(front),
+            front,
             back,  # saved exactly as typed (only trimmed) - answers are case-sensitive
             _fmt_optional(fc.get("correct_feedback") or fc.get("correctFeedback")),
             _fmt_optional(fc.get("incorrect_feedback") or fc.get("incorrectFeedback")),

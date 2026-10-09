@@ -811,6 +811,7 @@
                 box.textContent = flipped ? back : front;
             });
             host.appendChild(box);
+            if (card.front_code) host.appendChild(previewBlock("Code on the card", card.front_code));
             if (card.hint) host.appendChild(el("p", "editor-preview-hint", `Hint: ${card.hint}`));   // feat/hints-feedback
             host.appendChild(el("p", "activity-flashcard-hint", "Click the card to flip it."));
             body.appendChild(host);

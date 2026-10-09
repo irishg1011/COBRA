@@ -591,3 +591,8 @@ textarea.field-error {
 .fib-legacy-content[hidden], .fib-run-note[hidden] { display: none; }
 .form-hint { margin: 6px 0 0; font-size: 0.82rem; color: #64748b; }
 .mt-8 { margin-top: 8px; }
+.flashcard-card .fc-code-input {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    font-size: 0.9rem;
+    white-space: pre;
+}

@@ -213,7 +213,7 @@ function isExactAnswerField(el) {
     // feat/fib-console + feat/hints-feedback: code, expected output, the
     // must-contain text and hints are code-like - never re-cased.
     return /^fill_blanks\[\d+\]\[(correct_answer|code_text|expected_output|must_contain|hint)\]$/.test(name) ||
-           /^flashcards\[\d+\]\[(back|hint)\]$/.test(name);
+           /^flashcards\[\d+\]\[(back|hint|front_code)\]$/.test(name);
 }
 
 function handleActivityFieldInput(e) {
@@ -1650,7 +1650,11 @@ function addNewFlashcardCard(prefilledData = null) {
     card.dataset.index = index;
     if (prefilledData && prefilledData.flashcard_id) card.dataset.itemId = prefilledData.flashcard_id; // feat/publishing-tree
 
-    let frontVal = prefilledData ? (prefilledData.front || prefilledData.front_text || '') : '';
+    // The card's question and its code are edited in separate boxes; a saved
+    // card keeps its code in a ``` block inside the front text.
+    const split = splitFlashcardFront(prefilledData ? (prefilledData.front || prefilledData.front_text || '') : '');
+    let frontVal = split.question;
+    const frontCodeVal = prefilledData && prefilledData.front_code !== undefined ? prefilledData.front_code : split.code;
     let backVal = prefilledData ? (prefilledData.back || prefilledData.back_text || '') : '';
     let correctFeedbackVal = prefilledData ? (prefilledData.correctFeedback || prefilledData.correct_feedback || '') : '';
     let incorrectFeedbackVal = prefilledData ? (prefilledData.incorrectFeedback || prefilledData.incorrect_feedback || '') : '';
@@ -1681,6 +1685,11 @@ function addNewFlashcardCard(prefilledData = null) {
         </div>
 
         <div class="form-group mt-16">
+            <label class="form-label">Code on the card <small class="text-muted">(optional - shown under the front question)</small></label>
+            <textarea name="flashcards[${index}][front_code]" class="form-control fc-code-input" rows="3" spellcheck="false" placeholder="e.g. x = 5&#10;print(x * 2)">${escapeAttr(frontCodeVal)}</textarea>
+        </div>
+
+        <div class="form-group mt-16">
             <label class="form-label">Hint <small class="text-muted">(shown while answering - never the answer)</small></label>
             <input type="text" name="flashcards[${index}][hint]" class="form-control" value="${escapeAttr(hintVal)}" placeholder="Points the way without giving the answer">
         </div>
@@ -1702,6 +1711,15 @@ function addNewFlashcardCard(prefilledData = null) {
     refreshActivityFieldTrackers(card);
     updatePointsTotal();
     updateAddButtonsState();
+}
+
+// The question and the ``` code block of a saved card front.
+function splitFlashcardFront(text) {
+    const source = String(text || '').replace(/\r\n?/g, '\n');
+    const m = source.match(/```(?:[ \t]*(?:python3?|py)?[ \t]*\n)?([\s\S]*?)(?:```|$)/i);
+    if (!m) return { question: source.trim(), code: '' };
+    const question = (source.slice(0, m.index) + source.slice(m.index + m[0].length)).trim();
+    return { question, code: m[1].replace(/^\n+|\s+$/g, '') };
 }
 
 // Remove Flashcard Card
@@ -1758,6 +1776,7 @@ function duplicateFlashcardCard(btn) {
     const val = (field) => { const el = card.querySelector(`[name$="[${field}]"]`); return el ? el.value : ''; };
     addNewFlashcardCard({
         front: val('front'),
+        front_code: val('front_code'),
         back: val('back'),
         hint: val('hint'),
         correctFeedback: val('correct_feedback'),
