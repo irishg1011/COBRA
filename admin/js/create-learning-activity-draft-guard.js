@@ -376,13 +376,13 @@
                                 }
                             }
 
-                            // Task #103: Duplicate answer check within the same question
+                            // Task #103: Duplicate answer check within the same question.
+                            // Exact text: "ada", "ADA" and "Ada" are different choices.
                             if (optText) {
-                                const lowerOpt = optText.toLowerCase();
-                                if (!seenAnswers.has(lowerOpt)) {
-                                    seenAnswers.set(lowerOpt, []);
+                                if (!seenAnswers.has(optText)) {
+                                    seenAnswers.set(optText, []);
                                 }
-                                seenAnswers.get(lowerOpt).push(textInput);
+                                seenAnswers.get(optText).push(textInput);
                             }
 
                             // Task #103: Answer vs Feedback cannot be identical
