@@ -51,6 +51,7 @@ from activity_retakes import (
     activity_standing,
     open_retake,
     create_retake,
+    DRAW_SIZE,
 )
 
 
@@ -552,8 +553,9 @@ def start_activity_retake(acc_id, la_id):
             from activity_retakes import complete_retake
             complete_retake(cursor, retake["retake_id"])
         retake = create_retake(cursor, acc_id, la_id, [])
+        # Never more than one play's worth (DRAW_SIZE = 5) in one round.
         _play_id, drawn = start_retake_play(cursor, acc_id, la_id, activity["activity_type_name"],
-                                            retake["retake_id"], standing["missed"])
+                                            retake["retake_id"], min(standing["missed"], DRAW_SIZE))
         cursor.execute("UPDATE activity_retakes_tbl SET item_ids = %s WHERE retake_id = %s",
                        (",".join(str(int(i)) for i in drawn), retake["retake_id"]))
         retake["item_ids"] = drawn

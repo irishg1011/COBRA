@@ -166,8 +166,9 @@ def passed_item_ids(cursor, acc_id, activity_type, item_ids):
 #     passed   = correct in the first play + correct answers in retake plays
 #                (each correct retake answer turns one missed slot into passed)
 #     missed   = slots - passed
-# Learners who played before the release keep their old results: no first
-# play row -> the old per-item rule (passed_item_ids) over the whole activity.
+# Learners who played before the release ("legacy": answers with no play,
+# no first play row) keep their old answers, scored on DRAW_SIZE slots too:
+# passed = old first-try correct + retake corrects (passed_item_ids), max 5.
 PLAYS_TABLE = "activity_plays_tbl"
 PLAY_ITEMS_TABLE = "activity_play_items_tbl"
 DRAW_SIZE = 5
@@ -255,15 +256,20 @@ def activity_standing(cursor, acc_id, activity_type, la_id):
         slots = min(DRAW_SIZE, len(item_ids))
         return {"model": "new", "slots": slots, "passed": 0, "missed": slots, "first_correct": 0,
                 "first_answered": 0, "first_missed_ids": []}
+    # Answered before the pool + draw release: scored on DRAW_SIZE (5) slots
+    # like everyone else - was the whole pool, so every question added later
+    # (and never seen) counted as missed and a retake could hold 47 questions.
     passed_set = passed_item_ids(cursor, acc_id, activity_type, item_ids)
     first_ok = _first_try_correct_ids(cursor, acc_id, activity_type, item_ids)
-    slots = len(item_ids)
+    answered = _first_answered_ids(cursor, acc_id, activity_type, item_ids)
+    slots = min(DRAW_SIZE, len(item_ids))
     passed = min(slots, len(passed_set) + retake_correct)
     return {
         "model": "legacy", "slots": slots, "passed": passed, "missed": slots - passed,
-        "first_correct": len(first_ok),
-        "first_answered": len(_first_answered_ids(cursor, acc_id, activity_type, item_ids)),
-        "first_missed_ids": [i for i in item_ids if i not in first_ok],
+        "first_correct": min(slots, len(first_ok)),
+        "first_answered": min(slots, len(answered)),
+        # only questions really answered wrong - never the unseen ones
+        "first_missed_ids": [i for i in item_ids if i in answered and i not in first_ok],
     }
 
 
