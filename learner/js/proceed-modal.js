@@ -12,7 +12,8 @@
  *       yesLabel: "Yes, proceed",
  *       noLabel: "No, stay here",
  *       href: "/lesson-content?resource_id=12",  // where Yes goes (none = just close)
- *       onYes: () => {...}                       // or run this on Yes (popup closes first)
+ *       onYes: () => {...},                      // or run this on Yes (popup closes first)
+ *       onNo: () => {...}                        // run on the No button only (not Escape/backdrop)
  *   });
  *
  * "No", the backdrop and Escape close it and keep the learner where they are.
@@ -27,6 +28,7 @@
     let textEl = null;
     let yesHref = null;
     let yesFn = null;
+    let noFn = null;
     let returnFocus = null;
 
     function build() {
@@ -56,7 +58,11 @@
             close();
             if (fn) fn();
         });
-        noBtn.addEventListener('click', close);
+        noBtn.addEventListener('click', () => {
+            const fn = noFn;
+            close();
+            if (fn) fn();
+        });
         overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && overlay && !overlay.hidden) close();
@@ -69,6 +75,7 @@
         returnFocus = document.activeElement;
         yesHref = opts.href || null;
         yesFn = typeof opts.onYes === 'function' ? opts.onYes : null;
+        noFn = typeof opts.onNo === 'function' ? opts.onNo : null;
         iconEl.innerHTML = `<i class="fa-solid ${opts.icon || 'fa-circle-check'}"></i>`;
         titleEl.textContent = opts.title || 'Lesson complete!';
         textEl.textContent = opts.text || '';

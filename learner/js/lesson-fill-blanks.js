@@ -296,6 +296,7 @@
         // feat/question-timer: above the question AND inside the game stage (phones, full screen)
         const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBars([ui.timerHost, ui.stage]) : null;
         let leaveGuard = null;
+        let leaveRiskOff = null;
 
         // battle animation state (display only - the server owns the real numbers)
         const bt = {
@@ -1275,6 +1276,7 @@
             if (resizeObserver) resizeObserver.disconnect();
             if (timer) timer.dispose();
             if (leaveGuard) leaveGuard.dispose();
+            if (leaveRiskOff) leaveRiskOff();
             root.classList.remove("is-focus");
             document.documentElement.classList.remove("fib-focus-lock");
             if (stage3d && stage3d.dispose) stage3d.dispose();
@@ -1344,6 +1346,10 @@
             booted = true;
             if (timer) timer.onExpire(onTimerExpired);
             if (!PREVIEW && window.CobraGameKit) {
+                // Clicking away while a question is on screen asks first (game-kit.js).
+                leaveRiskOff = window.CobraGameKit.addLeaveRisk(() => (server && !server.completed
+                    && server.session_status === "in_progress" && server.total_lives > 0
+                    && server.current_revealed && root.isConnected) ? { kind: "game" } : null);
                 leaveGuard = window.CobraGameKit.leaveGuard({
                     url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
                     body: () => ({ la_id: laId }),

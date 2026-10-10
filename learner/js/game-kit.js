@@ -494,6 +494,89 @@
             : "\uD83D\uDC49 Tap Next when you're ready - the next question's timer starts only after the 3 - 2 - 1.";
     }
 
+    // ------------------------------------------------------------
+    // Leaving while something is at stake. A game (a question on screen,
+    // its clock running) or the coding exercise (work in progress) registers
+    // a check with addLeaveRisk(fn); fn returns null or
+    // { kind: "game" | "exercise", code: bool }. While one is at stake:
+    //   - a click on anything that leaves the page (header / profile /
+    //     notification links, Back to Lessons, Logout) asks first:
+    //     Stay (main button) or Leave anyway. Leaving still counts as
+    //     leaving the activity (leaveGuard) - the warning only makes the
+    //     cost clear.
+    //   - refresh / closing the tab / another address: the browser's own
+    //     "Leave site?" box.
+    // ------------------------------------------------------------
+    const leaveRisks = new Set();
+    let leaveConfirmedUntil = 0;   // "Leave anyway" was pressed: no second prompt
+
+    function addLeaveRisk(fn) {
+        leaveRisks.add(fn);
+        return () => leaveRisks.delete(fn);
+    }
+
+    function leaveRisk() {
+        for (const fn of leaveRisks) {
+            try {
+                const risk = fn();
+                if (risk) return risk;
+            } catch (err) { /* a broken check never blocks the page */ }
+        }
+        return null;
+    }
+
+    function leaveRiskText(risk) {
+        if (risk.kind === "exercise") {
+            return "You're working on a coding exercise. If you leave now, it counts as leaving the exercise: "
+                + "the first time is a warning, after that you get a new exercise and your code is cleared."
+                + (risk.code ? " Your code hasn't been submitted yet." : "");
+        }
+        return "You're in the middle of a question and its timer is running. If you leave now, it counts as "
+            + "leaving the activity: the first time is a warning, after that the question is replaced and "
+            + "counts as missed (-1 life).";
+    }
+
+    function confirmLeave(risk, onLeave) {
+        if (!window.CobraProceed) {
+            if (window.confirm(leaveRiskText(risk))) onLeave();
+            return;
+        }
+        window.CobraProceed.open({
+            icon: "fa-triangle-exclamation",
+            title: risk.kind === "exercise" ? "Leave this exercise?" : "Leave this activity?",
+            text: leaveRiskText(risk),
+            yesLabel: "Stay",
+            noLabel: "Leave anyway",
+            onNo: onLeave
+        });
+    }
+
+    document.addEventListener("click", (e) => {
+        if (Date.now() < leaveConfirmedUntil) return;
+        const el = e.target && e.target.closest ? e.target.closest('a[href], [data-pm="logout"]') : null;
+        if (!el) return;
+        if (el.tagName === "A") {
+            const href = el.getAttribute("href") || "";
+            if (!href || href.charAt(0) === "#" || href.indexOf("javascript:") === 0
+                || el.target === "_blank" || el.hasAttribute("download")) return;
+            if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;   // opens elsewhere
+        }
+        const risk = leaveRisk();
+        if (!risk) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        confirmLeave(risk, () => {
+            leaveConfirmedUntil = Date.now() + 15000;
+            el.click();   // the same link / button, now let through
+        });
+    }, true);
+
+    window.addEventListener("beforeunload", (e) => {
+        if (Date.now() < leaveConfirmedUntil || !leaveRisk()) return;
+        e.preventDefault();
+        e.returnValue = "";
+    });
+
     window.CobraGameKit = { hearts, livesText, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover, nextNoteText };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk };
 })();
