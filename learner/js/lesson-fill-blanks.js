@@ -252,7 +252,8 @@
                     <div class="fib-controls" data-f="controls">
                         <button type="button" class="fib-primary-btn" data-f="checkBtn" disabled><i class="fa-solid fa-check"></i> Check answer</button>
                         <button type="button" class="fib-ghost-btn" data-f="clearBtn"><i class="fa-solid fa-eraser"></i> Clear</button>
-                        <button type="button" class="fib-ghost-btn fib-skip-btn" data-f="playSkipBtn"><i class="fa-solid fa-forward"></i> <span data-f="playSkipText">Skip (−1 life)</span></button>
+                        <button type="button" class="fib-ghost-btn fib-skip-btn" data-f="playSkipBtn"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long" data-f="playSkipText">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
+                        <button type="button" class="fib-ghost-btn fib-pause-btn" data-f="pauseBtn" aria-label="Pause - stops the timer"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
                     </div>
                     <div class="fib-feedback" data-f="feedback" hidden>
                         <div class="fib-feedback-body">
@@ -279,10 +280,12 @@
         let items = [];
         let total = 0;
         let server = null;          // last state the server sent
-        let mode = "loading";       // loading | ready | playing | busy | review | cooldown | done | error
+        let mode = "loading";       // loading | ready | playing | paused | busy | review | cooldown | done | error
         let booted = false;
         let firstOpen = true;       // the first reveal after opening the page reports an unclosed leave
         let counting = false;       // a 3 - 2 - 1 is running
+        let held = false;           // Pause froze the puzzle's clock on the server
+        let holdChain = Promise.resolve();   // pause / resume requests go out in order
         let disposed = false;
         let stage3d = null;         // battle3d.js api, null when WebGL/Three is unavailable
         let qIndex = 0;
@@ -315,6 +318,7 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            root.classList.toggle("is-held", next === "paused");   // the puzzle hides while paused
             // Results, an error and "out of lives" always show in the normal page.
             if (next === "done" || next === "error" || next === "cooldown") setFocus(false);
             if (timer && (next === "done" || next === "error" || next === "cooldown")) timer.hide();
@@ -332,6 +336,7 @@
             if (timer && state && state.timer) {
                 if (state.current_item_id && state.current_revealed && !state.completed) timer.sync(state.timer, state.current_item_id);
                 else timer.hide();
+                if (mode === "paused") timer.stop();   // frozen while paused, whatever arrives
             }
             updateHUD();
         }
@@ -349,10 +354,8 @@
             ui.progress.textContent = total ? `${Math.min(qIndex + 1, total)}/${total}` : "-";
             ui.streak.textContent = streak;
             ui.lives.innerHTML = fibHearts(server);
-            ui.livesCount.textContent = fibLivesCount(server);
-            ui.livesLabel.textContent = (server && server.seconds_to_refill > 0)
-                ? `Lives · refill ${fibClock(server.seconds_to_refill)}`
-                : "Lives";
+            ui.livesCount.innerHTML = window.CobraGameKit.livesHtml(server);
+            ui.livesLabel.innerHTML = window.CobraGameKit.livesLabelHtml(server);
         }
 
         function bump(node) {
@@ -370,11 +373,13 @@
 
         // ---- overlay (only static markup + numbers go through innerHTML) ----
         function showOverlay(html) {
+            root.classList.add("has-overlay");   // the in-stage timer hides behind cards
             ui.overlay.innerHTML = html;
             ui.overlay.hidden = false;
         }
 
         function hideOverlay() {
+            root.classList.remove("has-overlay");
             ui.overlay.hidden = true;
             ui.overlay.innerHTML = "";
         }
@@ -386,7 +391,9 @@
         function showReady(restored) {
             setMode("ready");
             hideOverlay();
+            const isHeld = !restored && !!(server && server.timer && server.timer.held);
             let title = restored ? `Your lives are back (${fibLivesCount(server)})`
+                : isHeld ? "Your puzzle is paused"
                 : (server && server.solved_count > 0) ? "Pick up where you left off"
                 : "Forge the missing code";
             const limit = server && server.timer ? server.timer.limit : 0;
@@ -395,12 +402,13 @@
                 eyebrow: (server && server.retake) ? `Retake round ${Number(server.retake.round)} · Fill in the Blanks` : "Fill in the Blanks",
                 title,
                 lines: [
-                    (server && server.solved_count > 0) || restored ? `${left} puzzle${left === 1 ? "" : "s"} left` : `${total} puzzles, one try each`,
-                    PREVIEW ? "" : (limit ? `${limit} seconds per puzzle` : ""),
+                    (server && server.solved_count > 0) || restored || isHeld ? `${left} puzzle${left === 1 ? "" : "s"} left` : `${total} puzzles, one try each`,
+                    isHeld ? `Timer paused at ${server.timer.seconds_left}s - it goes on after the 3 - 2 - 1`
+                        : (PREVIEW ? "" : (limit ? `${limit} seconds per puzzle` : "")),
                     "Fill the blank - the code really runs."
                 ],
                 note: PREVIEW ? "Preview: no timer, nothing is saved." : "The timer starts the moment each puzzle appears.",
-                button: (server && server.solved_count > 0) || restored ? "Resume" : "Start activity"
+                button: (server && server.solved_count > 0) || restored || isHeld ? "Resume" : "Start activity"
             }).then(() => {
                 if (disposed) return;
                 enterFocusIfPhone();   // phones: the game goes full screen
@@ -413,6 +421,7 @@
         async function startWithCountdown(intro) {
             if (disposed || counting) return;
             counting = true;
+            held = false;   // opening the puzzle (again) restarts its clock on the server
             setMode("busy");
             hideOverlay();
             const kit = window.CobraGameKit;
@@ -443,6 +452,83 @@
                 return;
             }
             if (intro && stage3d) stage3d.playIntro();   // cobra slithers in
+            setMode("playing");
+            if (slotInput) slotInput.focus({ preventScroll: true });
+            showLeaveEvents();   // the first open after a refresh counts an unclosed leave
+        }
+
+        // Pause: freezes the puzzle's clock on the server (game/pause) and
+        // hides the puzzle until Resume starts it again from there. What was
+        // typed or placed in the blank stays.
+        function holdTimer(on) {
+            const fibId = server && server.current_item_id;
+            holdChain = holdChain.then(async () => {
+                if (PREVIEW || disposed || !fibId) return null;
+                try {
+                    const data = await postJson("game/pause", { la_id: laId, item_id: fibId, paused: on });
+                    if (!disposed) applyState(data.state);
+                    return data;
+                } catch (err) {
+                    return null;
+                }
+            });
+            return holdChain;
+        }
+
+        function pausedText() {
+            const left = server && server.timer ? server.timer.seconds_left : null;
+            return (PREVIEW || left == null) ? "Timer paused." : `Timer paused at ${left}s.`;
+        }
+
+        function pause() {
+            if (disposed || mode !== "playing") return;
+            setMode("paused");
+            showOverlay(`
+                <div class="fib-overlay-card fib-paused">
+                    <i class="fa-solid fa-pause fib-paused-icon"></i>
+                    <h4>Paused</h4>
+                    <p class="fib-paused-time game-paused-time" data-f="pausedAt">Stopping the timer…</p>
+                    <p class="fib-paused-note">The puzzle is hidden while paused. Your answer is kept. Leaving this page still counts as leaving.</p>
+                    <div class="fib-overlay-actions">
+                        <button type="button" class="fib-primary-btn" data-f="resumeBtn"><i class="fa-solid fa-play"></i> Resume</button>
+                    </div>
+                </div>
+            `);
+            if (timer) timer.stop();
+            held = true;
+            holdTimer(true).then((data) => {
+                if (disposed || mode !== "paused") return;
+                if (data && !data.held) {   // the puzzle ended meanwhile (e.g. time ran out)
+                    held = false;
+                    resyncFromState();
+                    return;
+                }
+                const node = ui.overlay.querySelector('[data-f="pausedAt"]');
+                if (node) node.textContent = pausedText();
+            });
+            const btn = ui.overlay.querySelector('[data-f="resumeBtn"]');
+            btn.addEventListener("click", resume);
+            btn.focus({ preventScroll: true });
+        }
+
+        async function resume() {
+            if (disposed || mode !== "paused") return;
+            setMode("busy");
+            enterFocusIfPhone();
+            const data = await holdTimer(false);
+            if (disposed) return;
+            held = false;
+            if (!PREVIEW) {
+                if (!data) {
+                    showError("Could not reach the server to resume. Your progress is saved - reload the page.");
+                    return;
+                }
+                if (server.completed || server.session_status !== "in_progress" || !server.timer.running) {
+                    resyncFromState();
+                    return;
+                }
+            }
+            hideOverlay();
             setMode("playing");
             if (slotInput) slotInput.focus({ preventScroll: true });
         }
@@ -772,6 +858,7 @@
             ui.playSkipText.textContent = "Skip (−1 life)";
             ui.playSkipBtn.setAttribute("aria-label", "Skip this puzzle, costs 1 life");
             ui.playSkipBtn.disabled = !playing || items.length === 0 || !server || server.total_lives <= 0;
+            ui.pauseBtn.disabled = !playing || items.length === 0;
             ui.controls.hidden = mode === "review";
             if (slotInput) slotInput.disabled = !playing;
             paintTray();
@@ -920,7 +1007,7 @@
 
         // feat/question-timer: the bar ran out - the server checks its own clock.
         async function onTimerExpired(fibId) {
-            if (disposed || !server || server.current_item_id !== fibId) return;
+            if (disposed || !server || server.current_item_id !== fibId || held) return;
             if (mode !== "playing" && mode !== "ready") return;
             if (mode === "ready") hideOverlay();
             setMode("busy");
@@ -1288,6 +1375,7 @@
         ui.clearBtn.addEventListener("click", () => { if (mode === "playing") clearSlot(); });
         ui.nextBtn.addEventListener("click", advance);
         ui.playSkipBtn.addEventListener("click", () => skipItem());
+        ui.pauseBtn.addEventListener("click", pause);
 
         // ---- boot ----
         async function boot() {
@@ -1374,8 +1462,10 @@
 
             // A puzzle whose clock was already running (page refreshed or
             // reopened mid-puzzle) can't wait for a countdown - it shows now.
+            // (Paused with the Pause button: the clock stays frozen until Resume.)
             if (!PREVIEW && server.current_revealed && !server.completed
-                && server.session_status === "in_progress" && server.total_lives > 0) {
+                && server.session_status === "in_progress" && server.total_lives > 0
+                && !(server.timer && server.timer.held)) {
                 try {
                     const again = await startPlay(laId, true);   // also counts a tab closed mid-puzzle
                     firstOpen = false;

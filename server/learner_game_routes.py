@@ -5,6 +5,9 @@ feat/question-timer, feat/leave-detection
 
     POST /api/lesson-activities/game/timeout   the question bar ran out
                                                {la_id, item_id}
+    POST /api/lesson-activities/game/pause     the Pause button {la_id, item_id,
+                                               paused: true|false} - freezes /
+                                               restarts the question clock
     POST /api/lesson-activities/game/leave     the learner left / came back
                                                {la_id, phase: start|end,
                                                 away_seconds, reason}
@@ -20,7 +23,7 @@ import json
 
 from flask import Blueprint, jsonify, request
 from learner_routes import get_current_learner_acc_id
-from game_plays import time_out_item, report_leave
+from game_plays import time_out_item, report_leave, hold_timer
 
 learner_game_bp = Blueprint("learner_game_bp", __name__)
 
@@ -62,6 +65,18 @@ def game_leave():
     phase = "start" if data.get("phase") == "start" else "end"
     result, error_message = report_leave(acc_id, data.get("la_id"), phase,
                                          data.get("away_seconds"), data.get("reason"))
+    if result is None:
+        return _fail(error_message)
+    return jsonify({"success": True, **result}), 200
+
+
+@learner_game_bp.route("/api/lesson-activities/game/pause", methods=["POST"])
+def game_pause():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+    data = _body()
+    result, error_message = hold_timer(acc_id, data.get("la_id"), data.get("item_id"), bool(data.get("paused")))
     if result is None:
         return _fail(error_message)
     return jsonify({"success": True, **result}), 200

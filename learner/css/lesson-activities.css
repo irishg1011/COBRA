@@ -973,3 +973,104 @@ html.mcq-focus-lock body {
 .mcq-arena-overlay-icon.is-ok { color: #16a34a; }
 .mcq-arena-overlay-card h4.mcq-arena-right-title { color: #15803d; }
 .mcq-arena-feedback.is-ok { background: #f0fdf4; border-color: #86efac; color: #166534; }
+
+/* ============================================================
+   feat/pause-mobile
+   ============================================================ */
+/* Pause: the question and choices are hidden until Resume. */
+.mcq-arena-root.is-held .mcq-arena-qcard { position: relative; }
+.mcq-arena-root.is-held .mcq-arena-qtext,
+.mcq-arena-root.is-held .mcq-arena-choices {
+    filter: blur(9px);
+    opacity: 0.45;
+    pointer-events: none;
+    user-select: none;
+}
+.mcq-arena-root.is-held .mcq-arena-qcard::after {
+    content: "Question hidden while paused";
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.mcq-arena-overlay-card .mcq-arena-paused-time { margin-bottom: 6px; font-size: 16px; }
+
+/* Desktop: the question card shows the question; phones: the line below. */
+.mcq-arena-preview-above { display: none; }
+
+@media (max-width: 720px) {
+    /* ---- stat tiles: short and even ---- */
+    .mcq-arena-stat,
+    .mcq-arena-root.is-focus .mcq-arena-stat { padding: 5px 3px; }
+    .mcq-arena-stat b,
+    .mcq-arena-root.is-focus .mcq-arena-stat b { font-size: 15px; line-height: 1.2; }
+    .mcq-arena-stat.is-lives b,
+    .mcq-arena-root.is-focus .mcq-arena-stat.is-lives b { font-size: 14px; flex-wrap: nowrap; white-space: nowrap; }
+    .mcq-arena-stat i,
+    .mcq-arena-root.is-focus .mcq-arena-stat i { font-size: 9px; line-height: 1.25; }
+    .mcq-arena-lives-count { margin-left: 0; }
+
+    /* ---- question + choices: smaller, one column when a choice is long ---- */
+    .mcq-arena-qtext { font-size: 16px; }
+    .mcq-arena-choices { gap: 6px; }
+    .mcq-arena-choice,
+    .mcq-arena-choice:last-child:nth-child(3n + 1) { padding: 7px 9px; gap: 8px; font-size: 13.5px; line-height: 1.3; }
+    .mcq-arena-choices.is-long .mcq-arena-choice,
+    .mcq-arena-root.is-focus .mcq-arena-choices.is-long .mcq-arena-choice { flex-basis: 100%; }
+    .mcq-arena-key { width: 22px; height: 22px; font-size: 11.5px; border-radius: 6px; }
+
+    /* ---- question card after the 3-2-1: only what's needed - the
+       question and its choices are right above the board ---- */
+    .mcq-arena-overlay-card.mcq-arena-preview { padding: 14px; max-width: 360px; text-align: center; }
+    .mcq-arena-preview .mcq-arena-preview-question,
+    .mcq-arena-preview .mcq-arena-preview-choices,
+    .mcq-arena-preview .mcq-arena-subnote.is-default { display: none; }
+    .mcq-arena-preview .mcq-arena-timer-started { margin-bottom: 4px; font-size: 0.8rem; }
+    .mcq-arena-preview .game-timer-wrap.is-card { margin: 2px 0 8px; }
+    .mcq-arena-preview .mcq-arena-qmeta,
+    .mcq-arena-root.is-focus .mcq-arena-preview .mcq-arena-qmeta { display: block; font-size: 12px; }
+    .mcq-arena-preview-above {
+        display: block;
+        margin: 4px 0 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+    }
+    .mcq-arena-preview .mcq-arena-subnote { margin-bottom: 10px; }
+    .mcq-arena-preview .mcq-arena-overlay-actions { justify-content: center; flex-wrap: nowrap; gap: 8px; }
+    .mcq-arena-preview .mcq-arena-overlay-actions > button { flex: 1 1 0; justify-content: center; padding: 10px 12px; }
+
+    /* ---- other board cards (paused, feedback, out of lives): tighter ---- */
+    .mcq-arena-overlay-card { padding: 14px; }
+    .mcq-arena-overlay-card h4 { font-size: 18px; margin: 4px 0 6px; }
+    .mcq-arena-overlay-card p { font-size: 13.5px; }
+    .mcq-arena-overlay-icon { font-size: 24px; }
+
+    /* ---- toolbar: one line, short labels ---- */
+    .mcq-arena-toolbar,
+    .mcq-arena-root.is-focus .mcq-arena-toolbar { flex-wrap: wrap; gap: 6px; }
+    .mcq-arena-toolbar .mcq-arena-ghost-btn,
+    .mcq-arena-root.is-focus .mcq-arena-toolbar .mcq-arena-ghost-btn {
+        flex: 1 1 0;
+        justify-content: center;
+        white-space: nowrap;
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    /* ---- d-pad: smaller, so the board and buttons fit one screen ---- */
+    .mcq-arena-dpad button { min-height: 0; font-size: 17px; }
+    .mcq-arena-dpad,
+    .mcq-arena-root.is-focus .mcq-arena-dpad {
+        grid-template-columns: repeat(3, 56px);
+        grid-template-rows: repeat(2, 40px);
+        gap: 5px;
+    }
+}

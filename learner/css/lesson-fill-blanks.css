@@ -746,3 +746,51 @@ html.fib-focus-lock body {
     /* keyboard open on a sideways phone: every pixel goes to the board */
     .fib-root.is-focus.is-compact .fib-topbar { display: none; }
 }
+/* ============================================================
+   feat/pause-mobile
+   ============================================================ */
+/* Pause: the puzzle is hidden until Resume (what was typed stays). */
+.fib-root.is-held .fib-question,
+.fib-root.is-held .fib-hint,
+.fib-root.is-held .fib-code,
+.fib-root.is-held .fib-expected,
+.fib-root.is-held .fib-tray {
+    filter: blur(9px);
+    opacity: 0.45;
+    user-select: none;
+    pointer-events: none;
+}
+.fib-paused-icon { font-size: 26px; color: var(--fib-green); }
+.fib-overlay-card .fib-paused-time { margin-bottom: 6px; font-size: 16px; }
+.fib-overlay-card .fib-paused-note { font-size: 13px; }
+
+@media (max-width: 720px) {
+    /* stat tiles: short and even */
+    .fib-stat,
+    .fib-root.is-focus .fib-stat { padding: 5px 3px; }
+    .fib-stat b,
+    .fib-root.is-focus .fib-stat b { font-size: 15px; line-height: 1.2; }
+    .fib-stat.is-lives b,
+    .fib-root.is-focus .fib-stat.is-lives b { font-size: 14px; flex-wrap: nowrap; white-space: nowrap; }
+    .fib-stat i,
+    .fib-root.is-focus .fib-stat i { font-size: 9px; line-height: 1.25; }
+
+    /* Check answer + Clear, then Skip + Pause: two even rows */
+    .fib-controls,
+    .fib-root.is-focus .fib-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .fib-controls .fib-primary-btn,
+    .fib-controls .fib-ghost-btn,
+    .fib-root.is-focus .fib-controls .fib-primary-btn,
+    .fib-root.is-focus .fib-controls .fib-ghost-btn {
+        width: 100%;
+        margin-left: 0;
+        min-height: 42px;
+        padding: 8px 10px;
+        justify-content: center;
+        white-space: nowrap;
+    }
+
+    /* board cards: tighter */
+    .fib-overlay-card h4 { font-size: 18px; }
+    .fib-overlay-card p { font-size: 13.5px; }
+}
