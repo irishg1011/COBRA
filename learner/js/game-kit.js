@@ -6,6 +6,8 @@
  *   CobraGameKit.hearts(state)          the regular lives (max 5) + the daily
  *                                       bonus as a separate reserve badge
  *   CobraGameKit.livesText(state)       "3/5" (+ "· 2 reserve")
+ *   CobraGameKit.livesHtml(state)       the same for the lives tile ("3/5 ♥+2"
+ *   CobraGameKit.livesLabelHtml(state)  on phones) and its "Lives · refill" label
  *   CobraGameKit.timerBar(host)         slim shrinking bar, no numbers, no
  *                                       sound; colour changes only in the last
  *                                       10 seconds. The SERVER decides when
@@ -41,6 +43,25 @@
         if (!state) return "";
         const reserve = state.reserve_lives ?? state.bonus_lives ?? 0;
         return `${state.lives}/${state.max_lives}` + (reserve > 0 ? ` · ${reserve} reserve` : "");
+    }
+
+    // The lives tile: "3/5 · 2 reserve" on wide screens, "3/5 ♥+2" on
+    // phones (game-kit.css swaps the two), so the tile stays one line.
+    function livesHtml(state) {
+        if (!state) return "";
+        const reserve = Number(state.reserve_lives ?? state.bonus_lives ?? 0);
+        const main = `<span class="game-lives-main">${Number(state.lives)}/${Number(state.max_lives)}</span>`;
+        if (reserve <= 0) return main;
+        return main + `<span class="game-lives-long"> · ${reserve} reserve</span>`
+            + `<span class="game-lives-short" title="${reserve} daily bonus lives"><i class="fa-solid fa-heart is-bonus"></i>+${reserve}</span>`;
+    }
+
+    // The tile's label: "Lives" + the refill clock (its own small line on phones).
+    function livesLabelHtml(state) {
+        const left = state ? Math.max(0, Math.ceil(state.seconds_to_refill || 0)) : 0;
+        if (left <= 0) return "Lives";
+        const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+        return `Lives<span class="game-lives-refill"><span class="game-lives-sep"> · </span>refill ${clock}</span>`;
     }
 
     // ---------------- question timer ----------------
@@ -577,6 +598,6 @@
         e.returnValue = "";
     });
 
-    window.CobraGameKit = { hearts, livesText, timerBar, timerBars, leaveGuard, notice, noticeOpen,
+    window.CobraGameKit = { hearts, livesText, livesHtml, livesLabelHtml, timerBar, timerBars, leaveGuard, notice, noticeOpen,
         startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk };
 })();

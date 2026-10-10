@@ -150,8 +150,8 @@
         const isGet = path === "state";
         const url = isGet
             ? `${API_BASE_URL}/api/lesson-activities/mcq/state?la_id=${encodeURIComponent(laId)}`
-            : path === "timeout"
-                ? `${API_BASE_URL}/api/lesson-activities/game/timeout`   // shared by the three games
+            : (path === "timeout" || path === "pause")
+                ? `${API_BASE_URL}/api/lesson-activities/game/${path}`   // shared by the three games
                 : `${API_BASE_URL}/api/lesson-activities/mcq/${path}`;
         const response = await fetch(url, isGet ? { credentials: "include" } : {
             method: "POST",
@@ -209,9 +209,9 @@
             </div>
             <div class="mcq-arena-toolbar">
                 <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b> before the bar runs out. One try per question: a wrong letter, a skip, running out of time or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one; the daily bonus lives are a reserve used after your 5 lives are gone.</p>
-                <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn" disabled aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> <span>Skip (−1 life)</span></button>
+                <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn" disabled aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
-                <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn"><i class="fa-solid fa-compress"></i> <span>Exit full screen</span></button>
+                <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn" aria-label="Exit full screen"><i class="fa-solid fa-compress"></i> <span class="game-lbl-long">Exit full screen</span><span class="game-lbl-short">Exit</span></button>
             </div>
             <div class="mcq-arena-dpad" data-ui="dpad">
                 <button type="button" class="mcq-arena-dpad-up" data-dir="up" aria-label="Up"><i class="fa-solid fa-arrow-up"></i></button>
@@ -246,6 +246,8 @@
         let firstOpen = true;
         let counting = false;       // a 3 - 2 - 1 is running
         let cardTimer = null;       // the timer bar on the question card
+        let held = false;           // Pause froze the question's clock on the server
+        let holdChain = Promise.resolve();   // pause / resume requests go out in order
         // Before the play exists (a new learner, before Start) there is no
         // question at all - the board draws this empty one.
         const NOT_YET = { q_id: null, question_text: "", options: [], hidden: true };       // the first "play" after opening the page reports an unclosed leave
@@ -260,6 +262,7 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            root.classList.toggle("is-held", next === "paused");   // the question hides while paused
             if (timer && (next === "done" || next === "error" || next === "outoflives")) timer.hide();
             if (next === "done" || next === "error" || next === "outoflives") setFocus(false);
             ui.pauseBtn.innerHTML = next === "paused"
@@ -281,6 +284,7 @@
             if (timer && state && state.timer) {
                 if (state.current_q_id && state.current_revealed && !state.completed) timer.sync(state.timer, state.current_q_id);
                 else timer.hide();
+                if (mode === "paused") timer.stop();   // frozen while paused, whatever arrives
             }
             updateHUD();
         }
@@ -291,10 +295,8 @@
             ui.progress.textContent = `${Math.min(qIndex + 1, total)}/${total}`;
             ui.streak.textContent = streak;
             ui.lives.innerHTML = heartsHtml(server);
-            ui.livesCount.textContent = livesCount(server);
-            ui.livesLabel.textContent = (server && server.seconds_to_refill > 0)
-                ? `Lives · refill ${formatClock(server.seconds_to_refill)}`
-                : "Lives";
+            ui.livesCount.innerHTML = window.CobraGameKit.livesHtml(server);
+            ui.livesLabel.innerHTML = window.CobraGameKit.livesLabelHtml(server);
         }
 
         function bump(node) {
@@ -355,7 +357,8 @@
             const copy = {
                 start: { title: "Ready to play?", btn: "Start" },
                 continue: { title: "Pick up where you left off", btn: "Continue" },
-                resume: { title: "You have lives again", btn: "Resume" }
+                resume: { title: "You have lives again", btn: "Resume" },
+                held: { title: "Your game is paused", btn: "Resume" }
             }[kind] || { title: "Ready to play?", btn: "Start" };
             const limit = server && server.timer ? server.timer.limit : 0;
             const left = Math.max(0, total - (server ? server.current_index || 0 : 0));
@@ -364,7 +367,8 @@
                 title: copy.title,
                 lines: [
                     kind === "start" ? `${total} questions, one try each` : `${left} question${left === 1 ? "" : "s"} left`,
-                    PREVIEW ? "" : (limit ? `${limit} seconds per question` : ""),
+                    kind === "held" ? `Timer paused at ${server.timer.seconds_left}s - it goes on after the 3 - 2 - 1`
+                        : (PREVIEW ? "" : (limit ? `${limit} seconds per question` : "")),
                     fallback ? "Tap the answer you think is right." : "Steer the cobra into the pellet with the right letter."
                 ],
                 note: PREVIEW ? "Preview: no timer, nothing is saved." : null,
@@ -390,6 +394,7 @@
         async function startWithCountdown() {
             if (disposed || counting) return;
             counting = true;
+            held = false;   // opening the question (again) restarts its clock on the server
             setMode("busy");
             hideOverlay();
             const kit = window.CobraGameKit;
@@ -405,6 +410,7 @@
             }
             kit.hideCover(root);
             showQuestionCard();
+            showLeaveEvents();   // the first open after a refresh counts an unclosed leave
         }
 
         // The question card: the question and its choices, shown right after
@@ -426,9 +432,10 @@
                     <div class="mcq-arena-qmeta" data-ui="previewMeta"></div>
                     <h4 class="mcq-arena-preview-question" data-ui="previewQuestion"></h4>
                     <div class="mcq-arena-preview-choices" data-ui="previewChoices"></div>
+                    <p class="mcq-arena-preview-above"><i class="fa-solid fa-arrow-up"></i> Read the question and choices above, then press Play.</p>
                     <p class="mcq-arena-subnote" data-ui="cardNote"></p>
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-ghost-btn" data-ui="previewSkipBtn" aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
+                        <button type="button" class="mcq-arena-ghost-btn" data-ui="previewSkipBtn" aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
                         <button type="button" class="mcq-arena-primary-btn" data-ui="previewBtn"><i class="fa-solid fa-play"></i> Play</button>
                     </div>
                 </div>
@@ -455,6 +462,7 @@
             });
             overlayNode("cardNote").textContent = note
                 || "Read the question, then press Play (or Enter) to move the cobra into the right letter.";
+            overlayNode("cardNote").classList.toggle("is-default", !note);   // phones hide the default line
             const btn = overlayNode("previewBtn");
             btn.addEventListener("click", () => {
                 if (disposed || mode !== "ready") return;
@@ -465,27 +473,77 @@
             btn.focus({ preventScroll: true });
         }
 
+        // Pause freezes the question's clock on the server (game/pause) and
+        // hides the question until Resume starts it again from there.
+        function holdTimer(on) {
+            const qId = server && server.current_q_id;
+            holdChain = holdChain.then(async () => {
+                if (PREVIEW || disposed || !qId) return null;
+                try {
+                    const data = await mcqRequest("pause", activity.la_id, { item_id: qId, paused: on });
+                    if (!disposed) applyState(data.state);
+                    return data;
+                } catch (err) {
+                    return null;
+                }
+            });
+            return holdChain;
+        }
+
+        function pausedText() {
+            const left = server && server.timer ? server.timer.seconds_left : null;
+            return (PREVIEW || left == null) ? "Timer paused." : `Timer paused at ${left}s.`;
+        }
+
         function pause() {
             if (mode !== "playing" || fallback) return;
             setMode("paused");
             showOverlay(`
-                <div class="mcq-arena-overlay-card">
+                <div class="mcq-arena-overlay-card mcq-arena-paused">
                     <i class="fa-solid fa-pause mcq-arena-overlay-icon"></i>
                     <h4>Paused</h4>
-                    <p>Take a breath. Your progress is saved.</p>
+                    <p class="mcq-arena-paused-time game-paused-time" data-ui="pausedAt">Stopping the timer…</p>
+                    <p class="mcq-arena-subnote">The question is hidden while paused. Leaving this page still counts as leaving.</p>
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="resumeBtn">Resume</button>
+                        <button type="button" class="mcq-arena-primary-btn" data-ui="resumeBtn"><i class="fa-solid fa-play"></i> Resume</button>
                     </div>
                 </div>
             `);
+            if (timer) timer.stop();
+            held = true;
+            holdTimer(true).then((data) => {
+                if (disposed || mode !== "paused") return;
+                if (data && !data.held) {   // the question ended meanwhile (e.g. time ran out)
+                    held = false;
+                    resyncFromState();
+                    return;
+                }
+                const node = overlayNode("pausedAt");
+                if (node) node.textContent = pausedText();
+            });
             overlayNode("resumeBtn").addEventListener("click", () => {
                 enterFocusIfPhone();
                 resumePlay();
             });
         }
 
-        function resumePlay() {
+        async function resumePlay() {
             if (disposed) return;
+            if (held) {
+                if (mode !== "paused") return;
+                setMode("busy");                     // no double resume while the server answers
+                const data = await holdTimer(false);
+                if (disposed) return;
+                held = false;
+                if (!PREVIEW && !data) {
+                    showError("Could not reach the server to resume. Your progress is saved - reload the page.");
+                    return;
+                }
+                if (!PREVIEW && (server.completed || server.session_status !== "in_progress" || !server.timer.running)) {
+                    resyncFromState();
+                    return;
+                }
+            }
             if (window.CobraGameKit) window.CobraGameKit.hideCover(root);
             hideOverlay();
             acc = 0;
@@ -575,6 +633,7 @@
         async function skipCurrent() {
             if (disposed || !["playing", "paused", "ready"].includes(mode) || counting) return;
             if (mode === "ready" && !overlayNode("previewSkipBtn")) return;   // only from the question card
+            held = false;   // a skip ends the question, paused or not
             setMode("busy");
             hideOverlay();
             let data = null;
@@ -716,6 +775,9 @@
             // started) after the 3 - 2 - 1, so before that there is nothing to show.
             ui.qtext.textContent = q.hidden ? "The question appears after the 3 - 2 - 1 countdown." : q.question_text;
             ui.choices.innerHTML = "";
+            // A long choice wraps into a tall box in half a phone's width -
+            // then the choices go one per row (lesson-activities.css).
+            ui.choices.classList.toggle("is-long", (q.options || []).some((opt) => String(opt.text || "").length > 22));
             ui.fallbackFeedback.hidden = true;
             (q.options || []).forEach((opt) => {
                 const btn = el("button", "mcq-arena-choice");
@@ -802,6 +864,7 @@
             goToServerQuestion();
             if (server.total_lives <= 0) showOutOfLives();
             else if (server.session_status === "paused") showStartScreen("resume");
+            else if (server.timer && server.timer.held) showStartScreen("held");
             else if (server.session_status === "in_progress" && server.solved_count > 0) showStartScreen("continue");
             else showStartScreen("start");
         }
@@ -909,7 +972,7 @@
 
         // feat/question-timer: the bar ran out - the server checks its own clock.
         async function onTimerExpired(qId) {
-            if (disposed || !server || server.current_q_id !== qId) return;
+            if (disposed || !server || server.current_q_id !== qId || held) return;
             if (!["ready", "playing", "paused"].includes(mode)) return;
             setMode("busy");
             let data = null;
@@ -1382,8 +1445,10 @@
 
             // A question whose clock was already running (page refreshed or
             // reopened mid-question) can't wait for a countdown - it shows now.
+            // (Paused with the Pause button: the clock stays frozen until Resume.)
             if (!PREVIEW && server && server.current_revealed && !server.completed
-                && server.session_status === "in_progress" && server.total_lives > 0) {
+                && server.session_status === "in_progress" && server.total_lives > 0
+                && !(server.timer && server.timer.held)) {
                 if (await openPlay()) {
                     showLeaveEvents();   // a tab closed mid-question counts as leaving
                     if (server.current_revealed) {

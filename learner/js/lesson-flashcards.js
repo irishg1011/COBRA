@@ -284,7 +284,8 @@
                     <div class="fc-answer-row" data-c="answerRow">
                         <textarea class="fc-answer-input" data-c="input" rows="1" autocomplete="off" spellcheck="false" placeholder="Type the answer on the back of the card..." aria-label="Your answer"></textarea>
                         <button type="button" class="fc-primary-btn" data-c="checkBtn" disabled><i class="fa-solid fa-bolt"></i> Throw answer</button>
-                        <button type="button" class="fc-ghost-btn fc-skip-btn" data-c="playSkipBtn"><i class="fa-solid fa-forward"></i> <span data-c="playSkipText">Skip (−1 life)</span></button>
+                        <button type="button" class="fc-ghost-btn fc-skip-btn" data-c="playSkipBtn"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long" data-c="playSkipText">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
+                        <button type="button" class="fc-ghost-btn fc-pause-btn" data-c="pauseBtn" aria-label="Pause - stops the timer"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
                     </div>
                     <div class="fc-feedback" data-c="feedback" hidden>
                         <div class="fc-feedback-body">
@@ -310,12 +311,14 @@
         let cards = [];
         let total = 0;
         let server = null;
-        let mode = "loading";   // loading | ready | playing | busy | review | tryagain | cooldown | done | error
+        let mode = "loading";   // loading | ready | playing | paused | busy | review | tryagain | cooldown | done | error
         let wrongOnCurrent = false;  // learner already got THIS card wrong -> answer-bar Skip is free
         let booted = false;
         let firstOpen = true;       // the first reveal after opening the page reports an unclosed leave
         let counting = false;       // a 3 - 2 - 1 is running
         let cardTimer = null;       // the timer bar on the card preview
+        let held = false;           // Pause froze the card's clock on the server
+        let holdChain = Promise.resolve();   // pause / resume requests go out in order
         let disposed = false;
         let stage3d = null;
         let qIndex = 0;
@@ -344,6 +347,7 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            root.classList.toggle("is-held", next === "paused");   // the card hides while paused
             // Results, an error and "out of lives" always show in the normal page.
             if (next === "done" || next === "error" || next === "cooldown") setFocus(false);
             if (timer && (next === "done" || next === "error" || next === "cooldown")) timer.hide();
@@ -361,6 +365,7 @@
             if (timer && state && state.timer) {
                 if (state.current_item_id && state.current_revealed && !state.completed) timer.sync(state.timer, state.current_item_id);
                 else timer.hide();
+                if (mode === "paused") timer.stop();   // frozen while paused, whatever arrives
             }
             updateHUD();
         }
@@ -378,10 +383,8 @@
             ui.progress.textContent = total ? `${Math.min(qIndex + 1, total)}/${total}` : "-";
             ui.streak.textContent = streak;
             ui.lives.innerHTML = fcHearts(server);
-            ui.livesCount.textContent = fcLivesCount(server);
-            ui.livesLabel.textContent = (server && server.seconds_to_refill > 0)
-                ? `Lives · refill ${fcClock(server.seconds_to_refill)}`
-                : "Lives";
+            ui.livesCount.innerHTML = window.CobraGameKit.livesHtml(server);
+            ui.livesLabel.innerHTML = window.CobraGameKit.livesLabelHtml(server);
         }
 
         function bump(node) {
@@ -405,6 +408,7 @@
             ui.playSkipText.textContent = "Skip (−1 life)";
             ui.playSkipBtn.setAttribute("aria-label", "Skip this card, costs 1 life");
             ui.playSkipBtn.disabled = !playing || !server || server.total_lives <= 0;
+            ui.pauseBtn.disabled = !playing;
             ui.answerRow.hidden = mode === "review";
         }
 
@@ -450,7 +454,8 @@
             const copy = {
                 start: { title: "Ready to duel?", btn: "Start duel" },
                 continue: { title: "Pick up where you left off", btn: "Continue" },
-                resume: { title: "Your lives are back", btn: "Resume" }
+                resume: { title: "Your lives are back", btn: "Resume" },
+                held: { title: "Your duel is paused", btn: "Resume" }
             }[kind] || { title: "Ready to duel?", btn: "Start duel" };
             const limit = server && server.timer ? server.timer.limit : 0;
             const left = Math.max(0, total - (server ? server.current_index || 0 : 0));
@@ -460,7 +465,8 @@
                 title: copy.title,
                 lines: [
                     kind === "start" ? `${total} cards, one try each` : `${left} card${left === 1 ? "" : "s"} left`,
-                    PREVIEW ? "" : (limit ? `${limit} seconds per card` : ""),
+                    kind === "held" ? `Timer paused at ${server.timer.seconds_left}s - it goes on after the 3 - 2 - 1`
+                        : (PREVIEW ? "" : (limit ? `${limit} seconds per card` : "")),
                     "Type what's on the back of each card."
                 ],
                 note: PREVIEW ? "Preview: no timer, nothing is saved." : "The timer starts the moment each card appears.",
@@ -477,6 +483,7 @@
         async function startWithCountdown(intro) {
             if (disposed || counting) return;
             counting = true;
+            held = false;   // opening the card (again) restarts its clock on the server
             setMode("busy");
             hideOverlay();
             if (stage3d && stage3d.hideCard) stage3d.hideCard();   // no old card behind the 3 - 2 - 1
@@ -496,6 +503,84 @@
             kit.hideCover(root);
             if (intro && stage3d) stage3d.playIntro();   // cobra slithers in
             showCardPreview();
+            showLeaveEvents();   // the first open after a refresh counts an unclosed leave
+        }
+
+        // Pause: freezes the card's clock on the server (game/pause) and
+        // hides the card until Resume starts it again from there. What was
+        // typed stays in the answer box.
+        function holdTimer(on) {
+            const cardId = server && server.current_item_id;
+            holdChain = holdChain.then(async () => {
+                if (PREVIEW || disposed || !cardId) return null;
+                try {
+                    const data = await postJson("game/pause", { la_id: laId, item_id: cardId, paused: on });
+                    if (!disposed) applyState(data.state);
+                    return data;
+                } catch (err) {
+                    return null;
+                }
+            });
+            return holdChain;
+        }
+
+        function pausedText() {
+            const left = server && server.timer ? server.timer.seconds_left : null;
+            return (PREVIEW || left == null) ? "Timer paused." : `Timer paused at ${left}s.`;
+        }
+
+        function pause() {
+            if (disposed || mode !== "playing") return;
+            setMode("paused");
+            if (stage3d && stage3d.hideCard) stage3d.hideCard();
+            showOverlay(`
+                <div class="fc-overlay-card fc-paused">
+                    <i class="fa-solid fa-pause fc-paused-icon"></i>
+                    <h4>Paused</h4>
+                    <p class="fc-paused-time game-paused-time" data-c="pausedAt">Stopping the timer…</p>
+                    <p class="fc-paused-note">The card is hidden while paused. Your answer is kept. Leaving this page still counts as leaving.</p>
+                    <div class="fc-overlay-actions">
+                        <button type="button" class="fc-primary-btn" data-c="resumeBtn"><i class="fa-solid fa-play"></i> Resume</button>
+                    </div>
+                </div>
+            `);
+            if (timer) timer.stop();
+            held = true;
+            holdTimer(true).then((data) => {
+                if (disposed || mode !== "paused") return;
+                if (data && !data.held) {   // the card ended meanwhile (e.g. time ran out)
+                    held = false;
+                    resyncFromState();
+                    return;
+                }
+                const node = overlayNode("pausedAt");
+                if (node) node.textContent = pausedText();
+            });
+            const btn = overlayNode("resumeBtn");
+            btn.addEventListener("click", resume);
+            btn.focus({ preventScroll: true });
+        }
+
+        async function resume() {
+            if (disposed || mode !== "paused") return;
+            setMode("busy");
+            enterFocusIfPhone();
+            const data = await holdTimer(false);
+            if (disposed) return;
+            held = false;
+            if (!PREVIEW) {
+                if (!data) {
+                    showError("Could not reach the server to resume. Your progress is saved - reload the page.");
+                    return;
+                }
+                if (server.completed || server.session_status !== "in_progress" || !server.timer.running) {
+                    resyncFromState();
+                    return;
+                }
+            }
+            hideOverlay();
+            setMode("playing");
+            ui.input.focus({ preventScroll: true });
         }
 
         // The card preview: the front of the card, shown right after the
@@ -515,7 +600,7 @@
                     <p class="fc-hint" data-c="pvHint" hidden></p>
                     <p data-c="pvNote"></p>
                     <div class="fc-overlay-actions">
-                        <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
+                        <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
                         <button type="button" class="fc-primary-btn" data-c="pvBtn"><i class="fa-solid fa-play"></i> Play</button>
                     </div>
                 </div>
@@ -630,7 +715,7 @@
 
         // feat/question-timer: the bar ran out - the server checks its own clock.
         async function onTimerExpired(cardId) {
-            if (disposed || !server || server.current_item_id !== cardId) return;
+            if (disposed || !server || server.current_item_id !== cardId || held) return;
             if (mode !== "playing" && mode !== "ready") return;
             setMode("busy");
             let data = null;
@@ -888,6 +973,7 @@
             loadCard();
             if (server.total_lives <= 0) enterCooldown();
             else if (server.session_status === "paused") showStartCard("resume");
+            else if (server.timer && server.timer.held) showStartCard("held");
             else if (server.session_status === "in_progress" && server.solved_count > 0) showStartCard("continue");
             else showStartCard("start");
         }
@@ -1198,6 +1284,7 @@
         });
         ui.checkBtn.addEventListener("click", submitAnswer);
         ui.playSkipBtn.addEventListener("click", skipFromBar);
+        ui.pauseBtn.addEventListener("click", pause);
         ui.nextBtn.addEventListener("click", advance);
 
         function onKeyDown(e) {
@@ -1401,8 +1488,10 @@
 
             // A card whose clock was already running (page refreshed or
             // reopened mid-card) can't wait for a countdown - it shows now.
+            // (Paused with the Pause button: the clock stays frozen until Resume.)
             if (!PREVIEW && server.current_revealed && !server.completed
-                && server.session_status === "in_progress" && server.total_lives > 0) {
+                && server.session_status === "in_progress" && server.total_lives > 0
+                && !(server.timer && server.timer.held)) {
                 const ok = await openPlay();   // also counts a tab closed mid-card
                 if (disposed) return;
                 showLeaveEvents();

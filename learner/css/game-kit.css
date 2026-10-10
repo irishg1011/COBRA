@@ -255,3 +255,53 @@ html.game-leave-check .fc-root {
 }
 /* A card / feedback over the stage has its own timer: the floating one hides */
 .has-overlay .game-timer-wrap.is-stage { display: none; }
+
+/* ============================================================
+   feat/pause-mobile
+   ============================================================ */
+/* Lives tile: "3/5 · 2 reserve" on wide screens, "3/5 ♥+2" on phones;
+   the refill clock is its own small line on phones. */
+.game-lives-short { display: none; }
+.game-lives-short .fa-heart { color: #f59e0b; margin: 0 1px 0 4px; font-size: 0.85em; }
+
+/* "Timer paused at 16s" on every game's pause card */
+.game-paused-time { font-weight: 800; color: #0f172a; }
+
+@media (max-width: 720px) {
+    .game-lives-long { display: none; }
+    .game-lives-short { display: inline; }
+    .game-lives-refill { display: block; font-size: 0.92em; letter-spacing: 0; text-transform: none; }
+    .game-lives-sep { display: none; }
+
+    /* One timer on phones: the one over the question. The copy inside the
+       game stage is only needed on a sideways phone (wider than 720px). */
+    .game-timer-wrap.is-stage { display: none; }
+
+    /* Ready / 3-2-1 cover: the card sits at the top of the game and stays
+       in view while the page scrolls, instead of in the middle of a tall
+       blurred block. Full screen (.is-focus): centred as before. */
+    .game-ready-cover {
+        align-items: flex-start;
+        padding: 12px;
+        background: rgba(15, 23, 42, 0.25);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+    .game-ready-cover > * { position: sticky; top: 118px; }
+    .is-focus > .game-ready-cover { align-items: center; }
+    .is-focus > .game-ready-cover > * { position: static; }
+    .game-ready-card { padding: 18px 18px 20px; border-radius: 16px; }
+    .game-ready-title { font-size: 1.15rem; margin-bottom: 8px; }
+    .game-ready-lines { font-size: 0.86rem; gap: 4px; margin-bottom: 10px; }
+    .game-ready-note { font-size: 0.8rem; padding: 8px 10px; margin-bottom: 14px; }
+    .game-ready-btn { padding: 11px 30px; }
+    .game-ready-count-number { font-size: 4.5rem; }
+}
+
+/* Short button labels on phones ("Skip −1♥" for "Skip (−1 life)") */
+.game-lbl-short { display: none; }
+.game-lbl-short .fa-heart { margin-left: 2px; font-size: 0.85em; color: #e02424; }
+@media (max-width: 720px) {
+    .game-lbl-long { display: none; }
+    .game-lbl-short { display: inline; }
+}

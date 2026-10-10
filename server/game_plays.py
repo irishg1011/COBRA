@@ -50,7 +50,9 @@ TIMER (Task 5)
   Per-question limit per activity type (game_settings_tbl, so it can be
   changed without a code edit). The clock starts when the item is revealed
   (preview card included), stops at submit/skip, and is frozen while the
-  play is paused at 0 lives. It keeps running while the learner is away.
+  play is paused at 0 lives or by the game's Pause button (hold_timer -
+  the question is hidden while paused). It keeps running while the
+  learner is away.
   The SERVER decides: an answer that arrives after limit + grace counts as
   timed_out, and an expired item is timed out the next time the play is
   touched. The browser only draws the bar.
@@ -1013,6 +1015,9 @@ def build_state(cursor, ctx):
             "limit": ctx["limit"],
             "seconds_left": _seconds_left(ctx, current) if current else ctx["limit"],
             "running": bool(current and current["timer_started_at"] is not None),
+            # Pause button: revealed, still in play, clock frozen.
+            "held": bool(play and play["status"] == "in_progress" and current
+                         and current["shown_at"] is not None and current["timer_started_at"] is None),
         },
         # Task 6
         "leave": {
@@ -1177,6 +1182,36 @@ def time_out_item(acc_id, la_id, item_id, expected_type=None):
         feedback = _time_out(cursor, ctx, item)
         return {"timed_out": True, "feedback": feedback, "state": build_state(cursor, ctx)}, None
     return _run(acc_id, la_id, expected_type, action, "time out item")
+
+
+def hold_timer(acc_id, la_id, item_id, hold, expected_type=None):
+    """
+    The game's Pause button. hold=True freezes the current item's clock
+    (the seconds used are saved); hold=False starts it again from there.
+    The play stays in progress, so leaving the page still counts. Every
+    pause charges at least 1 second - pausing over and over can't stretch
+    the time.
+    """
+    def action(cursor, ctx):
+        item = _is_current(ctx, item_id)
+        if item is not None:
+            if hold and item["timer_started_at"] is not None:
+                used = (item["time_used_seconds"] or 0) + max(
+                    1, int((ctx["now"] - item["timer_started_at"]).total_seconds()))
+                item["time_used_seconds"] = used
+                item["timer_started_at"] = None
+                cursor.execute(
+                    f"UPDATE {PLAY_ITEMS_TABLE} SET timer_started_at = NULL, time_used_seconds = %s "
+                    f"WHERE play_item_id = %s",
+                    (used, item["play_item_id"])
+                )
+                if _elapsed(ctx, item) > ctx["limit"] + setting_int(ctx["settings"], "timer_grace_seconds"):
+                    _time_out(cursor, ctx, item)
+            elif not hold:
+                _reveal_current(cursor, ctx)
+        state = build_state(cursor, ctx)
+        return {"held": state["timer"]["held"], "state": state}, None
+    return _run(acc_id, la_id, expected_type, action, "pause timer")
 
 
 def lose_life(acc_id, la_id, expected_type=None):

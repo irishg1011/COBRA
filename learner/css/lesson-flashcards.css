@@ -857,3 +857,54 @@ html.fc-focus-lock body {
     font-weight: 700;
 }
 .fc-preview .game-timer-wrap.is-card { margin: 4px 0 10px; }
+
+/* ============================================================
+   feat/pause-mobile
+   ============================================================ */
+/* Pause: the card is hidden until Resume (the answer box keeps its text). */
+.fc-root.is-held .fc-card,
+.fc-root.is-held .fc-hint {
+    filter: blur(9px);
+    opacity: 0.45;
+    user-select: none;
+}
+.fc-paused-icon { font-size: 26px; color: var(--fc-green); }
+.fc-overlay-card .fc-paused-time { margin-bottom: 6px; font-size: 16px; }
+.fc-overlay-card .fc-paused-note { font-size: 13px; }
+.fc-answer-row .fc-pause-btn { flex-shrink: 0; min-height: 46px; box-sizing: border-box; }
+
+@media (max-width: 720px) {
+    /* stat tiles: short and even */
+    .fc-stat,
+    .fc-root.is-focus .fc-stat { padding: 5px 3px; }
+    .fc-stat b,
+    .fc-root.is-focus .fc-stat b { font-size: 15px; line-height: 1.2; }
+    .fc-stat.is-lives b,
+    .fc-root.is-focus .fc-stat.is-lives b { font-size: 14px; flex-wrap: nowrap; white-space: nowrap; }
+    .fc-stat i,
+    .fc-root.is-focus .fc-stat i { font-size: 9px; line-height: 1.25; }
+
+    /* answer row: the box, then Throw answer, then Skip + Pause side by side */
+    .fc-answer-row,
+    .fc-root.is-focus .fc-answer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .fc-answer-row .fc-answer-input,
+    .fc-answer-row .fc-primary-btn,
+    .fc-root.is-focus .fc-answer-row .fc-primary-btn { grid-column: 1 / -1; width: 100%; }
+    .fc-answer-row .fc-skip-btn,
+    .fc-answer-row .fc-pause-btn,
+    .fc-root.is-focus .fc-answer-row .fc-skip-btn {
+        width: 100%;
+        min-height: 42px;
+        padding: 8px 10px;
+        justify-content: center;
+        white-space: nowrap;
+    }
+    .fc-answer-row .fc-primary-btn,
+    .fc-root.is-focus .fc-answer-row .fc-primary-btn { min-height: 44px; padding: 10px 12px; }
+
+    /* board cards: tighter */
+    .fc-overlay-card h4 { font-size: 18px; }
+    .fc-overlay-card p { font-size: 13.5px; }
+    .fc-overlay-actions { flex-wrap: nowrap; gap: 8px; }
+    .fc-preview .fc-overlay-actions > button { flex: 1 1 0; justify-content: center; white-space: nowrap; }
+}
