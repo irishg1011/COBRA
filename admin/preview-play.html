@@ -27,7 +27,23 @@
          Video, Content and Summary are never shown in preview (nothing
          to earn, nothing saved) but must exist for lesson-content.js. -->
     <main class="lesson-page preview-play-page">
-        <p class="preview-play-banner"><i class="fa-regular fa-eye"></i> Admin preview - no locks, unlimited lives, nothing is saved.</p>
+        <div class="preview-play-top">
+            <p class="preview-play-banner"><i class="fa-regular fa-eye"></i> {{ current_role or 'Staff' }} preview - no locks, unlimited lives, nothing is saved.</p>
+            <!-- Play the real game, or check every item with its answer key -->
+            <div class="preview-mode-tabs" role="tablist" aria-label="Preview mode">
+                <button type="button" class="preview-mode-tab is-active" data-preview-mode="play" role="tab" aria-selected="true"><i class="fa-solid fa-gamepad"></i> Play as learner</button>
+                <button type="button" class="preview-mode-tab" data-preview-mode="review" role="tab" aria-selected="false"><i class="fa-solid fa-list-check"></i> Review list</button>
+            </div>
+        </div>
+
+        <!-- Review list: every question / card / puzzle / exercise with its answer key -->
+        <section class="preview-review" id="previewReview" hidden>
+            <div class="preview-review-bar">
+                <input type="search" class="preview-review-search" id="previewReviewSearch" placeholder="Search questions, answers, feedback..." aria-label="Search the review list">
+                <span class="preview-review-count" id="previewReviewCount"></span>
+            </div>
+            <div id="previewReviewBody"><p class="preview-review-empty">Loading...</p></div>
+        </section>
 
         <a href="#" id="backToLessonsLink" class="lesson-back-link is-hidden">Back to Lessons</a>
 
@@ -150,6 +166,7 @@
 
     <!-- Preview flag first, then the REAL learner scripts from the learner paths. -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-preview-play.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-preview-review.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/game-kit.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-fill-blanks.js') }}"></script>

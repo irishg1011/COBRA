@@ -2564,6 +2564,18 @@ def preview_play_activities():
     }), 200
 
 
+@admin_bp.route('/preview-play/api/review')
+def preview_play_review():
+    """The preview's "Review list" tab: every item WITH its answer key (staff only)."""
+    scope, error_message = preview_play.resolve_scope(request.args)
+    if scope is None:
+        return jsonify({"success": False, "message": error_message}), 404
+    review = preview_play.get_review_list(scope)
+    if review is None:
+        return jsonify({"success": False, "message": "Could not load the review list."}), 500
+    return jsonify({"success": True, **review}), 200
+
+
 @admin_bp.route('/preview-play/api/lesson-activities/mcq/state')
 def preview_play_mcq_state():
     store = _preview_store()

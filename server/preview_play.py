@@ -34,7 +34,7 @@ from lesson_activities import (
 )
 from lesson_fill_blanks import (
     compare_fib_answer, _load_items as load_fib_items, _learner_item as learner_fib_item,
-    FIB_TYPE_NAME, CLOSE_FEEDBACK as FIB_CLOSE_FEEDBACK,
+    FIB_TYPE_NAME, CLOSE_FEEDBACK as FIB_CLOSE_FEEDBACK, parse_fib_choices,
     FALLBACK_CORRECT_FEEDBACK as FIB_CORRECT_FEEDBACK,
     FALLBACK_INCORRECT_FEEDBACK as FIB_INCORRECT_FEEDBACK,
 )
@@ -685,3 +685,121 @@ def preview_tally(store, scope):
     if scope["exercise_id"]:
         exercise = (store.get("exercises") or {}).get(str(scope["exercise_id"]))
     return {"activities": rows, "exercise": exercise}
+
+
+# ============================================================
+# REVIEW LIST - every item with its answer key, for staff only
+# ============================================================
+def _status_select(alias, fk):
+    return f"COALESCE((SELECT la_stats_name FROM {LA_STATS_TABLE} WHERE la_stats_id = {alias}.{fk}), 'Draft')"
+
+
+def get_review_list(scope):
+    """
+    The "Review list" tab of the preview: every question / card / puzzle
+    of the activities in this preview, numbered, WITH the correct answers
+    and feedback, plus the lesson's coding exercises (the whole pool in a
+    lesson walkthrough, else just the one previewed). Staff routes only -
+    learners never get this. Returns None on a database error.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        ensure_output_exercise_schema(connection)
+        cursor = connection.cursor(dictionary=True)
+        activities = []
+        if scope["la_ids"]:
+            placeholders = ",".join(["%s"] * len(scope["la_ids"]))
+            cursor.execute(
+                _activity_select() + f" WHERE la.la_id IN ({placeholders}) ORDER BY la.activity_type_id ASC, la.la_id ASC",
+                tuple(scope["la_ids"])
+            )
+            for row in cursor.fetchall():
+                kind = row.get("activity_type_name") or ""
+                entry = {"la_id": row["la_id"], "title": row["activity_title"], "type": kind,
+                         "status": row["status_name"], "items": []}
+                if kind == MCQ_TYPE_NAME:
+                    cursor.execute(
+                        f"""SELECT q_id, question_text, correct_feedback, incorrect_feedback
+                            FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0
+                            ORDER BY sort_order ASC, q_id ASC""",
+                        (row["la_id"],)
+                    )
+                    for q in cursor.fetchall():
+                        cursor.execute(
+                            f"""SELECT option_letter, option_text, is_correct, feedback
+                                FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s AND is_removed = 0
+                                ORDER BY option_letter ASC""",
+                            (q["q_id"],)
+                        )
+                        entry["items"].append({
+                            "question": q["question_text"] or "",
+                            "options": [{"letter": o["option_letter"], "text": o["option_text"] or "",
+                                         "correct": bool(o["is_correct"]), "feedback": o["feedback"] or ""}
+                                        for o in cursor.fetchall()],
+                            "correct_feedback": q["correct_feedback"] or "",
+                            "incorrect_feedback": q["incorrect_feedback"] or "",
+                        })
+                elif kind == FIB_TYPE_NAME:
+                    cursor.execute(
+                        f"""SELECT instruction, content, code_text, correct_answer, answer_choices,
+                                   expected_output, hint, correct_feedback, incorrect_feedback
+                            FROM {FILL_BLANKS_TABLE} WHERE la_id = %s AND is_removed = 0
+                            ORDER BY sort_order ASC, fib_id ASC""",
+                        (row["la_id"],)
+                    )
+                    for r in cursor.fetchall():
+                        item = {key: (r[key] or "") for key in r}
+                        item["wrong_choices"] = parse_fib_choices(r["answer_choices"])   # tile mode only
+                        del item["answer_choices"]
+                        entry["items"].append(item)
+                elif kind == FLASHCARD_TYPE_NAME:
+                    cursor.execute(
+                        f"""SELECT front_text, back_text, hint, correct_feedback, incorrect_feedback
+                            FROM {FLASHCARDS_TABLE} WHERE la_id = %s AND is_removed = 0
+                            ORDER BY flashcard_id ASC""",
+                        (row["la_id"],)
+                    )
+                    for r in cursor.fetchall():
+                        entry["items"].append({key: (r[key] or "") for key in r})
+                activities.append(entry)
+
+        exercises = []
+        if scope["walkthrough"] or scope["exercise_id"]:
+            where, params = "ce.exercise_id = %s", (scope["exercise_id"],)
+            if scope["walkthrough"]:
+                where, params = "ce.resource_id = %s", (scope["resource_id"],)
+            cursor.execute(
+                f"""SELECT ce.exercise_id, ce.exercise_title, ce.instruction, ce.situation,
+                           ce.problem_question, ce.clue, ce.correct_feedback,
+                           {_status_select('ce', 'exercise_stats_id')} AS status_name
+                    FROM {CODING_EXERCISES_TABLE} ce
+                    WHERE {where} AND COALESCE(ce.is_archived, 0) = 0
+                    ORDER BY ce.exercise_id ASC""",
+                params
+            )
+            for ex in cursor.fetchall():
+                if ex["status_name"] == "Archived":
+                    continue
+                add_public_spec(cursor, ex)
+                exercises.append({
+                    "title": ex["exercise_title"] or "Coding Exercise",
+                    "status": ex["status_name"],
+                    "instruction": ex["instruction"] or "",
+                    "situation": ex["situation"] or "",
+                    "question": ex["problem_question"] or "",
+                    "clue": ex["clue"] or "",
+                    "expected_output": ex.get("expected_output") or "",
+                    "given_input": ex.get("given_input") or "",
+                    "required": [t.get("label") or t.get("value") or "" for t in ex.get("required_tags") or []],
+                    "correct_feedback": ex["correct_feedback"] or "",
+                })
+        cursor.close()
+        return {"activities": activities, "exercises": exercises}
+    except Error as e:
+        print(f"preview_play: failed to load the review list: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()

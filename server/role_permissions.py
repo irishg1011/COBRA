@@ -76,6 +76,7 @@ ENDPOINT_ROLES = {
     "admin_bp.preview_play_page": BOTH,
     "admin_bp.preview_play_lesson_content": BOTH,
     "admin_bp.preview_play_activities": BOTH,
+    "admin_bp.preview_play_review": BOTH,
     "admin_bp.preview_play_mcq_state": BOTH,
     "admin_bp.preview_play_mcq_action": BOTH,
     "admin_bp.preview_play_fib_play": BOTH,
