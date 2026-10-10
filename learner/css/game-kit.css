@@ -15,16 +15,18 @@
 }
 .game-reserve .is-bonus { color: #f59e0b; }
 
-/* Question timer: a slim bar that shrinks - no numbers, no sound */
+/* Question timer: a slim bar that shrinks + the seconds left (42s). The
+   last 10 seconds: red, the number pulses, "Hurry! N seconds left". */
+.game-timer-wrap { margin: 6px 0 8px; }
+.game-timer-wrap[hidden] { display: none; }
+.game-timer-row { display: flex; align-items: center; gap: 10px; }
 .game-timer {
+    flex: 1;
     height: 6px;
-    width: 100%;
     border-radius: 999px;
     background: rgba(148, 163, 184, 0.25);
     overflow: hidden;
-    margin: 6px 0 8px;
 }
-.game-timer[hidden] { display: none; }
 .game-timer-fill {
     height: 100%;
     width: 100%;
@@ -32,7 +34,30 @@
     transform-origin: left center;
     transition: background-color 0.4s ease;
 }
-.game-timer.is-low .game-timer-fill { background: #f97316; }
+.game-timer-secs {
+    min-width: 3ch;
+    text-align: right;
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #0f766e;
+}
+.game-timer-hurry {
+    margin: 4px 0 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #b91c1c;
+}
+.game-timer-hurry[hidden] { display: none; }
+.game-timer-wrap.is-low .game-timer-fill { background: #dc2626; }
+.game-timer-wrap.is-low .game-timer-secs { color: #dc2626; animation: game-timer-pulse 1s ease-in-out infinite; }
+@keyframes game-timer-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .game-timer-wrap.is-low .game-timer-secs { animation: none; }
+}
 
 /* Fill in the Blanks console (feat/fib-console) */
 .fib-question { font-weight: 600; margin: 0 0 6px; }
@@ -58,20 +83,41 @@
 .fc-hint { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(250, 204, 21, 0.12); font-size: 0.92em; }
 .fc-hint[hidden] { display: none; }
 
-/* The same timer floating at the top of the game stage, so it stays in view
-   when a phone shows the game full screen */
-.game-timer.is-stage {
+/* The same timer floating in the game stage, so it stays in view when a
+   phone shows the game full screen */
+.game-timer-wrap.is-stage {
     position: absolute;
     bottom: 30px;   /* clear of the health bars at the top and the stage hint at the very bottom */
     left: 50%;
     transform: translateX(-50%);
-    width: min(60%, 420px);
-    height: 8px;
+    width: min(70%, 460px);
     margin: 0;
-    background: rgba(15, 23, 42, 0.45);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55);
     z-index: 5;
     pointer-events: none;
+    display: flex;
+    flex-direction: column-reverse;   /* the Hurry line sits above the bar here */
+    align-items: center;
+}
+.game-timer-wrap.is-stage[hidden] { display: none; }
+.game-timer-wrap.is-stage .game-timer-row { width: 100%; }
+.game-timer-wrap.is-stage .game-timer {
+    height: 8px;
+    background: rgba(15, 23, 42, 0.45);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+.game-timer-wrap.is-stage .game-timer-secs {
+    color: #ffffff;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.7);   /* readable on any scenery */
+}
+.game-timer-wrap.is-stage.is-low .game-timer-secs { color: #ffffff; background: #dc2626; }
+.game-timer-wrap.is-stage .game-timer-hurry {
+    margin: 0 0 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(185, 28, 28, 0.9);
+    color: #ffffff;
 }
 
 /* fix/leave-guard-spam: while a leave notice ("Please stay on this page" /
@@ -190,3 +236,22 @@ html.game-leave-check .fc-root {
 .game-ready-result b { font-size: 1rem; }
 .game-ready-result.is-ok { background: #dcfce7; color: #166534; }
 .game-ready-result.is-bad { background: #fee2e2; color: #991b1b; }
+
+/* Feedback that waits for Next: say so, and make the button easy to spot */
+.game-next-note {
+    margin: 10px 0 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f766e;
+}
+.game-next-note[hidden] { display: none; }
+.game-next-pulse { animation: game-next-pulse 1.6s ease-in-out infinite; }
+@keyframes game-next-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+    50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .game-next-pulse { animation: none; }
+}
+/* A card / feedback over the stage has its own timer: the floating one hides */
+.has-overlay .game-timer-wrap.is-stage { display: none; }

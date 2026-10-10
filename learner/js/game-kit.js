@@ -44,19 +44,39 @@
     }
 
     // ---------------- question timer ----------------
+    // A bar that shrinks + the seconds left at its end (42s). The last
+    // LOW_SECONDS: bar and number turn red, the number pulses and a
+    // "Hurry! N seconds left" line shows under it.
+    const LOW_SECONDS = 10;
+
     function timerBar(host, extraClass) {
-        const bar = document.createElement("div");
-        bar.className = "game-timer" + (extraClass ? " " + extraClass : "");
-        bar.setAttribute("role", "presentation");
-        bar.innerHTML = '<div class="game-timer-fill"></div>';
-        host.appendChild(bar);
-        const fill = bar.firstChild;
-        let deadline = 0, limit = 1, raf = null, onExpire = null, fired = false, itemKey = null;
+        const wrap = document.createElement("div");
+        wrap.className = "game-timer-wrap" + (extraClass ? " " + extraClass : "");
+        wrap.innerHTML = '<div class="game-timer-row"><div class="game-timer" role="presentation">'
+            + '<div class="game-timer-fill"></div></div><span class="game-timer-secs" aria-hidden="true"></span></div>'
+            + '<p class="game-timer-hurry" aria-live="polite" hidden></p>';
+        host.appendChild(wrap);
+        const bar = wrap.querySelector(".game-timer");
+        const fill = wrap.querySelector(".game-timer-fill");
+        const secs = wrap.querySelector(".game-timer-secs");
+        const hurry = wrap.querySelector(".game-timer-hurry");
+        let deadline = 0, limit = 1, raf = null, onExpire = null, fired = false, itemKey = null, shown = -1;
+
+        function paint(left) {
+            fill.style.transform = `scaleX(${Math.max(0, Math.min(1, left / limit))})`;
+            const whole = Math.max(0, Math.ceil(left));
+            if (whole === shown) return;
+            shown = whole;
+            const low = whole <= LOW_SECONDS;
+            wrap.classList.toggle("is-low", low);
+            secs.textContent = `${whole}s`;
+            hurry.hidden = !low || whole <= 0;
+            if (low && whole > 0) hurry.textContent = `\u23F0 Hurry! ${whole} second${whole === 1 ? "" : "s"} left`;
+        }
 
         function frame() {
             const left = Math.max(0, (deadline - performance.now()) / 1000);
-            fill.style.transform = `scaleX(${Math.max(0, Math.min(1, left / limit))})`;
-            bar.classList.toggle("is-low", left <= 10);
+            paint(left);
             if (left <= 0) {
                 raf = null;
                 if (!fired && onExpire) {
@@ -76,12 +96,13 @@
                 if (key !== itemKey) fired = false;
                 itemKey = key;
                 deadline = performance.now() + (timer.seconds_left ?? limit) * 1000;
-                bar.hidden = false;
+                wrap.hidden = false;
+                shown = -1;
                 if (timer.running) {
                     if (!raf) raf = requestAnimationFrame(frame);
                 } else {
                     this.stop();
-                    fill.style.transform = `scaleX(${Math.max(0, Math.min(1, (timer.seconds_left ?? limit) / limit))})`;
+                    paint(timer.seconds_left ?? limit);
                 }
             },
             stop() {
@@ -90,12 +111,12 @@
             },
             hide() {
                 this.stop();
-                bar.hidden = true;
+                wrap.hidden = true;
             },
             onExpire(fn) { onExpire = fn; },
             dispose() {
                 this.stop();
-                bar.remove();
+                wrap.remove();
             }
         };
     }
@@ -466,6 +487,96 @@
         });
     }
 
+    // The line above a feedback's Next button: the game waits for the
+    // learner, and the next timer only starts after the 3 - 2 - 1.
+    function nextNoteText(last) {
+        return last ? "\uD83D\uDC49 Tap the button when you're ready to see your results."
+            : "\uD83D\uDC49 Tap Next when you're ready - the next question's timer starts only after the 3 - 2 - 1.";
+    }
+
+    // ------------------------------------------------------------
+    // Leaving while something is at stake. A game (a question on screen,
+    // its clock running) or the coding exercise (work in progress) registers
+    // a check with addLeaveRisk(fn); fn returns null or
+    // { kind: "game" | "exercise", code: bool }. While one is at stake:
+    //   - a click on anything that leaves the page (header / profile /
+    //     notification links, Back to Lessons, Logout) asks first:
+    //     Stay (main button) or Leave anyway. Leaving still counts as
+    //     leaving the activity (leaveGuard) - the warning only makes the
+    //     cost clear.
+    //   - refresh / closing the tab / another address: the browser's own
+    //     "Leave site?" box.
+    // ------------------------------------------------------------
+    const leaveRisks = new Set();
+    let leaveConfirmedUntil = 0;   // "Leave anyway" was pressed: no second prompt
+
+    function addLeaveRisk(fn) {
+        leaveRisks.add(fn);
+        return () => leaveRisks.delete(fn);
+    }
+
+    function leaveRisk() {
+        for (const fn of leaveRisks) {
+            try {
+                const risk = fn();
+                if (risk) return risk;
+            } catch (err) { /* a broken check never blocks the page */ }
+        }
+        return null;
+    }
+
+    function leaveRiskText(risk) {
+        if (risk.kind === "exercise") {
+            return "You're working on a coding exercise. If you leave now, it counts as leaving the exercise: "
+                + "the first time is a warning, after that you get a new exercise and your code is cleared."
+                + (risk.code ? " Your code hasn't been submitted yet." : "");
+        }
+        return "You're in the middle of a question and its timer is running. If you leave now, it counts as "
+            + "leaving the activity: the first time is a warning, after that the question is replaced and "
+            + "counts as missed (-1 life).";
+    }
+
+    function confirmLeave(risk, onLeave) {
+        if (!window.CobraProceed) {
+            if (window.confirm(leaveRiskText(risk))) onLeave();
+            return;
+        }
+        window.CobraProceed.open({
+            icon: "fa-triangle-exclamation",
+            title: risk.kind === "exercise" ? "Leave this exercise?" : "Leave this activity?",
+            text: leaveRiskText(risk),
+            yesLabel: "Stay",
+            noLabel: "Leave anyway",
+            onNo: onLeave
+        });
+    }
+
+    document.addEventListener("click", (e) => {
+        if (Date.now() < leaveConfirmedUntil) return;
+        const el = e.target && e.target.closest ? e.target.closest('a[href], [data-pm="logout"]') : null;
+        if (!el) return;
+        if (el.tagName === "A") {
+            const href = el.getAttribute("href") || "";
+            if (!href || href.charAt(0) === "#" || href.indexOf("javascript:") === 0
+                || el.target === "_blank" || el.hasAttribute("download")) return;
+            if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;   // opens elsewhere
+        }
+        const risk = leaveRisk();
+        if (!risk) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        confirmLeave(risk, () => {
+            leaveConfirmedUntil = Date.now() + 15000;
+            el.click();   // the same link / button, now let through
+        });
+    }, true);
+
+    window.addEventListener("beforeunload", (e) => {
+        if (Date.now() < leaveConfirmedUntil || !leaveRisk()) return;
+        e.preventDefault();
+        e.returnValue = "";
+    });
+
     window.CobraGameKit = { hearts, livesText, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk };
 })();

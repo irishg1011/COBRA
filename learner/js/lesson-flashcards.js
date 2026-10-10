@@ -292,7 +292,8 @@
                             <p class="fc-feedback-text" data-c="fbText"></p>
                             <p class="fc-feedback-exact" data-c="fbExact" hidden></p>
                         </div>
-                        <button type="button" class="fc-primary-btn" data-c="nextBtn">Next card</button>
+                        <p class="game-next-note" data-c="nextNote"></p>
+                        <button type="button" class="fc-primary-btn game-next-pulse" data-c="nextBtn">Next card</button>
                     </div>
                 </section>
                 <div class="fc-overlay" data-c="overlay" hidden></div>
@@ -314,6 +315,7 @@
         let booted = false;
         let firstOpen = true;       // the first reveal after opening the page reports an unclosed leave
         let counting = false;       // a 3 - 2 - 1 is running
+        let cardTimer = null;       // the timer bar on the card preview
         let disposed = false;
         let stage3d = null;
         let qIndex = 0;
@@ -324,6 +326,7 @@
         // feat/question-timer: above the question AND inside the game stage (phones, full screen)
         const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBars([ui.timerHost, ui.canvas.parentElement]) : null;
         let leaveGuard = null;
+        let leaveRiskOff = null;
 
         // duel animation state (display only - the server owns the real numbers)
         const fx = {
@@ -406,12 +409,21 @@
         }
 
         // ---- overlay (static markup + numbers only; DB text via textContent) ----
+        function disposeCardTimer() {
+            if (cardTimer) cardTimer.dispose();
+            cardTimer = null;
+        }
+
         function showOverlay(html) {
+            disposeCardTimer();
+            root.classList.add("has-overlay");   // the in-stage timer hides behind cards
             ui.overlay.innerHTML = html;
             ui.overlay.hidden = false;
         }
 
         function hideOverlay() {
+            disposeCardTimer();
+            root.classList.remove("has-overlay");
             ui.overlay.hidden = true;
             ui.overlay.innerHTML = "";
             ui.overlay.classList.remove("is-leaving");
@@ -483,9 +495,60 @@
             loadCard();   // the card just revealed
             kit.hideCover(root);
             if (intro && stage3d) stage3d.playIntro();   // cobra slithers in
-            revealStageCard(true);
-            setMode("playing");
-            ui.input.focus({ preventScroll: true });
+            showCardPreview();
+        }
+
+        // The card preview: the front of the card, shown right after the
+        // 3 - 2 - 1 - its clock is ALREADY running, and the card says so and
+        // shows it. Play puts the card on the stage and opens the answer box.
+        function showCardPreview(note) {
+            setMode("ready");
+            if (stage3d && stage3d.hideCard) stage3d.hideCard();
+            showOverlay(`
+                <div class="fc-overlay-card fc-preview">
+                    <span class="fc-timer-started" data-c="pvStarted"></span>
+                    <div data-c="pvTimer"></div>
+                    <div class="fc-preview-card">
+                        <span class="fc-card-label" data-c="pvMeta"></span>
+                        <div class="fc-preview-front" data-c="pvFront"></div>
+                    </div>
+                    <p class="fc-hint" data-c="pvHint" hidden></p>
+                    <p data-c="pvNote"></p>
+                    <div class="fc-overlay-actions">
+                        <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> Skip (−1 life)</button>
+                        <button type="button" class="fc-primary-btn" data-c="pvBtn"><i class="fa-solid fa-play"></i> Play</button>
+                    </div>
+                </div>
+            `);
+            overlayNode("pvStarted").innerHTML = PREVIEW
+                ? '<i class="fa-solid fa-eye"></i> Preview - no timer'
+                : '<i class="fa-solid fa-stopwatch"></i> Your timer has started!';
+            if (!PREVIEW && server && server.timer && window.CobraGameKit) {
+                cardTimer = window.CobraGameKit.timerBar(overlayNode("pvTimer"), "is-card");
+                cardTimer.sync(server.timer, server.current_item_id);
+            }
+            overlayNode("pvMeta").textContent = `Card ${qIndex + 1} of ${total}`;
+            fcRenderCard(overlayNode("pvFront"), currentCard().front_text);
+            const pvHint = overlayNode("pvHint");
+            pvHint.textContent = currentCard().hint ? `Hint: ${currentCard().hint}` : "";
+            pvHint.hidden = !currentCard().hint;
+            overlayNode("pvNote").textContent = note
+                || "Read the card, then press Play (or Enter) and type what's on the back.";
+            const btn = overlayNode("pvBtn");
+            btn.addEventListener("click", () => {
+                if (disposed || mode !== "ready") return;
+                enterFocusIfPhone();
+                hideOverlay();
+                revealStageCard(true);
+                setMode("playing");
+                ui.input.focus({ preventScroll: true });
+            });
+            overlayNode("pvSkipBtn").addEventListener("click", () => {
+                if (disposed || mode !== "ready") return;
+                setMode("busy");
+                sendSkip(true, false);
+            });
+            btn.focus({ preventScroll: true });
         }
 
         function fillReveal(node) {
@@ -520,7 +583,8 @@
                     <div class="fc-reveal" data-c="taReveal" hidden></div>
                     <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.</p>
                     <div class="fc-overlay-actions">
-                        <button type="button" class="fc-primary-btn" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
+                        <p class="game-next-note" data-c="taNote"></p>
+                        <button type="button" class="fc-primary-btn game-next-pulse" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
                     </div>
                 </div>
             `);
@@ -530,6 +594,7 @@
             overlayNode("taError").hidden = !syntaxError;
             overlayNode("taErrorText").textContent = syntaxError || "";
             fillReveal(overlayNode("taReveal"));
+            overlayNode("taNote").textContent = window.CobraGameKit.nextNoteText(last);
             const btn = overlayNode("taBtn");
             btn.addEventListener("click", () => {
                 if (disposed || mode !== "tryagain") return;
@@ -801,6 +866,8 @@
             ui.fbExact.hidden = !result.is_close;
             ui.fbExact.textContent = result.is_close ? `Exact answer: ${result.answer}` : "";
             ui.nextBtn.textContent = server.completed ? "See results" : "Next card";
+            // The game waits here - say so (the next timer starts after the 3 - 2 - 1).
+            ui.nextNote.textContent = window.CobraGameKit.nextNoteText(!!server.completed);
         }
 
         // ---- play flow ----
@@ -1140,7 +1207,7 @@
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "BUTTON")) return;
             if (mode === "ready") {
-                const btn = root.querySelector(".game-ready-btn");
+                const btn = overlayNode("pvBtn") || root.querySelector(".game-ready-btn");
                 if (btn) { e.preventDefault(); btn.click(); }
             } else if (mode === "review") {
                 e.preventDefault();
@@ -1241,6 +1308,7 @@
             if (resizeObserver) resizeObserver.disconnect();
             if (timer) timer.dispose();
             if (leaveGuard) leaveGuard.dispose();
+            if (leaveRiskOff) leaveRiskOff();
             root.classList.remove("is-focus");
             document.documentElement.classList.remove("fc-focus-lock");
             if (stage3d && stage3d.dispose) stage3d.dispose();
@@ -1305,6 +1373,10 @@
             booted = true;
             if (timer) timer.onExpire(onTimerExpired);
             if (!PREVIEW && window.CobraGameKit) {
+                // Clicking away while a question is on screen asks first (game-kit.js).
+                leaveRiskOff = window.CobraGameKit.addLeaveRisk(() => (server && !server.completed
+                    && server.session_status === "in_progress" && server.total_lives > 0
+                    && server.current_revealed && root.isConnected) ? { kind: "game" } : null);
                 leaveGuard = window.CobraGameKit.leaveGuard({
                     url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
                     body: () => ({ la_id: laId }),
@@ -1338,9 +1410,7 @@
                     resyncFromState();
                     window.CobraGameKit.hideCover(root);
                     if (stage3d) stage3d.skipIntro();
-                    revealStageCard(false);
-                    setMode("playing");
-                    ui.input.focus({ preventScroll: true });
+                    showCardPreview("Your timer kept running while you were away - press Play to continue.");
                 }
                 return;
             }

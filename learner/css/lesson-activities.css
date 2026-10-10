@@ -955,3 +955,21 @@ html.mcq-focus-lock body {
 }
 
 .mcq-arena-root.is-focus .mcq-arena-stat.is-lives i { white-space: normal; }
+/* feat/game-countdown: the question card after the 3 - 2 - 1 - its clock
+   is already running, and the card says so */
+.mcq-arena-timer-started {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 auto 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+.mcq-arena-preview .game-timer-wrap.is-card { margin: 4px 0 10px; }
+.mcq-arena-overlay-icon.is-ok { color: #16a34a; }
+.mcq-arena-overlay-card h4.mcq-arena-right-title { color: #15803d; }
+.mcq-arena-feedback.is-ok { background: #f0fdf4; border-color: #86efac; color: #166534; }

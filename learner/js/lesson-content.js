@@ -101,7 +101,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDone) {
                 node.style.cursor = "pointer";
                 node.title = `Review ${s.label}`;
-                node.addEventListener('click', () => goToStep(s.key));
+                node.addEventListener('click', () => {
+                    // A game question's timer is running: looking at the lesson
+                    // now would be answering with the book open - finish first.
+                    const risk = window.CobraGameKit && window.CobraGameKit.leaveRisk();
+                    if (risk && risk.kind === "game") {
+                        window.CobraGameKit.notice("Finish this question first",
+                            "Its timer is running. Answer or skip it - then you can review the lesson.");
+                        return;
+                    }
+                    goToStep(s.key);
+                });
             }
             lessonStepper.appendChild(node);
             if (i < stepOrder.length - 1) {
@@ -1305,6 +1315,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (exerciseLeaveGuard || !window.CobraGameKit || data.exercise_completed) return;
         const step = document.getElementById('exerciseStep');
+        // Clicking away from an exercise in progress asks first (game-kit.js).
+        window.CobraGameKit.addLeaveRisk(() => {
+            if (!(step && step.style.display !== 'none' && lessonData && lessonData.exercise
+                && !(exerciseState && exerciseState.passed))) return null;
+            const code = (exerciseCodeBox.textContent || '').trim();
+            return { kind: 'exercise', code: !!code && code !== '# Write your code here' };
+        });
         exerciseLeaveGuard = window.CobraGameKit.leaveGuard({
             url: `${API_BASE_URL}/api/lesson-exercise/leave`,
             body: () => ({ exercise_id: lessonData && lessonData.exercise ? lessonData.exercise.exercise_id : null }),

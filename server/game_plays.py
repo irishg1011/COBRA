@@ -629,7 +629,10 @@ def _open(cursor, acc_id, la_id, expected_type=None):
     }
     if ctx["play"]:
         _load_ctx_items(cursor, ctx)
-        _apply_expired_timer(cursor, ctx)
+        if ctx["play"]["play_kind"] == "retake":
+            _trim_oversized_retake(cursor, ctx)
+        if ctx["play"]:
+            _apply_expired_timer(cursor, ctx)
     return ctx
 
 
@@ -641,6 +644,34 @@ def _load_ctx_items(cursor, ctx):
     # drawn can't be played; one already answered in this play stays.
     ctx["items"] = [i for i in ctx["items"] if i["item_id"] in ctx["rows"]
                     and (i["outcome"] is not None or not ctx["rows"][i["item_id"]].get("is_removed"))]
+
+
+def _trim_oversized_retake(cursor, ctx):
+    """
+    A retake round holds at most DRAW_SIZE (5) questions and only as many as
+    are still missed. Rounds opened before that rule (one held 50) keep what
+    was already answered; the extra unanswered questions are marked
+    'replaced' (never shown, so never "seen"), in position order - the one
+    on screen is always kept. Nothing left to play -> the round completes.
+    """
+    unanswered = [i for i in ctx["items"] if i["outcome"] is None]
+    if not unanswered:
+        return
+    answered = len(ctx["items"]) - len(unanswered)
+    standing = activity_standing(cursor, ctx["acc_id"], ctx["type"], ctx["la_id"])
+    keep = max(0, min(standing["missed"], DRAW_SIZE - answered, len(unanswered)))
+    if keep >= len(unanswered):
+        return
+    drop = unanswered[keep:]
+    for item in drop:
+        cursor.execute(
+            f"UPDATE {PLAY_ITEMS_TABLE} SET outcome = 'replaced', answered_at = %s WHERE play_item_id = %s",
+            (ctx["now"], item["play_item_id"])
+        )
+    dropped = {item["play_item_id"] for item in drop}
+    ctx["items"] = [i for i in ctx["items"] if i["play_item_id"] not in dropped]
+    if _current(ctx) is None:
+        _after_outcome(cursor, ctx)   # nothing left to play: the round is done
 
 
 def _current(ctx):

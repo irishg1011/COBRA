@@ -36,7 +36,7 @@ Pure DB helpers, caller's cursor, never raises (an error -> no insights).
 from mysql.connector import Error
 
 from cobradb import get_db_connection
-from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, item_ids_for_activity, activity_standing
+from activity_retakes import GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE, activity_standing
 from weak_spots import _course_lessons, _build, _published_game_activities
 from learner_exercise import exercise_score, EXERCISE_ITEMS
 
@@ -64,23 +64,6 @@ WEAK_TEXT = {
     "output": "Trace the code step by step to predict what it prints.",
     "applying": "Practise combining the lesson's steps to solve a problem.",
 }
-
-
-def _first_try_counts(cursor, acc_id, activity_type, item_ids):
-    """(answered, right) on the FIRST attempt for these items."""
-    if not item_ids:
-        return 0, 0
-    answers_table, id_col, _, _ = GAME_TABLES[activity_type]
-    placeholders = ",".join(["%s"] * len(item_ids))
-    cursor.execute(
-        f"""SELECT status FROM {answers_table}
-            WHERE acc_id = %s AND attempt_number = 1 AND {id_col} IN ({placeholders})""",
-        tuple([acc_id] + list(item_ids))
-    )
-    rows = cursor.fetchall()
-    right_statuses = ("correct", "close") if activity_type == FLASHCARD_TYPE else ("correct",)
-    right = sum(1 for r in rows if (r["status"] if isinstance(r, dict) else r[0]) in right_statuses)
-    return len(rows), right
 
 
 def _exercise_first_try(cursor, acc_id, resource_id):
@@ -135,12 +118,9 @@ def lesson_insights(cursor, acc_id, resource_id, groups=None):
         for act in _published_game_activities(cursor, resource_id):
             activity_type = act["activity_type_name"]
             standing = activity_standing(cursor, acc_id, activity_type, act["la_id"])
-            if standing["model"] == "legacy":
-                ids = item_ids_for_activity(cursor, activity_type, act["la_id"])
-                answered, right = _first_try_counts(cursor, acc_id, activity_type, ids)
-            else:
-                # feat/question-pool-draw: the questions drawn for the FIRST play
-                answered, right = standing["first_answered"], standing["first_correct"]
+            # feat/question-pool-draw: the 5 questions of the FIRST play (old,
+            # pre-release answers are scored on 5 slots the same way)
+            answered, right = standing["first_answered"], standing["first_correct"]
             entry = per_type.setdefault(activity_type, {"total": 0, "answered": 0, "right": 0})
             entry["total"] += standing["slots"]
             entry["answered"] += answered

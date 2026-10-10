@@ -260,7 +260,8 @@
                             <p class="fib-feedback-text" data-f="fbText"></p>
                             <p class="fib-feedback-answer" data-f="fbAnswer" hidden></p>
                         </div>
-                        <button type="button" class="fib-primary-btn" data-f="nextBtn" hidden>Next puzzle</button>
+                        <p class="game-next-note" data-f="nextNote" hidden></p>
+                        <button type="button" class="fib-primary-btn game-next-pulse" data-f="nextBtn" hidden>Next puzzle</button>
                         <div class="fib-feedback-actions" data-f="fbActions" hidden></div>
                     </div>
                 </section>
@@ -295,6 +296,7 @@
         // feat/question-timer: above the question AND inside the game stage (phones, full screen)
         const timer = (!PREVIEW && window.CobraGameKit) ? window.CobraGameKit.timerBars([ui.timerHost, ui.stage]) : null;
         let leaveGuard = null;
+        let leaveRiskOff = null;
 
         // battle animation state (display only - the server owns the real numbers)
         const bt = {
@@ -778,6 +780,7 @@
         function hideFeedback() {
             ui.feedback.hidden = true;
             ui.nextBtn.hidden = true;
+            ui.nextNote.hidden = true;
             ui.fbActions.hidden = true;
             ui.fbAnswer.hidden = true;
         }
@@ -814,6 +817,9 @@
             ui.fbActions.hidden = true;
             ui.nextBtn.hidden = false;
             ui.nextBtn.textContent = server.completed ? "See results" : "Next puzzle";
+            // The game waits here - say so (the next timer starts after the 3 - 2 - 1).
+            ui.nextNote.hidden = false;
+            ui.nextNote.textContent = window.CobraGameKit.nextNoteText(!!server.completed);
         }
 
         // ---- answering ----
@@ -1270,6 +1276,7 @@
             if (resizeObserver) resizeObserver.disconnect();
             if (timer) timer.dispose();
             if (leaveGuard) leaveGuard.dispose();
+            if (leaveRiskOff) leaveRiskOff();
             root.classList.remove("is-focus");
             document.documentElement.classList.remove("fib-focus-lock");
             if (stage3d && stage3d.dispose) stage3d.dispose();
@@ -1339,6 +1346,10 @@
             booted = true;
             if (timer) timer.onExpire(onTimerExpired);
             if (!PREVIEW && window.CobraGameKit) {
+                // Clicking away while a question is on screen asks first (game-kit.js).
+                leaveRiskOff = window.CobraGameKit.addLeaveRisk(() => (server && !server.completed
+                    && server.session_status === "in_progress" && server.total_lives > 0
+                    && server.current_revealed && root.isConnected) ? { kind: "game" } : null);
                 leaveGuard = window.CobraGameKit.leaveGuard({
                     url: `${API_BASE_URL}/api/lesson-activities/game/leave`,
                     body: () => ({ la_id: laId }),
