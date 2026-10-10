@@ -253,3 +253,5 @@ html.game-leave-check .fc-root {
 @media (prefers-reduced-motion: reduce) {
     .game-next-pulse { animation: none; }
 }
+/* A card / feedback over the stage has its own timer: the floating one hides */
+.has-overlay .game-timer-wrap.is-stage { display: none; }

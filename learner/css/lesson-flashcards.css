@@ -842,3 +842,18 @@ html.fc-focus-lock body {
     z-index: 1;
     will-change: transform, opacity;
 }
+/* feat/game-countdown: the card preview after the 3 - 2 - 1 - its clock is
+   already running, and the card says so */
+.fc-timer-started {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 auto 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+.fc-preview .game-timer-wrap.is-card { margin: 4px 0 10px; }
