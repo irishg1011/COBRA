@@ -246,7 +246,6 @@
         let refreshing = false;
         let firstOpen = true;
         let counting = false;       // a 3 - 2 - 1 is running
-        let lastResult = null;      // the answer's verdict, shown during the next 3 - 2 - 1
         let waitingForMove = false; // a new question: the cobra stays still until the first direction
         // Before the play exists (a new learner, before Start) there is no
         // question at all - the board draws this empty one.
@@ -305,7 +304,7 @@
             node.classList.add("bump");
         }
 
-        function flash(message, ok) {
+        function flash(message, ok, ms) {
             clearTimeout(flashTimer);
             if (fallback) {
                 ui.fallbackFeedback.hidden = false;
@@ -315,7 +314,7 @@
             }
             ui.flash.textContent = message;
             ui.flash.className = "mcq-arena-flash show " + (ok ? "is-ok" : "is-no");
-            flashTimer = setTimeout(() => { ui.flash.className = "mcq-arena-flash"; }, 1600);
+            flashTimer = setTimeout(() => { ui.flash.className = "mcq-arena-flash"; }, ms || 2500);
         }
 
         // A small pill above the timer bar, until the first direction.
@@ -391,9 +390,7 @@
             hideOverlay();
             const kit = window.CobraGameKit;
             const next = Math.min((server ? server.current_index : qIndex) + 1, total);
-            const result = lastResult;
-            lastResult = null;
-            await kit.countdown(root, { label: `Question ${next} of ${total}`, result });
+            await kit.countdown(root, { label: `Question ${next} of ${total}` });
             if (disposed) return;
             counting = false;
             // (in the admin preview, "play" only marks the run started - it is
@@ -461,6 +458,34 @@
         // try is what counts; a missed question is fixed later in a retake
         // round, not by retrying it now). The server already moved the play
         // to the next question (or finished it after the last one).
+        // A correct answer: the feedback stays until Next (the learner reads
+        // at their own speed - the next question's clock is not running).
+        function showRightAndNext(option, feedback) {
+            setMode("tryagain");
+            const last = !!(server && server.completed);
+            showOverlay(`
+                <div class="mcq-arena-overlay-card">
+                    <i class="fa-solid fa-circle-check mcq-arena-overlay-icon is-ok"></i>
+                    <h4 class="mcq-arena-right-title" data-ui="rightTitle"></h4>
+                    <p class="mcq-arena-feedback is-ok" data-ui="rightFeedback"></p>
+                    <p class="game-next-note" data-ui="nextNote"></p>
+                    <div class="mcq-arena-overlay-actions">
+                        <button type="button" class="mcq-arena-primary-btn game-next-pulse" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
+                    </div>
+                </div>
+            `);
+            overlayNode("rightTitle").textContent = `Correct: ${option.option_letter}`;
+            overlayNode("rightFeedback").textContent = feedback || option.text;
+            overlayNode("nextNote").textContent = window.CobraGameKit.nextNoteText(last);
+            const btn = overlayNode("nextBtn");
+            btn.addEventListener("click", () => {
+                if (disposed || mode !== "tryagain") return;
+                hideOverlay();
+                advance();
+            });
+            btn.focus({ preventScroll: true });
+        }
+
         function showWrongAndNext(option, feedback) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
@@ -472,13 +497,15 @@
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
                     <div class="mcq-arena-reveal" data-ui="tryReveal" hidden></div>
                     <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} counts as missed - if your module needs a retake, you'll get new questions.</p>
+                    <p class="game-next-note" data-ui="nextNote"></p>
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
+                        <button type="button" class="mcq-arena-primary-btn game-next-pulse" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
                     </div>
                 </div>
             `);
             overlayNode("tryFeedback").textContent = feedback || `${option.option_letter} isn't the right answer.`;
             fillReveal(overlayNode("tryReveal"));
+            overlayNode("nextNote").textContent = window.CobraGameKit.nextNoteText(last);
             overlayNode("nextBtn").addEventListener("click", () => {
                 if (disposed || mode !== "tryagain") return;
                 hideOverlay();
@@ -511,7 +538,7 @@
                 finish();
                 return;
             }
-            flash(`Question skipped · -1 life · ${server.total_lives} ${server.total_lives === 1 ? "life" : "lives"} left.`, false);
+            flash(`Question skipped · -1 life · ${server.total_lives} ${server.total_lives === 1 ? "life" : "lives"} left.`, false, 3000);
             await revealNext();
         }
 
@@ -771,10 +798,8 @@
                 bestStreak = Math.max(bestStreak, streak);
                 if (chip) chip.classList.add("is-right");
                 bump(ui.scoreStat);
-                flash(result.feedback || `Correct: ${option.option_letter}. ${option.text}`, true);
-                // the verdict stays on screen above the next 3 - 2 - 1
-                lastResult = { ok: true, title: `Correct: ${option.option_letter}`, text: result.feedback || option.text };
-                setTimeout(() => { if (!disposed) advance(); }, fallback ? 1600 : 1100);
+                // Stays until the learner taps Next (no countdown while reading).
+                setTimeout(() => { if (!disposed) showRightAndNext(option, result.feedback); }, fallback ? 300 : 700);
                 return;
             }
 
@@ -856,12 +881,14 @@
                     <h4>Time's up</h4>
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
                     <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. This question counts as missed.</p>
+                    <p class="game-next-note" data-ui="nextNote"></p>
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
+                        <button type="button" class="mcq-arena-primary-btn game-next-pulse" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
                     </div>
                 </div>
             `);
             overlayNode("tryFeedback").textContent = feedback || "";
+            overlayNode("nextNote").textContent = window.CobraGameKit.nextNoteText(last);
             overlayNode("nextBtn").addEventListener("click", () => {
                 if (disposed || mode !== "tryagain") return;
                 hideOverlay();

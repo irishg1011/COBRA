@@ -292,7 +292,8 @@
                             <p class="fc-feedback-text" data-c="fbText"></p>
                             <p class="fc-feedback-exact" data-c="fbExact" hidden></p>
                         </div>
-                        <button type="button" class="fc-primary-btn" data-c="nextBtn">Next card</button>
+                        <p class="game-next-note" data-c="nextNote"></p>
+                        <button type="button" class="fc-primary-btn game-next-pulse" data-c="nextBtn">Next card</button>
                     </div>
                 </section>
                 <div class="fc-overlay" data-c="overlay" hidden></div>
@@ -520,7 +521,8 @@
                     <div class="fc-reveal" data-c="taReveal" hidden></div>
                     <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.</p>
                     <div class="fc-overlay-actions">
-                        <button type="button" class="fc-primary-btn" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
+                        <p class="game-next-note" data-c="taNote"></p>
+                        <button type="button" class="fc-primary-btn game-next-pulse" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
                     </div>
                 </div>
             `);
@@ -530,6 +532,7 @@
             overlayNode("taError").hidden = !syntaxError;
             overlayNode("taErrorText").textContent = syntaxError || "";
             fillReveal(overlayNode("taReveal"));
+            overlayNode("taNote").textContent = window.CobraGameKit.nextNoteText(last);
             const btn = overlayNode("taBtn");
             btn.addEventListener("click", () => {
                 if (disposed || mode !== "tryagain") return;
@@ -801,6 +804,8 @@
             ui.fbExact.hidden = !result.is_close;
             ui.fbExact.textContent = result.is_close ? `Exact answer: ${result.answer}` : "";
             ui.nextBtn.textContent = server.completed ? "See results" : "Next card";
+            // The game waits here - say so (the next timer starts after the 3 - 2 - 1).
+            ui.nextNote.textContent = window.CobraGameKit.nextNoteText(!!server.completed);
         }
 
         // ---- play flow ----

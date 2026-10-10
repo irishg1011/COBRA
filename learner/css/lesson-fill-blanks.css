@@ -502,6 +502,11 @@
     .fib-board { padding: 14px; }
     .fib-code { font-size: 13.5px; }
     .fib-ln { flex-basis: 34px; padding-right: 10px; }
+    /* Phones: long lines wrap (indented under their own line) instead of
+       scrolling sideways, so the blank is always in view. */
+    .fib-code { overflow-x: visible; }
+    .fib-code-row { min-width: 0; }
+    .fib-code-line { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
     .fib-keyhint { display: none; }
     .fib-controls .fib-primary-btn,
     .fib-controls .fib-ghost-btn { flex: 1 1 0; justify-content: center; }

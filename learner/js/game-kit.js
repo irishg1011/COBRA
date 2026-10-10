@@ -487,6 +487,13 @@
         });
     }
 
+    // The line above a feedback's Next button: the game waits for the
+    // learner, and the next timer only starts after the 3 - 2 - 1.
+    function nextNoteText(last) {
+        return last ? "\uD83D\uDC49 Tap the button when you're ready to see your results."
+            : "\uD83D\uDC49 Tap Next when you're ready - the next question's timer starts only after the 3 - 2 - 1.";
+    }
+
     window.CobraGameKit = { hearts, livesText, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover };
+        startCard, countdown, hideCover, nextNoteText };
 })();
