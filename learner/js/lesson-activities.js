@@ -205,6 +205,7 @@
             <div class="mcq-arena-stage" data-ui="arena">
                 <canvas class="mcq-arena-canvas" data-ui="canvas"></canvas>
                 <div class="mcq-arena-flash" data-ui="flash"></div>
+                <div class="mcq-arena-move-hint" data-ui="moveHint" hidden><span class="mcq-arena-move-keys"><i class="fa-solid fa-arrow-up"></i><i class="fa-solid fa-arrow-left"></i><i class="fa-solid fa-arrow-down"></i><i class="fa-solid fa-arrow-right"></i></span> Press an arrow to move</div>
                 <div class="mcq-arena-overlay" data-ui="overlay" hidden></div>
             </div>
             <div class="mcq-arena-toolbar">
@@ -267,6 +268,7 @@
                 : '<i class="fa-solid fa-pause"></i> <span>Pause</span>';
             ui.pauseBtn.disabled = !(next === "playing" || next === "paused");
             ui.skipBtn.disabled = !(next === "playing" || next === "paused");
+            if (ui.moveHint) ui.moveHint.hidden = !(next === "playing" && waitingForMove);
         }
 
         function applyState(state) {
@@ -316,15 +318,9 @@
             flashTimer = setTimeout(() => { ui.flash.className = "mcq-arena-flash"; }, 1600);
         }
 
-        // Stays until the first direction (flash() fades out on its own).
+        // A small pill above the timer bar, until the first direction.
         function moveHint(on) {
-            clearTimeout(flashTimer);
-            if (!on) {
-                ui.flash.className = "mcq-arena-flash";
-                return;
-            }
-            ui.flash.textContent = "Read the question, then press an arrow key / WASD (or tap the arrows) to move.";
-            ui.flash.className = "mcq-arena-flash show is-ok";
+            ui.moveHint.hidden = !on;
         }
 
         // ---- overlays (only static markup goes through innerHTML; learner/DB text uses textContent) ----

@@ -955,3 +955,26 @@ html.mcq-focus-lock body {
 }
 
 .mcq-arena-root.is-focus .mcq-arena-stat.is-lives i { white-space: normal; }
+/* feat/game-countdown: until the first direction - a small pill above the
+   stage timer, never over the pellets in the middle */
+.mcq-arena-move-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 96px;   /* above the stage timer and its "Hurry!" line */
+    transform: translateX(-50%);
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.82);
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.mcq-arena-move-hint[hidden] { display: none; }
+.mcq-arena-move-keys { display: inline-flex; gap: 3px; font-size: 0.72rem; opacity: 0.85; }

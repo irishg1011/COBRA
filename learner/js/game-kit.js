@@ -44,19 +44,39 @@
     }
 
     // ---------------- question timer ----------------
+    // A bar that shrinks + the seconds left at its end (42s). The last
+    // LOW_SECONDS: bar and number turn red, the number pulses and a
+    // "Hurry! N seconds left" line shows under it.
+    const LOW_SECONDS = 10;
+
     function timerBar(host, extraClass) {
-        const bar = document.createElement("div");
-        bar.className = "game-timer" + (extraClass ? " " + extraClass : "");
-        bar.setAttribute("role", "presentation");
-        bar.innerHTML = '<div class="game-timer-fill"></div>';
-        host.appendChild(bar);
-        const fill = bar.firstChild;
-        let deadline = 0, limit = 1, raf = null, onExpire = null, fired = false, itemKey = null;
+        const wrap = document.createElement("div");
+        wrap.className = "game-timer-wrap" + (extraClass ? " " + extraClass : "");
+        wrap.innerHTML = '<div class="game-timer-row"><div class="game-timer" role="presentation">'
+            + '<div class="game-timer-fill"></div></div><span class="game-timer-secs" aria-hidden="true"></span></div>'
+            + '<p class="game-timer-hurry" aria-live="polite" hidden></p>';
+        host.appendChild(wrap);
+        const bar = wrap.querySelector(".game-timer");
+        const fill = wrap.querySelector(".game-timer-fill");
+        const secs = wrap.querySelector(".game-timer-secs");
+        const hurry = wrap.querySelector(".game-timer-hurry");
+        let deadline = 0, limit = 1, raf = null, onExpire = null, fired = false, itemKey = null, shown = -1;
+
+        function paint(left) {
+            fill.style.transform = `scaleX(${Math.max(0, Math.min(1, left / limit))})`;
+            const whole = Math.max(0, Math.ceil(left));
+            if (whole === shown) return;
+            shown = whole;
+            const low = whole <= LOW_SECONDS;
+            wrap.classList.toggle("is-low", low);
+            secs.textContent = `${whole}s`;
+            hurry.hidden = !low || whole <= 0;
+            if (low && whole > 0) hurry.textContent = `\u23F0 Hurry! ${whole} second${whole === 1 ? "" : "s"} left`;
+        }
 
         function frame() {
             const left = Math.max(0, (deadline - performance.now()) / 1000);
-            fill.style.transform = `scaleX(${Math.max(0, Math.min(1, left / limit))})`;
-            bar.classList.toggle("is-low", left <= 10);
+            paint(left);
             if (left <= 0) {
                 raf = null;
                 if (!fired && onExpire) {
@@ -76,12 +96,13 @@
                 if (key !== itemKey) fired = false;
                 itemKey = key;
                 deadline = performance.now() + (timer.seconds_left ?? limit) * 1000;
-                bar.hidden = false;
+                wrap.hidden = false;
+                shown = -1;
                 if (timer.running) {
                     if (!raf) raf = requestAnimationFrame(frame);
                 } else {
                     this.stop();
-                    fill.style.transform = `scaleX(${Math.max(0, Math.min(1, (timer.seconds_left ?? limit) / limit))})`;
+                    paint(timer.seconds_left ?? limit);
                 }
             },
             stop() {
@@ -90,12 +111,12 @@
             },
             hide() {
                 this.stop();
-                bar.hidden = true;
+                wrap.hidden = true;
             },
             onExpire(fn) { onExpire = fn; },
             dispose() {
                 this.stop();
-                bar.remove();
+                wrap.remove();
             }
         };
     }
