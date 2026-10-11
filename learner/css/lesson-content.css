@@ -955,3 +955,6 @@ a.review-btn { text-decoration: none; }
 }
 .exercise-code-box.is-locked { background: #f1f5f9; cursor: default; }
 #exerciseSubmitBtn[hidden] { display: none; }
+
+/* Exercise step: the lesson completion could not be saved - say why (View Summary retries) */
+.mark-complete-confirm.is-blocked { color: #b91c1c; }

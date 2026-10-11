@@ -1421,7 +1421,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderExerciseState();
                 // A skipped lesson is already complete - passing now just
                 // upgrades the score, so stay here instead of re-finishing.
-                if (!lessonData.is_completed) await attemptCompleteLesson();
+                // First completion: save it now but STAY on the feedback -
+                // the learner moves on with View Summary when ready.
+                if (!lessonData.is_completed) {
+                    if (PREVIEW) await attemptCompleteLesson();
+                    else await finishLessonFromExercise();
+                }
             } else if (result.success) {
                 failed = true;
                 exerciseResultBox.className = "exercise-result fail";
@@ -1469,8 +1474,38 @@ document.addEventListener('DOMContentLoaded', () => {
         note.innerHTML = `<i class="fa-solid fa-lock"></i> You passed this exercise. Your result is saved, so it can't be submitted again.`;
     }
 
+    // A first correct Submit: the "Correct!" feedback and output stay on
+    // screen. The completion is saved in the background (same call as
+    // always); then View Summary pulses. If the save fails, the reason
+    // shows here and View Summary retries it (its own click handler).
+    async function finishLessonFromExercise() {
+        exerciseCompleteRow.style.display = "flex";
+        exerciseCompleteStatus.style.display = "inline-flex";
+        exerciseCompleteStatus.classList.remove('is-blocked');
+        exerciseCompleteStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Saving your progress...</span>`;
+        viewSummaryFromExerciseBtn.hidden = true;
+        const saved = await attemptCompleteLesson({ stay: true });
+        viewSummaryFromExerciseBtn.hidden = false;
+        viewSummaryFromExerciseBtn.classList.add('game-next-pulse');
+        if (saved) {
+            exerciseCompleteStatus.innerHTML = `<span>🎉 Lesson complete! Press <strong>View Summary</strong> to continue.</span>`;
+        }
+    }
+
+    // The completion could not be saved on the Exercise step: say why,
+    // View Summary (still shown) tries again.
+    function showExerciseCompletionBlocked(result) {
+        exerciseCompleteRow.style.display = "flex";
+        exerciseCompleteStatus.style.display = "inline-flex";
+        exerciseCompleteStatus.classList.add('is-blocked');
+        exerciseCompleteStatus.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${escapeHtml(
+            (result && result.message) || 'This lesson could not be completed yet.')} Press <strong>View Summary</strong> to try again.</span>`;
+    }
+
     // ---------------- Activities step (unchanged behavior from before) ----------------
-    async function attemptCompleteLesson() {
+    // options.stay: a first completion does NOT jump to the Summary (the
+    // Exercise step keeps its feedback on screen). Returns true when saved.
+    async function attemptCompleteLesson(options = {}) {
         if (PREVIEW) {
             // Admin preview: nothing is saved - just say it's finished.
             lessonData.is_completed = true;
@@ -1494,9 +1529,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (firstTime) {
                     // First completion: straight to the Summary, which saves the
                     // recommendations and then asks "Proceed to the next lesson?".
+                    // With {stay: true} the caller shows View Summary instead;
+                    // justCompleted keeps the Summary's "Proceed?" question.
                     justCompleted = true;
+                    if (options.stay) return true;
                     goToStep("summary");
-                    return;
+                    return true;
                 }
                 if (backToActivitiesBtn) backToActivitiesBtn.hidden = true;
                 lessonInProgressStatus.classList.remove('is-blocked');
@@ -1510,14 +1548,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     lessonCompleteRow.style.display = 'flex';
                     viewSummaryFromActivitiesBtn.style.display = 'inline-flex';
                 }
+                return true;
             } else {
                 console.error('Could not mark this lesson complete:', result.message);
+                if (options.stay) showExerciseCompletionBlocked(result);
                 showCompletionBlocked(result);
             }
         } catch (err) {
             console.error('Could not reach the server to complete this lesson.', err);
-            showCompletionBlocked({ message: 'Could not reach the server. Please try again.' });
+            const offline = { message: 'Could not reach the server. Please try again.' };
+            if (options.stay) showExerciseCompletionBlocked(offline);
+            showCompletionBlocked(offline);
         }
+        return false;
     }
 
     // The server refused to complete the lesson - never leave the learner
@@ -1593,11 +1636,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // this button finishes the lesson first instead of leaving it stuck.
         viewSummaryFromExerciseBtn.addEventListener('click', async () => {
             if (!lessonData.is_completed && (lessonData.exercise_completed || (exerciseState && exerciseState.skipped))) {
-                await attemptCompleteLesson();
-                if (!lessonData.is_completed) return;
-                if (!justCompleted) goToStep("summary");
-                return;
+                // Retry after a failed save: stay on the feedback until it worked.
+                const saved = await attemptCompleteLesson({ stay: true });
+                if (!saved) return;
+                exerciseCompleteStatus.classList.remove('is-blocked');
             }
+            viewSummaryFromExerciseBtn.classList.remove('game-next-pulse');
             goToStep("summary");
         });
     }
