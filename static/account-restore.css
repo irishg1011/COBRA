@@ -1,0 +1,85 @@
+/* account-restore.css - "Restore your account?" at sign-in (feat/account-tools) */
+.cr-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.cr-overlay[hidden] {
+    display: none;
+}
+
+.cr-dialog {
+    width: 100%;
+    max-width: 420px;
+    padding: 28px 24px 22px;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    text-align: center;
+    font-family: 'Inter', 'Poppins', 'Segoe UI', sans-serif;
+    color: #0f172a;
+}
+
+.cr-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 48px;
+}
+
+.cr-title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.cr-text {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.cr-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.cr-btn {
+    min-width: 130px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.cr-btn--ghost {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+.cr-btn--primary {
+    background: linear-gradient(135deg, #18B8E6 0%, #24C7B7 50%, #46D97D 100%);
+    color: #ffffff;
+}
+
+.cr-btn:focus-visible {
+    outline: 2px solid #1D6FDC;
+    outline-offset: 2px;
+}

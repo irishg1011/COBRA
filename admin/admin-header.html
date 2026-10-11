@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-header-tools.css') }}">
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-profile-photo.css') }}">
 <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/presence.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='delete-account.css') }}">
 {% set staff_photo_src = current_admin.avatar_url if current_admin and current_admin.avatar_url else '/assets/images/avatar.png' %}
 <header class="admin-header" data-pass-mark="{{ pass_mark }}">
     <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle sidebar" aria-controls="adminSidebar" aria-expanded="true">
@@ -82,6 +83,11 @@
                 <a href="{{ url_for('admin_bp.staff_change_password') }}" class="staff-menu-item" role="menuitem" id="staffMenuChangePasswordLink">
                     <i class="fa-solid fa-lock" aria-hidden="true"></i> Change Password
                 </a>
+                {# feat/account-tools: delete MY OWN account (30 days to restore) - static/delete-account.js #}
+                <button type="button" class="staff-menu-item staff-menu-delete" role="menuitem" id="staffMenuDeleteAccountBtn"
+                        data-delete-account="{{ url_for('admin_bp.staff_delete_account') }}" data-delete-check="{{ url_for('admin_bp.staff_delete_account') }}">
+                    <i class="fa-solid fa-user-xmark" aria-hidden="true"></i> Delete my account
+                </button>
                 <div class="staff-menu-divider" role="separator"></div>
                 <button type="button" class="staff-menu-item staff-menu-logout" role="menuitem" id="staffMenuLogoutBtn">
                     <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i> Logout
@@ -114,3 +120,4 @@
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-notifications.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-menu.js') }}"></script>
 <script defer src="{{ url_for('admin_bp.static', filename='js/admin-profile-photo.js') }}"></script>
+<script defer src="{{ url_for('static', filename='delete-account.js') }}"></script>

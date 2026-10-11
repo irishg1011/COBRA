@@ -41,6 +41,9 @@
         }
 
         function statusBadgeHtml(acc) {
+            if (acc.pending_deletion) {   // feat/account-tools
+                return `<span class="badge badge-pending-deletion" title="The owner asked to delete it. Becomes archived on ${escapeHtml(acc.delete_on)} unless restored.">Pending deletion</span>`;
+            }
             if (acc.is_locked) {
                 return '<span class="badge badge-locked">Locked</span>';
             }

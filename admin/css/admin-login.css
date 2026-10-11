@@ -298,3 +298,30 @@ body.admin-login-page {
         height: 56px;
     }
 }
+
+
+/* feat/account-tools: "Can't get in? Ask an admin" */
+.al-help-link-row {
+    margin-top: 4px;
+}
+
+.al-help-textarea {
+    display: block;
+    width: 100%;
+    min-height: 96px;
+    max-height: 220px;
+    padding: 12px 14px;
+    border: 1px solid #6b7280;
+    border-radius: 10px;
+    background: #ffffff;
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #0f172a;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.al-help-textarea::placeholder {
+    color: #6b7280;
+}

@@ -59,6 +59,11 @@
                     <h4><i class="fa-solid fa-clock-rotate-left"></i> Recent Login Attempts</h4>
                     <div id="accountRecentLogins"></div>
                 </div>
+                <!-- feat/account-tools: resets, unlocks, deletions ... (account_actions_log_tbl) -->
+                <div class="progress-detail-section">
+                    <h4><i class="fa-solid fa-list-check"></i> Account Actions</h4>
+                    <div id="accountActionsLog"></div>
+                </div>
             </section>
 
             <!-- LEARNING (learners only) -->
@@ -67,6 +72,10 @@
                 <div class="account-panel-actions">
                     <button type="button" class="btn-pill-light" id="openCourseProgressBtn">
                         <i class="fa-solid fa-sitemap"></i> View full course progress
+                    </button>
+                    <!-- feat/account-tools: only while "Allow progress reset (testing)" is ON -->
+                    <button type="button" class="btn-pill-danger is-hidden" id="openProgressResetBtn">
+                        <i class="fa-solid fa-rotate-left"></i> Reset progress
                     </button>
                 </div>
             </section>

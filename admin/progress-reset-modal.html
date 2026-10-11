@@ -1,0 +1,35 @@
+<!-- progress-reset-modal.html - Account Details > Learning > Reset progress (feat/account-tools)
+     Learners only. Lists what will be erased, then the admin TYPES the
+     account ID to confirm. The account itself (login, password, profile)
+     is kept. Driven by admin-account-tools.js. -->
+<div id="progressResetModal" class="custom-modal-overlay is-hidden at-modal-front" role="dialog" aria-modal="true" aria-labelledby="progressResetTitle">
+    <div class="custom-modal-dialog at-modal-narrow">
+        <div class="custom-modal-header">
+            <div>
+                <h3 id="progressResetTitle">Reset progress</h3>
+                <p class="at-modal-sub" id="progressResetWho"></p>
+            </div>
+            <button type="button" class="categories-close-btn" id="closeProgressResetModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="custom-modal-body">
+            <div class="at-warning">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                <div>
+                    <strong>This can't be undone.</strong>
+                    All learning progress is erased, as if this learner just signed up.
+                    Their account, password and profile stay.
+                </div>
+            </div>
+            <ul class="at-reset-list" id="progressResetList"><li class="text-muted">Loading&hellip;</li></ul>
+            <label class="at-field-label" for="progressResetTyped">Type <strong id="progressResetAccId"></strong> to confirm</label>
+            <input type="text" id="progressResetTyped" class="at-input" autocomplete="off" spellcheck="false">
+            <p class="at-form-message" id="progressResetMessage" role="status"></p>
+            <div class="at-modal-actions">
+                <button type="button" class="btn-pill-light" id="cancelProgressResetBtn">Cancel</button>
+                <button type="button" class="btn-pill-danger" id="confirmProgressResetBtn" disabled>
+                    <i class="fa-solid fa-rotate-left"></i> Reset progress
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

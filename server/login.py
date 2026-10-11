@@ -91,6 +91,24 @@ app.register_blueprint(contact_bp)
 # the learner keep-alive below, so an idle session is ended first.
 from idle_logout import init_idle_logout
 init_idle_logout(app)
+
+# feat/account-tools: make sure the new tables / account columns exist before
+# the first request (Account & Security reads deletion_due_at, the staff guard
+# reads must_change_password). Best-effort - never stops the app starting.
+def _prepare_account_tools():
+    from cobradb import get_db_connection as _connect
+    from account_tools import ensure_account_tools_schema
+    connection = _connect()
+    if connection is None:
+        return
+    try:
+        ensure_account_tools_schema(connection)
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+_prepare_account_tools()
 # ============================================================
 # DATABASE CONFIG
 # ============================================================
@@ -441,7 +459,8 @@ def login():
     """
     data = request.get_json(silent=True) or {}
     payload, status, login_info = authenticate(
-        data.get("username"), data.get("password"), "learner", get_client_ip()
+        data.get("username"), data.get("password"), "learner", get_client_ip(),
+        restore=bool(data.get("restore")),   # feat/account-tools: "Restore it?" -> Restore
     )
     if login_info:
         # This browser's previous session (if any) ends here - its cookie

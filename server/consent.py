@@ -238,7 +238,7 @@ def _current_learner():
 
         if not row and acc_id:
             cursor.execute(
-                """SELECT a.acc_id, ut.u_type AS role, p.birthdate, a.is_deleted, a.status
+                """SELECT a.acc_id, ut.u_type AS role, p.birthdate, a.is_deleted, a.status, a.deletion_due_at
                    FROM account_tbl a
                    LEFT JOIN usertype_tbl ut ON a.u_type = ut.ut_id
                    LEFT JOIN profile_tbl p ON p.acc_id = a.acc_id
@@ -247,7 +247,8 @@ def _current_learner():
             )
             acc_row = cursor.fetchone()
             cursor.close()
-            if acc_row and acc_row.get("role") == LEARNER_ROLE and not acc_row.get("is_deleted") and acc_row.get("status") != "Archived":
+            if acc_row and acc_row.get("role") == LEARNER_ROLE and not acc_row.get("is_deleted") and acc_row.get("status") != "Archived" \
+                    and not acc_row.get("deletion_due_at"):   # feat/account-tools: pending deletion = signed out
                 touch_session(token, acc_id)
                 return {"acc_id": acc_id, "birthdate": acc_row.get("birthdate")}
             return None

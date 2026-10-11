@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
     <link rel="stylesheet" href="../learner/css/profile.css">
     <link rel="stylesheet" href="../learner/css/learner-responsive.css">
+    <link rel="stylesheet" href="../static/delete-account.css">
 </head>
 <body data-auth-guard-mode="refresh">
 
@@ -146,12 +147,24 @@
                     <div class="badge-grid" id="badgeGrid"></div>
                 </section>
             </div>
+
+            <!-- feat/account-tools: Delete my account (30 days to restore) - static/delete-account.js -->
+            <section class="profile-danger-zone" aria-labelledby="dangerZoneTitle">
+                <div>
+                    <h2 class="profile-danger-title" id="dangerZoneTitle">Delete my account</h2>
+                    <p class="profile-danger-text">You'll be signed out. You have 30 days to change your mind - just sign in again and choose Restore.</p>
+                </div>
+                <button type="button" class="profile-danger-btn" data-delete-account="/api/profile/delete-account">
+                    <i class="fa-solid fa-user-xmark" aria-hidden="true"></i> Delete my account
+                </button>
+            </section>
         </div>
     </main>
 
     <!-- External Script References -->
     <script src="../learner/js/learner.js"></script>
     <script src="../learner/js/profile.js"></script>
+    <script src="../static/delete-account.js"></script>
     <script src="../static/auth-guard.js"></script>
     <script src="../static/page-transitions.js"></script>
 </body>

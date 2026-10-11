@@ -1104,10 +1104,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     credentials: 'same-origin',
                     body: JSON.stringify({
                         username: targetUsername,
-                        password: passwordInput.value.trim()
+                        password: passwordInput.value.trim(),
+                        restore: window.__cobraRestoreNext === true   // feat/account-tools
                     })
                 });
+                window.__cobraRestoreNext = false;
                 const result = await response.json();
+
+                // feat/account-tools: right password, but this account is
+                // pending deletion - "Restore it?" Restore = the same sign-in
+                // again with restore: true; Cancel = stays pending, signed out.
+                if (response.status === 409 && result.pending_deletion && window.CobraRestore) {
+                    resetButtonLoading(submitBtn);
+                    if (await CobraRestore.ask(result.delete_on)) {
+                        window.__cobraRestoreNext = true;
+                        signInFormElement.requestSubmit();
+                    } else {
+                        passwordInput.value = '';
+                        showInlineError(passwordInput.closest('.password-wrapper'), `Not restored. Your account will be deleted on ${result.delete_on}.`);
+                    }
+                    return;
+                }
 
 if (result.success) {
 

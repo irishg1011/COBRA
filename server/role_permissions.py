@@ -56,6 +56,7 @@ ENDPOINT_ROLES = {
     "admin_bp.staff_password_send_otp": BOTH,
     "admin_bp.staff_password_verify_otp": BOTH,
     "admin_bp.staff_password_reset": BOTH,
+    "admin_bp.staff_delete_account": BOTH,   # feat/account-tools: delete MY OWN account (30-day restore)
 
     # Publishing - admins view only (page + read-only refresh)
     "admin_bp.publishing": BOTH,
@@ -121,7 +122,19 @@ ENDPOINT_ROLES = {
     "admin_bp.account_archive": ADMIN,
     "admin_bp.account_restore": ADMIN,
     "admin_bp.accounts_archived": ADMIN,
-    "admin_bp.account_unlock": ADMIN,         # feat/admin-online: "Unlock now" (logged in unlock_logs_tbl)
+    "admin_bp.account_unlock": ADMIN,
+
+    # feat/account-tools - progress reset (learners), pending deletion, help requests
+    "admin_bp.account_progress_reset_preview": ADMIN,
+    "admin_bp.account_progress_reset": ADMIN,
+    "admin_bp.progress_reset_setting": ADMIN,   # "Allow progress reset (testing)" ON/OFF
+    "admin_bp.accounts_pending_deletion": ADMIN,
+    "admin_bp.account_restore_pending": ADMIN,
+    "admin_bp.help_requests_page": ADMIN,
+    "admin_bp.help_requests_data": ADMIN,
+    "admin_bp.help_request_reset_password": ADMIN,   # only admins reset passwords - never mentors
+    "admin_bp.help_request_unlock": ADMIN,
+    "admin_bp.help_request_done": ADMIN,         # feat/admin-online: "Unlock now" (logged in unlock_logs_tbl)
     "admin_bp.create_administrator": ADMIN,
     "admin_bp.create_mentor": ADMIN,
     "admin_bp.preview_next_admin_id": ADMIN,

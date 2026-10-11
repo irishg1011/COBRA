@@ -37,6 +37,8 @@
             otp: $("forgotOtpPanel"),
             setPassword: $("setNewPasswordPanel"),
             resetSuccess: $("forgotSuccessPanel"),
+            help: $("helpRequestPanel"),          // feat/account-tools
+            helpSent: $("helpRequestSentPanel"),
         };
 
         const usernameInput = $("username");
@@ -227,7 +229,7 @@
 
         usernameInput.addEventListener("input", syncLockoutUI);
 
-        async function signIn() {
+        async function signIn(restore = false) {
             if (!requireFilled([usernameInput, passwordInput])) return;
             const user = usernameInput.value.trim();
             if (lockouts[user]) { syncLockoutUI(); return; }
@@ -236,7 +238,7 @@
             setButtonLoading(loginBtn, "Signing in...");
             let result;
             try {
-                result = await postJson("/staff/login", { username: user, password: passwordInput.value });
+                result = await postJson("/staff/login", { username: user, password: passwordInput.value, restore: restore === true });
             } catch (err) {
                 resetButtonLoading(loginBtn);
                 showInlineError(passwordAnchor, "Could not reach the server. Please try again.");
@@ -251,6 +253,18 @@
                 return;
             }
 
+            // feat/account-tools: right password, but this account is pending
+            // deletion - "Restore it?" (Restore = sign in again with restore).
+            if (response.status === 409 && data.pending_deletion && window.CobraRestore) {
+                if (await CobraRestore.ask(data.delete_on)) {
+                    signIn(true);
+                    return;
+                }
+                passwordInput.value = "";
+                showInlineError(passwordAnchor, `Not restored. Your account will be deleted on ${data.delete_on}.`);
+                return;
+            }
+
             passwordInput.value = "";
             if (response.status === 423) {
                 startLockout(user, data.remaining_seconds || 60);
@@ -259,7 +273,45 @@
             showInlineError(passwordAnchor, data.message || "Could not sign in.");
         }
 
-        loginBtn.addEventListener("click", signIn);
+        loginBtn.addEventListener("click", () => signIn());
+
+        // ============================================================
+        // feat/account-tools: "CAN'T GET IN? ASK AN ADMIN"
+        // ============================================================
+        const helpUsername = $("helpUsername");
+        const helpMessage = $("helpMessage");
+        const helpSendBtn = $("btnSendHelpRequest");
+
+        $("openHelpRequestLink").addEventListener("click", (e) => {
+            e.preventDefault();
+            helpUsername.value = usernameInput.value.trim();
+            helpMessage.value = "";
+            clearInlineError(helpUsername);
+            clearInlineError(helpMessage);
+            showPanel(panels.help);
+            (helpUsername.value ? helpMessage : helpUsername).focus();
+        });
+
+        helpSendBtn.addEventListener("click", async () => {
+            if (!requireFilled([helpUsername, helpMessage])) return;
+            clearInlineError(helpMessage);
+            setButtonLoading(helpSendBtn, "Sending...");
+            let result;
+            try {
+                result = await postJson("/staff/help-request", { username: helpUsername.value.trim(), message: helpMessage.value.trim() });
+            } catch (err) {
+                resetButtonLoading(helpSendBtn);
+                showInlineError(helpMessage, "Could not reach the server. Please try again.");
+                return;
+            }
+            resetButtonLoading(helpSendBtn);
+            if (result.data.success) {
+                $("helpRequestSentText").textContent = result.data.message;
+                showPanel(panels.helpSent);
+                return;
+            }
+            showInlineError(helpMessage, result.data.message || "Could not send the request.");
+        });
 
         // ============================================================
         // FORGOT PASSWORD

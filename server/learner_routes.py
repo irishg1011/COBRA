@@ -148,7 +148,7 @@ def get_current_learner_acc_id():
         # learner's valid session is recognized seamlessly.
         if acc_id:
             cursor.execute(
-                """SELECT a.acc_id, ut.u_type AS role, a.is_deleted, a.status
+                """SELECT a.acc_id, ut.u_type AS role, a.is_deleted, a.status, a.deletion_due_at
                    FROM account_tbl a
                    LEFT JOIN usertype_tbl ut ON a.u_type = ut.ut_id
                    WHERE a.acc_id = %s""",
@@ -156,7 +156,8 @@ def get_current_learner_acc_id():
             )
             acc_row = cursor.fetchone()
             cursor.close()
-            if acc_row and acc_row.get("role") == "Learner" and not acc_row.get("is_deleted") and acc_row.get("status") != "Archived":
+            if acc_row and acc_row.get("role") == "Learner" and not acc_row.get("is_deleted") and acc_row.get("status") != "Archived" \
+                    and not acc_row.get("deletion_due_at"):   # feat/account-tools: pending deletion = signed out
                 touch_session(token, acc_id)
                 return acc_id
         else:

@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/login-logs.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/account-tools.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
@@ -52,6 +53,7 @@
                         <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link active" aria-current="page">Login Logs</a>
                         <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link">Account Management</a>
                         <a href="{{ url_for('admin_bp.online_users') }}" class="page-switch-link">Who's Online</a>
+                        <a href="{{ url_for('admin_bp.help_requests_page') }}" class="page-switch-link">Help Requests{% if open_help_requests %} <span class="at-count-badge">{{ open_help_requests }}</span>{% endif %}</a>
                     </nav>
                     <div class="page-actions-buttons">
                         <button type="button" id="openCreateAdminBtn" class="btn-create-admin" data-open-modal="createAdminModal">

@@ -48,6 +48,8 @@ from notifications import notify
 from profile_avatar import get_avatar_url, set_avatar, remove_avatar  # feat/profile-photo
 from certificates import issue_certificate_if_complete, get_certificate, certificate_payload  # feat/certificate
 from image_uploads import get_image  # feat/images-in-database: serves /media/<name>
+from account_deletion import request_self_deletion  # feat/account-tools: Delete my account
+from client_ip import get_client_ip
 
 learner_profile_bp = Blueprint("learner_profile_bp", __name__)
 
@@ -686,6 +688,25 @@ def profile_password_verify_otp():
     data = request.get_json(silent=True) or {}
     payload, status = verify_reset_code(email, data.get("otp"), "learner")
     return jsonify(payload), status
+
+
+@learner_profile_bp.route("/api/profile/delete-account", methods=["POST"])
+def profile_delete_account():
+    """
+    feat/account-tools: "Delete my account" - password to confirm, then the
+    account is PENDING DELETION for 30 days (signing in again offers Restore)
+    and this learner is signed out everywhere.
+    """
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return _not_logged_in()
+    data = request.get_json(silent=True) or {}
+    ok, message, delete_on = request_self_deletion(acc_id, data.get("password"), get_client_ip())
+    if not ok:
+        return jsonify({"success": False, "message": message}), 400
+    from flask import session
+    session.clear()
+    return jsonify({"success": True, "message": message, "delete_on": delete_on, "redirect": "/login"}), 200
 
 
 @learner_profile_bp.route("/api/profile/password/reset", methods=["POST"])

@@ -339,6 +339,8 @@
 
             archiveBtn.disabled = Boolean(acc.archive_block);
             archiveNote.textContent = acc.archive_block || defaultArchiveNote;
+            // feat/account-tools: admin-account-tools.js fills Account Actions + Reset progress
+            document.dispatchEvent(new CustomEvent("cobra:account-details", { detail: acc }));
         }
 
         async function openDetails(accId, tab) {

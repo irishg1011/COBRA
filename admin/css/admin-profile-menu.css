@@ -159,3 +159,14 @@ button.admin-profile-badge:focus-visible {
         transition: none;
     }
 }
+
+/* feat/account-tools: "Delete my account" */
+.staff-menu-delete,
+.staff-menu-delete i {
+    color: #b91c1c;
+}
+
+.staff-menu-delete:hover,
+.staff-menu-delete:focus-visible {
+    background: #fef2f2;
+}

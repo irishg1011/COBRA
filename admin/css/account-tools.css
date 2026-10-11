@@ -1,0 +1,414 @@
+/* ==========================================================================
+   account-tools.css - feat/account-tools (admin side)
+   Progress reset (switch + typed confirm), Pending Deletion, Help Requests,
+   the forced "Set a new password" page and the Account Actions log.
+   Builds on admin-style.css (custom-modal-*, btn-pill-*, badge, data-table).
+   ========================================================================== */
+
+/* --- Badges --- */
+.badge.badge-pending-deletion,
+.table-card .badge.badge-pending-deletion {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.at-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    margin-left: 4px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+/* --- "Allow progress reset (testing)" switch --- */
+.at-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    background: #ffffff;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    user-select: none;
+}
+
+.at-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.at-switch-track {
+    position: relative;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 20px;
+    border-radius: 999px;
+    background: #d1d5db;
+    transition: background 0.2s;
+}
+
+.at-switch-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+}
+
+.at-switch input:checked + .at-switch-track {
+    background: #f59e0b;
+}
+
+.at-switch input:checked + .at-switch-track::after {
+    transform: translateX(14px);
+}
+
+.at-switch input:focus-visible + .at-switch-track {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+.at-switch input:disabled + .at-switch-track {
+    opacity: 0.6;
+}
+
+/* --- Modals --- */
+.custom-modal-overlay.at-modal-front {
+    z-index: 2100;   /* above the Account Details modal (.modal-overlay = 2000) */
+}
+
+.custom-modal-dialog.at-modal-wide {
+    max-width: 820px;
+}
+
+#pendingDeletionModal .custom-modal-dialog {
+    height: auto;
+}
+
+/* .search-override sets margin: 0 !important - same fix as #archivedAccountsModal */
+#pendingDeletionModal .search-override {
+    width: 100%;
+    margin-bottom: 18px !important;
+}
+
+.custom-modal-dialog.at-modal-narrow {
+    max-width: 480px;
+    height: auto;
+}
+
+.at-modal-sub {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+.at-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.at-warning {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 12px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #fef3c7;
+    color: #78350f;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.at-warning i {
+    margin-top: 2px;
+}
+
+.at-reset-list {
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+.at-reset-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 12px;
+    font-size: 13px;
+}
+
+.at-reset-list li + li {
+    border-top: 1px solid #f3f4f6;
+}
+
+.at-reset-list .at-reset-total {
+    background: #f9fafb;
+    font-weight: 600;
+}
+
+.at-field-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #374151;
+}
+
+.at-input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.at-input:focus {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 1px;
+}
+
+.at-form-message {
+    min-height: 18px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #b91c1c;
+}
+
+.at-form-message:empty {
+    min-height: 0;
+    margin: 0;
+}
+
+.at-steps-list {
+    margin: 10px 0 0;
+    padding-left: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #374151;
+}
+
+.at-temp-password {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px dashed #9ca3af;
+    border-radius: 10px;
+    background: #f9fafb;
+}
+
+.at-temp-password code {
+    flex: 1 1 auto;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #111827;
+    word-break: break-all;
+}
+
+/* --- Account Actions log (Account Details > Security) --- */
+.at-actions-table td {
+    vertical-align: top;
+}
+
+.at-nowrap {
+    white-space: nowrap;
+}
+
+/* --- Help Requests page --- */
+.at-help-card {
+    padding: 0;
+}
+
+.at-help-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 12px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.at-help-tab {
+    padding: 8px 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--admin-muted);
+    cursor: pointer;
+}
+
+.at-help-tab.is-active {
+    border-bottom-color: var(--admin-blue);
+    color: var(--admin-text);
+    font-weight: 600;
+}
+
+.at-help-tab-count {
+    margin-left: 4px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    font-size: 12px;
+}
+
+.at-help-list {
+    padding: 8px 16px 16px;
+}
+
+.at-help-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+}
+
+.at-help-item + .at-help-item {
+    border-top: 1px solid #f3f4f6;
+}
+
+.at-help-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.at-help-who {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 15px;
+}
+
+.at-help-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+.at-help-facts i {
+    margin-right: 4px;
+}
+
+.at-help-note {
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+.at-help-message {
+    margin: 8px 0 6px;
+    padding: 8px 12px;
+    border-left: 3px solid #d1d5db;
+    border-radius: 0 8px 8px 0;
+    background: #f9fafb;
+    font-size: 14px;
+    color: #111827;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.at-help-meta {
+    font-size: 12px;
+}
+
+.at-help-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.at-help-actions .btn-pill-light,
+.at-help-actions .btn-pill-danger {
+    justify-content: center;
+    font-size: 13px;
+    padding: 7px 14px;
+}
+
+.at-help-done {
+    flex: 0 0 auto;
+    font-size: 12px;
+    text-align: right;
+}
+
+.at-help-alert {
+    margin: 8px 0 0;
+}
+
+@media (max-width: 720px) {
+    .at-help-item {
+        flex-direction: column;
+    }
+
+    .at-help-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .at-help-done {
+        text-align: left;
+    }
+}
+
+/* --- Forced "Set a new password" page (no sidebar) --- */
+body.set-pw-body {
+    display: block;
+}
+
+.set-pw-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+}
+
+.set-pw-logo {
+    height: 40px;
+}
+
+.set-pw-logout {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #374151;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.set-pw-logout:hover {
+    color: #dc2626;
+}

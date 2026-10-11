@@ -11,6 +11,7 @@
     <!-- feat/archive-accounts: detail-modal card + the shared Course / Lesson Progress modals -->
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-progress.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/account-tools.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
@@ -53,8 +54,18 @@
                         <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link">Login Logs</a>
                         <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link active" aria-current="page">Account Management</a>
                         <a href="{{ url_for('admin_bp.online_users') }}" class="page-switch-link">Who's Online</a>
+                        <a href="{{ url_for('admin_bp.help_requests_page') }}" class="page-switch-link">Help Requests{% if open_help_requests %} <span class="at-count-badge">{{ open_help_requests }}</span>{% endif %}</a>
                     </nav>
                     <div class="page-actions-buttons">
+                        {# feat/account-tools #}
+                        <label class="at-switch" title="Lets admins erase a learner's progress (for testing). Turn it OFF when real learners use the system.">
+                            <input type="checkbox" id="progressResetSwitch" role="switch">
+                            <span class="at-switch-track" aria-hidden="true"></span>
+                            <span class="at-switch-label">Allow progress reset (testing)</span>
+                        </label>
+                        <button type="button" id="openPendingDeletionBtn" class="btn-pill-light">
+                            <i class="fa-solid fa-user-clock"></i> Pending Deletion
+                        </button>
                         <button type="button" id="openArchivedAccountsBtn" class="btn-pill-light">
                             <span class="mask-icon icon-archive"></span> Archived Accounts
                         </button>
@@ -196,7 +207,9 @@
                                         <span class="badge {{ 'badge-admin' if acc.role == 'Admin' else ('badge-mentor' if acc.role == 'Mentor' else 'badge-learner') }}">{{ acc.role }}</span>
                                     </td>
                                     <td>
-                                        {% if acc.is_locked %}
+                                        {% if acc.pending_deletion %}
+                                        <span class="badge badge-pending-deletion" title="The owner asked to delete it. Becomes archived on {{ acc.delete_on }} unless restored.">Pending deletion</span>
+                                        {% elif acc.is_locked %}
                                         <span class="badge badge-locked">Locked</span>
                                         {% elif acc.status == 'Active' %}
                                         <span class="badge badge-active">Active</span>
@@ -272,5 +285,9 @@
     {% include 'learner-progress-learner-modal.html' %}
     {% include 'learner-progress-modal.html' %}
     {% include 'confirm-action-modal.html' %}
+    {# feat/account-tools #}
+    {% include 'pending-deletion-modal.html' %}
+    {% include 'progress-reset-modal.html' %}
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-account-tools.js') }}"></script>
 </body>
 </html>

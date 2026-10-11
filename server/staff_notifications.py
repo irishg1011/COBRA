@@ -7,6 +7,8 @@ Admins get a notification, in the header bell, when:
     lockout      an account was locked after 5 failed logins      (lockout_logs.py)
     signup       a new learner signed up                          (login.py /signup)
     course_done  a learner finished the whole course              (certificates.py)
+    help_request a staff member can't sign in                   (help_requests.py)
+    account_deletion  someone asked to delete their account      (account_deletion.py)
 Mentors get none (their header shows no bell).
 
 Nothing new is stored: the rows go into the SAME notifications_tbl the

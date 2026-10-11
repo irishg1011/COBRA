@@ -25,6 +25,8 @@
         lockout:     { icon: "fa-lock",           tone: "red" },
         signup:      { icon: "fa-user-plus",      tone: "green" },
         course_done: { icon: "fa-graduation-cap", tone: "gold" },
+        help_request:     { icon: "fa-life-ring",  tone: "red" },     // feat/account-tools
+        account_deletion: { icon: "fa-user-minus", tone: "gold" },    // feat/account-tools
     };
     const DEFAULT_TYPE = { icon: "fa-bell", tone: "teal" };
 

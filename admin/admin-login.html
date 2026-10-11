@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='animations.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-login.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='account-restore.css') }}">
 </head>
 <!-- feat/admin-login-page: staff sign in for Admin and Mentor accounts
      (feat/mentor-role; no Sign Up). Every panel
@@ -81,6 +82,9 @@
                             <p class="auth-help-links">
                                 Need to find your <a href="#" class="forgot-link" id="openForgotLink">password</a>?
                             </p>
+                            <p class="auth-help-links al-help-link-row">
+                                Can't get in? <a href="#" class="forgot-link" id="openHelpRequestLink">Ask an admin</a>
+                            </p>
                         </form>
                     </div>
                 </div>
@@ -97,6 +101,52 @@
                         <div class="form-header centered-header">
                             <h2>Sign In Successful!</h2>
                             <p>Redirecting to your home page...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- feat/account-tools: "CAN'T GET IN? ASK AN ADMIN" - a help request
+                     (POST /staff/help-request). Always answers "Request sent". -->
+                <div id="helpRequestPanel" class="al-panel auth-hidden">
+                    <div class="verification-container">
+                        <span class="al-hero-icon" aria-hidden="true"><span class="al-mask al-mask--user"></span></span>
+                        <div class="form-header centered-header">
+                            <h2>Ask an admin</h2>
+                            <p>Can't sign in? Tell an administrator. They'll check it's really you, then reset your password or unlock your account.</p>
+                        </div>
+                        <form class="auth-form auth-form--full auth-text-left" novalidate>
+                            <div class="input-group">
+                                <label for="helpUsername">Username or account ID</label>
+                                <input type="text" id="helpUsername" placeholder="e.g. mentorko or MT2610020001" maxlength="100" autocomplete="username" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="helpMessage">Message</label>
+                                <textarea id="helpMessage" class="al-help-textarea" rows="4" maxlength="500" placeholder="e.g. I forgot my password and I can't open my email." required></textarea>
+                            </div>
+                            <div class="al-btn-row">
+                                <button type="button" class="btn-login al-btn" id="btnSendHelpRequest">Send request</button>
+                            </div>
+                        </form>
+                        <div class="al-footer-back">
+                            <a href="#" class="back-to-login-link"><span class="al-chevron" aria-hidden="true"></span> Back to log in</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="helpRequestSentPanel" class="al-panel auth-hidden">
+                    <div class="success-container">
+                        <div class="signin-success-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <circle class="success-coil" cx="12" cy="12" r="10" stroke="#00D0FF" stroke-width="2"/>
+                                <path class="success-check" d="M8 12L11 15L16 9" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div class="form-header centered-header">
+                            <h2>Request sent</h2>
+                            <p id="helpRequestSentText">An administrator will contact you after checking it's really you.</p>
+                        </div>
+                        <div class="al-btn-row">
+                            <button type="button" class="btn-login al-btn back-to-login-btn">Back to log in</button>
                         </div>
                     </div>
                 </div>
@@ -227,6 +277,7 @@
         </section>
     </main>
 
+    <script src="{{ url_for('static', filename='account-restore.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-login.js') }}"></script>
     <script src="{{ url_for('static', filename='page-transitions.js') }}"></script>
     <script src="{{ url_for('static', filename='idle-notice.js') }}"></script>

@@ -110,6 +110,19 @@ from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achieve
 from learning_analytics import get_learning_analytics, empty_analytics  # Admin > Analytics
 from profile_avatar import get_avatar_url, get_avatar_urls, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo + table photos
 from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
+from staff_password import set_password_after_reset  # feat/account-tools: forced change after an admin reset
+from account_tools import (  # feat/account-tools: settings, activity log, staff session guard
+    get_staff_guard_state, setting_is_on, set_setting, get_account_actions, ALLOW_PROGRESS_RESET,
+)
+from progress_reset import preview_progress_reset, reset_learner_progress  # feat/account-tools
+from help_requests import (  # feat/account-tools: "Can't get in? Ask an admin"
+    create_help_request, list_help_requests, admin_reset_password, admin_unlock_from_request,
+    close_help_request, count_open_help_requests,
+)
+from account_deletion import (  # feat/account-tools: delete my account (30-day restore)
+    request_self_deletion, restore_pending, get_pending_deletions, archive_due_deletions,
+    self_deletion_block_reason,
+)
 from recommendations import get_recommendations_data, empty_recommendations_data  # feat/mentor-recommendations: Mentor > Recommendations page
 from urllib.parse import quote, urlencode  # feat/staff-search: ?q= / ?focus= on the result links
 from werkzeug.routing import BuildError
@@ -164,6 +177,13 @@ staff_bp = Blueprint('staff_bp', __name__, template_folder=ADMIN_DIR)
 
 # Routes a signed-out admin must still reach (the login page itself, its
 # reset flow, and the tab-close beacon). Everything else needs a session.
+HELP_TAB_PAGES = {'admin_bp.account_security', 'admin_bp.login_logs', 'admin_bp.online_users',
+                  'admin_bp.help_requests_page'}
+
+# feat/account-tools: forced "Set a new password" screen after an admin reset
+SET_PASSWORD_URL = "/staff/set-password"
+FORCED_CHANGE_ALLOWED = {'admin_bp.admin_logout', 'admin_bp.admin_session_end_beacon'}
+
 PUBLIC_ADMIN_ENDPOINTS = {
     'admin_bp.static',
     'admin_bp.admin_login_moved',
@@ -286,6 +306,31 @@ def _require_admin_session():
         session.clear()
         return redirect(LOGIN_REDIRECT_URL)
     g.staff_role = role
+
+    # feat/account-tools: signed out when the account is pending deletion or
+    # its password changed since this device signed in (an admin reset /
+    # Change Password elsewhere); a temporary password must be replaced first.
+    guard = get_staff_guard_state(session.get("admin_id"))
+    if guard is not None:
+        if guard["pending_deletion"]:
+            end_active_session(session.get("session_token"))
+            session.clear()
+            return redirect(LOGIN_REDIRECT_URL)
+        if not session.get("pw_sig"):
+            session["pw_sig"] = guard["pw_sig"]      # signed in before this check existed
+        elif session["pw_sig"] != guard["pw_sig"]:
+            end_active_session(session.get("session_token"))
+            session.clear()
+            if _is_page_request():
+                return redirect(LOGIN_REDIRECT_URL)
+            return jsonify({"success": False, "message": "Your password was changed. Please sign in again.",
+                            "redirect": LOGIN_REDIRECT_URL}), 401
+        if guard["must_change_password"] and request.endpoint not in FORCED_CHANGE_ALLOWED:
+            if _is_page_request():
+                return redirect(SET_PASSWORD_URL)
+            return jsonify({"success": False, "message": "Set a new password first.",
+                            "redirect": SET_PASSWORD_URL}), 403
+
     if not is_allowed(request.endpoint, role):
         return _deny_access(role)
 
@@ -479,6 +524,8 @@ def inject_current_admin():
         # feat/mentor-role: "Admin" / "Mentor", loaded from the database by
         # _require_admin_session() on this same request (None when signed out).
         "current_role": g.get("staff_role"),
+        # feat/account-tools: the "Help Requests (n)" tab on the Account & Security pages
+        "open_help_requests": count_open_help_requests() if request.endpoint in HELP_TAB_PAGES else 0,
         "greeting": get_greeting(),
         "genders": get_gender_options(),
         # feat/title-char-limit: every title input's maxlength comes from
@@ -524,7 +571,8 @@ def admin_login_page():
 def admin_login_submit():
     data = request.get_json(silent=True) or {}
     payload, status, login_info = authenticate(
-        data.get("username"), data.get("password"), "admin", get_client_ip()
+        data.get("username"), data.get("password"), "admin", get_client_ip(),
+        restore=bool(data.get("restore")),
     )
     if login_info:
         # Only the acc_id is stored - every admin request re-checks it
@@ -536,7 +584,10 @@ def admin_login_submit():
         if login_info["session_token"]:
             session["session_token"] = login_info["session_token"]
         session["admin_id"] = login_info["acc_id"]
+        session["pw_sig"] = login_info["pw_sig"]   # feat/account-tools: see _require_admin_session
         payload["redirect"] = role_home_url(login_info["role"])  # feat/mentor-role: Admin -> dashboard, Mentor -> mentor home
+        if login_info["must_change_password"]:
+            payload["redirect"] = SET_PASSWORD_URL       # temporary password -> set your own first
     return jsonify(payload), status
 
 
@@ -691,6 +742,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
     # threshold (see account_status.py) and flips any that have gone
     # stale to 'Inactive' first.
     refresh_inactive_accounts(connection)
+    archive_due_deletions(connection)   # feat/account-tools: 30 days pending -> archived
 
     accounts = []
     try:
@@ -705,6 +757,7 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 a.created_at,
                 a.last_login,
                 a.lockout_until,
+                a.deletion_due_at,
                 ut.u_type AS role,
                 p.firstname,
                 p.lastname
@@ -803,6 +856,9 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "role": row.get("role") or "Unknown",
                 "status": row.get("status") or "Active",
                 "is_locked": is_locked,
+                # feat/account-tools: the owner asked to delete it (restorable until this date)
+                "pending_deletion": bool(row.get("deletion_due_at")),
+                "delete_on": fmt_datetime(row.get("deletion_due_at")) if row.get("deletion_due_at") else "",
                 "date_created": _fmt_date(row.get("created_at")),
                 "last_login": _fmt_datetime(row.get("last_login")),
                 "avatar_url": avatars.get(row["acc_id"]),
@@ -1367,6 +1423,9 @@ def account_detail(acc_id):
     detail = get_account_detail(acc_id, current_admin_id=session.get("admin_id"))
     if detail is None:
         return jsonify({"success": False, "message": "Account not found or could not be loaded."}), 404
+    detail["actions"] = get_account_actions(acc_id)   # feat/account-tools: Security > Account actions
+    guard = get_staff_guard_state(acc_id)
+    detail["pending_deletion"] = bool(guard and guard["pending_deletion"])
     return jsonify({"success": True, "account": detail}), 200
 
 
@@ -1392,6 +1451,156 @@ def accounts_archived():
     if overview is None:
         return jsonify({"success": False, "message": "Could not reach the database."}), 500
     return jsonify({"success": True, **overview}), 200
+
+
+# ============================================================
+# feat/account-tools: RESET PROGRESS, PENDING DELETION, HELP REQUESTS
+# Thin wrappers - the rules live in progress_reset.py,
+# account_deletion.py and help_requests.py. Admin only (role_permissions).
+# ============================================================
+@admin_bp.route('/accounts/<acc_id>/progress-reset')
+def account_progress_reset_preview(acc_id):
+    """What "Reset progress" would erase for this learner (counts per table)."""
+    preview = preview_progress_reset(acc_id)
+    if preview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **preview}), 200
+
+
+@admin_bp.route('/accounts/<acc_id>/progress-reset', methods=['POST'])
+def account_progress_reset(acc_id):
+    data = request.get_json(silent=True) or {}
+    ok, message, deleted = reset_learner_progress(acc_id, data.get("typed_acc_id"),
+                                                  session.get("admin_id"), get_client_ip())
+    return jsonify({"success": ok, "message": message, "deleted": deleted}), (200 if ok else 400)
+
+
+@admin_bp.route('/settings/progress-reset', methods=['GET', 'POST'])
+def progress_reset_setting():
+    """The "Allow progress reset (testing)" switch on Account & Security."""
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        enabled = bool(data.get("enabled"))
+        if not set_setting(ALLOW_PROGRESS_RESET, "1" if enabled else "0", session.get("admin_id"), get_client_ip()):
+            return jsonify({"success": False, "message": "Could not save the setting."}), 500
+    return jsonify({"success": True, "enabled": setting_is_on(ALLOW_PROGRESS_RESET)}), 200
+
+
+@admin_bp.route('/accounts/pending-deletion')
+def accounts_pending_deletion():
+    """Pending Deletion modal: accounts their owners asked to delete (restorable for 30 days)."""
+    rows = get_pending_deletions(request.args.get('q', ''))
+    if rows is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, "accounts": rows, "total": len(rows)}), 200
+
+
+@admin_bp.route('/accounts/<acc_id>/restore-pending', methods=['POST'])
+def account_restore_pending(acc_id):
+    ok, message = restore_pending(acc_id, session.get("admin_id"), get_client_ip())
+    return jsonify({"success": ok, "message": message}), (200 if ok else 400)
+
+
+@admin_bp.route('/help-requests')
+def help_requests_page():
+    """Account & Security > Help Requests ("Can't get in? Ask an admin" from the staff login)."""
+    return render_template('help-requests.html', counts=(list_help_requests("open") or {}).get("counts", {"open": 0, "done": 0}))
+
+
+@admin_bp.route('/help-requests/data')
+def help_requests_data():
+    found = list_help_requests(request.args.get('status', 'open'))
+    if found is None:
+        return jsonify({"success": False, "message": "Could not reach the database.", "requests": []}), 500
+    return jsonify({"success": True, **found}), 200
+
+
+@admin_bp.route('/help-requests/<int:request_id>/reset-password', methods=['POST'])
+def help_request_reset_password(request_id):
+    """Temporary password - in this response ONLY; never stored or logged in plain text."""
+    ok, message, temp_password = admin_reset_password(request_id, session.get("admin_id"), get_client_ip())
+    response = jsonify({"success": ok, "message": message, "temp_password": temp_password})
+    response.headers["Cache-Control"] = "no-store"
+    return response, (200 if ok else 400)
+
+
+@admin_bp.route('/help-requests/<int:request_id>/unlock', methods=['POST'])
+def help_request_unlock(request_id):
+    ok, message = admin_unlock_from_request(request_id, session.get("admin_id"), get_client_ip())
+    return jsonify({"success": ok, "message": message}), (200 if ok else 400)
+
+
+@admin_bp.route('/help-requests/<int:request_id>/done', methods=['POST'])
+def help_request_done(request_id):
+    ok, message = close_help_request(request_id, session.get("admin_id"), "other", get_client_ip())
+    return jsonify({"success": ok, "message": message}), (200 if ok else 400)
+
+
+# ============================================================
+# feat/account-tools: DELETE MY ACCOUNT (staff - from the profile menu)
+# ============================================================
+@admin_bp.route('/profile/delete-account', methods=['GET', 'POST'])
+def staff_delete_account():
+    """GET: may this account delete itself? POST {password}: ask to delete it (30-day restore)."""
+    admin_id = session.get("admin_id")
+    if request.method == 'GET':
+        reason = self_deletion_block_reason(admin_id)
+        return jsonify({"success": True, "allowed": not reason, "reason": reason}), 200
+    data = request.get_json(silent=True) or {}
+    ok, message, delete_on = request_self_deletion(admin_id, data.get("password"), get_client_ip())
+    if not ok:
+        return jsonify({"success": False, "message": message}), 400
+    session.clear()
+    return jsonify({"success": True, "message": message, "delete_on": delete_on,
+                    "redirect": LOGIN_REDIRECT_URL}), 200
+
+
+def _refresh_pw_sig():
+    """After this device changed its own password: keep it signed in (others are signed out)."""
+    guard = get_staff_guard_state(session.get("admin_id"))
+    if guard is not None:
+        session["pw_sig"] = guard["pw_sig"]
+
+
+# ============================================================
+# feat/account-tools: STAFF LOGIN PAGE EXTRAS (public, under /staff)
+# ============================================================
+@staff_bp.route('/help-request', methods=['POST'])
+def staff_help_request():
+    """ "Can't get in? Ask an admin" - always the same answer, whether or not the account exists."""
+    data = request.get_json(silent=True) or {}
+    payload, status = create_help_request(data.get("username"), data.get("message"), get_client_ip())
+    return jsonify(payload), status
+
+
+@staff_bp.route('/set-password', methods=['GET'])
+def staff_set_password_page():
+    """Forced "Set a new password" after an admin gave this account a temporary one."""
+    admin_id = session.get("admin_id")
+    if not admin_id or is_account_archived(admin_id):
+        return redirect(LOGIN_REDIRECT_URL)
+    guard = get_staff_guard_state(admin_id)
+    role, _ = get_account_role(admin_id)
+    if guard is None or role not in STAFF_ROLES:
+        return redirect(LOGIN_REDIRECT_URL)
+    if not guard["must_change_password"]:
+        return redirect(role_home_url(role))
+    return render_template('staff-set-password.html')
+
+
+@staff_bp.route('/set-password', methods=['POST'])
+def staff_set_password():
+    admin_id = session.get("admin_id")
+    role, _ = get_account_role(admin_id)
+    if not admin_id or role not in STAFF_ROLES:
+        return jsonify({"success": False, "message": "Please sign in again.", "redirect": LOGIN_REDIRECT_URL}), 401
+    data = request.get_json(silent=True) or {}
+    payload, status = set_password_after_reset(admin_id, data.get("newPassword"),
+                                               data.get("confirmPassword"), get_client_ip())
+    if payload.get("success"):
+        _refresh_pw_sig()
+        payload["redirect"] = role_home_url(role)
+    return jsonify(payload), status
 
 
 @admin_bp.route('/login-logs.html')
@@ -3850,6 +4059,8 @@ def staff_password_reset():
     payload, status = change_password(
         session.get("admin_id"), data.get("newPassword"), data.get("confirmPassword")
     )
+    if payload.get("success"):
+        _refresh_pw_sig()   # feat/account-tools: other devices are signed out, this one stays
     return jsonify(payload), status
 
 

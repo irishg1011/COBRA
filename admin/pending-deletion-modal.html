@@ -1,0 +1,37 @@
+<!-- pending-deletion-modal.html - Admin > Account & Security (feat/account-tools)
+     Accounts whose OWNERS asked to delete them. They stay restorable for 30
+     days, then become Archived automatically. Restore = back to normal now.
+     Driven by admin-account-tools.js via /admin/accounts/pending-deletion. -->
+<div id="pendingDeletionModal" class="custom-modal-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="pendingDeletionTitle">
+    <div class="custom-modal-dialog at-modal-wide">
+        <div class="custom-modal-header">
+            <div>
+                <h3 id="pendingDeletionTitle">Pending Deletion</h3>
+                <p class="at-modal-sub">People who deleted their own account. Each one becomes <strong>Archived</strong> on its date unless restored.</p>
+            </div>
+            <button type="button" class="categories-close-btn" id="closePendingDeletionModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="custom-modal-body">
+            <div class="header-search search-override">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="pendingDeletionSearchInput" placeholder="Search by name, username, or email...">
+            </div>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Asked on</th>
+                            <th>Deleted on</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingDeletionTableBody">
+                        <tr><td colspan="5" class="text-muted table-empty-message">Loading&hellip;</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

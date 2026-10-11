@@ -52,6 +52,8 @@ from account_status import refresh_inactive_accounts, is_account_inactive
 from session_tracker import create_session
 from validators import PASSWORD_REGEX
 from user_types import ensure_mentor_user_type, ADMIN_ROLE, LEARNER_ROLE, STAFF_ROLES
+from account_deletion import archive_due_deletions, restore_pending, fmt_date  # feat/account-tools
+from account_tools import ensure_account_tools_schema, password_signature  # feat/account-tools
 
 ACCOUNT_TABLE = "account_tbl"
 USERTYPE_TABLE = "usertype_tbl"
@@ -87,12 +89,17 @@ def _portal(portal):
 # ============================================================
 # SIGN IN
 # ============================================================
-def authenticate(username, password, portal, ip_address):
+def authenticate(username, password, portal, ip_address, restore=False):
     """
     Returns (payload: dict, status_code: int, login: dict | None).
     `login` is only set on success: {"acc_id", "u_type", "role",
-    "is_admin", "is_staff", "session_token"} - the route stores the
-    acc_id in Flask's session (never the role).
+    "is_admin", "is_staff", "session_token", "must_change_password",
+    "pw_sig"} - the route stores the acc_id in Flask's session (never the role).
+
+    feat/account-tools: an account PENDING DELETION with the right password
+    gets 409 {"pending_deletion": true, "delete_on": "Nov 10, 2026"} instead
+    of signing in; the login page asks "Restore it?" and sends the same
+    sign-in again with restore=True, which cancels the deletion and signs in.
     """
     portal = _portal(portal)
     username = (username or "").strip().lower()
@@ -108,12 +115,16 @@ def authenticate(username, password, portal, ip_address):
     # Inactivity sweep for every account (best-effort, see account_status.py)
     refresh_inactive_accounts(connection)
     ensure_mentor_user_type(connection)
+    # feat/account-tools: accounts pending deletion for 30 days -> archived
+    ensure_account_tools_schema(connection)
+    archive_due_deletions(connection)
 
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             f"""SELECT a.acc_id, a.password, a.status, a.last_login, a.failed_attempts,
-                       a.lockout_until, a.is_deleted, a.u_type, ut.u_type AS role
+                       a.lockout_until, a.is_deleted, a.u_type, ut.u_type AS role,
+                       a.must_change_password, a.deletion_due_at
                 FROM {ACCOUNT_TABLE} a
                 LEFT JOIN {USERTYPE_TABLE} ut ON a.u_type = ut.ut_id
                 WHERE a.username = %s""",
@@ -200,6 +211,20 @@ def authenticate(username, password, portal, ip_address):
                 "message": f"Incorrect password. {MAX_FAILED_ATTEMPTS - failed_attempts} attempt(s) remaining.",
             }, 401, None
 
+        # feat/account-tools: right password, but the account is pending
+        # deletion - ask first (the login page shows "Restore it?").
+        if account.get("deletion_due_at"):
+            if not restore:
+                cursor.close()
+                delete_on = fmt_date(account["deletion_due_at"])
+                return {
+                    "success": False,
+                    "pending_deletion": True,
+                    "delete_on": delete_on,
+                    "message": f"Your account will be deleted on {delete_on}.",
+                }, 409, None
+            restore_pending(account["acc_id"], account["acc_id"], ip_address, cursor=cursor)
+
         # Success: the ONLY place status goes back to 'Active'
         cursor.execute(
             f"""UPDATE {ACCOUNT_TABLE}
@@ -228,6 +253,8 @@ def authenticate(username, password, portal, ip_address):
             "is_admin": is_admin,
             "is_staff": is_staff,
             "session_token": session_token,
+            "must_change_password": bool(account.get("must_change_password")),
+            "pw_sig": password_signature(account["password"]),
         }
 
     except Error as e:
@@ -470,7 +497,8 @@ def reset_password(email, new_password, confirm_password, portal, via="forgot"):
 
         cursor.execute(
             f"""UPDATE {ACCOUNT_TABLE}
-                SET password = %s, failed_attempts = 0, lockout_until = NULL
+                SET password = %s, failed_attempts = 0, lockout_until = NULL,
+                    must_change_password = 0
                 WHERE acc_id = %s""",
             (generate_password_hash(new_password), account["acc_id"])
         )

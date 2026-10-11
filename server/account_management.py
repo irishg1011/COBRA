@@ -138,7 +138,8 @@ def _count_active_admins(cursor):
             FROM {ACCOUNT_TABLE} a
             JOIN {USERTYPE_TABLE} ut ON a.u_type = ut.ut_id
             WHERE ut.u_type = %s
-              AND (a.is_deleted = 0 OR a.is_deleted IS NULL)""",
+              AND (a.is_deleted = 0 OR a.is_deleted IS NULL)
+              AND a.deletion_due_at IS NULL""",   # feat/account-tools: pending deletion isn't active
         (ADMIN_ROLE,)
     )
     row = cursor.fetchone()

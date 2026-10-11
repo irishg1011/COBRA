@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Help Requests</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/account-tools.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+{# help-requests.html - Admin > Account & Security > Help Requests (feat/account-tools)
+   "Can't get in? Ask an admin" requests from the staff login page. The admin
+   checks it's really that person, then Reset password (temporary password shown
+   ONCE) / Unlock now / Mark done. Admin only. Script: js/admin-help-requests.js #}
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Account & Security</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Staff who can't sign in ask for help from the login page. Check it's really them before you act.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
+                    </div>
+                </div>
+
+                <div class="page-actions-row">
+                    <nav class="page-switcher" aria-label="Account & Security views">
+                        <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link">Login Logs</a>
+                        <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link">Account Management</a>
+                        <a href="{{ url_for('admin_bp.online_users') }}" class="page-switch-link">Who's Online</a>
+                        <a href="{{ url_for('admin_bp.help_requests_page') }}" class="page-switch-link active" aria-current="page">Help Requests{% if open_help_requests %} <span class="at-count-badge">{{ open_help_requests }}</span>{% endif %}</a>
+                    </nav>
+                </div>
+
+                <div class="table-card at-help-card">
+                    <div class="at-help-tabs" role="tablist" aria-label="Help request status">
+                        <button type="button" class="at-help-tab is-active" role="tab" aria-selected="true" data-status="open">Open <span class="at-help-tab-count" data-count="open">{{ counts.open }}</span></button>
+                        <button type="button" class="at-help-tab" role="tab" aria-selected="false" data-status="done">Done <span class="at-help-tab-count" data-count="done">{{ counts.done }}</span></button>
+                    </div>
+                    <div class="at-help-list" id="helpRequestsList" aria-live="polite">
+                        <p class="text-muted table-empty-message">Loading&hellip;</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Confirm "Reset password" -->
+    <div id="helpResetConfirmModal" class="custom-modal-overlay is-hidden at-modal-front" role="dialog" aria-modal="true" aria-labelledby="helpResetConfirmTitle">
+        <div class="custom-modal-dialog at-modal-narrow">
+            <div class="custom-modal-header">
+                <h3 id="helpResetConfirmTitle">Reset password?</h3>
+                <button type="button" class="categories-close-btn js-help-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="custom-modal-body">
+                <p id="helpResetConfirmText"></p>
+                <ul class="at-steps-list">
+                    <li>A temporary password is shown to you <strong>once</strong>.</li>
+                    <li>They're signed out on every device.</li>
+                    <li>At their next sign-in they must choose their own password.</li>
+                </ul>
+                <p class="at-form-message" id="helpResetConfirmMessage" role="status"></p>
+                <div class="at-modal-actions">
+                    <button type="button" class="btn-pill-light js-help-modal-close">Cancel</button>
+                    <button type="button" class="btn-pill-danger" id="helpResetConfirmBtn"><i class="fa-solid fa-key"></i> Reset password</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- The temporary password - shown ONCE -->
+    <div id="helpTempPasswordModal" class="custom-modal-overlay is-hidden at-modal-front" role="dialog" aria-modal="true" aria-labelledby="helpTempPasswordTitle">
+        <div class="custom-modal-dialog at-modal-narrow">
+            <div class="custom-modal-header">
+                <h3 id="helpTempPasswordTitle">Temporary password</h3>
+            </div>
+            <div class="custom-modal-body">
+                <p id="helpTempPasswordFor"></p>
+                <div class="at-temp-password">
+                    <code id="helpTempPasswordValue"></code>
+                    <button type="button" class="btn-pill-light" id="helpTempPasswordCopy"><i class="fa-regular fa-copy"></i> Copy</button>
+                </div>
+                <div class="at-warning">
+                    <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+                    <div>This is the <strong>only time</strong> it is shown. Give it to them privately (in person, a call or a direct chat) - never in a group chat.</div>
+                </div>
+                <div class="at-modal-actions">
+                    <button type="button" class="btn-pill-light" id="helpTempPasswordDone">I gave it to them - close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-help-requests.js') }}"></script>
+</body>
+</html>
