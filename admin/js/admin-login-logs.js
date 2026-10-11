@@ -152,7 +152,7 @@
             tableBody.innerHTML = logs.map(log => `
                 <tr>
                     <td class="profile-cell">
-                        ${window.CobraAvatar.html(log.avatar_url)}
+                        ${window.CobraPresence ? CobraPresence.avatar(log.acc_id, window.CobraAvatar.html(log.avatar_url)) : window.CobraAvatar.html(log.avatar_url)}
                         <strong class="cell-truncate-1">${escapeHtml(log.full_name)}</strong>
                     </td>
                     <td class="text-muted">${escapeHtml(log.acc_id)}</td>

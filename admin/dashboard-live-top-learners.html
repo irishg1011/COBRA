@@ -1,5 +1,6 @@
 {# dashboard-live-top-learners.html - one Dashboard section; included by admin_dashboard.html and
    re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+{% from 'components/presence-dot.html' import presence_dot %}
 {% set level_class = {'Excellent': 'level-excellent', 'Good': 'level-good', 'Needs Improvement': 'level-needs-improvement'} %}
 {% if not top_learners.ok %}
 <p class="dash-section-error">Couldn't load the ranking right now.</p>
@@ -22,7 +23,7 @@
                 <td class="report-rank">{{ l.rank }}</td>
                 <td>
                     <div class="report-learner-cell">
-                        <strong class="cell-truncate-1">{{ l.name }}</strong>
+                        <strong class="cell-truncate-1">{{ presence_dot(l.acc_id) }}{{ l.name }}</strong>
                         <small class="text-muted">{{ l.acc_id }}</small>
                     </div>
                 </td>

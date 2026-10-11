@@ -340,3 +340,207 @@
 .dash-live {
     display: contents;
 }
+
+/* ==========================================================================
+   feat/admin-online - clickable account cards + their modal
+   ========================================================================== */
+.dash-card-link {
+    cursor: pointer;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.dash-card-link:hover {
+    box-shadow: 0 4px 14px rgba(17, 24, 39, 0.10);
+    transform: translateY(-1px);
+}
+
+.dash-card-link:focus-visible {
+    outline: 2px solid var(--admin-blue);
+    outline-offset: 2px;
+}
+
+.dash-card-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.dash-card-hint .fa-chevron-right {
+    font-size: 9px;
+    margin-left: 2px;
+}
+
+.dash-card-link:hover .dash-card-hint {
+    color: var(--admin-blue);
+}
+
+.custom-modal-dialog.dash-card-dialog {
+    max-width: 860px;
+    height: auto;
+    max-height: 85vh;
+}
+
+.dash-card-modal-heading {
+    min-width: 0;
+}
+
+.dash-card-modal-sub {
+    margin-top: 2px;
+    font-size: 12px;
+}
+
+.dash-card-modal-message {
+    display: none;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.dash-card-modal-message.is-visible {
+    display: block;
+}
+
+.dash-card-modal-message.is-ok {
+    background: #ECFDF3;
+    color: #0F7A3D;
+}
+
+.dash-card-modal-message.is-error {
+    background: #FEF2F2;
+    color: #C62828;
+}
+
+.dash-card-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.dash-card-subtitle {
+    margin: 4px 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.dash-card-subtitle ~ .dash-card-subtitle {
+    margin-top: 18px;
+}
+
+.dash-card-table td {
+    vertical-align: middle;
+}
+
+.dash-card-name {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dash-card-name small {
+    font-size: 11px;
+}
+
+.dash-card-more {
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.dash-block {
+    display: block;
+    font-size: 11px;
+}
+
+.dash-devices {
+    min-width: 140px;
+}
+
+.dash-device {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #374151;
+    white-space: nowrap;
+}
+
+.dash-device + .dash-device {
+    margin-top: 2px;
+}
+
+.dash-device i {
+    width: 12px;
+    color: var(--admin-muted);
+}
+
+.dash-state {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.dash-state-online {
+    background: #DCFCE7;
+    color: #166534;
+}
+
+.dash-state-idle {
+    background: #FEF9C3;
+    color: #854D0E;
+}
+
+.dash-state-offline {
+    background: #F3F4F6;
+    color: #4B5563;
+}
+
+.dash-unlock-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+.dash-unlock-btn.is-armed {
+    background: #FEF2F2;
+    border-color: #C62828;
+    color: #C62828;
+}
+
+.dash-unlock-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+/* Name + dot in the Dashboard's own tables (Top 5, Recent logins) */
+.report-learner-cell .presence-dot,
+.dash-table .cell-truncate-1 .presence-dot {
+    margin-right: 6px;
+}
+
+@media (max-width: 640px) {
+    .custom-modal-dialog.dash-card-dialog {
+        max-width: calc(100vw - 24px);
+    }
+
+    .custom-modal-dialog.dash-card-dialog .custom-modal-body {
+        padding: 14px;
+    }
+}
+
+@media (max-width: 640px) {
+    .dash-card-table th,
+    .dash-card-table td {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+}

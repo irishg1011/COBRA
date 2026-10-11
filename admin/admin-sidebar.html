@@ -42,6 +42,11 @@
         </a>
 
         <div class="sidebar-section-label"><span>Progress</span></div>
+        {# feat/admin-online: mentors can view Learner Progress (read-only) #}
+        <a href="{{ url_for('admin_bp.learner_progress') }}" title="Learner Progress" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.learner_progress', 'admin_bp.learner_progress_learners'] else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-progress"></span>
+            <span class="nav-label">Learner Progress</span>
+        </a>
         <a href="{{ url_for('admin_bp.recommendations') }}" title="Recommendations" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.recommendations' else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-recommendations"></span>
             <span class="nav-label">Recommendations</span>
@@ -55,7 +60,7 @@
             <span class="sidebar-icon mask-icon icon-nav-dashboard"></span>
             <span class="nav-label">Dashboard</span>
         </a>
-        <a href="{{ url_for('admin_bp.account_security') }}" title="Account & Security" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs'] else '' }}">
+        <a href="{{ url_for('admin_bp.account_security') }}" title="Account & Security" class="nav-item {{ 'active' if request.endpoint in ['admin_bp.account_security', 'admin_bp.login_logs', 'admin_bp.online_users'] else '' }}">
             <span class="sidebar-icon mask-icon icon-nav-account"></span>
             <span class="nav-label">Account & Security</span>
         </a>

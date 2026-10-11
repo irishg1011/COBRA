@@ -25,14 +25,16 @@ Two layers:
      session. Other devices of the same account are not touched.
 
 The time of the last real activity is kept in the session cookie
-("active_at"); nothing is stored in the database.
+("active_at"). feat/admin-online: the same activity is also copied to
+active_sessions_tbl.last_activity_at (at most once a minute per device),
+so admins can see who is online / idle - see presence.py.
 """
 import os
 import time
 
 from flask import Blueprint, jsonify, request, session, g
 
-from session_tracker import end_session
+from session_tracker import end_session, mark_session_activity
 
 idle_bp = Blueprint("idle_logout", __name__)
 
@@ -44,6 +46,8 @@ WARNING_SECONDS = 60
 SERVER_GRACE_SECONDS = 120
 # Don't rewrite the session cookie on every request.
 ACTIVE_WRITE_EVERY_SECONDS = 30
+# feat/admin-online: last_activity_at is written at most this often per device.
+ACTIVITY_DB_WRITE_EVERY_SECONDS = 60
 IDLE_COOKIE = "cobra_idle_logout"
 LOGIN_PAGES = ("/login", "/staff/login", "/")
 
@@ -89,6 +93,19 @@ def _mark_active(now):
     last = session.get("active_at") or 0
     if now - last >= ACTIVE_WRITE_EVERY_SECONDS:
         session["active_at"] = now
+    _record_activity(now)
+
+
+def _record_activity(now):
+    """Real use -> active_sessions_tbl.last_activity_at (Who's online dots)."""
+    try:
+        last = int(session.get("activity_db_at") or 0)
+    except (TypeError, ValueError):
+        last = 0
+    if now - last < ACTIVITY_DB_WRITE_EVERY_SECONDS:
+        return
+    session["activity_db_at"] = now
+    mark_session_activity(session.get("session_token"))
 
 
 def _end_idle_session(role):
@@ -177,7 +194,9 @@ def idle_activity():
     """The person really used the page (sent at most once a minute)."""
     if not current_role():
         return jsonify({"logged_in": False}), 401
-    session["active_at"] = int(time.time())
+    now = int(time.time())
+    session["active_at"] = now
+    _record_activity(now)
     return jsonify({"success": True}), 200
 
 

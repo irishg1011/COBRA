@@ -14,6 +14,10 @@ from login_logs import get_todays_login_metrics  # NEW: today's login/success/fa
 from password_reset_logs import get_password_resets_today_count  # NEW: today's password-reset count for the Login Logs metric cards
 from session_tracker import get_active_session_count, touch_session, end_session as end_active_session  # NEW: live "Active Sessions" tracking
 from lockout_logs import get_lockouts_today_count  # NEW: distinct-per-day "Locked Out Due to Fails" count
+from presence import get_presence, get_online_users, ONLINE_MINUTES, IDLE_MINUTES  # feat/admin-online: Who's online + status dots
+from dashboard_cards import (  # feat/admin-online: clickable Dashboard cards + "Unlock now"
+    CARD_LIMIT, get_newest_accounts, get_locked_accounts, unlock_account, seconds_left_text,
+)
 from validators import (  # NEW: same validation rules used by login.py's Learner Sign Up route - never re-implemented here
     validate_name_field,
     validate_required,
@@ -208,6 +212,7 @@ ROLE_FILTER_MAP = {
 # Valid status values a filter is allowed to request. Anything else (e.g.
 # an empty string / "All Status") is treated as "no status filter".
 VALID_STATUS_FILTERS = {"active", "inactive"}
+LOCKED_STATUS_FILTER = "locked"   # feat/admin-online: Account & Security "Locked" option
 
 # Maps the Sort dropdown's value to a safe, hardcoded ORDER BY clause.
 # Never build ORDER BY directly from user input - only ever pick one of
@@ -758,8 +763,12 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
         # Task #17: Status Filter (Active / Inactive)
         # ------------------------------------------------------------
         normalized_status = (status_filter or "").strip().lower()
-        status_applied = normalized_status in VALID_STATUS_FILTERS
-        if status_applied:
+        status_applied = normalized_status in VALID_STATUS_FILTERS or normalized_status == LOCKED_STATUS_FILTER
+        if normalized_status == LOCKED_STATUS_FILTER:
+            # feat/admin-online: "Locked" = locked RIGHT NOW (same rule as the
+            # is_locked badge and the Locked Accounts card).
+            base_query += " AND a.lockout_until IS NOT NULL AND a.lockout_until > NOW()"
+        elif status_applied:
             # Store the properly-cased value for the equality check, since
             # a.status is stored as "Active"/"Inactive" in the database.
             base_query += " AND a.status = %s"
@@ -1144,6 +1153,102 @@ def admin_dashboard_live():
 
 
 # ============================================================
+# feat/admin-online: CLICKABLE DASHBOARD CARDS, WHO'S ONLINE, DOTS
+# Read-only, except "Unlock now" (admin only, logged in unlock_logs_tbl).
+# Logic lives in dashboard_cards.py / presence.py.
+# ============================================================
+DASHBOARD_CARD_ROLES = {"learners": "Learner", "mentors": "Mentor", "admins": "Admin"}
+DASHBOARD_CARD_ROLE_FILTER = {"learners": "Learner", "mentors": "Mentor", "admins": "Administrator"}
+
+
+def _today_ymd():
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+@admin_bp.route('/dashboard/cards/<kind>')
+def dashboard_card(kind):
+    """One Dashboard card's modal: at most CARD_LIMIT rows + where "View all" goes."""
+    if kind in DASHBOARD_CARD_ROLES:
+        data = get_newest_accounts(DASHBOARD_CARD_ROLES[kind])
+        view_all = url_for('admin_bp.account_security', role=DASHBOARD_CARD_ROLE_FILTER[kind])
+    elif kind == "sessions":
+        online = get_online_users(limit=CARD_LIMIT)
+        data = None if online is None else {"rows": online["users"], "total": online["total"],
+                                             "counts": online["counts"]}
+        view_all = url_for('admin_bp.online_users')
+    elif kind == "logins":
+        today = _today_ymd()
+        found = get_login_logs_overview(date_from=today, date_to=today, limit=CARD_LIMIT, with_total=True)
+        if found is None:
+            data = None
+        else:
+            logs, total = found
+            metrics = get_login_logs_metrics()
+            data = {"rows": logs, "total": total, "counts": {
+                "successful": metrics["successful_logins"], "failed": metrics["failed_logins"]}}
+        view_all = url_for('admin_bp.login_logs', **{"from": today, "to": today})
+    elif kind == "locked":
+        data = get_locked_accounts()
+        if data is not None:
+            for row in data["rows"]:
+                row["time_left"] = seconds_left_text(row["seconds_left"])
+        view_all = url_for('admin_bp.account_security', status="Locked")
+    else:
+        return jsonify({"success": False, "message": "Unknown card."}), 404
+
+    if data is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, "kind": kind, "limit": CARD_LIMIT, "view_all": view_all, **data}), 200
+
+
+@admin_bp.route('/accounts/<acc_id>/unlock', methods=['POST'])
+def account_unlock(acc_id):
+    """ "Unlock now" - ends a lockout early. Admin only; every unlock is logged."""
+    success, message = unlock_account(acc_id, session.get("admin_id"), get_client_ip())
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+@admin_bp.route('/online')
+def online_users():
+    """Who's online: everyone signed in right now (Account & Security)."""
+    filters = {
+        "q": request.args.get('q', '').strip(),
+        "role": request.args.get('role', '').strip(),
+        "state": request.args.get('state', '').strip(),
+    }
+    online = get_online_users(filters["q"], filters["role"], filters["state"]) or \
+        {"users": [], "total": 0, "counts": {"online": 0, "idle": 0, "signed_in": 0, "learners": 0, "staff": 0}}
+    return render_template('online-users.html', filters=filters,
+                           online_minutes=ONLINE_MINUTES, idle_minutes=IDLE_MINUTES, **online)
+
+
+@admin_bp.route('/online/data')
+def online_users_data():
+    """Live search / filter / refresh for admin-online-users.js."""
+    online = get_online_users(request.args.get('q', ''), request.args.get('role', ''),
+                              request.args.get('state', ''))
+    if online is None:
+        return jsonify({"success": False, "message": "Could not reach the database.", "users": []}), 500
+    return jsonify({"success": True, **online}), 200
+
+
+@admin_bp.route('/presence')
+def presence():
+    """
+    The dots (admin-presence.js, about every 30 s): ?ids=ACC1,ACC2,...
+    -> {"presence": {acc_id: {"state": "online"|"idle"|"offline", ...}}}.
+    Admins get any account; mentors only learners (other ids are left out).
+    """
+    ids = [part for part in request.args.get('ids', '').split(',') if part.strip()]
+    learners_only = getattr(g, "staff_role", None) != ADMIN_ROLE
+    found = get_presence(ids, learners_only=learners_only)
+    if found is None:
+        return jsonify({"success": False, "presence": {}}), 500
+    return jsonify({"success": True, "presence": found,
+                    "online_minutes": ONLINE_MINUTES, "idle_minutes": IDLE_MINUTES}), 200
+
+
+# ============================================================
 # ROUTE: MENTOR DASHBOARD (feat/dashboards) - the mentor's home page
 # ============================================================
 @admin_bp.route('/mentor-dashboard')
@@ -1153,7 +1258,19 @@ def mentor_dashboard():
 
 @admin_bp.route('/account-security.html')
 def account_security():
-    overview = get_accounts_overview()
+    # feat/admin-online: the Dashboard cards' "View all" links open this page
+    # already filtered (?role=Learner, ?status=Locked, ...). The page shows
+    # the same filters in its dropdowns, so the live search keeps them.
+    filters = {
+        "q": request.args.get('q', '').strip(),
+        "role": request.args.get('role', '').strip(),
+        "status": request.args.get('status', '').strip(),
+        "sort": request.args.get('sort', '').strip(),
+    }
+    overview = get_accounts_overview(
+        search_query=filters["q"], role_filter=filters["role"],
+        status_filter=filters["status"], sort_by=filters["sort"],
+    )
 
     if overview is None:
         # DB unreachable - render the page with empty state rather than crashing
@@ -1174,6 +1291,7 @@ def account_security():
         'account-security.html',
         accounts=overview["accounts"],
         metrics=overview["metrics"],
+        filters=filters,
     )
 
 

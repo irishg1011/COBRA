@@ -1,0 +1,10 @@
+{# components/presence-dot.html (feat/admin-online) - the online status dot.
+   {% from 'components/presence-dot.html' import presence_dot %} ... {{ presence_dot(acc.acc_id) }}
+   Starts neutral; js/admin-presence.js (loaded by admin-header.html) colours it
+   green / yellow / grey and keeps it fresh about every 30 s. JS-built rows use
+   CobraPresence.dot(accId), which returns the same markup. #}
+{% macro presence_dot(acc_id) -%}
+{%- if acc_id and acc_id != '—' -%}
+<span class="presence-dot" data-presence-id="{{ acc_id }}" role="img" aria-label="Checking status" title="Checking status&hellip;"></span>
+{%- endif -%}
+{%- endmacro %}

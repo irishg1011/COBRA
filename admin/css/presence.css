@@ -1,0 +1,80 @@
+/* ==========================================================================
+   presence.css - online status dots (feat/admin-online)
+   green  = active in the last 5 min
+   yellow = signed in, idle 5-60 min
+   grey   = offline (or idle more than 60 min)
+   Coloured by js/admin-presence.js through data-state. Loaded by admin-header.html.
+   ========================================================================== */
+:root {
+    --presence-online: #16A34A;
+    --presence-idle: #EAB308;
+    --presence-offline: #9CA3AF;
+}
+
+.presence-dot {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    background: transparent;
+    border: 1.5px solid var(--presence-offline);
+    box-sizing: border-box;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.presence-dot[data-state="online"] {
+    background: var(--presence-online);
+    border-color: var(--presence-online);
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.18);
+}
+
+.presence-dot[data-state="idle"] {
+    background: var(--presence-idle);
+    border-color: var(--presence-idle);
+}
+
+.presence-dot[data-state="offline"] {
+    background: var(--presence-offline);
+    border-color: var(--presence-offline);
+}
+
+/* A dot sitting on the avatar's corner (profile cells). */
+.presence-avatar-wrap {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+}
+
+.presence-avatar-wrap .presence-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    margin: 0;
+    border: 2px solid #fff;
+    width: 12px;
+    height: 12px;
+}
+
+.presence-avatar-wrap .presence-dot:not([data-state]) {
+    background: #fff;
+    border-color: var(--presence-offline);
+    border-width: 1.5px;
+}
+
+/* Small legend under tables ("Online / Idle / Offline"). */
+.presence-legend {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--admin-muted, #6b7280);
+}
+
+.presence-legend span {
+    display: inline-flex;
+    align-items: center;
+}

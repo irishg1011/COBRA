@@ -343,7 +343,7 @@
             modalBody.innerHTML = records.map((rec) => `
                 <tr>
                     <td>${escapeHtml(rec.acc_id)}</td>
-                    <td><div class="profile-cell">${window.CobraAvatar.html(rec.avatar_url)}<span>${escapeHtml(rec.name)}</span></div></td>
+                    <td><div class="profile-cell">${window.CobraPresence ? CobraPresence.avatar(rec.acc_id, window.CobraAvatar.html(rec.avatar_url)) : window.CobraAvatar.html(rec.avatar_url)}<span>${escapeHtml(rec.name)}</span></div></td>
                     <td>${scoreBadgeHtml(rec.score)}</td>
                     <td>${completionHtml(rec.completion)}</td>
                     <td>${escapeHtml(rec.started_at)}</td>

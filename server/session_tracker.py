@@ -22,6 +22,14 @@ SESSION_TIMEOUT_MINUTES and a sweep runs.
     created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     last_seen_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                        ON UPDATE CURRENT_TIMESTAMP
+    last_activity_at TIMESTAMP NULL   (feat/admin-online) last REAL use -
+                       a page opened or a click/type/scroll ping
+                       (idle_logout.py). Background polling never sets
+                       it, so it drives the green / yellow / grey dots
+                       (presence.py) while last_seen_at keeps the row
+                       alive.
+    user_agent     VARCHAR(255) NULL  browser of this device ("Who's online")
+    ip_address     VARCHAR(45)  NULL
 
 USAGE
     - login.py:  create_session(acc_id) on successful login (Admin or
@@ -44,10 +52,13 @@ step required.
 
 import os
 import secrets
+from flask import has_request_context, request
 from mysql.connector import Error
 from cobradb import get_db_connection
+from client_ip import get_client_ip
 
 ACTIVE_SESSIONS_TABLE = "active_sessions_tbl"
+USER_AGENT_MAX = 255
 
 # How long a session can go "untouched" before it's considered stale and
 # swept out (covers crashed tabs / browsers closed without hitting
@@ -93,15 +104,44 @@ def _ensure_table(connection):
                 session_token VARCHAR(64) NOT NULL UNIQUE,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    ON UPDATE CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP,
+                last_activity_at TIMESTAMP NULL DEFAULT NULL,
+                user_agent VARCHAR(255) NULL,
+                ip_address VARCHAR(45) NULL
             )
             """
         )
+        # feat/admin-online: tables created before these columns existed
+        # (same SQL as database/migrations/2026-10-admin-online.sql).
+        for statement in (
+            f"""ALTER TABLE {ACTIVE_SESSIONS_TABLE}
+                  ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP NULL DEFAULT NULL,
+                  ADD COLUMN IF NOT EXISTS user_agent VARCHAR(255) NULL,
+                  ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45) NULL""",
+            f"CREATE INDEX IF NOT EXISTS idx_sessions_acc ON {ACTIVE_SESSIONS_TABLE} (acc_id)",
+            f"CREATE INDEX IF NOT EXISTS idx_sessions_activity ON {ACTIVE_SESSIONS_TABLE} (last_activity_at)",
+        ):
+            try:
+                cursor.execute(statement)
+            except Error as e:   # e.g. a MySQL without "IF NOT EXISTS" here - run the .sql file by hand
+                print(f"session_tracker: could not add the Who's online columns/indexes: {e}")
         connection.commit()
         cursor.close()
         _table_ensured = True
     except Error as e:
         print(f"session_tracker: failed to ensure table exists: {e}")
+
+
+def _request_device():
+    """(user_agent, ip_address) of the current request, or (None, None) outside one."""
+    if not has_request_context():
+        return None, None
+    user_agent = (request.headers.get("User-Agent") or "")[:USER_AGENT_MAX] or None
+    try:
+        ip_address = get_client_ip()
+    except Exception:   # device info is a nicety - never break a login over it
+        ip_address = None
+    return user_agent, (ip_address or None)
 
 
 def create_session(acc_id):
@@ -140,9 +180,12 @@ def create_session(acc_id):
         )
 
         token = secrets.token_hex(32)
+        user_agent, ip_address = _request_device()
         cursor.execute(
-            f"INSERT INTO {ACTIVE_SESSIONS_TABLE} (acc_id, session_token) VALUES (%s, %s)",
-            (acc_id, token)
+            f"""INSERT INTO {ACTIVE_SESSIONS_TABLE}
+                    (acc_id, session_token, last_activity_at, user_agent, ip_address)
+                VALUES (%s, %s, NOW(), %s, %s)""",
+            (acc_id, token, user_agent, ip_address)
         )
         connection.commit()
         cursor.close()
@@ -242,22 +285,64 @@ def touch_session(token, acc_id=None):
             return
         _ensure_table(connection)
         cursor = connection.cursor()
+        # feat/admin-online: device info is filled in only where it is still
+        # empty (sessions opened before it was recorded); last_activity_at
+        # is never touched here - background calls are not real activity.
+        user_agent, ip_address = _request_device()
         if acc_id:
             cursor.execute(
-                f"""INSERT INTO {ACTIVE_SESSIONS_TABLE} (acc_id, session_token)
-                    VALUES (%s, %s)
-                    ON DUPLICATE KEY UPDATE last_seen_at = NOW()""",
-                (acc_id, token)
+                f"""INSERT INTO {ACTIVE_SESSIONS_TABLE} (acc_id, session_token, user_agent, ip_address)
+                    VALUES (%s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE last_seen_at = NOW(),
+                        user_agent = COALESCE(user_agent, VALUES(user_agent)),
+                        ip_address = COALESCE(ip_address, VALUES(ip_address))""",
+                (acc_id, token, user_agent, ip_address)
             )
         else:
             cursor.execute(
-                f"UPDATE {ACTIVE_SESSIONS_TABLE} SET last_seen_at = NOW() WHERE session_token = %s",
-                (token,)
+                f"""UPDATE {ACTIVE_SESSIONS_TABLE}
+                    SET last_seen_at = NOW(),
+                        user_agent = COALESCE(user_agent, %s),
+                        ip_address = COALESCE(ip_address, %s)
+                    WHERE session_token = %s""",
+                (user_agent, ip_address, token)
             )
         connection.commit()
         cursor.close()
     except Error as e:
         print(f"session_tracker: failed to touch session: {e}")
+    finally:
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+def mark_session_activity(token):
+    """
+    feat/admin-online: stamps last_activity_at = NOW() for this device's
+    session - called by idle_logout.py when the person REALLY uses the
+    site (opens a page, or the once-a-minute click/type/scroll ping).
+    UPDATE only: a session that was ended is never brought back here.
+    Never raises.
+    """
+    if not token:
+        return
+    connection = None
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return
+        _ensure_table(connection)
+        cursor = connection.cursor()
+        cursor.execute(
+            f"""UPDATE {ACTIVE_SESSIONS_TABLE}
+                SET last_activity_at = NOW(), last_seen_at = NOW()
+                WHERE session_token = %s""",
+            (token,)
+        )
+        connection.commit()
+        cursor.close()
+    except Error as e:
+        print(f"session_tracker: failed to mark activity: {e}")
     finally:
         if connection is not None and connection.is_connected():
             connection.close()

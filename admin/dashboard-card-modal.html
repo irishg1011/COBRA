@@ -1,0 +1,30 @@
+{# dashboard-card-modal.html - Admin Dashboard (feat/admin-online)
+   One modal for all six account cards. admin-dashboard-cards.js fills it
+   from /admin/dashboard/cards/<kind> (at most 10 rows) and points
+   "View all" at the full page. Read-only, except "Unlock now" on the
+   Locked Accounts card (admin only, logged in unlock_logs_tbl). #}
+<div id="dashCardModal" class="custom-modal-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="dashCardModalTitle">
+    <div class="custom-modal-dialog dash-card-dialog">
+        <div class="custom-modal-header">
+            <div class="dash-card-modal-heading">
+                <h3 id="dashCardModalTitle">Details</h3>
+                <p class="dash-card-modal-sub text-muted" id="dashCardModalSub"></p>
+            </div>
+            <button type="button" class="categories-close-btn" id="dashCardModalClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="custom-modal-body">
+            <div class="dash-card-modal-message" id="dashCardModalMessage" role="status" aria-live="polite"></div>
+            <div id="dashCardModalContent">
+                <p class="dash-section-empty">Loading&hellip;</p>
+            </div>
+            <div class="dash-card-modal-footer">
+                <span class="presence-legend" aria-label="Online status">
+                    <span><span class="presence-dot" data-state="online"></span>Online</span>
+                    <span><span class="presence-dot" data-state="idle"></span>Idle 5&ndash;60 min</span>
+                    <span><span class="presence-dot" data-state="offline"></span>Offline</span>
+                </span>
+                <a href="#" class="view-all-link" id="dashCardModalViewAll">View all &rarr;</a>
+            </div>
+        </div>
+    </div>
+</div>

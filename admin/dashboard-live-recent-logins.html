@@ -1,5 +1,6 @@
 {# dashboard-live-recent-logins.html - one Dashboard section; included by admin_dashboard.html and
    re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+{% from 'components/presence-dot.html' import presence_dot %}
 {% set role_badge = {'Admin': 'badge-admin', 'Mentor': 'badge-mentor', 'Learner': 'badge-learner'} %}
 {% if not recent_logins.ok %}
 <p class="dash-section-error">Couldn't load login attempts right now.</p>
@@ -19,7 +20,7 @@
         <tbody>
             {% for log in recent_logins.logs %}
             <tr>
-                <td><span class="cell-truncate-1">{{ log.full_name }}</span></td>
+                <td><span class="cell-truncate-1">{{ presence_dot(log.acc_id) }}{{ log.full_name }}</span></td>
                 <td><span class="badge {{ role_badge.get(log.role, 'badge-inactive') }}">{{ log.role }}</span></td>
                 <td>
                     {% if log.status == 'Success' %}

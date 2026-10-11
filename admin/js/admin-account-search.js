@@ -109,7 +109,7 @@
             const rowsHtml = accounts.map(acc => `
                 <tr data-acc-id="${escapeHtml(acc.acc_id)}">
                     <td class="profile-cell">
-                        ${window.CobraAvatar.html(acc.avatar_url)}
+                        ${window.CobraPresence ? CobraPresence.avatar(acc.acc_id, window.CobraAvatar.html(acc.avatar_url)) : window.CobraAvatar.html(acc.avatar_url)}
                         <strong class="cell-truncate-1">${escapeHtml(acc.full_name)}</strong>
                     </td>
                     <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">${escapeHtml(acc.username)}</span></td>

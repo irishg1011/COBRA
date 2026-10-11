@@ -88,11 +88,30 @@ ENDPOINT_ROLES = {
     "admin_bp.preview_play_tally": BOTH,
     "admin_bp.learning_resources_preview_content": BOTH,  # Publishing's per-lesson Preview
 
+    # Learner Progress (By Lesson + By Learner) - feat/admin-online: mentors
+    # may VIEW it too (every endpoint here is a read-only GET).
+    "admin_bp.learner_progress": BOTH,
+    "admin_bp.learner_progress_data": BOTH,
+    "admin_bp.learner_progress_detail": BOTH,
+    "admin_bp.learner_progress_lesson": BOTH,   # By Lesson: one lesson's learners (eye button)
+    "admin_bp.learner_progress_learners": BOTH,
+    "admin_bp.learner_progress_learners_data": BOTH,
+    "admin_bp.learner_progress_learner_detail": BOTH,
+
+    # Online status dots (feat/admin-online) - mentors are answered for
+    # learners only (admin_routes.presence)
+    "admin_bp.presence": BOTH,
+
     # ------------------------------------------------------------
     # Admin only - accounts, monitoring, reports
     # ------------------------------------------------------------
     "admin_bp.admin_dashboard": ADMIN,
     "admin_bp.admin_dashboard_live": ADMIN,   # Dashboard auto-refresh (sections as HTML)
+    "admin_bp.dashboard_card": ADMIN,         # feat/admin-online: a card's modal (max 10 rows)
+
+    # Who's online (feat/admin-online)
+    "admin_bp.online_users": ADMIN,
+    "admin_bp.online_users_data": ADMIN,
 
     # Account & Security
     "admin_bp.account_security": ADMIN,
@@ -102,6 +121,7 @@ ENDPOINT_ROLES = {
     "admin_bp.account_archive": ADMIN,
     "admin_bp.account_restore": ADMIN,
     "admin_bp.accounts_archived": ADMIN,
+    "admin_bp.account_unlock": ADMIN,         # feat/admin-online: "Unlock now" (logged in unlock_logs_tbl)
     "admin_bp.create_administrator": ADMIN,
     "admin_bp.create_mentor": ADMIN,
     "admin_bp.preview_next_admin_id": ADMIN,
@@ -117,14 +137,6 @@ ENDPOINT_ROLES = {
     "admin_bp.coding_sandbox_data": ADMIN,
     "admin_bp.coding_sandbox_run_detail": ADMIN,
 
-    # Learner Progress (By Lesson + By Learner)
-    "admin_bp.learner_progress": ADMIN,
-    "admin_bp.learner_progress_data": ADMIN,
-    "admin_bp.learner_progress_detail": ADMIN,
-    "admin_bp.learner_progress_lesson": ADMIN,   # By Lesson: one lesson's learners (eye button)
-    "admin_bp.learner_progress_learners": ADMIN,
-    "admin_bp.learner_progress_learners_data": ADMIN,
-    "admin_bp.learner_progress_learner_detail": ADMIN,
     "admin_bp.game_settings": ADMIN,
     "admin_bp.fib_run_code": BOTH,     # feat/fib-console: "Generate expected output" in the activity editor   # feat/question-timer: timer durations, leave threshold, pool targets
 

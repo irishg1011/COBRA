@@ -16,6 +16,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 <body>
+{% from 'components/presence-dot.html' import presence_dot %}
     <div class="admin-layout">
         {% include 'admin-sidebar.html' %}
 
@@ -151,7 +152,7 @@
                                 {% for l in learners %}
                                 <tr data-acc-id="{{ l.acc_id }}">
                                     <td>{{ l.acc_id }}</td>
-                                    <td><div class="profile-cell">{% if l.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ l.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}<span>{{ l.name }}</span></div></td>
+                                    <td><div class="profile-cell"><span class="presence-avatar-wrap">{% if l.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ l.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}{{ presence_dot(l.acc_id) }}</span><span>{{ l.name }}</span></div></td>
                                     <td>{{ l.current_chapter }}</td>
                                     <td>{{ l.current_module }}</td>
                                     <td>

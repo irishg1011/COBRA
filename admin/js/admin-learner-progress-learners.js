@@ -169,7 +169,7 @@
             tableBody.innerHTML = learners.map((l) => `
                 <tr data-acc-id="${escapeHtml(l.acc_id)}">
                     <td>${escapeHtml(l.acc_id)}</td>
-                    <td><div class="profile-cell">${window.CobraAvatar.html(l.avatar_url)}<span>${escapeHtml(l.name)}</span></div></td>
+                    <td><div class="profile-cell">${window.CobraPresence ? CobraPresence.avatar(l.acc_id, window.CobraAvatar.html(l.avatar_url)) : window.CobraAvatar.html(l.avatar_url)}<span>${escapeHtml(l.name)}</span></div></td>
                     <td>${escapeHtml(l.current_chapter)}</td>
                     <td>${escapeHtml(l.current_module)}</td>
                     <td>${currentLessonHtml(l)}</td>

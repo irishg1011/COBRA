@@ -16,6 +16,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 <body>
+{% from 'components/presence-dot.html' import presence_dot %}
 
     <div class="admin-layout">
         <!-- Sidebar (Modularized) -->
@@ -50,6 +51,7 @@
                     <nav class="page-switcher" aria-label="Account & Security views">
                         <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link active" aria-current="page">Login Logs</a>
                         <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link">Account Management</a>
+                        <a href="{{ url_for('admin_bp.online_users') }}" class="page-switch-link">Who's Online</a>
                     </nav>
                     <div class="page-actions-buttons">
                         <button type="button" id="openCreateAdminBtn" class="btn-create-admin" data-open-modal="createAdminModal">
@@ -163,7 +165,7 @@
                                 {% for log in logs %}
                                 <tr>
                                     <td class="profile-cell">
-                                        {% if log.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ log.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}
+                                        <span class="presence-avatar-wrap">{% if log.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ log.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}{{ presence_dot(log.acc_id) }}</span>
                                         <strong class="cell-truncate-1">{{ log.full_name }}</strong>
                                     </td>
                                     <td class="text-muted">{{ log.acc_id }}</td>

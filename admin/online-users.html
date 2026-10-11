@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Who's Online</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+{# online-users.html - Admin > Account & Security > Who's Online (feat/admin-online)
+   Everyone signed in right now (presence.get_online_users). Read-only.
+   admin-online-users.js keeps it fresh (search / role / status, every 10 s). #}
+{% from 'components/presence-dot.html' import presence_dot %}
+{% set role_badge = {'Admin': 'badge-admin', 'Mentor': 'badge-mentor', 'Learner': 'badge-learner'} %}
+{% set role_sel = {'administrator': 'Administrator', 'admin': 'Administrator', 'mentor': 'Mentor', 'learner': 'Learner'}.get((filters.role or '')|lower, '') %}
+{% set state_sel = (filters.state or '')|lower %}
+
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+
+            <div class="dashboard-content-area">
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Account & Security</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% else %}
+                        <p class="welcome-greeting">{{ greeting }}, Administrator!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Everyone signed in right now: green = active in the last {{ online_minutes }} min, yellow = idle {{ online_minutes }}&ndash;{{ idle_minutes }} min, grey = idle longer.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
+                    </div>
+                </div>
+
+                <div class="page-actions-row">
+                    <nav class="page-switcher" aria-label="Account & Security views">
+                        <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link">Login Logs</a>
+                        <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link">Account Management</a>
+                        <a href="{{ url_for('admin_bp.online_users') }}" class="page-switch-link active" aria-current="page">Who's Online</a>
+                    </nav>
+                </div>
+
+                <div class="metrics-grid dash-metrics-grid dash-metrics-4">
+                    <div class="metric-card dash-metric">
+                        <div class="metric-info">
+                            <span class="metric-title"><span class="presence-dot" data-state="online"></span>Online now</span>
+                            <h2 class="metric-value" data-online-count="online">{{ counts.online }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card dash-metric">
+                        <div class="metric-info">
+                            <span class="metric-title"><span class="presence-dot" data-state="idle"></span>Idle</span>
+                            <h2 class="metric-value" data-online-count="idle">{{ counts.idle }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card dash-metric">
+                        <div class="metric-info">
+                            <span class="metric-title">Learners signed in</span>
+                            <h2 class="metric-value" data-online-count="learners">{{ counts.learners }}</h2>
+                        </div>
+                    </div>
+                    <div class="metric-card dash-metric">
+                        <div class="metric-info">
+                            <span class="metric-title">Staff signed in</span>
+                            <h2 class="metric-value" data-online-count="staff">{{ counts.staff }}</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-toolbar">
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="onlineSearchInput" placeholder="Search by name, username, or email..." value="{{ filters.q }}">
+                        </div>
+                        <div class="toolbar-filters">
+                            <select class="custom-select" id="onlineRoleSelect" aria-label="Role">
+                                <option value="">All Roles</option>
+                                <option value="Administrator" {{ 'selected' if role_sel == 'Administrator' }}>Administrator</option>
+                                <option value="Mentor" {{ 'selected' if role_sel == 'Mentor' }}>Mentor</option>
+                                <option value="Learner" {{ 'selected' if role_sel == 'Learner' }}>Learner</option>
+                            </select>
+                            <select class="custom-select" id="onlineStateSelect" aria-label="Status">
+                                <option value="">All Status</option>
+                                <option value="online" {{ 'selected' if state_sel == 'online' }}>Online</option>
+                                <option value="idle" {{ 'selected' if state_sel == 'idle' }}>Idle</option>
+                                <option value="offline" {{ 'selected' if state_sel == 'offline' }}>Away (idle {{ idle_minutes }}+ min)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Logged in since</th>
+                                    <th>Last activity</th>
+                                    <th>Device / browser</th>
+                                </tr>
+                            </thead>
+                            <tbody id="onlineTableBody">
+                                {% for u in users %}
+                                <tr data-acc-id="{{ u.acc_id }}">
+                                    <td class="profile-cell">
+                                        <span class="presence-avatar-wrap">{% if u.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ u.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}{{ presence_dot(u.acc_id) }}</span>
+                                        <div class="dash-card-name">
+                                            <strong class="cell-truncate-1">{{ u.full_name }}</strong>
+                                            <small class="text-muted cell-truncate-1">{{ u.email }}</small>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge {{ role_badge.get(u.role, 'badge-inactive') }}">{{ u.role }}</span></td>
+                                    <td><span class="dash-state dash-state-{{ u.state }}">{{ u.label }}</span></td>
+                                    <td class="text-muted dash-nowrap" title="Signed in for {{ u.logged_in_for }}">{{ u.logged_in_since }}</td>
+                                    <td class="text-muted dash-nowrap">{{ u.last_activity }}</td>
+                                    <td class="dash-devices">
+                                        {% for d in u.devices %}
+                                        <span class="dash-device" title="IP {{ d.ip_address }} &middot; active {{ d.last_activity }}"><i class="fa-solid {{ 'fa-mobile-screen' if d.mobile else 'fa-desktop' }}" aria-hidden="true"></i>{{ d.label }}</span>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-muted table-empty-message">Nobody matching is signed in right now.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-pagination">
+                        <span class="presence-legend" aria-label="Online status">
+                            <span><span class="presence-dot" data-state="online"></span>Online (active in the last {{ online_minutes }} min)</span>
+                            <span><span class="presence-dot" data-state="idle"></span>Idle {{ online_minutes }}&ndash;{{ idle_minutes }} min</span>
+                            <span><span class="presence-dot" data-state="offline"></span>Away / offline</span>
+                        </span>
+                        <span id="onlineShowingCount">Showing {{ total }} signed-in account{{ 's' if total != 1 else '' }}</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-online-users.js') }}"></script>
+</body>
+</html>

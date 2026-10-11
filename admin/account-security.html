@@ -17,6 +17,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 <body>
+{% from 'components/presence-dot.html' import presence_dot %}
 
     <div class="admin-layout">
         <!-- Sidebar (Modularized) -->
@@ -51,6 +52,7 @@
                     <nav class="page-switcher" aria-label="Account & Security views">
                         <a href="{{ url_for('admin_bp.login_logs') }}" class="page-switch-link">Login Logs</a>
                         <a href="{{ url_for('admin_bp.account_security') }}" class="page-switch-link active" aria-current="page">Account Management</a>
+                        <a href="{{ url_for('admin_bp.online_users') }}" class="page-switch-link">Who's Online</a>
                     </nav>
                     <div class="page-actions-buttons">
                         <button type="button" id="openArchivedAccountsBtn" class="btn-pill-light">
@@ -125,7 +127,7 @@
                     <div class="table-toolbar">
                         <div class="header-search search-override">
                             <span class="mask-icon icon-search search-icon"></span>
-                            <input type="text" id="accountSearchInput" placeholder="Search by name, username, or email...">
+                            <input type="text" id="accountSearchInput" placeholder="Search by name, username, or email..." value="{{ (filters or {}).q or '' }}">
                         </div>
                         <div class="toolbar-filters">
                             <!--
@@ -140,21 +142,28 @@
                                 Status); Sort always has a value since
                                 there's no "no sort" state.
                             -->
+                            {# feat/admin-online: a Dashboard "View all" link opens this page
+                               already filtered (?role= / ?status= / ?sort=) - the dropdowns show it. #}
+                            {% set f = filters or {} %}
+                            {% set role_sel = {'administrator': 'Administrator', 'admin': 'Administrator', 'mentor': 'Mentor', 'learner': 'Learner'}.get((f.role or '')|lower, '') %}
+                            {% set status_sel = (f.status or '')|lower %}
+                            {% set sort_sel = (f.sort or '')|lower %}
                             <select class="custom-select" id="roleFilterSelect">
                                 <option value="">All Roles</option>
-                                <option value="Administrator">Administrator</option>
-                                <option value="Mentor">Mentor</option>
-                                <option value="Learner">Learner</option>
+                                <option value="Administrator" {{ 'selected' if role_sel == 'Administrator' }}>Administrator</option>
+                                <option value="Mentor" {{ 'selected' if role_sel == 'Mentor' }}>Mentor</option>
+                                <option value="Learner" {{ 'selected' if role_sel == 'Learner' }}>Learner</option>
                             </select>
                             <select class="custom-select" id="statusFilterSelect">
                                 <option value="">All Status</option>
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
+                                <option value="Active" {{ 'selected' if status_sel == 'active' }}>Active</option>
+                                <option value="Inactive" {{ 'selected' if status_sel == 'inactive' }}>Inactive</option>
+                                <option value="Locked" {{ 'selected' if status_sel == 'locked' }}>Locked</option>
                             </select>
                             <select class="custom-select" id="sortFilterSelect">
                                 <option value="date_created">Sort: Date Created</option>
-                                <option value="name">Name</option>
-                                <option value="last_login">Last Login</option>
+                                <option value="name" {{ 'selected' if sort_sel == 'name' }}>Name</option>
+                                <option value="last_login" {{ 'selected' if sort_sel == 'last_login' }}>Last Login</option>
                             </select>
                         </div>
                     </div>
@@ -178,7 +187,7 @@
                                 {% for acc in accounts %}
                                 <tr data-acc-id="{{ acc.acc_id }}">
                                     <td class="profile-cell">
-                                        {% if acc.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ acc.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}
+                                        <span class="presence-avatar-wrap">{% if acc.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ acc.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}{{ presence_dot(acc.acc_id) }}</span>
                                         <strong class="cell-truncate-1">{{ acc.full_name }}</strong>
                                     </td>
                                     <td class="text-muted"><span class="cell-truncate-1 cell-truncate--sm">{{ acc.username }}</span></td>
@@ -227,6 +236,11 @@
 
                     <!-- Table Footer -->
                     <div class="table-pagination">
+                        <span class="presence-legend" aria-label="Online status">
+                            <span><span class="presence-dot" data-state="online"></span>Online (active in the last 5 min)</span>
+                            <span><span class="presence-dot" data-state="idle"></span>Idle 5&ndash;60 min</span>
+                            <span><span class="presence-dot" data-state="offline"></span>Offline</span>
+                        </span>
                         <span id="accountsShowingCount">Showing {{ accounts|length }} account{{ 's' if accounts|length != 1 else '' }}</span>
                         <span>&lt; 1 of 1 &gt;</span>
                     </div>
