@@ -132,7 +132,7 @@
                                     <td><span class="badge {{ role_badge.get(u.role, 'badge-inactive') }}">{{ u.role }}</span></td>
                                     <td><span class="dash-state dash-state-{{ u.state }}">{{ u.label }}</span></td>
                                     <td class="text-muted dash-nowrap" title="Signed in for {{ u.logged_in_for }}">{{ u.logged_in_since }}</td>
-                                    <td class="text-muted dash-nowrap">{{ u.last_activity }}</td>
+                                    <td class="text-muted dash-nowrap">{{ u.last_activity }}{% if u.editing or u.page %}<small class="sp-where">{{ u.editing or ('On: ' ~ u.page) }}</small>{% endif %}</td>
                                     <td class="dash-devices">
                                         {% for d in u.devices %}
                                         <span class="dash-device" title="IP {{ d.ip_address }} &middot; active {{ d.last_activity }}"><i class="fa-solid {{ 'fa-mobile-screen' if d.mobile else 'fa-desktop' }}" aria-hidden="true"></i>{{ d.label }}</span>

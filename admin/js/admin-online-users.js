@@ -56,7 +56,7 @@
                     <td><span class="badge ${ROLE_BADGE[u.role] || "badge-inactive"}">${escapeHtml(u.role)}</span></td>
                     <td><span class="dash-state dash-state-${escapeHtml(u.state)}">${escapeHtml(u.label)}</span></td>
                     <td class="text-muted dash-nowrap" title="Signed in for ${escapeHtml(u.logged_in_for)}">${escapeHtml(u.logged_in_since)}</td>
-                    <td class="text-muted dash-nowrap">${escapeHtml(u.last_activity)}</td>
+                    <td class="text-muted dash-nowrap">${escapeHtml(u.last_activity)}${u.editing || u.page ? `<small class="sp-where">${escapeHtml(u.editing || `On: ${u.page}`)}</small>` : ""}</td>
                     <td class="dash-devices">${devices}</td>
                 </tr>`;
         }

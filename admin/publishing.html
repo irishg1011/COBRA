@@ -65,6 +65,19 @@
                 </div>
                 {% endif %}
 
+                {# feat/publishing-search + feat/publishing-presence #}
+                <div class="pub-search-row">
+                    <div class="pub-search" role="search">
+                        <i class="fa-solid fa-magnifying-glass pub-search-icon" aria-hidden="true"></i>
+                        <input type="search" id="pubSearchInput" class="pub-search-input" autocomplete="off"
+                               placeholder="Search chapters, modules, lessons, videos, activities, exercises..."
+                               role="combobox" aria-expanded="false" aria-controls="pubSearchResults" aria-autocomplete="list"
+                               aria-label="Search all tabs">
+                        <div class="pub-search-results" id="pubSearchResults" role="listbox" hidden></div>
+                    </div>
+                    <div class="sp-here" id="presenceHere" aria-live="polite" hidden></div>
+                </div>
+
                 <div class="publishing-toolbar">
                     <!-- feat/publishing-tree: Draft tab added; admin-publishing.js sets the active tab -->
                     <div class="publishing-tabs-row" role="tablist" aria-label="Publishing status">

@@ -706,6 +706,8 @@
                 ? out.join("")
                 : `<p class="text-muted publishing-empty">${editOrder ? "Nothing to reorder yet." : EMPTY_TEXT[activeTab]}</p>`;
             if (editOrder) wireDragHandles();
+            // feat/publishing-presence: admin-publishing-presence.js re-adds "✏️ <Name> is editing"
+            document.dispatchEvent(new CustomEvent("cobra:publishing-rendered"));
         }
 
         // A load error is shown as an error - never as "Nothing in Draft".
@@ -821,9 +823,17 @@
         function applyPendingFocus() {
             const id = pendingFocus;
             pendingFocus = null;
-            if (!id || !/^(cat|mod|res|vid|act|ex)-\d+$/.test(id)) return;
+            focusNode(id);
+        }
+
+        // Shared by ?focus= and the search box: close everything, open only
+        // the path to the item, switch to its tab, scroll to it and glow it.
+        function focusNode(id, ownTab = false) {
+            if (!id || !/^(cat|mod|res|vid|act|ex)-\d+$/.test(id)) return false;
             const node = findNode(id);
-            if (!node) return; // e.g. archived: load normally
+            if (!node) return false; // e.g. archived: load normally
+            if (editOrder) return false;
+            openMenu = null;
 
             const next = {};
             (function walk(nodes) {
@@ -833,12 +843,16 @@
             openPathTo(id);
             saveOpenState(); // the focused layout is the new memory
 
-            if (!matchesTab(node) && STATUS_TAB[node.status]) setTab(STATUS_TAB[node.status]);
+            const homeTab = STATUS_TAB[node.status];
+            // Search (ownTab): always the item's own status tab, not a tab
+            // where it only shows dimmed as the parent of something else.
+            if (homeTab && (ownTab ? homeTab !== activeTab : !matchesTab(node))) setTab(homeTab);
             else renderTree();
             window.requestAnimationFrame(() => {
                 scrollToRow(id);
                 glowRows([id]);
             });
+            return true;
         }
 
         // ------------------------------------------------------------
@@ -1006,6 +1020,7 @@
             if (!modal) return;
             modal.classList.add("modal-hidden");
             modal.style.display = "none";
+            delete modal.dataset.presenceItem;   // feat/publishing-presence: no longer editing it
             const form = modal.querySelector("form");
             if (form) form.reset();
         }
@@ -1129,6 +1144,7 @@
         function openEditCategory(node) {
             $("editCategoryId").value = numId(node.id);
             $("editCategoryName").value = node.name;
+            editCategoryModal.dataset.presenceItem = node.id;   // "✏️ <Name> is editing" for the others
             openModal(editCategoryModal);
             $("editCategoryName").focus();
         }
@@ -1146,6 +1162,7 @@
             $("editModuleName").value = node.name;
             $("editModuleDesc").value = node.description || "";
             await fillCategorySelect($("editModuleCategory"), ancestorId(node, "cat"), false);
+            editModuleModal.dataset.presenceItem = node.id;
             openModal(editModuleModal);
             $("editModuleName").focus();
         }
@@ -1488,6 +1505,121 @@
             renderTree();
         }
         tabButtons.forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+        // ------------------------------------------------------------
+        // feat/publishing-search: one box for ALL tabs. Runs in the browser
+        // over the tree this page already has (no extra server call).
+        // Picking a result = the same jump as ?focus= (focusNode).
+        // ------------------------------------------------------------
+        const SEARCH_LIMIT = 20;
+        // Same badge colors as the tree rows (badgeHtml).
+        const STATUS_SHORT = { "Draft": ["Draft", "badge-draft"], "Ready to Publish": ["Ready", "badge-ready"], "Published": ["Published", "badge-active"] };
+        const searchInput = document.getElementById("pubSearchInput");
+        const searchResults = document.getElementById("pubSearchResults");
+        let searchHits = [];
+        let searchIndex = -1;
+        let searchTimer = null;
+
+        function fold(text) {
+            return String(text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        }
+
+        function pathOf(node) {
+            const names = [];
+            let cur = parentOf[node.id];
+            while (cur) { names.unshift(cur.name); cur = parentOf[cur.id]; }
+            return names.join(" › ");
+        }
+
+        function runSearch() {
+            const q = fold(searchInput.value.trim());
+            searchIndex = -1;
+            if (!q) { closeSearch(); return; }
+            indexTree();
+            const words = q.split(/\s+/);
+            const hits = [];
+            (function walk(nodes) {
+                nodes.forEach((n) => {
+                    const name = fold(n.name);
+                    if (words.every((w) => name.includes(w))) hits.push(n);
+                    walk(kidsOf(n));
+                });
+            })(tree);
+            // Names that START with the search first, then the rest (tree order).
+            hits.sort((a, b) => Number(!fold(a.name).startsWith(q)) - Number(!fold(b.name).startsWith(q)));
+            searchHits = hits.slice(0, SEARCH_LIMIT);
+            renderSearch(hits.length);
+        }
+
+        function renderSearch(total) {
+            if (!searchHits.length) {
+                searchResults.innerHTML = `<p class="pub-search-empty">No chapter, module, lesson, video, activity or exercise matches “${escapeHtml(searchInput.value.trim())}”.</p>`;
+            } else {
+                searchResults.innerHTML = searchHits.map((n, i) => {
+                    const [tagText, tagClass] = TAG[typeOf(n.id)];
+                    const [statusText, statusClass] = STATUS_SHORT[n.status] || [n.status || "Draft", "badge-draft"];
+                    const path = pathOf(n);
+                    return `<button type="button" class="pub-search-hit${i === searchIndex ? " is-active" : ""}" role="option" aria-selected="${i === searchIndex}" data-id="${n.id}" id="pubSearchHit${i}">
+                        <span class="publishing-tag ${tagClass}">${tagText}</span>
+                        <span class="pub-search-text">
+                            <span class="pub-search-name">${escapeHtml(n.name)}</span>
+                            <span class="pub-search-path">${escapeHtml(LABEL[typeOf(n.id)])}${path ? ` · ${escapeHtml(path)}` : ""}</span>
+                        </span>
+                        <span class="badge ${statusClass}">${escapeHtml(statusText)}</span>
+                    </button>`;
+                }).join("") + (total > searchHits.length
+                    ? `<p class="pub-search-more">Showing ${searchHits.length} of ${total} - type more to narrow it down.</p>` : "");
+            }
+            searchResults.hidden = false;
+            searchInput.setAttribute("aria-expanded", "true");
+            searchInput.setAttribute("aria-activedescendant", searchIndex >= 0 ? `pubSearchHit${searchIndex}` : "");
+        }
+
+        function closeSearch() {
+            if (!searchResults) return;
+            searchResults.hidden = true;
+            searchInput.setAttribute("aria-expanded", "false");
+            searchInput.removeAttribute("aria-activedescendant");
+        }
+
+        function pickSearch(id) {
+            if (editOrder) {
+                showAlertModal("Save or cancel Edit Order first, then search.", "Edit Order is on");
+                return;
+            }
+            closeSearch();
+            focusNode(id, true);
+        }
+
+        if (searchInput && searchResults) {
+            searchInput.addEventListener("input", () => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(runSearch, 120);
+            });
+            searchInput.addEventListener("focus", () => { if (searchInput.value.trim()) runSearch(); });
+            searchInput.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") { closeSearch(); return; }
+                if (searchResults.hidden || !searchHits.length) return;
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const step = e.key === "ArrowDown" ? 1 : -1;
+                    searchIndex = (searchIndex + step + searchHits.length) % searchHits.length;
+                    renderSearch(searchHits.length);
+                    const active = document.getElementById(`pubSearchHit${searchIndex}`);
+                    if (active) active.scrollIntoView({ block: "nearest" });
+                } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    pickSearch(searchHits[Math.max(searchIndex, 0)].id);
+                }
+            });
+            searchResults.addEventListener("click", (e) => {
+                const hit = e.target.closest(".pub-search-hit");
+                if (hit) pickSearch(hit.dataset.id);
+            });
+            document.addEventListener("click", (e) => {
+                if (!e.target.closest(".pub-search")) closeSearch();
+            });
+        }
 
         setOrderActionsHtml();
         updateCounts();

@@ -45,7 +45,7 @@
         const message = $("staffPwMessage");
         const panels = Array.from(document.querySelectorAll(".staff-pw-panel"));
         const dots = Array.from(document.querySelectorAll(".staff-pw-step"));
-        const ruleItems = Array.from(document.querySelectorAll("#staffPwRules li"));
+        const ruleItems = Array.from(document.querySelectorAll("#staffPwRules li"));   // fallback only
 
         let timerId = null;
 
@@ -137,7 +137,13 @@
         }
 
         // ---------------- Step 3 ----------------
+        // Live rules + "Passwords match": the shared js/password-checklist.js
+        // (the same checklist as Create Mentor and Set a new password).
+        const checklist = window.CobraPasswordChecklist ? CobraPasswordChecklist.attach(newInput, confirmInput) : null;
+        if (checklist) ruleItems.forEach((li) => li.closest("ul").remove());
+
         function updateRules() {
+            if (checklist) { checklist.refresh(); return; }
             ruleItems.forEach((li) => li.classList.toggle("is-met", RULES[li.dataset.rule](newInput.value)));
         }
 

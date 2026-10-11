@@ -129,7 +129,7 @@
                 <tr>${nameCell(r, r.role)}
                     <td>${stateBadge(r)}</td>
                     <td class="text-muted dash-nowrap" title="Signed in for ${escapeHtml(r.logged_in_for)}">${escapeHtml(r.logged_in_since)}</td>
-                    <td class="text-muted dash-nowrap">${escapeHtml(r.last_activity)}</td>
+                    <td class="text-muted dash-nowrap">${escapeHtml(r.last_activity)}${r.editing || r.page ? `<small class="sp-where">${escapeHtml(r.editing || `On: ${r.page}`)}</small>` : ""}</td>
                     <td class="dash-devices">${deviceList(r.devices)}</td></tr>`).join(""))
                 + (data.total > data.rows.length ? `<p class="dash-card-more text-muted">${showing(data.rows.length, data.total, "people signed in")}</p>` : "");
         }

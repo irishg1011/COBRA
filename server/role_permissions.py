@@ -102,6 +102,9 @@ ENDPOINT_ROLES = {
     # Online status dots (feat/admin-online) - mentors are answered for
     # learners only (admin_routes.presence)
     "admin_bp.presence": BOTH,
+    # "Who's here / who's editing" heartbeat (feat/publishing-presence) - presence only, never a lock
+    "admin_bp.presence_heartbeat_route": BOTH,
+    "admin_bp.presence_leave_route": BOTH,
 
     # ------------------------------------------------------------
     # Admin only - accounts, monitoring, reports

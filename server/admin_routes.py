@@ -128,6 +128,8 @@ from urllib.parse import quote, urlencode  # feat/staff-search: ?q= / ?focus= on
 from werkzeug.routing import BuildError
 from score_display import PASS_MARK, score_class, score_badge_class  # one color rule for scores (green >= pass mark, red below)
 from staff_search import search_everything  # feat/staff-search: the header's "Search anything..." box
+from staff_search import PAGES as STAFF_PAGES  # feat/publishing-presence: page names for "On: Publishing"
+from staff_presence import heartbeat as presence_heartbeat, leave as presence_leave, get_staff_locations  # feat/publishing-presence
 from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
@@ -526,6 +528,9 @@ def inject_current_admin():
         "current_role": g.get("staff_role"),
         # feat/account-tools: the "Help Requests (n)" tab on the Account & Security pages
         "open_help_requests": count_open_help_requests() if request.endpoint in HELP_TAB_PAGES else 0,
+        # feat/publishing-presence: the item this editor page has open ("res-12"),
+        # read by admin-presence-beat.js from the header's <meta name="cobra-editing">
+        "presence_items": _editor_presence_items(),
         "greeting": get_greeting(),
         "genders": get_gender_options(),
         # feat/title-char-limit: every title input's maxlength comes from
@@ -1229,6 +1234,8 @@ def dashboard_card(kind):
         view_all = url_for('admin_bp.account_security', role=DASHBOARD_CARD_ROLE_FILTER[kind])
     elif kind == "sessions":
         online = get_online_users(limit=CARD_LIMIT)
+        if online is not None:
+            _add_staff_locations(online["users"])   # feat/publishing-presence: "On: Publishing"
         data = None if online is None else {"rows": online["users"], "total": online["total"],
                                              "counts": online["counts"]}
         view_all = url_for('admin_bp.online_users')
@@ -1274,6 +1281,7 @@ def online_users():
     }
     online = get_online_users(filters["q"], filters["role"], filters["state"]) or \
         {"users": [], "total": 0, "counts": {"online": 0, "idle": 0, "signed_in": 0, "learners": 0, "staff": 0}}
+    _add_staff_locations(online["users"])
     return render_template('online-users.html', filters=filters,
                            online_minutes=ONLINE_MINUTES, idle_minutes=IDLE_MINUTES, **online)
 
@@ -1285,7 +1293,91 @@ def online_users_data():
                               request.args.get('state', ''))
     if online is None:
         return jsonify({"success": False, "message": "Could not reach the database.", "users": []}), 500
+    _add_staff_locations(online["users"])
     return jsonify({"success": True, **online}), 200
+
+
+# ============================================================
+# feat/publishing-presence: "WHO'S HERE / WHO'S EDITING" heartbeat
+# Presence only - never a lock. Logic in staff_presence.py.
+# ============================================================
+PAGE_TITLES = {endpoint: title for title, endpoint, _ in STAFF_PAGES}
+PAGE_TITLES.update({
+    "admin_bp.upload_resource": "Lesson editor",
+    "admin_bp.upload_video_tutorial": "Video editor",
+    "admin_bp.create_learning_activity_page": "Activity editor",
+    "admin_bp.create_coding_exercise": "Coding exercise editor",
+    "admin_bp.online_users": "Who's Online",
+    "admin_bp.help_requests_page": "Help Requests",
+})
+
+
+# Editor page -> (query arg, item prefix). The exercise editor also adds every
+# exercise card on the page itself (admin-presence-beat.js).
+EDITOR_ITEMS = {
+    "admin_bp.upload_resource": ("resource_id", "res"),
+    "admin_bp.upload_video_tutorial": ("video_id", "vid"),
+    "admin_bp.create_learning_activity_page": ("activity_id", "act"),
+    "admin_bp.create_coding_exercise": ("exercise_id", "ex"),
+}
+
+
+def _editor_presence_items():
+    arg_prefix = EDITOR_ITEMS.get(request.endpoint)
+    if not arg_prefix:
+        return ""
+    value = request.args.get(arg_prefix[0], type=int)
+    return f"{arg_prefix[1]}-{value}" if value else ""
+
+
+def _add_staff_locations(users):
+    """Who's Online: "On: Publishing" / "Editing lesson: Variables" for staff rows."""
+    locations = get_staff_locations(PAGE_TITLES)
+    for user in users:
+        place = locations.get(user["acc_id"]) or {}
+        user["page"] = place.get("page", "")
+        user["editing"] = place.get("editing", "")
+
+
+def _page_endpoint(path):
+    """'/admin/publishing' -> 'admin_bp.publishing' (only staff pages; '' otherwise)."""
+    from flask import current_app
+    try:
+        endpoint, _ = current_app.url_map.bind("").match(str(path or "").split("?")[0], method="GET")
+    except Exception:
+        return ""
+    return endpoint if endpoint.startswith("admin_bp.") else ""
+
+
+@admin_bp.route('/presence/heartbeat', methods=['POST'])
+def presence_heartbeat_route():
+    """
+    Every open staff tab, about every 15 s (admin-presence-beat.js):
+    {tab_id, path, items: ["res-12"], hidden, idle_seconds} -> who else is on
+    this page + every item someone has open in an editor.
+    """
+    data = request.get_json(silent=True) or {}
+    endpoint = _page_endpoint(data.get("path"))
+    if not endpoint:
+        return jsonify({"success": False, "message": "Unknown page."}), 400
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    found = presence_heartbeat(session.get("admin_id"), data.get("tab_id"), endpoint, items,
+                               hidden=bool(data.get("hidden")), idle_seconds=data.get("idle_seconds"))
+    if found is None:
+        return jsonify({"success": False}), 400
+    return jsonify({"success": True, **found}), 200
+
+
+@admin_bp.route('/presence/leave', methods=['POST'])
+def presence_leave_route():
+    """The tab is closing (navigator.sendBeacon - plain-text JSON body)."""
+    import json
+    try:
+        data = json.loads(request.get_data(as_text=True) or "{}")
+    except ValueError:
+        data = {}
+    presence_leave(session.get("admin_id"), data.get("tab_id"))
+    return ("", 204)
 
 
 @admin_bp.route('/presence')

@@ -276,24 +276,30 @@
         }
 
         // ------------------------------------------------------------
-        // Task: "Implement live password strength validation" - a
-        // single consolidated inline message instead of a dedicated
-        // checker box, since the modal's markup has no such element and
-        // must stay unchanged.
+        // Live password rules: the shared checklist (js/password-checklist.js)
+        // under the two password fields - each rule turns green as it is
+        // met, and "Passwords match" / "do not match" under Confirm. The
+        // red message only appears when Create Account is pressed.
         // ------------------------------------------------------------
+        const pwChecklist = window.CobraPasswordChecklist && fields.password
+            ? CobraPasswordChecklist.attach(fields.password, fields.confirmPassword,
+                { after: fields.password.closest(".form-row") || undefined })
+            : null;
+
         function checkPasswordStrength() {
             if (!fields.password) return true;
             const val = fields.password.value;
             if (!val) { clearFieldError(fields.password); return false; }
             if (!PASSWORD_REGEX.test(val)) {
-                showFieldError(fields.password, "Must be 8+ characters with an uppercase letter, lowercase letter, number, and special character.");
+                showFieldError(fields.password, pwChecklist
+                    ? "Meet every password rule below."
+                    : "Must be 8+ characters with an uppercase letter, lowercase letter, number, and special character.");
                 return false;
             }
             clearFieldError(fields.password);
             return true;
         }
 
-        // Task: "Implement live password confirmation checking"
         function checkPasswordMatch() {
             if (!fields.confirmPassword) return true;
             if (!fields.confirmPassword.value) { clearFieldError(fields.confirmPassword); return false; }
@@ -305,13 +311,23 @@
             return true;
         }
 
+        // While typing, the checklist does the talking: clear old red messages.
         if (fields.password) {
             fields.password.addEventListener("input", () => {
-                checkPasswordStrength();
-                if (fields.confirmPassword && fields.confirmPassword.value) checkPasswordMatch();
+                if (pwChecklist) clearFieldError(fields.password);
+                else checkPasswordStrength();
+                if (fields.confirmPassword && fields.confirmPassword.value) {
+                    if (pwChecklist) clearFieldError(fields.confirmPassword);
+                    else checkPasswordMatch();
+                }
             });
         }
-        if (fields.confirmPassword) fields.confirmPassword.addEventListener("input", checkPasswordMatch);
+        if (fields.confirmPassword) {
+            fields.confirmPassword.addEventListener("input", () => {
+                if (pwChecklist) clearFieldError(fields.confirmPassword);
+                else checkPasswordMatch();
+            });
+        }
 
         // ------------------------------------------------------------
         // NEW: Admin birthdate age rule - 20+ and 60 or younger.

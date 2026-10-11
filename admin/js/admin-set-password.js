@@ -2,35 +2,25 @@
  * admin-set-password.js - forced "Set a new password" (feat/account-tools)
  * --------------------------------------------------------------------------
  * After an admin reset this account's password (Help Requests), the person
- * signs in with the temporary password and lands here. Same rules as every
- * other password form; POST /staff/set-password, then their home page.
+ * signs in with the temporary password and lands here. The live rules
+ * checklist + "Passwords match" come from password-checklist.js (same rules
+ * as the server); POST /staff/set-password, then their home page.
  */
 (function () {
     "use strict";
-
-    const RULES = {
-        length: (v) => v.length >= 8,
-        upper: (v) => /[A-Z]/.test(v),
-        lower: (v) => /[a-z]/.test(v),
-        number: (v) => /\d/.test(v),
-        special: (v) => /[!@#$%^&*()_,.?":{}|<>]/.test(v),
-    };
 
     document.addEventListener("DOMContentLoaded", () => {
         const newInput = document.getElementById("setPwNew");
         const confirmInput = document.getElementById("setPwConfirm");
         const saveBtn = document.getElementById("setPwSaveBtn");
         const message = document.getElementById("setPwMessage");
-        const rules = Array.from(document.querySelectorAll("#setPwRules [data-rule]"));
+        // Live rules + "Passwords match" (js/password-checklist.js) - same rules as the server.
+        const checklist = CobraPasswordChecklist.attach(newInput, confirmInput);
 
         function say(text, success) {
             message.textContent = text || "";
             message.classList.toggle("is-success", Boolean(success));
         }
-
-        newInput.addEventListener("input", () => {
-            rules.forEach((li) => li.classList.toggle("is-met", RULES[li.dataset.rule](newInput.value)));
-        });
 
         document.querySelectorAll("[data-toggle]").forEach((btn) => {
             btn.addEventListener("click", () => {
@@ -44,7 +34,7 @@
 
         async function save() {
             say("");
-            if (!Object.values(RULES).every((rule) => rule(newInput.value))) {
+            if (!checklist.rulesMet()) {
                 say("Your password doesn't meet all the rules yet.");
                 return;
             }
