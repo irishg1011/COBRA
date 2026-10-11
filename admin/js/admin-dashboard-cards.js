@@ -104,7 +104,7 @@
         function renderAccounts(data, kind) {
             const noun = ROLE_PLURAL[kind];
             subEl.textContent = data.total
-                ? `Newest ${data.rows.length} of ${data.total} ${noun}`
+                ? `${showing(data.rows.length, data.total, noun)} · newest first`
                 : `No ${noun} yet`;
             if (!data.rows.length) return empty(`No ${noun} yet.`);
             return table(["Name", "Status", "Created", "Last login"], data.rows.map((r) => `

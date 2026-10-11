@@ -4,25 +4,25 @@
    admin-dashboard-cards.js) - data-dash-card names which one. #}
 {% if accounts.ok %}
 <div class="metrics-grid dash-metrics-grid dash-metrics-6">
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="learners" role="button" tabindex="0" aria-haspopup="dialog" title="Show the newest learners">
+    <div class="metric-card dash-metric dash-card-link" data-dash-card="learners" role="button" tabindex="0" aria-haspopup="dialog" title="Show the learners list">
         <div class="metric-info">
             <span class="metric-title">Learners</span>
             <h2 class="metric-value">{{ accounts.accounts.learners }}</h2>
-            <small class="dash-card-hint">Newest accounts <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
+            <small class="dash-card-hint">View list <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
         </div>
     </div>
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="mentors" role="button" tabindex="0" aria-haspopup="dialog" title="Show the newest mentors">
+    <div class="metric-card dash-metric dash-card-link" data-dash-card="mentors" role="button" tabindex="0" aria-haspopup="dialog" title="Show the mentors list">
         <div class="metric-info">
             <span class="metric-title">Mentors</span>
             <h2 class="metric-value">{{ accounts.accounts.mentors }}</h2>
-            <small class="dash-card-hint">Newest accounts <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
+            <small class="dash-card-hint">View list <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
         </div>
     </div>
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="admins" role="button" tabindex="0" aria-haspopup="dialog" title="Show the newest admins">
+    <div class="metric-card dash-metric dash-card-link" data-dash-card="admins" role="button" tabindex="0" aria-haspopup="dialog" title="Show the admins list">
         <div class="metric-info">
             <span class="metric-title">Admins</span>
             <h2 class="metric-value">{{ accounts.accounts.administrators }}</h2>
-            <small class="dash-card-hint">Newest accounts <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
+            <small class="dash-card-hint">View list <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
         </div>
     </div>
     <div class="metric-card dash-metric dash-card-link" data-dash-card="sessions" role="button" tabindex="0" aria-haspopup="dialog" title="Show who is online now">
