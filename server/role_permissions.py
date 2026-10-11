@@ -170,6 +170,7 @@ ENDPOINT_ROLES = {
 
     "admin_bp.analytics": ADMIN,
     "admin_bp.analytics_data": ADMIN,
+    "admin_bp.analytics_details": ADMIN,   # feat/analytics-insights: list behind a card / chart (read-only)
     "admin_bp.reports": ADMIN,
     "admin_bp.reports_data": ADMIN,
 

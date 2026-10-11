@@ -15,6 +15,14 @@
  * Status + time range filters reload everything; the filters are kept
  * in the URL so a reload shows the same view. Print Dashboard calls
  * window.print() - analytics.css lays the cards out for paper.
+ *
+ * feat/analytics-insights: plain chart names + a one-line insight under
+ * each (from the server); top numbers vs the previous period; course
+ * funnel, most-missed questions, engagement (per day + busiest hours);
+ * green / yellow / red from the pass mark (CobraInsights); every card,
+ * bar, slice, step, question, day and hour opens the list behind it
+ * (admin-progress-cards.js -> /admin/analytics/details/<kind>?key=...).
+ * Default range: Last 30 days.
  */
 (function () {
     "use strict";
@@ -22,7 +30,9 @@
     const GREEN = "#16a34a";
     // Score bands, highest first (same order as the server): green above
     // the 80% pass mark, red below - darker = further from the pass mark.
-    const BAND_COLORS = ["#15803d", "#4ade80", "#fca5a5", "#f87171", "#dc2626", "#991b1b"];
+    // feat/analytics-insights: 70-79% is the yellow "close" band.
+    const BAND_COLORS = ["#15803d", "#4ade80", "#f59e0b", "#f87171", "#dc2626", "#991b1b"];
+    const BAND_FILL = { pass: "#16a34a", close: "#f59e0b", fail: "#dc2626", none: "#9ca3af" };
     const INK_MUTED = "#6b7280";
     const GRID = "rgba(17, 17, 17, 0.08)";
     const CARD_BG = "#fffef4";
@@ -46,7 +56,23 @@
 
         const charts = {};
         let lastData = null;
-        let trendMeasure = "active_learners";
+        let trendMeasure = "avg_score";
+        const Ins = window.CobraInsights;
+
+        function openList(kind, key, trigger) {
+            if (window.CobraProgressCards && CobraProgressCards.open) {
+                CobraProgressCards.open(kind, trigger || document.activeElement, { key });
+            }
+        }
+
+        function setInsight(id, text) {
+            const el = document.getElementById(id);
+            if (el && el.textContent !== (text || "")) el.textContent = text || "";
+        }
+
+        function pointer(evt, elements) {
+            if (evt.native && evt.native.target) evt.native.target.style.cursor = elements.length ? "pointer" : "default";
+        }
         let activeRequestId = 0;
 
         // ------------------------------------------------------------
@@ -184,19 +210,24 @@
                     datasets: [{
                         label: "Avg Score",
                         data: modules.map((m) => m.avg),
-                        backgroundColor: modules.map((m) => CobraScore.color(m.avg)),
+                        backgroundColor: modules.map((m) => BAND_FILL[m.band || "none"]),
                         borderRadius: 4,
                         maxBarThickness: 34,
                     }],
                 },
                 options: {
                     maintainAspectRatio: false,
+                    onHover: pointer,
+                    onClick: (evt, elements) => {
+                        if (elements.length) openList("module", modules[elements[0].index].module_id);
+                    },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
                             ...tooltipStyle,
                             callbacks: {
                                 title: (items) => modules[items[0].dataIndex].name,
+                                footer: () => "Click for its lessons",
                                 label: (item) => {
                                     const m = modules[item.dataIndex];
                                     return [`Avg score: ${pct(m.avg)}`, `${m.chapter}`, plural(m.learners, "learner")];
@@ -230,7 +261,7 @@
 
             const legend = document.getElementById("scoreDistLegend");
             legend.innerHTML = bands.map((b, i) => `
-                <li>
+                <li class="an-click" role="button" tabindex="0" data-band="${escapeHtml(b.label)}" title="Show these learners">
                     <span class="swatch" style="background:${BAND_COLORS[i]}"></span>
                     <span>${escapeHtml(b.label)}</span>
                     <span class="count">${plural(b.count, "learner")}</span>
@@ -258,6 +289,10 @@
                 options: {
                     maintainAspectRatio: false,
                     cutout: "62%",
+                    onHover: pointer,
+                    onClick: (evt, elements) => {
+                        if (elements.length) openList("band", bands[elements[0].index].label);
+                    },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -275,6 +310,19 @@
         }
 
         function renderStages(stages) {
+            const stats = document.getElementById("stagesStats");
+            if (stats) {
+                stats.innerHTML = `<table class="progress-detail-table">
+                    <thead><tr><th>Type</th><th>First-try avg</th><th>Learners</th><th title="Questions where time ran out (first try)">Timeouts</th><th title="Questions skipped (first try)">Skips</th><th title="Retake rounds started (exercise: extra attempts)">Retakes</th></tr></thead>
+                    <tbody>${stages.map((s) => `<tr>
+                        <td>${escapeHtml(s.label)}</td>
+                        <td>${Ins ? Ins.scoreHtml(s.avg) : pct(s.avg)}</td>
+                        <td>${escapeHtml(s.completed)}</td>
+                        <td>${s.timeouts === null || s.timeouts === undefined ? "—" : escapeHtml(s.timeouts)}</td>
+                        <td>${escapeHtml(s.skips ?? 0)}</td>
+                        <td>${escapeHtml(s.retakes ?? 0)}</td>
+                    </tr>`).join("")}</tbody></table>`;
+            }
             const hasData = stages.some((s) => s.avg !== null);
             setEmpty("stagesWrap", !hasData, "No activities completed yet.");
             renderTable("stagesTable",
@@ -289,7 +337,7 @@
                     datasets: [{
                         label: "Avg Score",
                         data: stages.map((s) => s.avg),
-                        backgroundColor: GREEN,
+                        backgroundColor: stages.map((s) => BAND_FILL[Ins ? Ins.band(s.avg) : "pass"]),
                         borderRadius: 4,
                         maxBarThickness: 48,
                     }],
@@ -389,13 +437,13 @@
                 return;
             }
             list.innerHTML = topics.map((t) => `
-                <li>
+                <li class="an-click" role="button" tabindex="0" data-module="${escapeHtml(t.module_id)}" title="Show this module's lessons">
                     <div class="analytics-topic-row">
                         <span>${escapeHtml(t.name)}<small>${escapeHtml(t.chapter)} · ${plural(t.learners, "learner")}</small></span>
-                        <strong>${pct(t.avg)}</strong>
+                        <strong>${Ins ? Ins.scoreHtml(t.avg) : pct(t.avg)}</strong>
                     </div>
                     <div class="analytics-topic-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${t.avg}" aria-label="${escapeHtml(t.name)}">
-                        <div class="analytics-topic-fill" style="width:${Math.max(0, Math.min(100, t.avg))}%"></div>
+                        <div class="analytics-topic-fill an-fill-${escapeHtml(t.band || "none")}" style="width:${Math.max(0, Math.min(100, t.avg))}%"></div>
                     </div>
                 </li>`).join("");
         }
@@ -408,9 +456,169 @@
 
         function renderScope(data) {
             if (!scopeEl) return;
-            scopeEl.textContent = `Based on ${plural(data.learners_scored, "learner")} with scores `
-                + `(out of ${data.learners_total}) · ${plural(data.records, "lesson record")}`;
+            const when = data.period ? `${data.period.from} – ${data.period.to} (compared with ${data.period.previous})` : "All time (no comparison)";
+            scopeEl.textContent = `${when} · ${plural(data.learners_scored, "learner")} with scores of ${data.learners_total} · ${plural(data.records, "finished lesson")}`;
         }
+
+        // ---------- feat/analytics-insights ----------
+        function changeText(c, unit, isPoints) {
+            if (!c || c.direction === null || c.direction === undefined) {
+                return (lastData && lastData.period) ? "No earlier data to compare" : "Pick a time range to compare";
+            }
+            const arrow = { up: "▲", down: "▼", same: "▬" }[c.direction];
+            const prev = lastData && lastData.period ? `the previous ${lastData.period.days} days` : "before";
+            if (c.change === null) return `${arrow} new vs ${prev}`;
+            const amount = isPoints ? `${Math.abs(c.change)} pts` : `${Math.abs(c.change)}%`;
+            return `${arrow} ${c.direction === "same" ? "same" : amount} vs ${prev}${c.previous !== null && c.previous !== undefined ? ` (${c.previous}${unit || ""})` : ""}`;
+        }
+
+        function setKpi(key, value, change, cls) {
+            const v = document.querySelector(`[data-kpi-value="${key}"]`);
+            const c = document.querySelector(`[data-kpi-change="${key}"]`);
+            if (v && v.textContent !== String(value)) v.textContent = value;
+            if (v) v.className = `metric-value ${cls || ""}`.trim();
+            if (c && change !== undefined && c.textContent !== change) c.textContent = change;
+        }
+
+        function directionClass(c, goodWhenUp = true) {
+            if (!c || !c.direction || c.direction === "same") return "";
+            return (c.direction === "up") === goodWhenUp ? "is-good" : "is-bad";
+        }
+
+        function renderKpis(cards) {
+            if (!cards || !cards.total) return;
+            setKpi("total", cards.total.value, changeText(cards.total));
+            setKpi("active", cards.active.value, changeText(cards.active));
+            setKpi("inactive", cards.inactive.value);
+            const avg = cards.avg_score;
+            setKpi("avg_score", avg.value === null ? "—" : `${avg.value}%`, changeText(avg, "%", true), `lp-text-${avg.band || "none"}`);
+            const fin = cards.finished;
+            const pc = fin.period_compare;
+            setKpi("finished", fin.value, pc ? `${fin.in_period} in this period · ${changeText(pc)}` : "All time");
+            const st = cards.study_time;
+            setKpi("study_time", st.value === null ? "—" : `${st.value} min`, changeText(st, " min"));
+            document.querySelectorAll(".an-kpi-change[data-kpi-change]").forEach((el) => {
+                const card = cards[el.dataset.kpiChange];
+                const c = el.dataset.kpiChange === "finished" ? (card && card.period_compare) : card;
+                el.classList.remove("is-good", "is-bad");
+                const d = directionClass(c, el.dataset.kpiChange !== "inactive");
+                if (d) el.classList.add(d);
+            });
+        }
+
+        function renderInsights(map) {
+            map = map || {};
+            setInsight("lessonPerfInsight", map.lesson_performance);
+            setInsight("scoreDistInsight", map.score_distribution);
+            setInsight("stagesInsight", map.stages);
+            setInsight("trendInsight", map.trend);
+            setInsight("topicsInsight", map.topics);
+            setInsight("funnelInsight", map.funnel);
+            setInsight("missedInsight", map.most_missed);
+            setInsight("engagementInsight", map.engagement);
+        }
+
+        function renderFunnel(steps) {
+            const el = document.getElementById("funnelList");
+            if (!el) return;
+            if (!steps || !steps.length) { el.innerHTML = `<p class="analytics-card-note">No learners yet.</p>`; return; }
+            el.innerHTML = steps.map((s) => `
+                <div class="an-funnel-step an-click" role="button" tabindex="0" data-step="${s.index}" title="Who reached it / stopped here">
+                    <span class="an-funnel-label">${escapeHtml(s.label)}</span>
+                    <span class="lp-funnel-track"><span class="lp-funnel-fill" style="width:${Number(s.percent) || 0}%"></span></span>
+                    <span class="an-funnel-count"><strong>${escapeHtml(s.count)}</strong> <small>(${escapeHtml(s.percent)}%)</small>
+                        ${s.dropped ? `<small class="an-drop">−${escapeHtml(s.dropped)}</small>` : ""}</span>
+                </div>`).join("");
+        }
+
+        function renderMissed(rows) {
+            const el = document.getElementById("missedList");
+            if (!el) return;
+            if (!rows || !rows.length) {
+                el.innerHTML = `<li class="analytics-topic-empty">No question was missed on the first try in this period.</li>`;
+                return;
+            }
+            el.innerHTML = rows.map((q) => `
+                <li class="lp-missed-item an-click${q.check_key ? " is-check-key" : ""}" role="button" tabindex="0" data-question="${escapeHtml(`${q.la_id}-${q.item_id}`)}" title="Who missed it">
+                    <div class="lp-missed-text">
+                        <strong>${escapeHtml(q.question)}</strong>
+                        <small>${escapeHtml(q.lesson)}${q.activity && q.activity !== q.lesson ? ` · ${escapeHtml(q.activity)}` : ""} · ${escapeHtml(q.type)}</small>
+                    </div>
+                    <div class="lp-missed-stats">
+                        <span class="badge lp-band lp-band-${q.miss_percent >= 50 ? "fail" : "close"}">${escapeHtml(q.miss_percent)}% missed</span>
+                        <small>${escapeHtml(q.missed)} of ${escapeHtml(q.answered)} learners</small>
+                        ${q.check_key ? `<span class="lp-check-key"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Check the answer key</span>` : ""}
+                    </div>
+                </li>`).join("");
+        }
+
+        const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        function hourLabel(h) { return `${h % 12 || 12}${h < 12 ? "a" : "p"}`; }
+
+        function renderEngagement(eng) {
+            eng = eng || { days: [], heatmap: [] };
+            const stat = document.getElementById("sessionStat");
+            if (stat) stat.textContent = eng.avg_session_minutes === null || eng.avg_session_minutes === undefined
+                ? "" : `· avg study session ≈ ${eng.avg_session_minutes} min (${plural(eng.sessions, "session")}, estimated)`;
+
+            const days = eng.days || [];
+            const hasDays = days.some((d) => d.active > 0);
+            setEmpty("daysWrap", !hasDays, "No activity in this period.");
+            if (hasDays) {
+                draw("days", "daysChart", {
+                    type: "bar",
+                    data: { labels: days.map((d) => d.label),
+                        datasets: [{ label: "Active learners", data: days.map((d) => d.active), backgroundColor: "#18B8E6", borderRadius: 3, maxBarThickness: 18 }] },
+                    options: {
+                        maintainAspectRatio: false,
+                        onHover: pointer,
+                        onClick: (evt, elements) => { if (elements.length) openList("day", days[elements[0].index].date); },
+                        plugins: { legend: { display: false }, tooltip: { ...tooltipStyle, callbacks: {
+                            label: (item) => plural(item.raw, "active learner"), footer: () => "Click for who" } } },
+                        scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+                                  y: { min: 0, ticks: { precision: 0 }, grid: { color: GRID }, border: { display: false } } },
+                    },
+                });
+            }
+
+            const heat = document.getElementById("heatmap");
+            if (!heat) return;
+            const cells = {};
+            let max = 0;
+            (eng.heatmap || []).forEach((c) => { cells[`${c.day}-${c.hour}`] = c; max = Math.max(max, c.actions); });
+            if (!max) { heat.innerHTML = `<p class="analytics-card-note">No learning activity in this period.</p>`; return; }
+            let html = `<div class="an-heat-row an-heat-head"><span></span>${Array.from({ length: 24 }, (_, h) => `<span>${h % 3 === 0 ? hourLabel(h) : ""}</span>`).join("")}</div>`;
+            DAY_NAMES.forEach((name, d) => {
+                html += `<div class="an-heat-row"><span class="an-heat-day">${name}</span>`;
+                for (let h = 0; h < 24; h++) {
+                    const c = cells[`${d}-${h}`];
+                    const level = c ? Math.max(1, Math.ceil((c.actions / max) * 4)) : 0;
+                    const tip = c ? `${name} ${hourLabel(h)}: ${plural(c.actions, "action")} by ${plural(c.learners, "learner")} - click for who` : `${name} ${hourLabel(h)}: nothing`;
+                    html += c
+                        ? `<button type="button" class="an-heat-cell lvl-${level}" data-hour="${d}-${h}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}"></button>`
+                        : `<span class="an-heat-cell lvl-0" title="${escapeHtml(tip)}"></span>`;
+                }
+                html += `</div>`;
+            });
+            heat.innerHTML = html + `<div class="an-heat-legend"><span>Less</span>${[0, 1, 2, 3, 4].map((l) => `<span class="an-heat-cell lvl-${l}"></span>`).join("")}<span>More</span></div>`;
+        }
+
+        // Clicks on lists drawn above (event delegation - they are redrawn on refresh)
+        document.addEventListener("click", (e) => {
+            const el = e.target.closest("[data-band], [data-module], [data-step], [data-question], [data-hour]");
+            if (!el || !el.closest(".analytics-grid")) return;
+            if (el.dataset.band) openList("band", el.dataset.band, el);
+            else if (el.dataset.module) openList("module", el.dataset.module, el);
+            else if (el.dataset.step !== undefined) openList("funnel", el.dataset.step, el);
+            else if (el.dataset.question) openList("question", el.dataset.question, el);
+            else if (el.dataset.hour) openList("hour", el.dataset.hour, el);
+        });
+        document.addEventListener("keydown", (e) => {
+            if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("an-click")) {
+                e.preventDefault();
+                e.target.click();
+            }
+        });
 
         // Each card with the part of the data it draws - the live refresh
         // redraws only the cards whose part changed.
@@ -422,6 +630,11 @@
             ["stages", (d) => d.stages, (d) => renderStages(d.stages || [])],
             ["trend", (d) => d.trend, (d) => renderTrend(d.trend || [])],
             ["topics", (d) => d.topics, (d) => renderTopics(d.topics || {})],
+            ["kpis", (d) => [d.cards, d.period], (d) => renderKpis(d.cards)],
+            ["insights", (d) => d.insights, (d) => renderInsights(d.insights)],
+            ["funnel", (d) => d.funnel, (d) => renderFunnel(d.funnel || [])],
+            ["missed", (d) => d.most_missed, (d) => renderMissed(d.most_missed || [])],
+            ["engagement", (d) => d.engagement, (d) => renderEngagement(d.engagement)],
         ];
 
         function renderAll(data) {
@@ -453,7 +666,7 @@
         function currentParams() {
             const params = new URLSearchParams();
             if (statusSelect && statusSelect.value !== "all") params.set("status", statusSelect.value);
-            if (rangeSelect && rangeSelect.value !== "all") params.set("range", rangeSelect.value);
+            if (rangeSelect) params.set("range", rangeSelect.value || "30d");
             return params;
         }
 
@@ -489,7 +702,7 @@
         if (statusSelect && initial.get("status")) statusSelect.value = initial.get("status");
         if (rangeSelect && initial.get("range")) rangeSelect.value = initial.get("range");
         if (statusSelect && !statusSelect.value) statusSelect.value = "all";
-        if (rangeSelect && !rangeSelect.value) rangeSelect.value = "all";
+        if (rangeSelect && !rangeSelect.value) rangeSelect.value = "30d";
 
         if (statusSelect) statusSelect.addEventListener("change", loadAnalytics);
         if (rangeSelect) rangeSelect.addEventListener("change", loadAnalytics);
@@ -506,6 +719,9 @@
             });
         });
 
+        if (window.CobraProgressCards) {
+            CobraProgressCards.init({ endpoint: "/admin/analytics/details", params: currentParams, csvPrefix: "analytics" });
+        }
         loadAnalytics();
 
         // Live refresh (admin-live-refresh.js): same Learners / Time filters.
@@ -530,7 +746,7 @@
 
         function updatePrintHeader() {
             if (printFilters) {
-                printFilters.textContent = `${selectedText(statusSelect) || "All Learners"} · ${selectedText(rangeSelect) || "All Time"}`;
+                printFilters.textContent = `${selectedText(statusSelect) || "All Learners"} · ${selectedText(rangeSelect) || "Last 30 Days"}`;
             }
             if (printDate) {
                 const now = new Date();
