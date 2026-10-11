@@ -50,6 +50,7 @@
                         <div class="dash-card-name">
                             <strong class="cell-truncate-1">${escapeHtml(u.full_name)}</strong>
                             <small class="text-muted cell-truncate-1">${escapeHtml(u.email)}</small>
+                            <small class="online-meta text-muted">${escapeHtml(u.role)} · ${escapeHtml(u.label)}</small>
                         </div>
                     </td>
                     <td><span class="badge ${ROLE_BADGE[u.role] || "badge-inactive"}">${escapeHtml(u.role)}</span></td>

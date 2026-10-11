@@ -105,7 +105,7 @@
                     </div>
 
                     <div class="table-scroll">
-                        <table class="data-table">
+                        <table class="data-table online-table">
                             <thead>
                                 <tr>
                                     <th>Name</th>
@@ -124,6 +124,7 @@
                                         <div class="dash-card-name">
                                             <strong class="cell-truncate-1">{{ u.full_name }}</strong>
                                             <small class="text-muted cell-truncate-1">{{ u.email }}</small>
+                                            <small class="online-meta text-muted">{{ u.role }} &middot; {{ u.label }}</small>
                                         </div>
                                     </td>
                                     <td><span class="badge {{ role_badge.get(u.role, 'badge-inactive') }}">{{ u.role }}</span></td>

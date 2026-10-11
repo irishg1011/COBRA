@@ -544,3 +544,49 @@
         padding-right: 8px;
     }
 }
+
+/* Who's Online table: on narrower screens (or a zoomed-in browser) the date
+   and device cells wrap instead of pushing the table wider than its card -
+   otherwise it scrolls sideways and the Name column slides out of view. */
+.online-table .dash-device {
+    white-space: normal;
+}
+
+@media (max-width: 1280px) {
+    .online-table td.dash-nowrap {
+        white-space: normal;
+        min-width: 90px;
+    }
+
+    .online-table .dash-devices {
+        min-width: 110px;
+    }
+
+    .table-card .data-table.online-table th {
+        white-space: normal;
+    }
+
+    .data-table.online-table .dash-card-name .cell-truncate-1 {
+        max-width: 160px;
+    }
+}
+
+/* Narrower still (heavy zoom, small laptops): Role and Status fold into a
+   small line under the name, so the table keeps fitting its card. */
+.online-meta {
+    display: none;
+}
+
+@media (max-width: 1000px) {
+    .data-table.online-table th:nth-child(2),
+    .data-table.online-table td:nth-child(2),
+    .data-table.online-table th:nth-child(3),
+    .data-table.online-table td:nth-child(3) {
+        display: none;
+    }
+
+    .data-table.online-table .online-meta {
+        display: block;
+        font-size: 11px;
+    }
+}
