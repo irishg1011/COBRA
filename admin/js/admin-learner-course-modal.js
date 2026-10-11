@@ -65,8 +65,24 @@
         const statusEl = document.getElementById("learnerCourseStatus");
         const chartCanvas = document.getElementById("learnerCourseChart");
         const chartEmptyEl = document.getElementById("learnerCourseChartEmpty");
-        const topicsEl = document.getElementById("learnerCourseTopics");
-        const effortEl = document.getElementById("learnerCourseEffort");
+        // Learning signals (4 small cards) + their "View all" window
+        const signalBodies = {
+            topics: document.getElementById("lcTopicsBody"),
+            retakes: document.getElementById("lcRetakesBody"),
+            recommendations: document.getElementById("lcRecsBody"),
+            leaves: leavesEl,
+        };
+        const signalModal = document.getElementById("learnerSignalModal");
+        const signalTitle = document.getElementById("learnerSignalTitle");
+        const signalSub = document.getElementById("learnerSignalSub");
+        const signalContent = document.getElementById("learnerSignalContent");
+        const signalNote = document.getElementById("learnerSignalNote");
+        const signalSearch = document.getElementById("learnerSignalSearch");
+        const signalExport = document.getElementById("learnerSignalExport");
+        const signalClose = document.getElementById("closeLearnerSignalBtn");
+        const PREVIEW_ROWS = 3;
+        let currentLearner = null;
+        let openSignal = null;
         const Ins = window.CobraInsights || null;
         let chart = null;
 
@@ -100,7 +116,10 @@
             setText(modulesEl, "");
             window.CobraAvatar && window.CobraAvatar.set(avatarEl, null);
             if (chaptersEl) chaptersEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
-            [statusEl, topicsEl, effortEl].forEach((el) => { if (el) el.innerHTML = ""; });
+            if (statusEl) statusEl.innerHTML = "";
+            Object.values(signalBodies).forEach((el) => { if (el) el.innerHTML = ""; });
+            modal.querySelectorAll(".lc-view-all").forEach((b) => { b.hidden = true; });
+            closeSignal();
             if (chartEmptyEl) chartEmptyEl.textContent = "";
             if (chart) { chart.destroy(); chart = null; }
             hideError();
@@ -237,7 +256,6 @@
             setText(lastActiveEl, learner.last_active || "—");
 
             if (chaptersEl) chaptersEl.innerHTML = chaptersHtml(learner.chapters);
-            if (leavesEl) leavesEl.innerHTML = leavesHtml(learner.leave_log || []);
             fillInsights(learner);
         }
 
@@ -254,11 +272,12 @@
                     <span class="lp-chip lp-chip-${escapeHtml(learner.status)}">${escapeHtml(learner.status_label)}</span>
                     <span class="lp-learner-trend">Avg ${scoreHtml(learner.avg_score)} ${Ins ? Ins.trendHtml(ins.trend) : ""}</span>
                     <span class="text-muted">Last active ${escapeHtml(learner.last_active_ago || "—")}</span>
+                    <span class="text-muted" title="Time spent on timed activity questions. Video and reading time aren't recorded.">${Number(ins.activity_minutes || 0)} min in activities</span>
                     ${why ? `<ul class="lp-why-list">${why}</ul>` : ""}`;
             }
             drawChart(ins.timeline || []);
-            if (topicsEl) topicsEl.innerHTML = topicsHtml(ins);
-            if (effortEl) effortEl.innerHTML = effortHtml(ins);
+            currentLearner = learner;
+            fillSignals(learner);
         }
 
         function drawChart(points) {
@@ -305,53 +324,187 @@
             });
         }
 
-        function topicsHtml(ins) {
-            const list = (items, empty) => items && items.length
-                ? `<ul class="lp-topic-list">${items.map((m) => `<li>${escapeHtml(m.module)} ${scoreHtml(m.avg)} <small class="text-muted">${m.lessons} lesson${m.lessons === 1 ? "" : "s"}</small></li>`).join("")}</ul>`
-                : `<p class="progress-detail-empty">${escapeHtml(empty)}</p>`;
-            const types = ins.types && ins.types.length
-                ? `<ul class="lp-topic-list">${ins.types.map((t) => `<li>${escapeHtml(t.type)} ${scoreHtml(t.percent)}</li>`).join("")}</ul>`
-                : `<p class="progress-detail-empty">No finished activity yet.</p>`;
-            return `
-                <div><h5>Strong modules</h5>${list(ins.strong, "None yet.")}</div>
-                <div><h5>Weak modules</h5>${list(ins.weak, "None - nice!")}</div>
-                <div><h5>By activity type (first try)</h5>${types}</div>`;
+        // ---------- Learning signals: preview cards + "View all" ----------
+        // Each signal: the full rows (plain values, for the table + CSV), the
+        // columns, and a short preview for its card.
+        function signalData(kind, learner) {
+            const ins = learner.insights || {};
+            if (kind === "topics") {
+                const modules = [...(ins.strong || []), ...(ins.weak || [])]
+                    .sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1))
+                    .map((m) => ({ kind: "Module", name: m.module, avg: m.avg, lessons: m.lessons,
+                                   verdict: m.band === "pass" ? "Strong" : "Weak" }));
+                const types = (ins.types || []).map((t) => ({ kind: "Activity type", name: t.type, avg: t.percent,
+                                                              lessons: "", verdict: t.band === "pass" ? "Strong" : "Weak" }));
+                return {
+                    title: "Topics", sub: "Modules (finished lessons) and activity types (first try), strongest first.",
+                    columns: [{ key: "name", label: "Topic" }, { key: "kind", label: "Kind" },
+                              { key: "avg", label: "Score", score: true }, { key: "lessons", label: "Lessons" },
+                              { key: "verdict", label: "Strong / weak" }],
+                    rows: [...modules, ...types],
+                };
+            }
+            if (kind === "retakes") {
+                return {
+                    title: "Retakes", sub: `${Number(ins.retake_total || 0)} retake round${ins.retake_total === 1 ? "" : "s"}, most first.`,
+                    columns: [{ key: "activity", label: "Activity" }, { key: "rounds", label: "Retake rounds" },
+                              { key: "done", label: "Finished" }, { key: "last", label: "Last" }],
+                    rows: [...(ins.retakes || [])].sort((a, b) => b.rounds - a.rounds),
+                };
+            }
+            if (kind === "recommendations") {
+                const rows = (ins.recommendations || []).map((r) => ({ ...r, state: r.resolved ? "Done" : "Open" }));
+                const open = rows.filter((r) => !r.resolved).length;
+                return {
+                    title: "Recommendations given", sub: `${rows.length} given · ${open} still open. Newest first.`,
+                    columns: [{ key: "when", label: "When" }, { key: "lesson", label: "Lesson to review" },
+                              { key: "reason", label: "Why" }, { key: "state", label: "Done?", badge: true }],
+                    rows,
+                };
+            }
+            const rows = (learner.leave_log || []).map((r) => ({ ...r, away: `${Number(r.away_seconds)} s` }));
+            const forfeits = rows.filter((r) => r.action !== "Warning").length;
+            return {
+                title: "Left the page", sub: `${rows.length} time${rows.length === 1 ? "" : "s"} · ${forfeits} forfeited. Newest first.`,
+                note: "The system cannot see where the learner went, a second device, or a window read side by side without clicking it.",
+                columns: [{ key: "left_at", label: "When" }, { key: "where", label: "Where" }, { key: "context", label: "Type" },
+                          { key: "leave_no", label: "Leave #" }, { key: "action", label: "What happened" },
+                          { key: "reason", label: "How" }, { key: "away", label: "Away" }],
+                rows,
+            };
         }
 
-        function effortHtml(ins) {
-            const retakes = ins.retakes && ins.retakes.length
-                ? `<table class="progress-detail-table"><thead><tr><th>Activity</th><th>Retake rounds</th><th>Finished</th><th>Last</th></tr></thead>
-                   <tbody>${ins.retakes.map((r) => `<tr><td>${escapeHtml(r.activity)}</td><td>${Number(r.rounds)}</td><td>${Number(r.done)}</td><td>${escapeHtml(r.last)}</td></tr>`).join("")}</tbody></table>`
-                : `<p class="progress-detail-empty">No retakes.</p>`;
-            const recs = ins.recommendations && ins.recommendations.length
-                ? `<table class="progress-detail-table"><thead><tr><th>When</th><th>Lesson to review</th><th>Why</th><th>Done?</th></tr></thead>
-                   <tbody>${ins.recommendations.map((r) => `<tr><td>${escapeHtml(r.when)}</td><td>${escapeHtml(r.lesson)}</td><td>${escapeHtml(r.reason)}</td><td>${r.resolved ? badge("badge-active", "Done") : badge("badge-inactive", "Open")}</td></tr>`).join("")}</tbody></table>`
-                : `<p class="progress-detail-empty">No recommendations given yet.</p>`;
-            return `
-                <div class="lp-effort-facts">
-                    <span><strong>${Number(ins.retake_total || 0)}</strong> retake round${ins.retake_total === 1 ? "" : "s"}</span>
-                    <span title="Time spent on timed activity questions. Video and reading time aren't recorded."><strong>${Number(ins.activity_minutes || 0)} min</strong> in activities</span>
-                    <span><strong>${(ins.recommendations || []).length}</strong> recommendation${(ins.recommendations || []).length === 1 ? "" : "s"} given</span>
-                </div>
-                <h5>Retakes</h5>${retakes}
-                <h5>Recommendations given</h5>${recs}`;
+        function stateBadge(value) {
+            return value === "Done" ? badge("badge-active", "Done") : badge("badge-inactive", value);
         }
 
-        // feat/leave-detection: each time the learner left a game / exercise page.
-        function leavesHtml(rows) {
-            if (!rows.length) return '<p class="progress-detail-empty">This learner never left an activity page during a play.</p>';
-            return `<table class="table progress-lesson-table">
-                <thead><tr><th>When</th><th>Where</th><th>Leave #</th><th>What happened</th><th>How</th><th>Away</th></tr></thead>
-                <tbody>${rows.map((r) => `<tr>
-                    <td>${escapeHtml(r.left_at)}</td>
-                    <td>${escapeHtml(r.where)} <small class="text-muted">${escapeHtml(r.context)}</small></td>
-                    <td>${Number(r.leave_no)}</td>
-                    <td>${escapeHtml(r.action)}</td>
-                    <td>${escapeHtml(r.reason)}</td>
-                    <td>${Number(r.away_seconds)} s</td>
-                </tr>`).join("")}</tbody>
-            </table>
-            <p class="progress-detail-empty">The system cannot see where the learner went, a second device, or a window read side by side without clicking it.</p>`;
+        function chips(items, empty) {
+            return items.length
+                ? items.map((m) => `<span class="lc-chip">${escapeHtml(m.name)} ${scoreHtml(m.avg)}</span>`).join("")
+                : `<span class="lc-none">${escapeHtml(empty)}</span>`;
+        }
+
+        function previewHtml(kind, data) {
+            const rows = data.rows;
+            if (kind === "topics") {
+                const modules = rows.filter((r) => r.kind === "Module");
+                if (!rows.length) return `<p class="lc-none">No finished lesson yet.</p>`;
+                const weak = modules.filter((m) => m.verdict === "Weak").reverse().slice(0, PREVIEW_ROWS);
+                const strong = modules.filter((m) => m.verdict === "Strong").slice(0, PREVIEW_ROWS);
+                const types = rows.filter((r) => r.kind === "Activity type");
+                return `<div class="lc-line"><span class="lc-label">Weak</span>${chips(weak, "None - nice!")}</div>
+                        <div class="lc-line"><span class="lc-label">Strong</span>${chips(strong, "None yet")}</div>
+                        ${types.length ? `<div class="lc-line"><span class="lc-label">By type</span>${chips(types, "")}</div>` : ""}`;
+            }
+            if (!rows.length) {
+                return `<p class="lc-none">${{ retakes: "No retakes.", recommendations: "No recommendations given yet.",
+                    leaves: "Never left an activity page during a play." }[kind]}</p>`;
+            }
+            const head = `<p class="lc-count">${escapeHtml(data.sub.replace(/,? (Newest first|most first)\.$/, ""))}</p>`;
+            const top = rows.slice(0, PREVIEW_ROWS);
+            let items = "";
+            if (kind === "retakes") {
+                items = top.map((r) => `<li><span class="lc-main">${escapeHtml(r.activity)}</span><span class="lc-side">${Number(r.rounds)} round${r.rounds === 1 ? "" : "s"}</span></li>`).join("");
+            } else if (kind === "recommendations") {
+                items = top.map((r) => `<li><span class="lc-main">${escapeHtml(r.lesson)}<small>${escapeHtml(r.reason)}</small></span><span class="lc-side">${stateBadge(r.state)}</span></li>`).join("");
+            } else {
+                items = top.map((r) => `<li><span class="lc-main">${escapeHtml(r.where)}<small>${escapeHtml(r.left_at)} · ${escapeHtml(r.reason)}</small></span><span class="lc-side">${escapeHtml(r.action)}</span></li>`).join("");
+            }
+            return `${head}<ul class="lc-list">${items}</ul>`;
+        }
+
+        function fillSignals(learner) {
+            Object.keys(signalBodies).forEach((kind) => {
+                const body = signalBodies[kind];
+                if (!body) return;
+                const data = signalData(kind, learner);
+                body.innerHTML = previewHtml(kind, data);
+                const btn = modal.querySelector(`.lc-view-all[data-signal="${kind}"]`);
+                let shown = Math.min(data.rows.length, PREVIEW_ROWS);
+                if (kind === "topics") {   // up to 3 weak + 3 strong modules, every activity type
+                    const modules = data.rows.filter((r) => r.kind === "Module");
+                    shown = Math.min(modules.filter((m) => m.verdict === "Weak").length, PREVIEW_ROWS)
+                        + Math.min(modules.filter((m) => m.verdict === "Strong").length, PREVIEW_ROWS)
+                        + data.rows.filter((r) => r.kind === "Activity type").length;
+                }
+                if (btn) {
+                    btn.hidden = data.rows.length <= shown || data.rows.length === 0;
+                    btn.textContent = `View all (${data.rows.length})`;
+                }
+            });
+        }
+
+        // ---------- the "View all" window ----------
+        function cellText(col, row) {
+            const v = row[col.key];
+            if (v === null || v === undefined || v === "") return "";
+            return col.score ? `${v}%` : String(v);
+        }
+
+        function renderSignal() {
+            if (!openSignal) return;
+            const { columns, rows } = openSignal;
+            const term = (signalSearch.value || "").trim().toLowerCase();
+            const shown = term ? rows.filter((r) => columns.map((c) => cellText(c, r)).join(" ").toLowerCase().includes(term)) : rows;
+            signalContent.innerHTML = `<div class="lc-signal-table-wrap"><table class="progress-detail-table lc-signal-table">
+                <thead><tr>${columns.map((c) => `<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>
+                <tbody>${shown.length ? shown.map((r) => `<tr>${columns.map((c) => {
+                    const v = r[c.key];
+                    if (c.score) return `<td>${scoreHtml(v)}</td>`;
+                    if (c.badge) return `<td>${stateBadge(v)}</td>`;
+                    return `<td>${escapeHtml(v === null || v === undefined || v === "" ? "—" : v)}</td>`;
+                }).join("")}</tr>`).join("")
+                : `<tr><td colspan="${columns.length}" class="text-muted">Nothing matches this search.</td></tr>`}</tbody>
+            </table></div><p class="lc-shown">${shown.length} of ${rows.length} shown</p>`;
+        }
+
+        function openSignalModal(kind) {
+            if (!currentLearner || !signalModal) return;
+            openSignal = { kind, ...signalData(kind, currentLearner) };
+            signalTitle.textContent = `${openSignal.title} - ${currentLearner.name || currentLearner.acc_id}`;
+            signalSub.textContent = openSignal.sub;
+            signalNote.textContent = openSignal.note || "";
+            signalNote.hidden = !openSignal.note;
+            signalSearch.value = "";
+            renderSignal();
+            signalModal.classList.remove("modal-hidden");
+            signalSearch.focus();
+        }
+
+        function closeSignal() {
+            if (!signalModal || signalModal.classList.contains("modal-hidden")) return false;
+            signalModal.classList.add("modal-hidden");
+            const btn = openSignal && modal.querySelector(`.lc-view-all[data-signal="${openSignal.kind}"]`);
+            openSignal = null;
+            if (btn && !btn.hidden) btn.focus();
+            return true;
+        }
+
+        modal.addEventListener("click", (e) => {
+            const btn = e.target.closest(".lc-view-all");
+            if (btn) openSignalModal(btn.dataset.signal);
+        });
+        if (signalModal) {
+            signalSearch.addEventListener("input", renderSignal);
+            signalClose.addEventListener("click", closeSignal);
+            signalModal.addEventListener("click", (e) => { if (e.target === signalModal) closeSignal(); });
+            signalExport.addEventListener("click", () => {
+                if (!openSignal || !currentLearner) return;
+                const { columns, rows } = openSignal;
+                const name = `${openSignal.kind}-${currentLearner.acc_id}-${new Date().toISOString().slice(0, 10)}.csv`;
+                const plain = rows.map((r) => Object.fromEntries(columns.map((c) => [c.key, cellText(c, r)])));
+                if (Ins && Ins.downloadCsv) {
+                    Ins.downloadCsv(name, columns, plain);
+                    return;
+                }
+                const cell = (v) => { let t = String(v ?? ""); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+                const csv = [columns.map((c) => cell(c.label)).join(",")].concat(plain.map((r) => columns.map((c) => cell(r[c.key])).join(","))).join("\r\n");
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+                link.download = name;
+                document.body.appendChild(link); link.click();
+                setTimeout(() => { URL.revokeObjectURL(link.href); link.remove(); }, 0);
+            });
         }
 
         async function openModal(accId) {
@@ -386,6 +539,7 @@
 
         function closeModal() {
             if (modal.classList.contains("modal-hidden")) return false;
+            closeSignal();
             modalRequestId++;
             modal.classList.add("modal-hidden");
             if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
@@ -412,7 +566,9 @@
         // open; if THIS one closes, mark the Escape as used so a modal
         // underneath it (e.g. Account Details) stays open.
         document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && !e.defaultPrevented && closeModal()) e.preventDefault();
+            if (e.key !== "Escape" || e.defaultPrevented) return;
+            if (closeSignal()) { e.preventDefault(); return; }   // "View all" first, then this one
+            if (closeModal()) e.preventDefault();
         });
 
         window.CobraLearnerCourseModal = { open: openModal };

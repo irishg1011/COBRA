@@ -56,25 +56,71 @@
                 <p class="progress-detail-empty" id="learnerCourseChartEmpty"></p>
             </section>
 
+            {# Learning signals: four small cards, each with a short preview +
+               "View all" (opens #learnerSignalModal on top - full table, search, CSV) #}
             <section class="progress-detail-section">
-                <h4><i class="fa-solid fa-scale-balanced"></i> Strong &amp; weak topics <span class="lp-info" tabindex="0" role="note" data-tip="Modules: the average of the finished lessons in each module (strong = pass mark or more). Activity types: first-try % over every finished activity of that type.">i</span></h4>
-                <div id="learnerCourseTopics" class="lp-topics"></div>
-            </section>
-
-            <section class="progress-detail-section">
-                <h4><i class="fa-solid fa-rotate"></i> Retakes, time &amp; recommendations</h4>
-                <div id="learnerCourseEffort"></div>
-            </section>
-
-            <section class="progress-detail-section">
-                <h4><i class="fa-solid fa-person-walking-arrow-right"></i> Left the Page</h4>
-                <div id="learnerCourseLeaves" class="course-leaves"></div>
+                <h4><i class="fa-solid fa-signal"></i> Learning signals</h4>
+                <div class="lc-signals">
+                    <div class="lc-signal" id="lcTopicsCard">
+                        <div class="lc-signal-head">
+                            <h5><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Topics <span class="lp-info" tabindex="0" role="note" data-tip="Modules: the average of the finished lessons in each module (strong = pass mark or more). Activity types: first-try % over every finished activity of that type.">i</span></h5>
+                            <button type="button" class="lc-view-all" data-signal="topics" hidden>View all</button>
+                        </div>
+                        <div class="lc-signal-body" id="lcTopicsBody"></div>
+                    </div>
+                    <div class="lc-signal" id="lcRetakesCard">
+                        <div class="lc-signal-head">
+                            <h5><i class="fa-solid fa-rotate" aria-hidden="true"></i> Retakes</h5>
+                            <button type="button" class="lc-view-all" data-signal="retakes" hidden>View all</button>
+                        </div>
+                        <div class="lc-signal-body" id="lcRetakesBody"></div>
+                    </div>
+                    <div class="lc-signal" id="lcRecsCard">
+                        <div class="lc-signal-head">
+                            <h5><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> Recommendations</h5>
+                            <button type="button" class="lc-view-all" data-signal="recommendations" hidden>View all</button>
+                        </div>
+                        <div class="lc-signal-body" id="lcRecsBody"></div>
+                    </div>
+                    <div class="lc-signal" id="lcLeavesCard">
+                        <div class="lc-signal-head">
+                            <h5><i class="fa-solid fa-person-walking-arrow-right" aria-hidden="true"></i> Left the page <span class="lp-info" tabindex="0" role="note" data-tip="Each time the learner left an activity or exercise page during a play. The system cannot see where they went, a second device, or a window read side by side without clicking it.">i</span></h5>
+                            <button type="button" class="lc-view-all" data-signal="leaves" hidden>View all</button>
+                        </div>
+                        <div class="lc-signal-body" id="learnerCourseLeaves"></div>
+                    </div>
+                </div>
             </section>
 
             <section class="progress-detail-section">
                 <h4><i class="fa-solid fa-sitemap"></i> Course Breakdown</h4>
                 <div id="learnerCourseChapters" class="course-breakdown"></div>
             </section>
+        </div>
+    </div>
+</div>
+
+<!-- "View all" of one Learning signal: the full table on top of Course
+     Progress, with search + CSV. Filled by admin-learner-course-modal.js. -->
+<div id="learnerSignalModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="learnerSignalTitle">
+    <div class="progress-detail-card lc-signal-dialog">
+        <div class="progress-detail-header">
+            <div>
+                <h3 id="learnerSignalTitle">—</h3>
+                <p class="progress-detail-subtitle" id="learnerSignalSub"></p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="closeLearnerSignalBtn" title="Back to Course Progress" aria-label="Close">&times;</button>
+        </div>
+        <div class="progress-detail-body">
+            <div class="lc-signal-toolbar">
+                <div class="header-search search-override lc-signal-search">
+                    <span class="mask-icon icon-search search-icon"></span>
+                    <input type="text" id="learnerSignalSearch" placeholder="Search this list..." aria-label="Search this list">
+                </div>
+                <button type="button" class="btn-pill-light lc-signal-export" id="learnerSignalExport"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> Export CSV</button>
+            </div>
+            <div id="learnerSignalContent"></div>
+            <p class="lc-signal-note" id="learnerSignalNote"></p>
         </div>
     </div>
 </div>

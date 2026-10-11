@@ -273,3 +273,64 @@ th .lp-info::after { top: calc(100% + 6px); }
     .lp-funnel-step { grid-template-columns: 90px 1fr 70px; }
     .lp-info::after { max-width: 200px; }
 }
+
+/* ---------- Course Progress: Learning signals (4 cards + "View all") ---------- */
+.lc-signals {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.lc-signal {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #fff;
+    min-width: 0;
+}
+.lc-signal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.lc-signal-head h5 { margin: 0; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+.lc-signal-head h5 > i { color: #0284c7; }
+.lc-view-all {
+    border: 0;
+    background: none;
+    color: #0284c7;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 4px;
+    white-space: nowrap;
+}
+.lc-view-all:hover, .lc-view-all:focus-visible { text-decoration: underline; outline: none; }
+.lc-count { margin: 0 0 6px; font-size: 12.5px; color: #374151; font-weight: 600; }
+.lc-none { margin: 0; font-size: 12.5px; color: #6b7280; }
+.lc-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 12.5px; }
+.lc-label { min-width: 52px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: #6b7280; }
+.lc-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border: 1px solid #eef0f3; border-radius: 999px; background: #fafafa; }
+.lc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lc-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12.5px; padding-bottom: 6px; border-bottom: 1px solid #f3f4f6; }
+.lc-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.lc-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lc-main small { display: block; font-size: 11px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-side { flex-shrink: 0; font-size: 11.5px; color: #4b5563; white-space: nowrap; }
+
+.progress-detail-card.lc-signal-dialog { max-width: 900px; }
+.lc-signal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.lc-signal-search { flex: 1 1 240px; max-width: 360px; }
+.lc-signal-export { font-size: 13px; padding: 7px 14px; cursor: pointer; }
+.lc-signal-table-wrap { max-height: 58vh; overflow: auto; border: 1px solid #eef0f3; border-radius: 8px; }
+.lc-signal-table { width: 100%; margin: 0; }
+.lc-signal-table thead th { position: sticky; top: 0; z-index: 1; background: #f3f4f6; }
+.lc-signal-table td { font-size: 13px; vertical-align: top; }
+.lc-shown { margin: 6px 0 0; font-size: 12px; color: #6b7280; }
+.lc-signal-note { margin: 8px 0 0; font-size: 12px; color: #6b7280; }
+
+@media (max-width: 760px) {
+    .lc-signals { grid-template-columns: 1fr; }
+}
