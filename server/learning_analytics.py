@@ -664,6 +664,9 @@ def _cards(ctx, per_learner):
                      "label": "Finished the course"},
         "study_time": {**_compare(per_now, per_prev), "label": "Study time per active learner",
                        "unit": "min"},
+        # feat/dashboard-reports: the Dashboard's "Lessons finished this week"
+        "lessons_finished": {**_compare(len(ctx["finished"]), len(prev_finished) if has_prev else None),
+                             "label": "Lessons finished"},
     }
 
 
@@ -763,7 +766,7 @@ def _insights(data):
 # What is behind a card / bar / point (the list modal)
 # ------------------------------------------------------------------
 _LEARNER = {"key": "learner", "label": "Learner", "type": "learner"}
-DETAIL_KINDS = ("learners", "active", "inactive", "avg_score", "finished",
+DETAIL_KINDS = ("learners", "active", "inactive", "avg_score", "finished", "lessons",
                 "module", "band", "funnel", "day", "hour", "question")
 
 
@@ -895,6 +898,19 @@ def _details(ctx, kind, key):
                 "sections": [{"columns": [_LEARNER, {"key": "finished_at", "label": "Finished", "type": "text"},
                                           {"key": "avg_score", "label": "Avg score", "type": "score"}],
                               "rows": rows}]}
+
+    if kind == "lessons":
+        titles = _lesson_titles(ctx)
+        rows = sorted(ctx["finished"], key=lambda p: p[0].get("completed_at") or datetime.min, reverse=True)
+        return {"title": "Lessons finished", "subtitle": f"Every lesson finished in {period}, newest first.",
+                "sections": [{"columns": [{"key": "when", "label": "Finished", "type": "text"}, _LEARNER,
+                                          {"key": "lesson", "label": "Lesson", "type": "text"},
+                                          {"key": "avg_score", "label": "Score", "type": "score"}],
+                              "rows": [{"when": fmt_datetime(r.get("completed_at")),
+                                        "learner": {"acc_id": ev["acc_id"], "name": learners[ev["acc_id"]]["name"]},
+                                        "lesson": titles.get(r["resource_id"], "—"), "avg_score": ev["score"],
+                                        "_open": {"type": "record", "id": ev["progress_id"]}}
+                                       for r, ev in rows]}]}
 
     if kind == "band":
         bands = {label: (low, high) for label, low, high in SCORE_BANDS}
