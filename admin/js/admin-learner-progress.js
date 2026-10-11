@@ -7,10 +7,13 @@
  *    Started + Completed date ranges, pagination - live, no reload
  *    (/admin/learner-progress/data). Status and the dates decide which
  *    learner records are counted. Metric cards refresh every fetch.
- * 2. Eye button: the lesson's learners (#lessonLearnersModal,
- *    /admin/learner-progress/lessons/<resource_id>, same Status / dates).
- *    Each learner's eye opens the shared Lesson Progress modal on top
- *    (admin-lesson-progress-modal.js - also used by the By Learner page).
+ * 2. Eye button: the lesson's modal (admin-lesson-learners-modal.js -
+ *    CobraLessonModal), with the same Status / dates.
+ * feat/learner-progress-insights: rows show started -> finished, avg
+ * score (green / yellow / red), pass rate, hardest part and "stuck at";
+ * the metric cards open lists (admin-progress-cards.js); Chapter /
+ * Module / Status are remembered (CobraInsights.memory). The first rows
+ * come from #lpInitial (rendered with the page), not a second request.
  */
 (function () {
     "use strict";
@@ -44,8 +47,10 @@
             total_records: document.getElementById("metricTotalRecords"),
             average_score: document.getElementById("metricAverageScore"),
             completed_100: document.getElementById("metricCompleted100"),
-            below_80: document.getElementById("metricBelow80"),
         };
+        const mostCompletedEl = document.getElementById("metricMostCompleted");
+        const mostCompletedSubEl = document.getElementById("metricMostCompletedSub");
+        const I = window.CobraInsights;
 
         if (!tableBody) return;
 
@@ -59,29 +64,6 @@
             const div = document.createElement("div");
             div.textContent = str == null ? "" : String(str);
             return div.innerHTML;
-        }
-
-        function scoreBadgeHtml(score) {
-            if (score === null || score === undefined) {
-                return `<span class="progress-no-score">—</span>`;
-            }
-            return `<span class="badge ${CobraScore.badgeClass(score)}">${escapeHtml(score)}%</span>`;
-        }
-
-        function completionHtml(pct) {
-            const value = Number(pct) || 0;
-            return `
-                <div class="completion-cell">
-                    <progress class="completion-bar" value="${value}" max="100" aria-label="Completion ${value}%"></progress>
-                    <span class="completion-pct">${value}%</span>
-                </div>
-            `;
-        }
-
-        function completeAtHtml(rec) {
-            return rec.is_completed
-                ? escapeHtml(rec.completed_at)
-                : `<span class="progress-in-progress">In progress</span>`;
         }
 
         function showDateError(message) {
@@ -175,15 +157,18 @@
 
             tableBody.innerHTML = lessons.map((l) => `
                 <tr data-resource-id="${escapeHtml(l.resource_id)}">
-                    <td><strong class="table-item-title cell-truncate">${escapeHtml(l.lesson)}</strong></td>
-                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(l.module)}</span></td>
-                    <td class="text-muted"><span class="cell-truncate cell-truncate--sm">${escapeHtml(l.chapter)}</span></td>
-                    <td>${escapeHtml(l.learners)}</td>
-                    <td>${scoreBadgeHtml(l.avg_score)}</td>
-                    <td>${escapeHtml(l.completed)}/${escapeHtml(l.learners)} learner${l.learners === 1 ? "" : "s"}</td>
+                    <td>
+                        <strong class="table-item-title cell-truncate">${escapeHtml(l.lesson)}</strong>
+                        <small class="lp-path cell-truncate">${escapeHtml(l.chapter)} › ${escapeHtml(l.module)}</small>
+                    </td>
+                    <td>${I.barHtml(l.completed, l.learners, `${l.learners} started · ${l.completed} finished`)}</td>
+                    <td>${I.scoreHtml(l.avg_score)}</td>
+                    <td>${l.pass_rate === null || l.pass_rate === undefined ? '<span class="progress-no-score">—</span>' : `<span title="${escapeHtml(`${l.passed} of ${l.completed} finished learners passed`)}">${escapeHtml(l.pass_rate)}%</span>`}</td>
+                    <td>${l.hardest ? `<span class="lp-hardest">${escapeHtml(l.hardest.type)}</span> ${I.scoreHtml(l.hardest.percent)}` : '<span class="progress-no-score">—</span>'}</td>
+                    <td>${l.stuck_at ? `${escapeHtml(l.stuck_at.step)} <small class="text-muted">(${escapeHtml(l.stuck_at.count)})</small>` : '<span class="progress-no-score">—</span>'}</td>
                     <td>${escapeHtml(l.last_activity)}</td>
                     <td>
-                        <button type="button" class="icon-button-reset progress-view-btn js-view-lesson-btn" data-resource-id="${escapeHtml(l.resource_id)}" title="View learners" aria-label="View learners of ${escapeHtml(l.lesson)}">
+                        <button type="button" class="icon-button-reset progress-view-btn js-view-lesson-btn" data-resource-id="${escapeHtml(l.resource_id)}" title="Open this lesson" aria-label="Open ${escapeHtml(l.lesson)}">
                             <span class="mask-icon icon-eye"></span>
                         </button>
                     </td>
@@ -191,15 +176,26 @@
             `).join("");
         }
 
+        function setText(el, text) {
+            if (el && el.textContent !== String(text)) el.textContent = text;
+        }
+
         function updateMetrics(metrics) {
             if (!metrics) return;
             Object.keys(metricEls).forEach((key) => {
                 // Only written when it changed (the live refresh calls this every 10 s).
-                if (metricEls[key] && metrics[key] !== undefined && metricEls[key].textContent !== String(metrics[key])) {
-                    metricEls[key].textContent = metrics[key];
-                }
-                if (key === "average_score") CobraScore.apply(metricEls[key], metrics[key]);
+                if (metrics[key] !== undefined) setText(metricEls[key], metrics[key]);
             });
+            const avgEl = metricEls.average_score;
+            if (avgEl) {
+                const cls = `lp-text-${metrics.average_band || "none"}`;
+                if (!avgEl.classList.contains(cls)) {
+                    avgEl.className = avgEl.className.replace(/\blp-text-\w+/g, "").trim() + " " + cls;
+                }
+            }
+            const top = metrics.most_completed;
+            setText(mostCompletedEl, top ? top.lesson : "—");
+            setText(mostCompletedSubEl, top ? `${top.finished} finished · Top 10 →` : "Top 10 →");
         }
 
         function updatePagination(countOnPage, total, page, pages) {
@@ -238,21 +234,26 @@
             }
         }
 
+        function remember() {
+            I.rememberFilters(chapterSelect, moduleSelect, statusSelect);
+        }
+
         function scheduleFetch(page = 1) {
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => fetchLessons(page), DEBOUNCE_MS);
         }
 
         if (searchInput) searchInput.addEventListener("input", () => scheduleFetch(1));
-        if (statusSelect) statusSelect.addEventListener("change", () => fetchLessons(1));
+        if (statusSelect) statusSelect.addEventListener("change", () => { remember(); fetchLessons(1); });
 
         if (chapterSelect) {
             chapterSelect.addEventListener("change", () => {
                 rebuildModules(chapterSelect.value, "");
+                remember();
                 fetchLessons(1);
             });
         }
-        if (moduleSelect) moduleSelect.addEventListener("change", () => fetchLessons(1));
+        if (moduleSelect) moduleSelect.addEventListener("change", () => { remember(); fetchLessons(1); });
         if (sortSelect) sortSelect.addEventListener("change", () => fetchLessons(1));
 
         [startedFromInput, startedToInput, completedFromInput, completedToInput].forEach((input) => {
@@ -306,124 +307,35 @@
         }
 
         // ============================================================
-        // 2. LESSON MODAL - every learner of one lesson
+        // 2. FIRST ROWS, REMEMBERED FILTERS, LESSON MODAL, CARDS
         // ============================================================
-        const modal = document.getElementById("lessonLearnersModal");
-        const modalTitle = document.getElementById("lessonLearnersTitle");
-        const modalPath = document.getElementById("lessonLearnersPath");
-        const modalNote = document.getElementById("lessonLearnersNote");
-        const modalError = document.getElementById("lessonLearnersError");
-        const modalBody = document.getElementById("lessonLearnersTableBody");
-        const modalCloseBtn = document.getElementById("closeLessonLearnersBtn");
-        let modalRequestId = 0;
-        let lastFocused = null;
-
-        function modalMessage(text) {
-            if (modalBody) modalBody.innerHTML = `<tr><td colspan="7" class="text-muted table-empty-message">${escapeHtml(text)}</td></tr>`;
+        const initial = I.readJson("lpInitial", null);
+        if (I.restoreFilters(chapterSelect, moduleSelect, statusSelect, rebuildModules)) {
+            fetchLessons(1);
+        } else if (initial) {
+            renderRows(initial.lessons || []);
+            if (window.CobraLive) CobraLive.changed("lesson-progress-rows", initial.lessons || []);
+            updateMetrics(initial.metrics);
         }
 
-        function setModalError(message) {
-            if (!modalError) return;
-            modalError.textContent = message || "";
-            modalError.classList.toggle("is-visible", !!message);
-        }
-
-        function fillModal(data) {
-            if (modalTitle) modalTitle.textContent = data.lesson;
-            if (modalPath) modalPath.textContent = `${data.chapter} › ${data.module}`;
-            const records = data.records || [];
-            if (modalNote) {
-                modalNote.textContent = `${records.length} learner${records.length === 1 ? "" : "s"}` +
-                    (statusSelect && statusSelect.value ? " (matching the Status filter)" : "");
-            }
-            if (!records.length) {
-                modalMessage("No learner records for this lesson with the current filters.");
-                return;
-            }
-            modalBody.innerHTML = records.map((rec) => `
-                <tr>
-                    <td>${escapeHtml(rec.acc_id)}</td>
-                    <td><div class="profile-cell">${window.CobraPresence ? CobraPresence.avatar(rec.acc_id, window.CobraAvatar.html(rec.avatar_url)) : window.CobraAvatar.html(rec.avatar_url)}<span>${escapeHtml(rec.name)}</span></div></td>
-                    <td>${scoreBadgeHtml(rec.score)}</td>
-                    <td>${completionHtml(rec.completion)}</td>
-                    <td>${escapeHtml(rec.started_at)}</td>
-                    <td>${completeAtHtml(rec)}</td>
-                    <td>
-                        <button type="button" class="icon-button-reset progress-view-btn js-view-progress-btn" data-progress-id="${escapeHtml(rec.progress_id)}" title="View details" aria-label="View details for ${escapeHtml(rec.acc_id)}">
-                            <span class="mask-icon icon-eye"></span>
-                        </button>
-                    </td>
-                </tr>
-            `).join("");
-        }
-
-        async function openLesson(resourceId) {
-            if (!modal) return;
-            const requestId = ++modalRequestId;
-            lastFocused = document.activeElement;
-            setModalError("");
-            if (modalTitle) modalTitle.textContent = "Loading…";
-            if (modalPath) modalPath.textContent = "";
-            if (modalNote) modalNote.textContent = "";
-            modalMessage("Loading…");
-            modal.classList.remove("modal-hidden");
-            if (modalCloseBtn) modalCloseBtn.focus();
-
-            const params = new URLSearchParams();
-            const filters = recordFilters();
-            Object.keys(filters).forEach((key) => { if (filters[key]) params.set(key, filters[key]); });
-
-            try {
-                const response = await fetch(`/admin/learner-progress/lessons/${encodeURIComponent(resourceId)}?${params.toString()}`, {
-                    headers: { "X-Requested-With": "XMLHttpRequest" },
-                    credentials: "include",
-                });
-                const data = await response.json();
-                if (requestId !== modalRequestId) return;
-                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
-                fillModal(data);
-            } catch (err) {
-                if (requestId !== modalRequestId) return;
-                if (modalTitle) modalTitle.textContent = "Lesson";
-                modalMessage("");
-                setModalError("Could not load this lesson's learners. Please close and try again.");
-                console.error("admin-learner-progress: failed to load lesson learners:", err);
-            }
-        }
-
-        function closeModal() {
-            if (!modal || modal.classList.contains("modal-hidden")) return false;
-            modalRequestId++;
-            modal.classList.add("modal-hidden");
-            if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
-            return true;
-        }
-
+        if (window.CobraLessonModal) CobraLessonModal.setFilters(recordFilters);
         tableBody.addEventListener("click", (e) => {
             const btn = e.target.closest(".js-view-lesson-btn");
-            if (btn) openLesson(btn.dataset.resourceId);
+            if (btn && window.CobraLessonModal) CobraLessonModal.open(btn.dataset.resourceId);
         });
 
-        // A learner's eye -> shared Lesson Progress modal, on top of this one
-        if (modalBody) {
-            modalBody.addEventListener("click", (e) => {
-                const btn = e.target.closest(".js-view-progress-btn");
-                if (btn && window.CobraLessonProgressModal) {
-                    window.CobraLessonProgressModal.open(btn.dataset.progressId);
-                }
+        // Cards follow the page's filters, never Status.
+        if (window.CobraProgressCards) {
+            CobraProgressCards.init({
+                view: "lessons",
+                params: () => {
+                    const params = buildParams(1);
+                    params.delete("status");
+                    params.delete("page");
+                    params.delete("sort");
+                    return params;
+                },
             });
         }
-
-        if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeModal);
-        if (modal) {
-            modal.addEventListener("click", (e) => {
-                if (e.target === modal) closeModal();
-            });
-        }
-        // If the Lesson Progress modal on top just used this Escape, leave
-        // this one open (it marks the event with preventDefault()).
-        document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && !e.defaultPrevented && closeModal()) e.preventDefault();
-        });
     });
 })();

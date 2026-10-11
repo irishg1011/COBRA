@@ -11,6 +11,9 @@
  *     sessions                     who is online now -> Who's online
  *     logins                       today's logins    -> Login Logs (today)
  *     locked                       locked accounts   -> Account & Security (Locked)
+ *   feat/dashboard-reports - the learning cards (same lists as Analytics,
+ *   last 7 days, and Learner Progress; drawn by renderSections):
+ *     active_week / lessons_week / avg_week / needs_attention / finished / not_started
  *
  * The cards are re-rendered every 10 s by admin-dashboard-live.js, so clicks
  * are caught on the document (event delegation). While the modal is open it
@@ -29,6 +32,12 @@
         sessions: "Who's online now",
         logins: "Logins today",
         locked: "Locked accounts",
+        active_week: "Active this week",
+        lessons_week: "Lessons finished this week",
+        avg_week: "Average score this week",
+        needs_attention: "Needs attention",
+        finished: "Finished the course",
+        not_started: "Not started",
     };
     const ROLE_PLURAL = { learners: "learners", mentors: "mentors", admins: "admins" };
 
@@ -177,8 +186,43 @@
             return html;
         }
 
+        // feat/dashboard-reports: {sections: [{title, columns: [{key, label, type}], rows, total}]}
+        function cellHtml(col, value) {
+            const I = window.CobraInsights;
+            if (value === null || value === undefined || value === "") return "—";
+            if (col.type === "learner") {
+                return `<div class="dash-card-name"><strong class="cell-truncate-1">${escapeHtml(value.name)}</strong><small class="text-muted">${escapeHtml(value.acc_id)}</small></div>`;
+            }
+            if (col.type === "score") return I ? I.scoreHtml(value) : `${escapeHtml(value)}%`;
+            if (col.type === "percent") return `${escapeHtml(value)}%`;
+            if (col.type === "status") return I ? I.chipHtml(value) : escapeHtml(value);
+            if (col.type === "reasons") return (value || []).map((r) => `<span class="lp-reason">${escapeHtml(r)}</span>`).join(" ");
+            if (col.type === "bar") return I ? I.barHtml(value.value, value.max) : `${escapeHtml(value.value)} of ${escapeHtml(value.max)}`;
+            return escapeHtml(value);
+        }
+
+        function renderSections(data) {
+            const sections = data.sections || [];
+            subEl.textContent = data.subtitle || "";
+            const I = window.CobraInsights;
+            let html = "";
+            if (data.bands && I) {
+                html += `<div class="dash-card-bands">${["pass", "close", "fail"].map((b) =>
+                    `<span class="lp-band-count lp-band-${b}">${escapeHtml(I.bandText[b].split(" (")[0])}: <strong>${Number(data.bands[b] || 0)}</strong></span>`).join("")}</div>`;
+            }
+            sections.forEach((sec) => {
+                if (sec.title && sections.length > 1) html += `<h4 class="dash-card-section-title">${escapeHtml(sec.title)}</h4>`;
+                if (!sec.rows.length) { html += empty("Nobody here right now."); return; }
+                html += table(sec.columns.map((c) => escapeHtml(c.label)),
+                    sec.rows.map((r) => `<tr>${sec.columns.map((c) => `<td>${cellHtml(c, r[c.key])}</td>`).join("")}</tr>`).join(""));
+                if (sec.total > sec.rows.length) html += `<p class="dash-card-more text-muted">${showing(sec.rows.length, sec.total, "")} - View all for the rest.</p>`;
+            });
+            return html || empty("Nothing to show.");
+        }
+
         function render(kind, data) {
             titleEl.textContent = TITLES[kind];
+            if (data.sections) return renderSections(data);
             if (kind === "sessions") return renderSessions(data);
             if (kind === "logins") return renderLogins(data);
             if (kind === "locked") return renderLocked(data);

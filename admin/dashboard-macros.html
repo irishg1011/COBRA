@@ -1,0 +1,23 @@
+{# dashboard-macros.html - feat/dashboard-reports: the trend line under a card number.
+   change: a number (+ / - / 0) or None; text: what it is compared with. #}
+{% macro trend(change, text, good_when_up=True, unit='') -%}
+{%- if change is none -%}
+<small class="dash-trend dash-trend-none">&ndash; {{ text }}</small>
+{%- else -%}
+{%- set dir = 'up' if change > 0 else ('down' if change < 0 else 'same') -%}
+{%- set good = (dir == 'up') == good_when_up -%}
+<small class="dash-trend dash-trend-{{ dir }} {{ '' if dir == 'same' else ('is-good' if good else 'is-bad') }}">
+    {{ {'up': '▲', 'down': '▼', 'same': '▬'}[dir] }} {{ change|abs }}{{ unit }} {{ text }}</small>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro card(kind, title, value, sub, hint, value_class='') -%}
+<div class="metric-card dash-metric dash-card-link" data-dash-card="{{ kind }}" role="button" tabindex="0" aria-haspopup="dialog" title="{{ hint }}">
+    <div class="metric-info">
+        <span class="metric-title">{{ title }}</span>
+        <h2 class="metric-value {{ value_class }}">{{ value }}</h2>
+        {{ caller() }}
+        <small class="dash-card-sub">{{ sub }}</small>
+    </div>
+</div>
+{%- endmacro %}

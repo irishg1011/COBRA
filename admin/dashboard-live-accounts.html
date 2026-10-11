@@ -1,54 +1,31 @@
 {# dashboard-live-accounts.html - one Dashboard section; included by admin_dashboard.html and
    re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js).
    feat/admin-online: every card opens its modal (dashboard-card-modal.html,
-   admin-dashboard-cards.js) - data-dash-card names which one. #}
+   admin-dashboard-cards.js) - data-dash-card names which one.
+   feat/dashboard-reports: number + trend + what it counts (dashboard-macros.html). #}
+{% from 'dashboard-macros.html' import trend, card %}
 {% if accounts.ok %}
+{% set t = accounts.trends or {} %}
+{% set p = accounts.presence or {} %}
 <div class="metrics-grid dash-metrics-grid dash-metrics-6">
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="learners" role="button" tabindex="0" aria-haspopup="dialog" title="Show the learners list">
-        <div class="metric-info">
-            <span class="metric-title">Learners</span>
-            <h2 class="metric-value">{{ accounts.accounts.learners }}</h2>
-            <small class="dash-card-hint">View list <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
-        </div>
-    </div>
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="mentors" role="button" tabindex="0" aria-haspopup="dialog" title="Show the mentors list">
-        <div class="metric-info">
-            <span class="metric-title">Mentors</span>
-            <h2 class="metric-value">{{ accounts.accounts.mentors }}</h2>
-            <small class="dash-card-hint">View list <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
-        </div>
-    </div>
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="admins" role="button" tabindex="0" aria-haspopup="dialog" title="Show the admins list">
-        <div class="metric-info">
-            <span class="metric-title">Admins</span>
-            <h2 class="metric-value">{{ accounts.accounts.administrators }}</h2>
-            <small class="dash-card-hint">View list <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
-        </div>
-    </div>
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="sessions" role="button" tabindex="0" aria-haspopup="dialog" title="Show who is online now">
-        <div class="metric-info">
-            <span class="metric-title">Active Sessions</span>
-            <h2 class="metric-value">{{ accounts.logins.active_sessions }}</h2>
-            <small class="dash-card-hint">Who's online <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
-        </div>
-    </div>
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="logins" role="button" tabindex="0" aria-haspopup="dialog" title="Show today's logins">
-        <div class="metric-info">
-            <span class="metric-title">Logins Today</span>
-            <h2 class="metric-value">{{ accounts.logins.total_logins_today }}</h2>
-            <small class="dash-metric-sub">
-                <span class="dash-good">{{ accounts.logins.successful_logins }} successful</span> &middot;
-                <span class="dash-bad">{{ accounts.logins.failed_logins }} failed</span>
-            </small>
-        </div>
-    </div>
-    <div class="metric-card dash-metric dash-card-link" data-dash-card="locked" role="button" tabindex="0" aria-haspopup="dialog" title="Show locked accounts">
-        <div class="metric-info">
-            <span class="metric-title">Locked Accounts</span>
-            <h2 class="metric-value dash-bad">{{ accounts.accounts.locked_accounts }}</h2>
-            <small class="dash-card-hint">Who &amp; until when <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
-        </div>
-    </div>
+    {% call card('learners', 'Learners', accounts.accounts.learners, 'Learner accounts', 'Show the learners list') %}
+        {{ trend(t.new_learners, 'new this week') }}
+    {% endcall %}
+    {% call card('mentors', 'Mentors', accounts.accounts.mentors, 'Mentor accounts', 'Show the mentors list') %}
+        {{ trend(t.new_mentors, 'new this week') }}
+    {% endcall %}
+    {% call card('admins', 'Admins', accounts.accounts.administrators, 'Admin accounts', 'Show the admins list') %}
+        {{ trend(t.new_admins, 'new this week') }}
+    {% endcall %}
+    {% call card('sessions', 'Active Sessions', accounts.logins.active_sessions, 'Signed in right now', "Show who is online now") %}
+        <small class="dash-trend dash-trend-none"><span class="dash-good">{{ p.online or 0 }} online</span> &middot; {{ p.idle or 0 }} idle</small>
+    {% endcall %}
+    {% call card('logins', 'Logins Today', accounts.logins.total_logins_today, accounts.logins.successful_logins ~ ' successful · ' ~ accounts.logins.failed_logins ~ ' failed', "Show today's logins") %}
+        {{ trend(t.logins_change if t else none, 'vs yesterday') }}
+    {% endcall %}
+    {% call card('locked', 'Locked Accounts', accounts.accounts.locked_accounts, 'Too many wrong passwords', 'Show locked accounts', 'dash-bad') %}
+        <small class="dash-trend dash-trend-none">{{ t.locks_week or 0 }} lockout{{ '' if (t.locks_week or 0) == 1 else 's' }} this week</small>
+    {% endcall %}
 </div>
 {% else %}
 <p class="dash-section-error dash-section-error-card">Couldn't load account numbers right now.</p>

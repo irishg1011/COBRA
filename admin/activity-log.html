@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Activity Log</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+{# activity-log.html - Admin > System > Activity Log (feat/admin-extras)
+   Who did what, when: every staff change (audit.py) + every sign-in (login_logs_tbl).
+   Filters: person, category, action, dates + search. Read-only. Script: js/admin-activity-log.js #}
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+            <div class="dashboard-content-area">
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Activity Log</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Who did what, and when: content changes, account actions, password resets, unlocks, progress resets and sign-ins. Kept for 12 months.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-toolbar ax-toolbar">
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="actSearch" placeholder="Search item, details, person..." value="{{ filters.q }}">
+                        </div>
+                        <div class="toolbar-filters ax-filters">
+                            <select class="custom-select" id="actActor" aria-label="Person">
+                                <option value="">Everyone</option>
+                                {% for p in people %}
+                                <option value="{{ p.acc_id }}" {{ 'selected' if filters.actor == p.acc_id }}>{{ p.name }} ({{ p.role }})</option>
+                                {% endfor %}
+                            </select>
+                            <select class="custom-select" id="actCategory" aria-label="Category">
+                                <option value="">All categories</option>
+                                {% for c in categories %}
+                                <option value="{{ c.value }}" {{ 'selected' if filters.category == c.value }}>{{ c.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="custom-select" id="actAction" aria-label="Action">
+                                <option value="">All actions</option>
+                                {% for a in actions %}
+                                <option value="{{ a.value }}" {{ 'selected' if filters.action == a.value }}>{{ a.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="ax-date-range" title="Date range">
+                                <input type="date" class="custom-select" id="actFrom" aria-label="From" value="{{ filters.date_from }}">
+                                <span>to</span>
+                                <input type="date" class="custom-select" id="actTo" aria-label="To" value="{{ filters.date_to }}">
+                            </div>
+                            <a href="#" class="btn-pill-light ax-export" id="actExport"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> Export CSV</a>
+                        </div>
+                    </div>
+                    <p class="ax-form-error" id="actError" role="alert"></p>
+
+                    <div class="table-scroll">
+                        <table class="data-table ax-table">
+                            <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th>Who</th>
+                                    <th>Action</th>
+                                    <th>Item</th>
+                                    <th>Details</th>
+                                    <th>IP</th>
+                                </tr>
+                            </thead>
+                            <tbody id="actBody">
+                                {% for r in rows %}
+                                <tr>
+                                    <td class="text-muted ax-nowrap">{{ r.when }}</td>
+                                    <td><strong>{{ r.actor_name }}</strong>{% if r.actor_role %}<small class="ax-sub">{{ r.actor_role }}</small>{% endif %}</td>
+                                    <td><span class="ax-cat ax-cat-{{ r.category }}">{{ r.category_label }}</span> {{ r.label }}</td>
+                                    <td>{{ r.target_name }}{% if r.target_id and r.target_type %}<small class="ax-sub">{{ r.target_type }} #{{ r.target_id }}</small>{% endif %}</td>
+                                    <td class="text-muted ax-details">{{ r.details }}</td>
+                                    <td class="text-muted ax-nowrap">{{ r.ip_address }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="6" class="text-muted table-empty-message">Nothing matches these filters.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-pagination">
+                        <span id="actCount">{{ total }} event{{ 's' if total != 1 }}</span>
+                        <span class="ax-pager">
+                            <button type="button" class="icon-button-reset" id="actPrev" aria-label="Previous page">&lt;</button>
+                            <span id="actPage" data-page="{{ page }}" data-total-pages="{{ total_pages }}">{{ page }} of {{ total_pages }}</span>
+                            <button type="button" class="icon-button-reset" id="actNext" aria-label="Next page">&gt;</button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-activity-log.js') }}"></script>
+</body>
+</html>

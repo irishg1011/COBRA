@@ -98,6 +98,7 @@ ENDPOINT_ROLES = {
     "admin_bp.learner_progress_learners": BOTH,
     "admin_bp.learner_progress_learners_data": BOTH,
     "admin_bp.learner_progress_learner_detail": BOTH,
+    "admin_bp.learner_progress_card": BOTH,      # feat/learner-progress-insights: clickable cards (read-only)
 
     # Online status dots (feat/admin-online) - mentors are answered for
     # learners only (admin_routes.presence)
@@ -126,6 +127,17 @@ ENDPOINT_ROLES = {
     "admin_bp.account_restore": ADMIN,
     "admin_bp.accounts_archived": ADMIN,
     "admin_bp.account_unlock": ADMIN,
+
+    # feat/admin-extras - Activity Log, CSV exports, System Health, read-only Records
+    "admin_bp.activity_log_page": ADMIN,
+    "admin_bp.activity_log_data": ADMIN,
+    "admin_bp.activity_log_export_csv": ADMIN,
+    "admin_bp.accounts_export_csv": ADMIN,
+    "admin_bp.login_logs_export_csv": ADMIN,
+    "admin_bp.system_health_page": ADMIN,
+    "admin_bp.system_health_data": ADMIN,
+    "admin_bp.records_page": ADMIN,      # SELECT only - no editing anywhere
+    "admin_bp.records_data": ADMIN,
 
     # feat/account-tools - progress reset (learners), pending deletion, help requests
     "admin_bp.account_progress_reset_preview": ADMIN,
@@ -158,8 +170,11 @@ ENDPOINT_ROLES = {
 
     "admin_bp.analytics": ADMIN,
     "admin_bp.analytics_data": ADMIN,
+    "admin_bp.analytics_details": ADMIN,   # feat/analytics-insights: list behind a card / chart (read-only)
     "admin_bp.reports": ADMIN,
     "admin_bp.reports_data": ADMIN,
+    "admin_bp.reports_course": ADMIN,         # feat/dashboard-reports: per chapter / module report
+    "admin_bp.reports_certificates": ADMIN,   # feat/dashboard-reports: certificates issued
 
     # Header bell (feat/admin-bell) - the admin's own notifications; mentors have no bell
     "admin_bp.staff_notifications_list": ADMIN,
@@ -171,6 +186,7 @@ ENDPOINT_ROLES = {
     # Mentor only - content and publishing actions
     # ------------------------------------------------------------
     "admin_bp.mentor_dashboard": MENTOR,  # the mentor's home page
+    "admin_bp.mentor_content_insights": MENTOR,  # feat/dashboard-reports: "How your content is doing" (read-only)
 
     # Publishing actions (mark ready, publish, unpublish, checklist, reorder)
     "admin_bp.publishing_item_action": MENTOR,

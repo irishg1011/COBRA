@@ -14,7 +14,7 @@ from login_logs import get_todays_login_metrics  # NEW: today's login/success/fa
 from password_reset_logs import get_password_resets_today_count  # NEW: today's password-reset count for the Login Logs metric cards
 from session_tracker import get_active_session_count, touch_session, end_session as end_active_session  # NEW: live "Active Sessions" tracking
 from lockout_logs import get_lockouts_today_count  # NEW: distinct-per-day "Locked Out Due to Fails" count
-from presence import get_presence, get_online_users, ONLINE_MINUTES, IDLE_MINUTES  # feat/admin-online: Who's online + status dots
+from presence import get_presence, get_online_users, get_all_states, ONLINE_MINUTES, IDLE_MINUTES  # feat/admin-online: Who's online + status dots
 from dashboard_cards import (  # feat/admin-online: clickable Dashboard cards + "Unlock now"
     CARD_LIMIT, get_newest_accounts, get_locked_accounts, unlock_account, seconds_left_text,
 )
@@ -107,7 +107,7 @@ from achievements import (  # feat/mentor-achievements: Mentor > Achievements pa
     BADGE_LIMITS, BADGE_COLOR_SWATCHES,
 )
 from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
-from learning_analytics import get_learning_analytics, empty_analytics  # Admin > Analytics
+from learning_analytics import get_learning_analytics, empty_analytics, get_analytics_details  # Admin > Analytics
 from profile_avatar import get_avatar_url, get_avatar_urls, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo + table photos
 from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
 from staff_password import set_password_after_reset  # feat/account-tools: forced change after an admin reset
@@ -129,6 +129,11 @@ from werkzeug.routing import BuildError
 from score_display import PASS_MARK, score_class, score_badge_class  # one color rule for scores (green >= pass mark, red below)
 from staff_search import search_everything  # feat/staff-search: the header's "Search anything..." box
 from staff_search import PAGES as STAFF_PAGES  # feat/publishing-presence: page names for "On: Publishing"
+from system_health import get_system_health  # feat/admin-extras
+from records import list_tables, browse as browse_records  # feat/admin-extras: read-only Records
+from audit import (  # feat/admin-extras: Activity Log + errors + CSV
+    install_audit_hooks, get_activity, log as audit_log, to_csv, skip_auto_log,
+)
 from staff_presence import heartbeat as presence_heartbeat, leave as presence_leave, get_staff_locations  # feat/publishing-presence
 from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
@@ -151,8 +156,9 @@ from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By
     get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
     get_lesson_learners,
     get_learners_progress_overview, get_learner_course_detail, empty_learners_progress_overview,
-    get_progress_filter_options,
+    get_progress_filter_options, get_progress_card,
 )
+from progress_insights import settings as progress_insight_settings  # feat/learner-progress-insights
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -235,6 +241,9 @@ ROLE_FILTER_MAP = {
 # an empty string / "All Status") is treated as "no status filter".
 VALID_STATUS_FILTERS = {"active", "inactive"}
 LOCKED_STATUS_FILTER = "locked"   # feat/admin-online: Account & Security "Locked" option
+PENDING_STATUS_FILTER = "pending"  # feat/admin-extras: owner asked to delete it (30-day restore)
+ONLINE_FILTERS = {"online", "idle", "offline"}   # feat/admin-extras: Account & Security "Online" filter
+ACCOUNTS_PER_PAGE = 25            # feat/admin-extras: Account & Security table page size
 
 # Maps the Sort dropdown's value to a safe, hardcoded ORDER BY clause.
 # Never build ORDER BY directly from user input - only ever pick one of
@@ -700,7 +709,8 @@ def _fmt_datetime(dt):
     return fmt_datetime(dt, empty="Never")
 
 
-def get_accounts_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
+def get_accounts_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None,
+                          online_filter=None):
     """
     Pulls every non-deleted account from account_tbl, joined against
     profile_tbl (for the display name) and usertype_tbl (for the role
@@ -821,8 +831,11 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
         # Task #17: Status Filter (Active / Inactive)
         # ------------------------------------------------------------
         normalized_status = (status_filter or "").strip().lower()
-        status_applied = normalized_status in VALID_STATUS_FILTERS or normalized_status == LOCKED_STATUS_FILTER
-        if normalized_status == LOCKED_STATUS_FILTER:
+        status_applied = normalized_status in VALID_STATUS_FILTERS or normalized_status in (
+            LOCKED_STATUS_FILTER, PENDING_STATUS_FILTER)
+        if normalized_status == PENDING_STATUS_FILTER:
+            base_query += " AND a.deletion_due_at IS NOT NULL"
+        elif normalized_status == LOCKED_STATUS_FILTER:
             # feat/admin-online: "Locked" = locked RIGHT NOW (same rule as the
             # is_locked badge and the Locked Accounts card).
             base_query += " AND a.lockout_until IS NOT NULL AND a.lockout_until > NOW()"
@@ -869,10 +882,20 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "avatar_url": avatars.get(row["acc_id"]),
             })
 
+        # feat/admin-extras: every row's online state (green / yellow / grey
+        # dot) - for the Online filter and the CSV export. One query.
+        states = get_all_states()
+        for acc in accounts:
+            acc["online"] = states.get(acc["acc_id"], "offline")
+        online_wanted = (online_filter or "").strip().lower()
+        online_applied = online_wanted in ONLINE_FILTERS
+        if online_applied:
+            accounts = [a for a in accounts if a["online"] == online_wanted]
+
         # Metrics should always reflect the FULL registry, not the
         # search/role/status-filtered results, so compute them from an
         # unfiltered pass whenever THIS call itself applied any filter.
-        is_filtered = bool(term) or bool(mapped_role) or status_applied
+        is_filtered = bool(term) or bool(mapped_role) or status_applied or online_applied
         if is_filtered:
             full_overview = get_accounts_overview()
             metrics = full_overview["metrics"] if full_overview else {
@@ -1171,7 +1194,12 @@ def _admin_accounts_section():
         overview = get_accounts_overview()
         if overview is None:
             return None
-        return {"accounts": overview["metrics"], "logins": get_login_logs_metrics()}
+        # feat/dashboard-reports: trends ("+2 this week") + online / idle split
+        from dashboards import account_trends
+        online = get_online_users(limit=1)
+        return {"accounts": overview["metrics"], "logins": get_login_logs_metrics(),
+                "trends": account_trends() or {},
+                "presence": (online or {}).get("counts") or {}}
     return dashboard_section(build)
 
 
@@ -1194,7 +1222,8 @@ def _admin_dashboard_sections():
 
 @admin_bp.route('/dashboard')
 def admin_dashboard():
-    return render_template('admin_dashboard.html', **_admin_dashboard_sections())
+    return render_template('admin_dashboard.html', lp_settings=progress_insight_settings(),
+                           **_admin_dashboard_sections())
 
 
 # Live refresh of the Dashboard (admin-dashboard-live.js, every 10 s): the
@@ -1224,6 +1253,17 @@ DASHBOARD_CARD_ROLE_FILTER = {"learners": "Learner", "mentors": "Mentor", "admin
 
 def _today_ymd():
     return datetime.now().strftime("%Y-%m-%d")
+
+
+# feat/dashboard-reports: learning card -> (source, list kind, "View all" page)
+LEARNING_CARDS = {
+    "active_week": ("analytics", "active", "/admin/analytics?range=7d"),
+    "lessons_week": ("analytics", "lessons", "/admin/learner-progress"),
+    "avg_week": ("analytics", "avg_score", "/admin/analytics?range=7d"),
+    "needs_attention": ("progress", "needs_attention", "/admin/learner-progress/learners"),
+    "finished": ("analytics", "finished", "/admin/learner-progress/learners?status=finished"),
+    "not_started": ("progress", "not_started", "/admin/learner-progress/learners?status=not_started"),
+}
 
 
 @admin_bp.route('/dashboard/cards/<kind>')
@@ -1256,6 +1296,23 @@ def dashboard_card(kind):
             for row in data["rows"]:
                 row["time_left"] = seconds_left_text(row["seconds_left"])
         view_all = url_for('admin_bp.account_security', status="Locked")
+    elif kind in LEARNING_CARDS:
+        # feat/dashboard-reports: the learning cards - the same lists as
+        # Analytics (last 7 days) and Learner Progress, at most CARD_LIMIT rows
+        source, card_kind, view_all = LEARNING_CARDS[kind]
+        if source == "analytics":
+            card = get_analytics_details(card_kind, "all", "7d")
+        else:
+            card = get_progress_card("learners", card_kind)
+        if card is None:
+            data = None
+        else:
+            sections = [{"title": sec.get("title"), "columns": sec["columns"], "total": sec["total"],
+                         "rows": [{k: v for k, v in r.items() if not k.startswith("_")} for r in sec["rows"][:CARD_LIMIT]]}
+                        for sec in card["sections"][:2]]
+            data = {"title": card["title"], "subtitle": card.get("subtitle", ""), "bands": card.get("bands"),
+                    "sections": sections, "total": sections[0]["total"] if sections else 0}
+        view_all = url_for(*view_all) if isinstance(view_all, tuple) else view_all
     else:
         return jsonify({"success": False, "message": "Unknown card."}), 404
 
@@ -1401,7 +1458,23 @@ def presence():
 # ============================================================
 @admin_bp.route('/mentor-dashboard')
 def mentor_dashboard():
-    return render_template('mentor-dashboard.html', **build_mentor_dashboard(session.get("admin_id")))
+    return render_template('mentor-dashboard.html', lp_settings=progress_insight_settings(),
+                           **build_mentor_dashboard(session.get("admin_id")))
+
+
+@admin_bp.route('/mentor-dashboard/content-insights')
+def mentor_content_insights():
+    """
+    feat/dashboard-reports: "How your content is doing" - hardest activity,
+    most-missed questions, content health. ?mine=1 = only this mentor's
+    content (uploaded_by). Read-only, MENTOR only (content_health.py).
+    """
+    from content_health import get_content_insights
+    owner = session.get("admin_id") if request.args.get('mine') == '1' else None
+    data = get_content_insights(owner)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load this right now."}), 500
+    return jsonify({"success": True, **data}), 200
 
 
 @admin_bp.route('/account-security.html')
@@ -1415,10 +1488,9 @@ def account_security():
         "status": request.args.get('status', '').strip(),
         "sort": request.args.get('sort', '').strip(),
     }
-    overview = get_accounts_overview(
-        search_query=filters["q"], role_filter=filters["role"],
-        status_filter=filters["status"], sort_by=filters["sort"],
-    )
+    filters["online"] = request.args.get('online', '').strip()
+    found = _accounts_page(request.args)
+    overview = None if found is None else {"accounts": found["accounts"], "metrics": found["metrics"]}
 
     if overview is None:
         # DB unreachable - render the page with empty state rather than crashing
@@ -1440,6 +1512,10 @@ def account_security():
         accounts=overview["accounts"],
         metrics=overview["metrics"],
         filters=filters,
+        # feat/admin-extras: paging
+        page=found["page"] if found else 1,
+        total_pages=found["total_pages"] if found else 1,
+        total_accounts=found["total"] if found else 0,
     )
 
 
@@ -1469,28 +1545,74 @@ def search_accounts():
     reload, and none of the filter controls' values are touched by the
     caller.
     """
-    term = request.args.get('q', '')
-    role = request.args.get('role', '')
-    status = request.args.get('status', '')
-    sort = request.args.get('sort', '')
-
-    overview = get_accounts_overview(
-        search_query=term,
-        role_filter=role,
-        status_filter=status,
-        sort_by=sort,
-    )
-    if overview is None:
+    found = _accounts_page(request.args)
+    if found is None:
         return jsonify({"success": False, "message": "Could not reach the database.", "accounts": []}), 500
 
     return jsonify({
         "success": True,
-        "accounts": overview["accounts"],
-        "total": len(overview["accounts"]),
+        "accounts": found["accounts"],
+        "total": found["total"],
+        "page": found["page"],
+        "total_pages": found["total_pages"],
+        "per_page": ACCOUNTS_PER_PAGE,
         # feat/archive-accounts: full-registry metric cards, so the page can
         # refresh them after an archive/restore without a reload.
-        "metrics": overview["metrics"],
+        "metrics": found["metrics"],
     }), 200
+
+
+def _account_filters(args):
+    return dict(
+        search_query=args.get('q', ''), role_filter=args.get('role', ''),
+        status_filter=args.get('status', ''), sort_by=args.get('sort', ''),
+        online_filter=args.get('online', ''),
+    )
+
+
+def _accounts_page(args):
+    """feat/admin-extras: one page (ACCOUNTS_PER_PAGE) of the filtered accounts. None on a DB error."""
+    overview = get_accounts_overview(**_account_filters(args))
+    if overview is None:
+        return None
+    accounts = overview["accounts"]
+    total = len(accounts)
+    total_pages = max(1, (total + ACCOUNTS_PER_PAGE - 1) // ACCOUNTS_PER_PAGE)
+    page = min(max(1, args.get('page', 1, type=int) or 1), total_pages)
+    start = (page - 1) * ACCOUNTS_PER_PAGE
+    return {"accounts": accounts[start:start + ACCOUNTS_PER_PAGE], "total": total, "page": page,
+            "total_pages": total_pages, "metrics": overview["metrics"]}
+
+
+ACCOUNT_CSV_COLUMNS = [
+    ("acc_id", "Account ID"), ("full_name", "Name"), ("username", "Username"), ("email", "Email"),
+    ("role", "Role"), ("status_text", "Status"), ("online", "Online"), ("date_created", "Date created"),
+    ("last_login", "Last login"),
+]
+
+
+@admin_bp.route('/accounts/export.csv')
+def accounts_export_csv():
+    """feat/admin-extras: Account & Security -> CSV of exactly what the filters show (every page)."""
+    overview = get_accounts_overview(**_account_filters(request.args))
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    rows = []
+    for acc in overview["accounts"]:
+        status = "Pending deletion" if acc.get("pending_deletion") else ("Locked" if acc.get("is_locked") else acc.get("status"))
+        rows.append(dict(acc, status_text=status, online=acc.get("online", "offline").capitalize()))
+    audit_log("export_csv", "security", session.get("admin_id"), details=f"Accounts CSV - {len(rows)} rows",
+              ip_address=get_client_ip(), endpoint="accounts_export_csv")
+    return _csv_response(to_csv(ACCOUNT_CSV_COLUMNS, rows), "accounts")
+
+
+def _csv_response(text, name):
+    from flask import Response
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+    return Response(text, mimetype="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="cobrabyte-{name}-{stamp}.csv"',
+        "Cache-Control": "no-store",
+    })
 
 
 # Task #17 spec names the endpoint "/admin/accounts/filter" - registered
@@ -1809,6 +1931,107 @@ def login_logs_data():
 # ============================================================
 # ROUTE: LIVE LOGIN LOGS METRIC CARDS (JSON)
 # ============================================================
+LOGIN_LOG_CSV_COLUMNS = [
+    ("attempted_at", "Attempted at"), ("full_name", "Name"), ("acc_id", "Account ID"), ("email", "Email"),
+    ("role", "Role"), ("status", "Result"), ("ip_address", "IP address"),
+]
+
+
+@admin_bp.route('/login-logs/export.csv')
+def login_logs_export_csv():
+    """feat/admin-extras: Login Logs -> CSV with the same search / filters / dates (every page)."""
+    logs = get_login_logs_overview(
+        search_query=request.args.get('q', ''), role_filter=request.args.get('role', ''),
+        status_filter=request.args.get('status', ''), sort_by=request.args.get('sort', ''),
+        date_from=_clean_ymd(request.args.get('from', '')), date_to=_clean_ymd(request.args.get('to', '')),
+        limit=50000,
+    )
+    if logs is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    audit_log("export_csv", "security", session.get("admin_id"), details=f"Login Logs CSV - {len(logs)} rows",
+              ip_address=get_client_ip(), endpoint="login_logs_export_csv")
+    return _csv_response(to_csv(LOGIN_LOG_CSV_COLUMNS, logs), "login-logs")
+
+
+# ============================================================
+# feat/admin-extras: SYSTEM HEALTH + RECORDS (read-only, admin only)
+# ============================================================
+@admin_bp.route('/system-health')
+def system_health_page():
+    return render_template('system-health.html', health=get_system_health())
+
+
+@admin_bp.route('/system-health/data')
+def system_health_data():
+    return jsonify({"success": True, "health": get_system_health()}), 200
+
+
+@admin_bp.route('/records')
+def records_page():
+    groups = list_tables() or []
+    return render_template('records.html', groups=groups, initial_table=request.args.get('table', ''))
+
+
+@admin_bp.route('/records/data')
+def records_data():
+    """One page of one allowed table. SELECT only; secret columns are never read."""
+    found, message = browse_records(request.args.get('table', ''), request.args.get('q', ''),
+                                    request.args.get('page', 1, type=int))
+    if found is None:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, **found}), 200
+
+
+# ============================================================
+# feat/admin-extras: ACTIVITY LOG page (admin only) - audit.py
+# ============================================================
+def _activity_filters(args):
+    return {
+        "q": args.get('q', '').strip(),
+        "actor": args.get('actor', '').strip(),
+        "category": args.get('category', '').strip(),
+        "action": args.get('action', '').strip(),
+        "date_from": _clean_ymd(args.get('from', '')) or "",
+        "date_to": _clean_ymd(args.get('to', '')) or "",
+    }
+
+
+@admin_bp.route('/activity-log')
+def activity_log_page():
+    filters = _activity_filters(request.args)
+    found = get_activity(filters, request.args.get('page', 1, type=int)) or {
+        "rows": [], "total": 0, "page": 1, "total_pages": 1, "people": [], "actions": [], "categories": []}
+    return render_template('activity-log.html', filters=filters, **found)
+
+
+@admin_bp.route('/activity-log/data')
+def activity_log_data():
+    filters = _activity_filters(request.args)
+    if filters["date_from"] and filters["date_to"] and filters["date_from"] > filters["date_to"]:
+        return jsonify({"success": False, "rows": [], "message": "The end date must be on or after the start date."}), 400
+    found = get_activity(filters, request.args.get('page', 1, type=int))
+    if found is None:
+        return jsonify({"success": False, "rows": [], "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **found}), 200
+
+
+ACTIVITY_CSV_COLUMNS = [
+    ("when_iso", "When"), ("actor_name", "Who"), ("actor_acc_id", "Who (ID)"), ("actor_role", "Role"),
+    ("category_label", "Category"), ("label", "Action"), ("target_type", "Item type"), ("target_id", "Item ID"),
+    ("target_name", "Item"), ("details", "Details"), ("ip_address", "IP address"),
+]
+
+
+@admin_bp.route('/activity-log/export.csv')
+def activity_log_export_csv():
+    found = get_activity(_activity_filters(request.args), export=True)
+    if found is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    audit_log("export_csv", "security", session.get("admin_id"), details=f"Activity Log CSV - {found['total']} rows",
+              ip_address=get_client_ip(), endpoint="activity_log_export_csv")
+    return _csv_response(to_csv(ACTIVITY_CSV_COLUMNS, found["rows"]), "activity-log")
+
+
 @admin_bp.route('/login-logs/metrics')
 def login_logs_metrics():
     """
@@ -3878,6 +4101,8 @@ def learner_progress():
 
     return render_template(
         'learner-progress.html',
+        overview=overview,
+        lp_settings=progress_insight_settings(),
         lessons=overview["lessons"],
         metrics=overview["metrics"],
         total_lessons=overview["total"],
@@ -3958,6 +4183,8 @@ def learner_progress_learners():
 
     return render_template(
         'learner-progress-learners.html',
+        overview=overview,
+        lp_settings=progress_insight_settings(),
         learners=overview["learners"],
         metrics=overview["metrics"],
         total_learners=overview["total"],
@@ -4030,6 +4257,24 @@ def game_settings():
     }), 200
 
 
+@admin_bp.route('/learner-progress/cards/<view>/<kind>')
+def learner_progress_card(view, kind):
+    """
+    feat/learner-progress-insights: the modal behind one clickable metric
+    card (By Lesson: view=lessons, By Learner: view=learners), with the
+    page's filters (never Status). Read-only.
+    """
+    filters = {**_read_progress_filters(), **_read_learner_view_filters()} if view == "learners" \
+        else _read_progress_filters()
+    filters.pop("page", None)
+    filters.pop("status_filter", None)
+    filters.pop("sort", None)
+    card = get_progress_card(view, kind, **filters)
+    if card is None:
+        return jsonify({"success": False, "message": "This list could not be loaded."}), 404
+    return jsonify({"success": True, **card}), 200
+
+
 @admin_bp.route('/learner-progress/learner-detail/<acc_id>')
 def learner_progress_learner_detail(acc_id):
     """One learner's course breakdown (Chapter -> Module -> Lesson)."""
@@ -4047,12 +4292,26 @@ def analytics():
     admin-analytics.js from /admin/analytics/data right after the page
     opens - the numbers live in learning_analytics.py.
     """
-    return render_template('analytics.html')
+    return render_template('analytics.html', lp_settings=progress_insight_settings())
+
+
+@admin_bp.route('/analytics/details/<kind>')
+def analytics_details(kind):
+    """
+    feat/analytics-insights: what is behind one card / bar / point (the list
+    modal) - same ?status & range as the page, + ?key (module id, score band,
+    funnel step, day, weekday-hour or la_id-item_id). Read-only, ADMIN only.
+    """
+    card = get_analytics_details(kind, request.args.get('status', ''), request.args.get('range', ''),
+                                 request.args.get('key', ''))
+    if card is None:
+        return jsonify({"success": False, "message": "This list could not be loaded."}), 404
+    return jsonify({"success": True, **card}), 200
 
 
 @admin_bp.route('/analytics/data')
 def analytics_data():
-    """Every card of the Analytics page. ?status=all|active|inactive&range=all|7d|30d|90d"""
+    """Every card of the Analytics page. ?status=all|active|inactive&range=7d|30d (default)|90d|all"""
     status = request.args.get('status', '')
     date_range = request.args.get('range', '')
     data = get_learning_analytics(status, date_range)
@@ -4329,6 +4588,7 @@ def reports():
     ranking = get_learner_ranking(**filters) or empty_learner_ranking()
     return render_template(
         'reports.html',
+        lp_settings=progress_insight_settings(),
         learners=ranking["learners"],
         summary=ranking["summary"],
         chapters=get_report_filter_options(),
@@ -4336,6 +4596,26 @@ def reports():
         module_id=filters["module_id"] or '',
         search=filters["search"] or '',
     )
+
+
+@admin_bp.route('/reports/course')
+def reports_course():
+    """feat/dashboard-reports: per chapter / per module report (?cat_id, ?module_id). Read-only."""
+    from reports import get_course_report
+    data = get_course_report(request.args.get('cat_id') or None, request.args.get('module_id') or None)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/reports/certificates')
+def reports_certificates():
+    """feat/dashboard-reports: certificates issued (?q search). Read-only."""
+    from reports import get_certificates
+    rows = get_certificates(request.args.get('q', ''))
+    if rows is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, "certificates": rows, "total": len(rows)}), 200
 
 
 @admin_bp.route('/reports/data')
@@ -5211,3 +5491,11 @@ def save_coding_exercise_draft():
                 "message": msg
             }), 400
         return redirect(url_for('admin_bp.create_coding_exercise'))
+
+
+# ============================================================
+# feat/admin-extras: ACTIVITY LOG - every successful admin write is
+# logged automatically (audit.ROUTE_ACTIONS). Installed LAST, so the
+# session / permission checks above always run first.
+# ============================================================
+install_audit_hooks(admin_bp)

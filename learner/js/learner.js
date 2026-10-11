@@ -214,9 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let filter = 'all';
         let items = [];
         let loading = false;
+        let unread = 0;   // the real number (the badge shows "9+" above 9)
 
         function setCount(n) {
             const count = Number(n) || 0;
+            unread = count;
             bellCount.hidden = count === 0;
             bellCount.textContent = count > 9 ? '9+' : String(count);
             bellBtn.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications');
@@ -352,19 +354,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         olderBtn.addEventListener('click', () => load(true));
 
-        // Clicking a notification marks it read, then follows its link.
+        // Clicking a notification marks it read, then follows its link
+        // (same idea as the admin bell): the dot, the bold and the count
+        // change at once; a link waits for the server (at most
+        // READ_WAIT_MS) so the next page already counts it as read. On a
+        // timeout / error it goes anyway - the minute poll fixes the count.
+        const READ_WAIT_MS = 1500;
+        let navigating = false;
         listEl.addEventListener('click', (e) => {
             const el = e.target.closest('.notif-item');
             if (!el) return;
             const n = items.find(x => String(x.id) === el.dataset.id);
-            if (!n || n.is_read) return;
+            if (!n || n.is_read) return;           // already read: a link just opens
+            const href = el.tagName === 'A' ? el.getAttribute('href') : null;
+            // Ctrl / Cmd / Shift / middle click opens a new tab - this page stays.
+            const newTab = e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1;
+            if (href && !newTab) {
+                e.preventDefault();
+                if (navigating) return;            // second click while waiting
+                navigating = true;
+            }
+
             n.is_read = true;
             el.classList.remove('is-unread');
-            setCount(Math.max(0, (Number(bellCount.textContent) || 1) - 1));
-            fetch(`/api/notifications/${n.id}/read`, { method: 'POST', credentials: 'include', keepalive: true })
+            const dot = el.querySelector('.notif-dot');
+            if (dot) dot.setAttribute('aria-label', '');
+            setCount(Math.max(0, unread - 1));
+            if (filter === 'unread') {
+                items = items.filter(x => x !== n);
+                if (!href || newTab) render();
+            }
+
+            const sent = fetch(`/api/notifications/${n.id}/read`, { method: 'POST', credentials: 'include', keepalive: true })
                 .then(res => res.json())
                 .then(data => { if (data && data.success) setCount(data.unread_count); })
-                .catch(() => { /* best-effort */ });
+                .catch(() => { /* best-effort - the minute poll fixes the count */ });
+            if (!href || newTab) return;
+
+            const timeout = new Promise(resolve => setTimeout(resolve, READ_WAIT_MS));
+            Promise.race([sent, timeout]).then(() => { window.location.href = href; });
         });
 
         pollCount();

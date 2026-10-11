@@ -10,6 +10,10 @@
  * Each started lesson's eye opens the shared Lesson Progress modal on top
  * (admin-lesson-progress-modal.js), so load that file first.
  *
+ * feat/learner-progress-insights: status chip + why, a line chart of the
+ * finished lessons' scores (Chart.js, when the page loads it), strong /
+ * weak topics, retakes, time in activities and recommendations given.
+ *
  * Open it with: window.CobraLearnerCourseModal.open(accId)
  * Data: /admin/learner-progress/learner-detail/<acc_id>
  */
@@ -58,6 +62,13 @@
         const lastActiveEl = document.getElementById("learnerCourseLastActive");
         const chaptersEl = document.getElementById("learnerCourseChapters");
         const leavesEl = document.getElementById("learnerCourseLeaves");
+        const statusEl = document.getElementById("learnerCourseStatus");
+        const chartCanvas = document.getElementById("learnerCourseChart");
+        const chartEmptyEl = document.getElementById("learnerCourseChartEmpty");
+        const topicsEl = document.getElementById("learnerCourseTopics");
+        const effortEl = document.getElementById("learnerCourseEffort");
+        const Ins = window.CobraInsights || null;
+        let chart = null;
 
         let modalRequestId = 0;
         let lastFocused = null;
@@ -89,6 +100,9 @@
             setText(modulesEl, "");
             window.CobraAvatar && window.CobraAvatar.set(avatarEl, null);
             if (chaptersEl) chaptersEl.innerHTML = `<p class="progress-detail-empty">Loading...</p>`;
+            [statusEl, topicsEl, effortEl].forEach((el) => { if (el) el.innerHTML = ""; });
+            if (chartEmptyEl) chartEmptyEl.textContent = "";
+            if (chart) { chart.destroy(); chart = null; }
             hideError();
         }
 
@@ -224,6 +238,103 @@
 
             if (chaptersEl) chaptersEl.innerHTML = chaptersHtml(learner.chapters);
             if (leavesEl) leavesEl.innerHTML = leavesHtml(learner.leave_log || []);
+            fillInsights(learner);
+        }
+
+        // ---------- feat/learner-progress-insights ----------
+        function scoreHtml(score) {
+            return Ins ? Ins.scoreHtml(score) : scoreBadgeHtml(score);
+        }
+
+        function fillInsights(learner) {
+            const ins = learner.insights || {};
+            if (statusEl && learner.status) {
+                const why = (learner.reasons || []).map((r) => `<li>${escapeHtml(r.text)}</li>`).join("");
+                statusEl.innerHTML = `
+                    <span class="lp-chip lp-chip-${escapeHtml(learner.status)}">${escapeHtml(learner.status_label)}</span>
+                    <span class="lp-learner-trend">Avg ${scoreHtml(learner.avg_score)} ${Ins ? Ins.trendHtml(ins.trend) : ""}</span>
+                    <span class="text-muted">Last active ${escapeHtml(learner.last_active_ago || "—")}</span>
+                    ${why ? `<ul class="lp-why-list">${why}</ul>` : ""}`;
+            }
+            drawChart(ins.timeline || []);
+            if (topicsEl) topicsEl.innerHTML = topicsHtml(ins);
+            if (effortEl) effortEl.innerHTML = effortHtml(ins);
+        }
+
+        function drawChart(points) {
+            if (!chartCanvas) return;
+            const wrap = chartCanvas.parentElement;
+            if (!points.length || typeof window.Chart !== "function") {
+                if (wrap) wrap.hidden = true;
+                if (chartEmptyEl) chartEmptyEl.hidden = false;
+                if (chartEmptyEl) chartEmptyEl.textContent = points.length
+                    ? points.map((p) => `${p.lesson}: ${p.score}%`).join(" · ")
+                    : "No finished lesson with a score yet.";
+                return;
+            }
+            if (wrap) wrap.hidden = false;
+            if (chartEmptyEl) chartEmptyEl.hidden = true;
+            const pass = Ins ? Ins.passMark : 80;
+            const colour = (score) => (window.CobraScore ? CobraScore.color(score) : "#0F7A3D");
+            const closeColour = "#B7791F";
+            const colours = points.map((p) => (p.band === "close" ? closeColour : colour(p.score)));
+            chart = new Chart(chartCanvas, {
+                type: "line",
+                data: {
+                    labels: points.map((p) => p.date),
+                    datasets: [
+                        { label: "Score", data: points.map((p) => p.score), borderColor: "#18B8E6", backgroundColor: colours,
+                          pointBackgroundColor: colours, pointRadius: 5, tension: 0.25, fill: false },
+                        { label: `Pass mark (${pass}%)`, data: points.map(() => pass), borderColor: "#9ca3af",
+                          borderDash: [6, 4], pointRadius: 0, fill: false },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: { y: { min: 0, max: 100, ticks: { callback: (v) => `${v}%` } } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: {
+                            title: (items) => points[items[0].dataIndex].lesson,
+                            label: (item) => item.datasetIndex === 0 ? `Score ${item.parsed.y}% (${points[item.dataIndex].module})` : `Pass mark ${pass}%`,
+                        } },
+                    },
+                },
+            });
+        }
+
+        function topicsHtml(ins) {
+            const list = (items, empty) => items && items.length
+                ? `<ul class="lp-topic-list">${items.map((m) => `<li>${escapeHtml(m.module)} ${scoreHtml(m.avg)} <small class="text-muted">${m.lessons} lesson${m.lessons === 1 ? "" : "s"}</small></li>`).join("")}</ul>`
+                : `<p class="progress-detail-empty">${escapeHtml(empty)}</p>`;
+            const types = ins.types && ins.types.length
+                ? `<ul class="lp-topic-list">${ins.types.map((t) => `<li>${escapeHtml(t.type)} ${scoreHtml(t.percent)}</li>`).join("")}</ul>`
+                : `<p class="progress-detail-empty">No finished activity yet.</p>`;
+            return `
+                <div><h5>Strong modules</h5>${list(ins.strong, "None yet.")}</div>
+                <div><h5>Weak modules</h5>${list(ins.weak, "None - nice!")}</div>
+                <div><h5>By activity type (first try)</h5>${types}</div>`;
+        }
+
+        function effortHtml(ins) {
+            const retakes = ins.retakes && ins.retakes.length
+                ? `<table class="progress-detail-table"><thead><tr><th>Activity</th><th>Retake rounds</th><th>Finished</th><th>Last</th></tr></thead>
+                   <tbody>${ins.retakes.map((r) => `<tr><td>${escapeHtml(r.activity)}</td><td>${Number(r.rounds)}</td><td>${Number(r.done)}</td><td>${escapeHtml(r.last)}</td></tr>`).join("")}</tbody></table>`
+                : `<p class="progress-detail-empty">No retakes.</p>`;
+            const recs = ins.recommendations && ins.recommendations.length
+                ? `<table class="progress-detail-table"><thead><tr><th>When</th><th>Lesson to review</th><th>Why</th><th>Done?</th></tr></thead>
+                   <tbody>${ins.recommendations.map((r) => `<tr><td>${escapeHtml(r.when)}</td><td>${escapeHtml(r.lesson)}</td><td>${escapeHtml(r.reason)}</td><td>${r.resolved ? badge("badge-active", "Done") : badge("badge-inactive", "Open")}</td></tr>`).join("")}</tbody></table>`
+                : `<p class="progress-detail-empty">No recommendations given yet.</p>`;
+            return `
+                <div class="lp-effort-facts">
+                    <span><strong>${Number(ins.retake_total || 0)}</strong> retake round${ins.retake_total === 1 ? "" : "s"}</span>
+                    <span title="Time spent on timed activity questions. Video and reading time aren't recorded."><strong>${Number(ins.activity_minutes || 0)} min</strong> in activities</span>
+                    <span><strong>${(ins.recommendations || []).length}</strong> recommendation${(ins.recommendations || []).length === 1 ? "" : "s"} given</span>
+                </div>
+                <h5>Retakes</h5>${retakes}
+                <h5>Recommendations given</h5>${recs}`;
         }
 
         // feat/leave-detection: each time the learner left a game / exercise page.

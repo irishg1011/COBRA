@@ -1,31 +1,31 @@
 {# dashboard-live-learning.html - one Dashboard section; included by admin_dashboard.html and
-   re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js). #}
+   re-rendered by /admin/dashboard/live for the auto-refresh (admin-dashboard-live.js).
+   feat/dashboard-reports: six clickable cards, "this week" = the last 7 days vs the 7 before
+   (the same numbers as Analytics with Last 7 Days, and Learner Progress). #}
+{% from 'dashboard-macros.html' import trend, card %}
 {% if learning.ok %}
-<div class="metrics-grid dash-metrics-grid dash-metrics-4">
-    <div class="metric-card dash-metric">
-        <div class="metric-info">
-            <span class="metric-title">Average Score</span>
-            <h2 class="metric-value {{ learning.metrics.average_score|score_class }}">{{ learning.metrics.average_score }}</h2>
-        </div>
-    </div>
-    <div class="metric-card dash-metric">
-        <div class="metric-info">
-            <span class="metric-title">Finished Course</span>
-            <h2 class="metric-value dash-good">{{ learning.metrics.finished }}</h2>
-        </div>
-    </div>
-    <div class="metric-card dash-metric">
-        <div class="metric-info">
-            <span class="metric-title">Below {{ pass_mark }}%</span>
-            <h2 class="metric-value dash-bad">{{ learning.metrics.below_80 }}</h2>
-        </div>
-    </div>
-    <div class="metric-card dash-metric">
-        <div class="metric-info">
-            <span class="metric-title">Not Started</span>
-            <h2 class="metric-value">{{ learning.metrics.not_started }}</h2>
-        </div>
-    </div>
+{% set w = learning.week %}
+{% set m = learning.metrics %}
+<div class="metrics-grid dash-metrics-grid dash-metrics-6">
+    {% call card('active_week', 'Active this week', w.active.value, 'Signed in or did any learning', 'Show who was active') %}
+        {{ trend(w.active.value - w.active.previous if w.active.previous is not none else none, 'vs last week') }}
+    {% endcall %}
+    {% call card('lessons_week', 'Lessons finished', w.lessons.value, 'Finished in the last 7 days', 'Show the lessons finished') %}
+        {{ trend(w.lessons.value - w.lessons.previous if w.lessons.previous is not none else none, 'vs last week') }}
+    {% endcall %}
+    {% set avg = w.avg_score %}
+    {% call card('avg_week', 'Avg score this week', (avg.value ~ '%') if avg.value is not none else '—', 'First try · overall ' ~ m.average_score, 'Show scores by colour, lowest and highest', 'lp-text-' ~ (avg.band or 'none')) %}
+        {{ trend(avg.change, 'pts vs last week') if avg.previous is not none else trend(none, 'no scores last week') }}
+    {% endcall %}
+    {% call card('needs_attention', 'Needs attention', m.needs_attention, 'Low average, inactive, retakes or page leaves', 'Show who and why', 'dash-bad' if m.needs_attention else '') %}
+        <small class="dash-trend dash-trend-none">Who &amp; why <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></small>
+    {% endcall %}
+    {% call card('finished', 'Finished course', m.finished, 'Every published lesson done', 'Show who finished', 'dash-good') %}
+        {{ trend(w.finished_in_week, 'this week') }}
+    {% endcall %}
+    {% call card('not_started', 'Not started', m.not_started, "Haven't opened a lesson yet", 'Show who') %}
+        <small class="dash-trend dash-trend-none">of {{ m.total_learners }} learners</small>
+    {% endcall %}
 </div>
 {% else %}
 <p class="dash-section-error dash-section-error-card">Couldn't load learner progress right now.</p>

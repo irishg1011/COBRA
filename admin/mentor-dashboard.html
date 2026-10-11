@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-insights.css') }}">
 </head>
 <body data-auth-guard-mode="refresh">
     {# Editor URLs: the same editors the Publishing tree's "Edit" opens #}
@@ -137,6 +138,30 @@
                     {% endif %}
                 </section>
 
+                <!-- feat/dashboard-reports: how learners do with the content + what to fix (js/mentor-content-insights.js) -->
+                <section class="table-card dash-table-card mci" id="mentorContentInsights" aria-labelledby="mciTitle">
+                    <div class="panel-header">
+                        <h3 id="mciTitle">How your content is doing <span class="lp-info" tabindex="0" role="note" data-tip="From every learner's FIRST try on published activities (retakes don't count). Content health checks every activity and exercise that isn't archived.">i</span></h3>
+                        <label class="mci-mine"><input type="checkbox" id="mciOnlyMine"> Only mine</label>
+                    </div>
+                    <p class="dash-section-empty" id="mciLoading">Loading&hellip;</p>
+                    <div class="mci-grid" id="mciBody" hidden>
+                        <div class="mci-col">
+                            <h4>Hardest activity <span class="lp-info" tabindex="0" role="note" data-tip="The published activity with the lowest first-try score (at least 3 learners played it).">i</span></h4>
+                            <div id="mciHardest"></div>
+                            <h4>Lowest-scoring questions <span class="lp-info" tabindex="0" role="note" data-tip="The 5 questions learners got wrong most often on their first try. 'Check the answer key' = almost everyone missed it - the answer itself may be wrong.">i</span></h4>
+                            <ol class="lp-missed-list" id="mciQuestions"></ol>
+                        </div>
+                        <div class="mci-col">
+                            <h4>Content health <span class="lp-info" tabindex="0" role="note" data-tip="Things to fix: activities with fewer than 5 items (a play draws 5), items without feedback or a hint, coding exercises without an expected output.">i</span></h4>
+                            <div class="mci-health-facts" id="mciHealthFacts"></div>
+                            <details class="mci-details" id="mciTooFewWrap"><summary id="mciTooFewTitle">Too few items</summary><div id="mciTooFew"></div></details>
+                            <details class="mci-details" id="mciFeedbackWrap"><summary id="mciFeedbackTitle">Missing feedback or hint</summary><div id="mciFeedback"></div></details>
+                            <details class="mci-details" id="mciExercisesWrap"><summary id="mciExercisesTitle">Exercises missing expected output</summary><div id="mciExercises"></div></details>
+                        </div>
+                    </div>
+                </section>
+
                 <div class="dash-row">
                     <!-- Recently edited -->
                     <section class="table-card dash-table-card dash-recent-card">
@@ -201,5 +226,8 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script type="application/json" id="lpSettings">{{ lp_settings|tojson }}</script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-progress-insights.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/mentor-content-insights.js') }}"></script>
 </body>
 </html>

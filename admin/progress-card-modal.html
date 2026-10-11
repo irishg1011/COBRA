@@ -1,0 +1,28 @@
+{# progress-card-modal.html - Learner Progress (feat/learner-progress-insights)
+   One modal for every clickable metric card on By Lesson and By Learner.
+   admin-progress-cards.js fills it from /admin/learner-progress/cards/<view>/<kind>
+   (same filters as the page). Search, CSV export; a row opens the learner,
+   the lesson or the one record on top of it. Read-only. #}
+<div id="lpCardModal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="lpCardTitle">
+    <div class="progress-detail-card lp-card-dialog">
+        <div class="progress-detail-header">
+            <div>
+                <h3 id="lpCardTitle">Details</h3>
+                <p class="progress-detail-subtitle" id="lpCardSubtitle"></p>
+            </div>
+            <button type="button" class="modal-close-btn modal-close-inline" id="lpCardClose" title="Close" aria-label="Close">&times;</button>
+        </div>
+        <p id="lpCardError" class="progress-detail-error"></p>
+        <div class="progress-detail-body">
+            <div class="lp-card-toolbar">
+                <div class="header-search search-override lp-card-search">
+                    <span class="mask-icon icon-search search-icon"></span>
+                    <input type="text" id="lpCardSearch" placeholder="Search this list..." aria-label="Search this list">
+                </div>
+                <div id="lpCardBands" class="lp-card-bands"></div>
+                <button type="button" class="btn-pill-light lp-export" id="lpCardExport"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> Export CSV</button>
+            </div>
+            <div id="lpCardContent"><p class="progress-detail-empty">Loading&hellip;</p></div>
+        </div>
+    </div>
+</div>
