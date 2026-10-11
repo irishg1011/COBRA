@@ -106,19 +106,9 @@
                 missedEl.innerHTML = `<p class="progress-detail-empty">No question has been missed on the first try yet.</p>`;
                 return;
             }
-            missedEl.innerHTML = `<ol class="lp-missed-list">${rows.map((q) => `
-                <li class="lp-missed-item${q.check_key ? " is-check-key" : ""}">
-                    <div class="lp-missed-text">
-                        <strong>${esc(q.question)}</strong>
-                        <small>${esc(q.activity)} · ${esc(q.type)}</small>
-                    </div>
-                    <div class="lp-missed-stats">
-                        <span class="badge lp-band lp-band-${q.miss_percent >= 50 ? "fail" : "close"}">${esc(q.miss_percent)}% missed</span>
-                        <small>${esc(q.missed)} of ${esc(q.answered)} learners</small>
-                        ${q.check_key ? `<span class="lp-check-key" title="${esc(`${I.settings.answer_key_miss_percent || 80}% or more of at least ${I.settings.answer_key_min_answers || 5} learners missed it.`)}"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Check the answer key</span>` : ""}
-                        ${canEdit ? `<a class="lp-edit-link" href="/admin/create-learning-activity?activity_id=${encodeURIComponent(q.la_id)}" target="_blank" rel="noopener">Edit question</a>` : ""}
-                    </div>
-                </li>`).join("")}</ol>`;
+            missedEl.innerHTML = `<ol class="lp-mq-list">${rows.map((q) => I.missedRowHtml(q, {
+                editUrl: canEdit ? `/admin/create-learning-activity?activity_id=${encodeURIComponent(q.la_id)}` : null, newTab: true,
+            })).join("")}</ol>`;
         }
 
         function fillLearners(records) {

@@ -67,6 +67,7 @@ DEFAULT_RANGE = "30d"
 TREND_WEEKS = 8
 TOPIC_COUNT = 3
 TOP_MISSED = 10
+MISSED_LIST_LIMIT = 500   # "View all" of the most-missed questions
 SESSION_GAP_MINUTES = 30
 SINGLE_ACTION_MINUTES = 1
 ENGAGEMENT_DAYS_ALL = 90      # the per-day chart when the range is "All time"
@@ -766,7 +767,7 @@ def _insights(data):
 # What is behind a card / bar / point (the list modal)
 # ------------------------------------------------------------------
 _LEARNER = {"key": "learner", "label": "Learner", "type": "learner"}
-DETAIL_KINDS = ("learners", "active", "inactive", "avg_score", "finished", "lessons",
+DETAIL_KINDS = ("learners", "active", "inactive", "avg_score", "finished", "lessons", "missed",
                 "module", "band", "funnel", "day", "hour", "question")
 
 
@@ -797,6 +798,13 @@ def get_analytics_details(kind, status=None, date_range=None, key=None):
     finally:
         if connection.is_connected():
             connection.close()
+
+
+def _plain_question(text):
+    """A question as one readable line: code fences (```python ... ```) dropped."""
+    import re
+    text = re.sub(r"```\s*(python|py)\b", " ", str(text or ""), flags=re.IGNORECASE).replace("```", " ")
+    return " ".join(text.split())
 
 
 def _period_text(ctx):
@@ -912,6 +920,26 @@ def _details(ctx, kind, key):
                                         "_open": {"type": "record", "id": ev["progress_id"]}}
                                        for r, ev in rows]}]}
 
+    if kind == "missed":
+        # Every question missed on the first try in the period (the page shows the top 5).
+        evs = [ev for _, ev in ctx["period_pairs"]]
+        _, missed = insights.lesson_activity_stats(ctx["cursor"], ctx["activities"], evs,
+                                                   top=MISSED_LIST_LIMIT, since=ctx["start"])
+        titles = _lesson_titles(ctx)
+        lesson_of = {a["la_id"]: a["resource_id"] for a in ctx["activities"]}
+        rows = [{"question": _plain_question(q["question"]),
+                 "lesson": titles.get(lesson_of.get(q["la_id"]), "—"), "type": q["type"],
+                 "missed": f"{q['miss_percent']}% · {q['missed']} of {q['answered']}",
+                 "flag": "Check key" if q["check_key"] else "",
+                 "_open": {"type": "question", "id": f"{q['la_id']}-{q['item_id']}"}} for q in missed]
+        return {"title": "Most-missed questions", "subtitle": f"Every question missed on the first try in {period}. Click one for who missed it.",
+                "sections": [{"columns": [{"key": "question", "label": "Question", "type": "text"},
+                                          {"key": "lesson", "label": "Lesson", "type": "text"},
+                                          {"key": "type", "label": "Type", "type": "text"},
+                                          {"key": "missed", "label": "Missed (first try)", "type": "text"},
+                                          {"key": "flag", "label": "Answer key", "type": "text"}],
+                              "rows": rows}]}
+
     if kind == "band":
         bands = {label: (low, high) for label, low, high in SCORE_BANDS}
         if key not in bands:
@@ -1018,7 +1046,7 @@ def _details(ctx, kind, key):
                  for a in answers if a["outcome"] == "correct" and a["acc_id"] in learners]
         cols = [_LEARNER, {"key": "answer", "label": "First try", "type": "text"},
                 {"key": "when", "label": "When", "type": "text"}]
-        return {"title": insights.question_text(ctx["cursor"], act["type"], item_id),
+        return {"title": _plain_question(insights.question_text(ctx["cursor"], act["type"], item_id)),
                 "subtitle": f"{act['title']} · {act['type']} · first try, {period}.",
                 "sections": [{"title": f"Missed it ({len(missed)})", "columns": cols, "rows": missed},
                              {"title": f"Got it right ({len(right)})", "columns": cols, "rows": right}]}

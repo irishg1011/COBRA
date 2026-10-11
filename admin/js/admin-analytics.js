@@ -538,18 +538,13 @@
                 el.innerHTML = `<li class="analytics-topic-empty">No question was missed on the first try in this period.</li>`;
                 return;
             }
-            el.innerHTML = rows.map((q) => `
-                <li class="lp-missed-item an-click${q.check_key ? " is-check-key" : ""}" role="button" tabindex="0" data-question="${escapeHtml(`${q.la_id}-${q.item_id}`)}" title="Who missed it">
-                    <div class="lp-missed-text">
-                        <strong>${escapeHtml(q.question)}</strong>
-                        <small>${escapeHtml(q.lesson)}${q.activity && q.activity !== q.lesson ? ` · ${escapeHtml(q.activity)}` : ""} · ${escapeHtml(q.type)}</small>
-                    </div>
-                    <div class="lp-missed-stats">
-                        <span class="badge lp-band lp-band-${q.miss_percent >= 50 ? "fail" : "close"}">${escapeHtml(q.miss_percent)}% missed</span>
-                        <small>${escapeHtml(q.missed)} of ${escapeHtml(q.answered)} learners</small>
-                        ${q.check_key ? `<span class="lp-check-key"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Check the answer key</span>` : ""}
-                    </div>
-                </li>`).join("");
+            const PREVIEW = 5;
+            el.innerHTML = rows.slice(0, PREVIEW).map((q) => Ins.missedRowHtml(q, { click: true })).join("");
+            const more = document.getElementById("missedViewAll");
+            if (more) {
+                more.hidden = rows.length <= PREVIEW;
+                more.textContent = `View all (${rows.length})`;
+            }
         }
 
         const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

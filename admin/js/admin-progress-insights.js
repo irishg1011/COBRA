@@ -155,7 +155,53 @@
         });
     }
 
+    // ---------- most-missed questions: one compact row each ----------
+    // "What is printed? ```x = 1 print(x)```" -> text + a small inline code chip.
+    function questionHtml(text) {
+        const parts = String(text || "").split("```");
+        return parts.map((part, i) => {
+            const clean = part.replace(/\s+/g, " ").trim();
+            if (!clean) return "";
+            if (i % 2 === 0) return esc(clean);
+            return `<code class="lp-mq-code">${esc(clean.replace(/^(python|py)\b\s*/i, ""))}</code>`;
+        }).filter(Boolean).join(" ");
+    }
+
+    // "Lesson · Type" - the activity title only when it says something new
+    // (activity titles are often "<lesson> – <type>").
+    function questionMeta(q) {
+        const lesson = (q.lesson || "").trim();
+        const type = (q.type || "").trim();
+        let activity = (q.activity || "").trim();
+        if (activity === lesson || (lesson && activity.startsWith(lesson)) || activity === type) activity = "";
+        if (activity && type && activity.endsWith(type)) activity = activity.slice(0, -type.length).replace(/[\s–-]+$/, "");
+        return [lesson, activity, type].filter(Boolean).join(" · ");
+    }
+
+    // opts: {click: true} adds data-question (the page opens who missed it),
+    //       {editUrl: url} adds an "Edit" link.
+    function missedRowHtml(q, opts) {
+        opts = opts || {};
+        const pctBand = q.miss_percent >= 50 ? "fail" : "close";
+        const key = settings.answer_key_miss_percent || 80;
+        const keyMin = settings.answer_key_min_answers || 5;
+        const attrs = opts.click
+            ? ` role="button" tabindex="0" data-question="${esc(`${q.la_id}-${q.item_id}`)}" title="Who missed it"` : "";
+        return `<li class="lp-mq${q.check_key ? " is-check-key" : ""}${opts.click ? " an-click" : ""}"${attrs}>
+            <span class="lp-mq-pct lp-band-${pctBand}" title="${esc(`${q.missed} of ${q.answered} learners missed it on the first try`)}">${esc(q.miss_percent)}%</span>
+            <span class="lp-mq-main">
+                <span class="lp-mq-q">${questionHtml(q.question)}</span>
+                <small>${esc(questionMeta(q))} · missed by ${esc(q.missed)} of ${esc(q.answered)}</small>
+            </span>
+            <span class="lp-mq-side">
+                ${q.check_key ? `<span class="lp-mq-key" title="${esc(`${key}% or more of at least ${keyMin} learners missed it - the answer key may be wrong.`)}"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Check key</span>` : ""}
+                ${opts.editUrl ? `<a class="lp-edit-link" href="${esc(opts.editUrl)}"${opts.newTab ? ' target="_blank" rel="noopener"' : ""}>Edit</a>` : ""}
+            </span>
+        </li>`;
+    }
+
     window.CobraInsights = {
+        questionHtml, questionMeta, missedRowHtml,
         settings, passMark, closeFrom, labels, readJson, esc, num, band, bandText: BAND_TEXT,
         scoreHtml, chipHtml, info, trendHtml, barHtml, learnerHtml, downloadCsv, memory,
         restoreFilters, rememberFilters,

@@ -55,17 +55,7 @@
                 : `<p class="mci-empty">Not enough plays yet (needs ${esc(minText)} on a published activity).</p>`;
 
             $("mciQuestions").innerHTML = p.questions.length
-                ? p.questions.map((q) => `
-                    <li class="lp-missed-item${q.check_key ? " is-check-key" : ""}">
-                        <div class="lp-missed-text"><strong>${esc(q.question)}</strong>
-                            <small>${esc(q.lesson)}${q.activity !== q.lesson ? ` · ${esc(q.activity)}` : ""} · ${esc(q.type)}</small></div>
-                        <div class="lp-missed-stats">
-                            <span class="badge lp-band lp-band-${q.miss_percent >= 50 ? "fail" : "close"}">${esc(q.miss_percent)}% missed</span>
-                            <small>${esc(q.missed)} of ${esc(q.answered)} learners</small>
-                            ${q.check_key ? '<span class="lp-check-key"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Check the answer key</span>' : ""}
-                            ${edit(q.edit_url, "Edit question")}
-                        </div>
-                    </li>`).join("")
+                ? p.questions.map((q) => I.missedRowHtml(q, { editUrl: q.edit_url })).join("")
                 : `<li class="mci-empty">No question missed on the first try yet.</li>`;
 
             const problems = h.too_few_total + h.feedback_total + h.exercises_total;

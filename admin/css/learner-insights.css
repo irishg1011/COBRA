@@ -334,3 +334,72 @@ th .lp-info::after { top: calc(100% + 6px); }
 @media (max-width: 760px) {
     .lc-signals { grid-template-columns: 1fr; }
 }
+
+/* ---------- Most-missed questions: one compact row each ---------- */
+.lp-mq-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.lp-mq {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px 7px 8px;
+    border-bottom: 1px solid #f1f2f4;
+    border-left: 3px solid transparent;
+}
+.lp-mq:last-child { border-bottom: 0; }
+.lp-mq.is-check-key { border-left-color: #dc2626; }
+.lp-mq.an-click { cursor: pointer; border-radius: 6px; }
+.lp-mq.an-click:hover, .lp-mq.an-click:focus-visible { background: #f0f9ff; outline: none; }
+.lp-mq-pct {
+    justify-self: start;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+}
+.lp-mq-pct.lp-band-fail { background: var(--lp-fail-bg); color: var(--lp-fail); }
+.lp-mq-pct.lp-band-close { background: var(--lp-close-bg); color: var(--lp-close); }
+.lp-mq-main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.lp-mq-q {
+    font-size: 13px;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.lp-mq-main small { font-size: 11px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-mq-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 0 5px;
+    color: #374151;
+}
+.lp-mq-side { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.lp-mq-key {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--lp-fail);
+    background: var(--lp-fail-bg);
+    border-radius: 999px;
+    padding: 2px 8px;
+    cursor: help;
+}
+.an-view-all {
+    display: block;
+    margin: 8px 0 0 auto;
+    border: 0;
+    background: none;
+    color: #0284c7;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.an-view-all:hover, .an-view-all:focus-visible { text-decoration: underline; outline: none; }
+@media (max-width: 640px) {
+    .lp-mq { grid-template-columns: 42px minmax(0, 1fr); }
+    .lp-mq-side { grid-column: 2; }
+}

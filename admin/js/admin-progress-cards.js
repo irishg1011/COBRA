@@ -178,6 +178,7 @@
             if (target.type === "learner" && window.CobraLearnerCourseModal) CobraLearnerCourseModal.open(target.id);
             else if (target.type === "lesson" && window.CobraLessonModal) CobraLessonModal.open(target.id);
             else if (target.type === "record" && window.CobraLessonProgressModal) CobraLessonProgressModal.open(target.id);
+            else if (target.type === "question") open("question", tr, { key: target.id });   // who missed it (same window)
         }
 
         contentEl.addEventListener("click", (e) => {
