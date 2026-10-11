@@ -231,6 +231,17 @@
             return params;
         }
 
+        // feat/admin-extras: Export CSV = exactly what the filters show, every page.
+        const exportLink = document.getElementById("logsExportCsv");
+        if (exportLink) {
+            exportLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                const params = buildQueryParams();
+                params.delete("page");
+                window.location.href = `/admin/login-logs/export.csv?${params.toString()}`;
+            });
+        }
+
         async function runFetch() {
             if (!validateDates()) return;
             const requestId = ++activeRequestId;

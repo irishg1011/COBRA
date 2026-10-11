@@ -109,6 +109,19 @@ def _prepare_account_tools():
 
 
 _prepare_account_tools()
+
+# feat/admin-extras: every server error (crash or 5xx answer) -> error_log_tbl
+# (System Health "errors today"); the Activity Log tables are made here too.
+from audit import init_error_log, ensure_audit_schema as _ensure_audit_schema
+init_error_log(app)
+from cobradb import get_db_connection as _connect_db
+_c = _connect_db()
+if _c is not None:
+    try:
+        _ensure_audit_schema(_c)
+    finally:
+        if _c.is_connected():
+            _c.close()
 # ============================================================
 # DATABASE CONFIG
 # ============================================================

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - System Health</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+{# system-health.html - Admin > System > System Health (feat/admin-extras)
+   Database, app uptime, sessions, errors today, last backup, disk. Read-only;
+   refreshed every 30 s by js/admin-system-health.js (system_health.py). #}
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+            <div class="dashboard-content-area">
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>System Health</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Is everything running? Checked again every 30 seconds.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
+                    </div>
+                </div>
+                <div id="healthRoot" data-health='{{ health | tojson }}'>
+                    <p class="text-muted">Checking&hellip;</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-system-health.js') }}"></script>
+</body>
+</html>

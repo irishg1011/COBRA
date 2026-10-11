@@ -351,3 +351,27 @@ def _counts(everyone):
         "learners": sum(1 for u in everyone if u["role"] == LEARNER_ROLE),
         "staff": sum(1 for u in everyone if u["role"] != LEARNER_ROLE),
     }
+
+
+def get_all_states():
+    """
+    feat/admin-extras: {acc_id: "online" | "idle" | "offline"} for EVERY
+    account with a live session (anyone missing is offline) - one query,
+    for the Account & Security "Online" filter and the CSV export.
+    {} if the database is unreachable.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return {}
+    try:
+        _ensure_table(connection)
+        cursor = connection.cursor(dictionary=True)
+        people = _roll_up(_live_sessions(cursor))
+        cursor.close()
+        return {acc_id: person["state"] for acc_id, person in people.items()}
+    except Error as e:
+        print(f"presence: failed to load all states: {e}")
+        return {}
+    finally:
+        if connection.is_connected():
+            connection.close()

@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/password-checklist.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/account-tools.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
@@ -171,6 +172,15 @@
                                 <option value="Active" {{ 'selected' if status_sel == 'active' }}>Active</option>
                                 <option value="Inactive" {{ 'selected' if status_sel == 'inactive' }}>Inactive</option>
                                 <option value="Locked" {{ 'selected' if status_sel == 'locked' }}>Locked</option>
+                                <option value="Pending" {{ 'selected' if status_sel == 'pending' }}>Pending deletion</option>
+                            </select>
+                            {# feat/admin-extras: online now (the green / yellow / grey dot) #}
+                            {% set online_sel = (f.online or '')|lower %}
+                            <select class="custom-select" id="onlineFilterSelect" aria-label="Online">
+                                <option value="">Online: any</option>
+                                <option value="online" {{ 'selected' if online_sel == 'online' }}>Online now</option>
+                                <option value="idle" {{ 'selected' if online_sel == 'idle' }}>Idle</option>
+                                <option value="offline" {{ 'selected' if online_sel == 'offline' }}>Offline</option>
                             </select>
                             <select class="custom-select" id="sortFilterSelect">
                                 <option value="date_created">Sort: Date Created</option>
@@ -255,8 +265,14 @@
                             <span><span class="presence-dot" data-state="idle"></span>Idle 5&ndash;60 min</span>
                             <span><span class="presence-dot" data-state="offline"></span>Offline</span>
                         </span>
-                        <span id="accountsShowingCount">Showing {{ accounts|length }} account{{ 's' if accounts|length != 1 else '' }}</span>
-                        <span>&lt; 1 of 1 &gt;</span>
+                        <span id="accountsShowingCount">Showing {{ accounts|length }} of {{ total_accounts }} account{{ 's' if total_accounts != 1 else '' }}</span>
+                        {# feat/admin-extras: paging (25 per page) + CSV of exactly what the filters show #}
+                        <span class="ax-pager">
+                            <a href="#" class="btn-pill-light ax-export" id="accountsExportCsv"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> Export CSV</a>
+                            <button type="button" class="icon-button-reset" id="accountsPrevBtn" aria-label="Previous page" {{ 'disabled' if page <= 1 }}>&lt;</button>
+                            <span id="accountsPageLabel" data-page="{{ page }}" data-total-pages="{{ total_pages }}">{{ page }} of {{ total_pages }}</span>
+                            <button type="button" class="icon-button-reset" id="accountsNextBtn" aria-label="Next page" {{ 'disabled' if page >= total_pages }}>&gt;</button>
+                        </span>
                     </div>
 
                 </div>

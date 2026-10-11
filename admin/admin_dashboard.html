@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/reports.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
 </head>
 <body data-auth-guard-mode="refresh">
@@ -41,6 +42,12 @@
                         <small id="current-date"></small>
                     </div>
                 </div>
+
+                <!-- feat/admin-extras: System Health at a glance (js/admin-dashboard-health.js) -->
+                <a href="{{ url_for('admin_bp.system_health_page') }}" class="ax-dash-health" id="dashHealth" aria-live="polite">
+                    <strong id="dashHealthStatus">System health: checking&hellip;</strong>
+                    <span class="ax-dash-health-facts" id="dashHealthFacts"></span>
+                </a>
 
                 <!-- a) Accounts (same numbers as Account & Security and Login Logs) -->
                 <section class="dash-section">
@@ -97,6 +104,7 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-live.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-cards.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-health.js') }}"></script>
 
     {% include 'dashboard-card-modal.html' %}
 </body>

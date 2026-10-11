@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CobraByte Admin - Records</title>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+</head>
+<body>
+{# records.html - Admin > System > Records (feat/admin-extras)
+   READ-ONLY browser of the tables in records.ALLOWED_TABLES. No editing anywhere;
+   passwords / tokens are never read (records.py). Script: js/admin-records.js #}
+    <div class="admin-layout">
+        {% include 'admin-sidebar.html' %}
+        <main class="admin-main-content">
+            {% include 'admin-header.html' %}
+            <div class="dashboard-content-area">
+                <div class="dashboard-top-bar">
+                    <div class="welcome-section">
+                        <h1>Records</h1>
+                        {% if current_admin %}
+                        <p class="welcome-greeting">{{ greeting }}, {{ current_admin.role }} {{ current_admin.full_name.split(' ')[0] }}!</p>
+                        {% endif %}
+                        <p class="welcome-subtext">Look inside the database, read-only. Nothing here can be changed, and passwords or tokens are never shown.</p>
+                    </div>
+                    <div class="dashboard-datetime-badge">
+                        <strong id="current-time"></strong>
+                        <small id="current-date"></small>
+                    </div>
+                </div>
+
+                <div class="ax-readonly-note" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> Read-only view</div>
+
+                <div class="table-card">
+                    <div class="table-toolbar ax-toolbar">
+                        <select class="custom-select ax-table-pick" id="recTable" aria-label="Table">
+                            <option value="">Choose a table&hellip;</option>
+                            {% for g in groups %}
+                            <optgroup label="{{ g.group }}">
+                                {% for t in g.tables %}
+                                <option value="{{ t.name }}" {{ 'selected' if initial_table == t.name }}>{{ t.label }} ({{ t.name }}, ~{{ t.rows }} rows)</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        </select>
+                        <div class="header-search search-override">
+                            <span class="mask-icon icon-search search-icon"></span>
+                            <input type="text" id="recSearch" placeholder="Search this table..." disabled>
+                        </div>
+                    </div>
+                    <p class="ax-hidden-cols" id="recHidden"></p>
+                    <p class="ax-form-error" id="recError" role="alert"></p>
+                    <div class="table-scroll">
+                        <table class="data-table ax-table ax-records-table">
+                            <thead id="recHead"></thead>
+                            <tbody id="recBody">
+                                <tr><td class="text-muted table-empty-message">Choose a table to look inside.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-pagination">
+                        <span id="recCount"></span>
+                        <span class="ax-pager">
+                            <button type="button" class="icon-button-reset" id="recPrev" aria-label="Previous page" disabled>&lt;</button>
+                            <span id="recPage">1 of 1</span>
+                            <button type="button" class="icon-button-reset" id="recNext" aria-label="Next page" disabled>&gt;</button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-records.js') }}"></script>
+</body>
+</html>
