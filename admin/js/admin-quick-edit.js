@@ -44,7 +44,7 @@
                     <button type="button" class="qe-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="qe-body">
-                    <p class="qe-note qe-live" hidden><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i> <span></span></p>
+                    <p class="qe-note qe-live" hidden><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> <span></span></p>
                     <p class="qe-note qe-answered" hidden><i class="fa-solid fa-users" aria-hidden="true"></i> <span></span></p>
                     <div class="qe-error" role="alert" hidden><span class="qe-error-text"></span> <button type="button" class="qe-reload" hidden>Reload</button></div>
                     <form class="qe-form" novalidate></form>
@@ -91,11 +91,12 @@
         return limits[key] || null;
     }
 
-    // opts: { name, label, value, multiline, code, required, limit, readonly, rows, hint }
+    // opts: { name, label, note, value, multiline, code, required, limit, noCounter, readonly, rows, hint, placeholder }
     function field(parent, opts) {
         const wrap = el("div", "qe-field");
         const id = `qe_${opts.name.replace(/[^a-z0-9_]/gi, "_")}`;
         const label = el("label", "qe-label", opts.label + (opts.required ? " *" : ""));
+        if (opts.note) label.appendChild(el("small", "qe-label-note", ` ${opts.note}`));
         label.htmlFor = id;
         wrap.appendChild(label);
         const input = el(opts.multiline || opts.code ? "textarea" : "input", "qe-input" + (opts.code ? " qe-code" : ""));
@@ -104,12 +105,13 @@
         input.id = id;
         input.name = opts.name;
         input.value = opts.value || "";
+        if (opts.placeholder) input.placeholder = opts.placeholder;
         if (opts.code) input.spellcheck = false;
         if (opts.readonly) { input.readOnly = true; input.tabIndex = -1; input.classList.add("is-readonly"); }
         const limit = opts.limit ? limitOf(opts.limit) : null;
         if (limit) input.maxLength = limit;
         wrap.appendChild(input);
-        if (limit) {
+        if (limit && !opts.noCounter) {
             const counter = el("small", "qe-counter");
             const update = () => {
                 counter.textContent = `${input.value.length} / ${limit}`;
@@ -124,8 +126,8 @@
         return input;
     }
 
-    function row(parent) {
-        const r = el("div", "qe-row");
+    function row(parent, extra) {
+        const r = el("div", "qe-row" + (extra ? " " + extra : ""));
         parent.appendChild(r);
         return r;
     }
@@ -135,15 +137,30 @@
         return input ? input.value : "";
     }
 
+    // The SAME boxes as the full editor's cards (create-learning-activity.js),
+    // with the same labels - nothing the editor doesn't have.
     function renderMcq(item) {
         const f = els.form;
-        field(f, { name: "question", label: "Question", value: item.question, multiline: true, rows: 3, required: true, limit: "mcq_question" });
-        const box = el("fieldset", "qe-options");
-        box.appendChild(el("legend", "qe-label", "Choices - pick the one correct answer *"));
+        field(f, { name: "question", label: "Question", value: item.question, multiline: true, rows: 2, required: true, limit: "mcq_question", placeholder: "Type your question here..." });
+        // Option | Answer | Is Correct | Feedback for Learner - one row per option
+        const table = el("div", "qe-options");
+        const headRow = el("div", "qe-option qe-option-head");
+        ["Option", "Answer", "Is Correct", "Feedback for Learner *"].forEach((t) => headRow.appendChild(el("span", "qe-label", t)));
+        table.appendChild(headRow);
+        const limits = (state && state.ctx.limits) || {};
         item.options.forEach((o) => {
             const line = el("div", "qe-option");
             line.dataset.optionId = o.id;
-            const pick = el("label", "qe-correct");
+            line.appendChild(el("span", "qe-option-badge", o.letter));
+            const answer = el("input", "qe-input");
+            answer.type = "text";
+            answer.name = `opt_${o.id}_text`;
+            answer.value = o.text;
+            answer.placeholder = "Answer option";
+            answer.setAttribute("aria-label", `Option ${o.letter} answer`);
+            if (limits.mcq_option) answer.maxLength = limits.mcq_option;
+            line.appendChild(answer);
+            const pick = el("span", "qe-correct");
             const radio = el("input");
             radio.type = "radio";
             radio.name = "correct_option_id";
@@ -151,56 +168,60 @@
             radio.checked = !!o.correct;
             radio.setAttribute("aria-label", `Option ${o.letter} is the correct answer`);
             pick.appendChild(radio);
-            pick.appendChild(el("b", "", o.letter));
             line.appendChild(pick);
-            const texts = el("div", "qe-option-fields");
-            field(texts, { name: `opt_${o.id}_text`, label: `Option ${o.letter}`, value: o.text, required: true, limit: "mcq_option" });
-            field(texts, { name: `opt_${o.id}_feedback`, label: `Feedback for ${o.letter}`, value: o.feedback, required: true, limit: "mcq_option_feedback" });
-            line.appendChild(texts);
-            box.appendChild(line);
+            const feedback = el("input", "qe-input");
+            feedback.type = "text";
+            feedback.name = `opt_${o.id}_feedback`;
+            feedback.value = o.feedback;
+            feedback.placeholder = "Feedback";
+            feedback.setAttribute("aria-label", `Option ${o.letter} feedback for learner`);
+            if (limits.mcq_option_feedback) feedback.maxLength = limits.mcq_option_feedback;
+            line.appendChild(feedback);
+            table.appendChild(line);
         });
-        f.appendChild(box);
-        const r = row(f);
-        field(r, { name: "correct_feedback", label: "Feedback if right", value: item.correct_feedback, limit: "feedback" });
-        field(r, { name: "incorrect_feedback", label: "Feedback if wrong", value: item.incorrect_feedback, limit: "feedback" });
+        f.appendChild(table);
     }
 
     function renderFib(item) {
         const f = els.form;
-        const console_ = !!(item.code_text || "").trim();
-        if (console_) {
-            field(f, { name: "instruction", label: "Question", value: item.instruction, multiline: true, required: true, limit: "fib_instruction" });
-            const code = field(f, { name: "code_text", label: "Code with blank", value: item.code_text, code: true, rows: 5, required: true, hint: "Mark the blank with ___" });
-            const r = row(f);
-            const answer = field(r, { name: "correct_answer", label: "Correct answer (what goes in the blank)", value: item.correct_answer, required: true, limit: "fib_answer" });
-            field(r, { name: "must_contain", label: "Must contain (optional)", value: item.must_contain, limit: "fib_must_contain" });
-            field(f, { name: "wrong_choices", label: "Wrong choices (tiles) - one per line, optional", value: (item.wrong_choices || []).join("\n"), multiline: true, rows: 3 });
-            const expected = field(f, { name: "expected_output", label: "Expected output", value: item.expected_output, code: true, rows: 2, readonly: true, required: true });
-            const gen = el("div", "qe-generate");
-            const btn = el("button", "qe-btn qe-btn-small", "Generate expected output");
-            btn.type = "button";
-            const note = el("small", "qe-hint");
-            gen.appendChild(btn);
-            gen.appendChild(note);
-            expected.parentNode.appendChild(gen);
-            // Same as the editor: a changed code / answer needs a new run.
-            [code, answer].forEach((input) => input.addEventListener("input", () => {
-                if (!expected.value) return;
-                expected.value = "";
-                note.textContent = "The code or the answer changed - click Generate expected output again.";
-            }));
-            btn.addEventListener("click", () => generate(btn, note, code, answer, expected));
-        } else {
-            field(f, { name: "content", label: "Question (sentence with the blank)", value: item.content, multiline: true, rows: 3, required: true });
-            const r = row(f);
-            field(r, { name: "correct_answer", label: "Correct answer", value: item.correct_answer, required: true, limit: "fib_answer" });
-            field(r, { name: "must_contain", label: "Must contain (optional)", value: item.must_contain, limit: "fib_must_contain" });
-            field(f, { name: "wrong_choices", label: "Wrong choices (tiles) - one per line, optional", value: (item.wrong_choices || []).join("\n"), multiline: true, rows: 3 });
-        }
-        field(f, { name: "hint", label: "Hint", value: item.hint, limit: "hint" });
+        const isLegacy = !(item.code_text || "").trim() && !!(item.content || "").trim();
+        field(f, { name: "instruction", label: "Question", value: item.instruction, multiline: true, rows: 2, required: true, limit: "fib_instruction", placeholder: "e.g. Put the text hi, in quotes, into the blank so the program prints it." });
+        const code = field(f, { name: "code_text", label: "Code with blank", note: "(mark the blank with ___ )", value: item.code_text, code: true, rows: 4, required: true, placeholder: "message = ___\nprint(message)" });
         const r = row(f);
-        field(r, { name: "correct_feedback", label: "Feedback if right", value: item.correct_feedback, limit: "feedback" });
-        field(r, { name: "incorrect_feedback", label: "Feedback if wrong", value: item.incorrect_feedback, limit: "feedback" });
+        const answer = field(r, { name: "correct_answer", label: "Correct Answer (what goes in the blank)", value: item.correct_answer, required: true, limit: "fib_answer", noCounter: true, placeholder: 'e.g. "hi"' });
+        field(r, { name: "must_contain", label: "Must contain", note: "(optional)", value: item.must_contain, limit: "fib_must_contain", noCounter: true, placeholder: "e.g. + (so typing the output itself is not enough)" });
+        const expected = field(f, { name: "expected_output", label: "Expected output", value: item.expected_output, code: true, rows: 2, readonly: true, required: true, placeholder: "Click Generate expected output - the code runs with the correct answer" });
+        const gen = el("div", "qe-generate");
+        const btn = el("button", "qe-btn qe-btn-small", "Generate expected output");
+        btn.type = "button";
+        const note = el("small", "qe-hint");
+        gen.appendChild(btn);
+        gen.appendChild(note);
+        expected.parentNode.appendChild(gen);
+        // Same as the editor: a changed code / answer needs a new run.
+        [code, answer].forEach((input) => input.addEventListener("input", () => {
+            if (!expected.value) return;
+            expected.value = "";
+            note.textContent = "The code or the answer changed - click Generate expected output again.";
+        }));
+        btn.addEventListener("click", () => generate(btn, note, code, answer, expected));
+        field(f, { name: "hint", label: "Hint", note: "(shown while answering - never the answer)", value: item.hint, limit: "hint", noCounter: true, placeholder: "e.g. Text in Python goes inside quotes." });
+        if (isLegacy) {
+            const old = field(f, { name: "content", label: "Old item text", note: "(saved before the console - graded by text match until Code is filled in)", value: item.content, multiline: true, rows: 4 });
+            autoGrow(old);
+        }
+        const r2 = row(f);
+        field(r2, { name: "correct_feedback", label: "Feedback when correct", value: item.correct_feedback, limit: "feedback", noCounter: true, placeholder: "Why the answer is right" });
+        field(r2, { name: "incorrect_feedback", label: "Feedback when wrong", value: item.incorrect_feedback, limit: "feedback", noCounter: true, placeholder: "Why it is off - without giving the answer" });
+    }
+
+    function autoGrow(textarea) {
+        const fit = () => {
+            textarea.style.height = "auto";
+            textarea.style.height = `${Math.min(textarea.scrollHeight + 2, 320)}px`;
+        };
+        textarea.addEventListener("input", fit);
+        requestAnimationFrame(fit);
     }
 
     async function generate(btn, note, code, answer, expected) {
@@ -237,27 +258,29 @@
 
     function renderFlashcard(item) {
         const f = els.form;
-        const r = row(f);
-        field(r, { name: "front", label: "Front card", value: item.front, multiline: true, rows: 3, required: true, limit: "flashcard_front" });
-        field(r, { name: "front_code", label: "Code on the card (optional)", value: item.front_code, code: true, rows: 3 });
-        field(f, { name: "back", label: "Back card (answer)", value: item.back_text, multiline: true, rows: 3, required: true, limit: "flashcard_back" });
-        field(f, { name: "hint", label: "Hint", value: item.hint, limit: "hint" });
+        const r = row(f, "qe-row-3");
+        field(r, { name: "front", label: "Front Card", value: item.front, multiline: true, rows: 3, required: true, limit: "flashcard_front", placeholder: "Prompt, term, or question on the front" });
+        field(r, { name: "front_code", label: "Code on the card", note: "(optional)", value: item.front_code, code: true, rows: 3, placeholder: "e.g. x = 5\nprint(x * 2)" });
+        field(r, { name: "back", label: "Back Card", value: item.back_text, multiline: true, rows: 3, required: true, limit: "flashcard_back", placeholder: "Answer or definition revealed on the back" });
+        field(f, { name: "hint", label: "Hint", note: "(shown while answering - never the answer)", value: item.hint, limit: "hint", noCounter: true, placeholder: "Points the way without giving the answer" });
         const r2 = row(f);
-        field(r2, { name: "correct_feedback", label: "Feedback if right", value: item.correct_feedback, limit: "feedback" });
-        field(r2, { name: "incorrect_feedback", label: "Feedback if wrong", value: item.incorrect_feedback, limit: "feedback" });
+        field(r2, { name: "correct_feedback", label: "Feedback when correct", value: item.correct_feedback, limit: "feedback", noCounter: true, placeholder: "Why the answer is right" });
+        field(r2, { name: "incorrect_feedback", label: "Feedback when wrong", value: item.incorrect_feedback, limit: "feedback", noCounter: true, placeholder: "Why it is off - without giving the answer" });
     }
 
+    // create-coding-exercise.html's card, same labels and limits.
     function renderExercise(item) {
         const f = els.form;
-        field(f, { name: "instruction", label: "Instructions", value: item.instruction, multiline: true, rows: 3, required: true, limit: "ex_instruction" });
-        const r = row(f);
-        field(r, { name: "situation", label: "Problem situation", value: item.situation, multiline: true, rows: 3, required: true, limit: "ex_situation" });
-        field(r, { name: "problem_question", label: "Problem question", value: item.problem_question, multiline: true, rows: 3, required: true, limit: "ex_question" });
-        field(f, { name: "clue", label: "Clue (hint)", value: item.clue, multiline: true, rows: 2, required: true, limit: "ex_clue" });
+        field(f, { name: "instruction", label: "Instruction", value: item.instruction, multiline: true, rows: 3, required: true, limit: "ex_instruction", placeholder: "Write instructions here..." });
+        const r = row(f, "qe-row-3");
+        field(r, { name: "situation", label: "Situation", value: item.situation, multiline: true, rows: 3, required: true, limit: "ex_situation", placeholder: "Describe the situation..." });
+        field(r, { name: "problem_question", label: "Question", value: item.problem_question, multiline: true, rows: 3, required: true, limit: "ex_question", placeholder: "State the question..." });
+        field(r, { name: "clue", label: "Clue (hint)", value: item.clue, multiline: true, rows: 3, required: true, limit: "ex_clue", placeholder: "Provide a helpful hint..." });
         const r2 = row(f);
-        field(r2, { name: "expected_output", label: "Expected output", value: item.expected_output, code: true, rows: 3, required: true, limit: "ex_expected" });
-        field(r2, { name: "given_input", label: "Given input (optional)", value: item.given_input, code: true, rows: 3, hint: "One value per line, fed to input() in order." });
-        field(f, { name: "correct_feedback", label: "Correct feedback", value: item.correct_feedback, multiline: true, rows: 2, required: true, limit: "ex_feedback" });
+        field(r2, { name: "expected_output", label: "Expected Output", note: "(exactly what the program should print)", value: item.expected_output, code: true, rows: 4, required: true, limit: "ex_expected", placeholder: "e.g., Welcome to the School Portal!" });
+        field(r2, { name: "correct_feedback", label: "Correct Feedback", value: item.correct_feedback, multiline: true, rows: 4, required: true, limit: "ex_feedback" });
+        field(f, { name: "given_input", label: "Given input (optional)", value: item.given_input, code: true, rows: 2, placeholder: "e.g., Alice",
+            hint: "One value per line, fed to the learner's input() calls in order. The text an input() prompt shows is not part of the output." });
         if ((item.required || []).length) {
             f.appendChild(el("p", "qe-hint qe-tags", `Must use: ${item.required.join(" · ")} (change these in the full editor)`));
         }
@@ -265,13 +288,12 @@
 
     const RENDER = { mcq: renderMcq, fib: renderFib, flashcard: renderFlashcard, exercise: renderExercise };
 
+    // Only the boxes shown are sent; the server keeps every other saved value.
     function collect() {
         const item = state.item;
         const body = { version: item.version };
         if (item.kind === "mcq") {
             body.question = value("question");
-            body.correct_feedback = value("correct_feedback");
-            body.incorrect_feedback = value("incorrect_feedback");
             body.options = item.options.map((o) => ({ id: o.id, text: value(`opt_${o.id}_text`), feedback: value(`opt_${o.id}_feedback`) }));
             const picked = els.form.querySelector("input[name='correct_option_id']:checked");
             body.correct_option_id = picked ? Number(picked.value) : null;
@@ -279,14 +301,6 @@
             Array.from(els.form.elements).forEach((input) => {
                 if (input.name && input.type !== "radio" && input.type !== "button") body[input.name] = input.value;
             });
-            if (item.kind === "fib") {
-                body.wrong_choices = (body.wrong_choices || "").split("\n").map((s) => s.trim()).filter(Boolean);
-                if (!("code_text" in body)) {      // an older text-match item
-                    body.code_text = "";
-                    body.instruction = item.instruction || "";
-                    body.expected_output = "";
-                }
-            }
         }
         return body;
     }
@@ -331,9 +345,10 @@
         state.snapshot = snapshot();
         els.save.disabled = false;
         modal.hidden = false;
+        modal.querySelector(".qe-body").scrollTop = 0;
         document.documentElement.classList.add("qe-open");
         const first = els.form.querySelector("textarea:not([readonly]), input[type='text']:not([readonly])");
-        if (first) first.focus();
+        if (first) first.focus({ preventScroll: true });
     }
 
     function close(force) {

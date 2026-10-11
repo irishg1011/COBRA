@@ -19,6 +19,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/preview-play.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/cobra-find-bar.css') }}">
+    {% if can_quick_edit %}<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">{% endif %}
     <link rel="stylesheet" href="/static/code-editor.css">
 </head>
 <body class="preview-play-body">

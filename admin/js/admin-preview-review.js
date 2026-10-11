@@ -133,8 +133,6 @@
             list.appendChild(li);
         });
         card.appendChild(list);
-        field(card, "Feedback if right", item.correct_feedback);
-        field(card, "Feedback if wrong", item.incorrect_feedback);
         return card;
     }
 
@@ -143,7 +141,6 @@
         if (item.content) field(card, "Instruction", item.instruction);
         field(card, "Code", item.code_text, { pre: true });
         field(card, "Correct answer", item.correct_answer, { cls: "is-answer" });
-        field(card, "Wrong choices (tiles)", (item.wrong_choices || []).join(" · "));
         field(card, "Expected output", item.expected_output, { pre: true });
         field(card, "Hint", item.hint);
         field(card, "Feedback if right", item.correct_feedback);

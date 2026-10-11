@@ -297,7 +297,8 @@ html.qe-open, html.qe-open body { overflow: hidden; }
 }
 .qe-backdrop[hidden] { display: none; }
 .qe-dialog {
-    width: min(760px, 100%);
+    font-family: "Poppins", "Inter", sans-serif;   /* the editors' font */
+    width: min(900px, 100%);
     max-height: calc(100vh - 32px);
     display: flex;
     flex-direction: column;
@@ -330,33 +331,37 @@ html.qe-open, html.qe-open body { overflow: hidden; }
 .qe-form { display: flex; flex-direction: column; gap: 12px; }
 .qe-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .qe-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.qe-label { font-size: 12.5px; font-weight: 700; color: #334155; }
+.qe-label { font-size: 13px; font-weight: 500; color: #111111; }
 .qe-input {
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid #cbd5e1;
-    border-radius: 9px;
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
     font: inherit;
     font-size: 14px;
-    color: #0f172a;
+    color: #111111;
     background: #ffffff;
     resize: vertical;
 }
-.qe-input:focus { outline: none; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }
+.qe-input::placeholder { color: #9ca3af; }
+.qe-input:focus { outline: none; border-color: #09B300; box-shadow: 0 0 0 3px rgba(9, 179, 0, 0.15); }
 .qe-input.qe-code { font-family: "JetBrains Mono", Consolas, "Courier New", monospace; font-size: 13px; background: #0f172a; color: #e2e8f0; border-color: #0f172a; }
 .qe-input.is-readonly { opacity: 0.85; cursor: default; }
 .qe-counter { align-self: flex-end; font-size: 11px; color: #94a3b8; }
 .qe-counter.is-full { color: #dc2626; }
 .qe-hint { font-size: 12px; color: #64748b; }
 .qe-tags { margin: 0; }
-.qe-options { margin: 0; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; }
-.qe-options legend { padding: 0 4px; }
-.qe-option { display: flex; gap: 10px; align-items: flex-start; }
-.qe-correct { display: inline-flex; align-items: center; gap: 6px; padding-top: 26px; cursor: pointer; font-size: 14px; color: #334155; }
-.qe-correct input { width: 18px; height: 18px; margin: 0; accent-color: #16a34a; }
-.qe-option-fields { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.qe-option:has(input[type="radio"]:checked) .qe-option-fields .qe-input:first-of-type { border-color: #86efac; }
+/* Option | Answer | Is Correct | Feedback for Learner - like the editor's answer rows */
+.qe-options { display: flex; flex-direction: column; gap: 8px; }
+.qe-option { display: grid; grid-template-columns: 44px minmax(0, 1fr) 72px minmax(0, 1fr); gap: 10px; align-items: center; }
+.qe-option-head { padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+.qe-option-head .qe-label:nth-child(3) { text-align: center; }
+.qe-option-badge { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; font-weight: 600; color: #374151; background: #ffffff; }
+.qe-correct { display: flex; justify-content: center; }
+.qe-correct input { width: 18px; height: 18px; margin: 0; accent-color: #09B300; cursor: pointer; }
+.qe-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.qe-label-note { font-size: 11.5px; font-weight: 400; color: #6b7280; }
 .qe-generate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
 .qe-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid #e2e8f0; background: #f8fafc; }
 .qe-btn { border: 1px solid #cbd5e1; border-radius: 10px; padding: 9px 16px; background: #ffffff; color: #0f172a; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
@@ -370,7 +375,10 @@ html.qe-open, html.qe-open body { overflow: hidden; }
 @media (max-width: 640px) {
     .qe-backdrop { padding: 0; align-items: stretch; }
     .qe-dialog { max-height: 100vh; border-radius: 0; }
-    .qe-row, .qe-option-fields { grid-template-columns: 1fr; }
+    .qe-row, .qe-row-3 { grid-template-columns: 1fr; }
+    .qe-option { grid-template-columns: 36px minmax(0, 1fr) 40px; }
+    .qe-option > .qe-input:last-child { grid-column: 2 / -1; }
+    .qe-option-head .qe-label:nth-child(4) { display: none; }
     .qe-foot .qe-btn { flex: 1 1 auto; }
     .qe-cancel { margin-right: 0; }
 }

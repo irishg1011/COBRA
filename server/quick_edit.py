@@ -259,8 +259,9 @@ def _save_mcq(cursor, item, data):
         "text": _text(data, "question"),
         "options": options,
         "correct_option": existing_ids.index(correct_id) if correct_id in existing_ids else None,
-        "correct_feedback": _text(data, "correct_feedback"),
-        "incorrect_feedback": _text(data, "incorrect_feedback"),
+        # Not boxes in the editor's question card: kept as saved unless sent.
+        "correct_feedback": _text(data, "correct_feedback") if "correct_feedback" in data else item["correct_feedback"],
+        "incorrect_feedback": _text(data, "incorrect_feedback") if "incorrect_feedback" in data else item["incorrect_feedback"],
     }
     problem = check_mcq(question, "This question", strict=True)
     if problem:
@@ -276,15 +277,17 @@ def _save_mcq(cursor, item, data):
 
 
 def _save_fib(cursor, item, data):
-    fields = {key: _text(data, key) for key in ("instruction", "content", "code_text", "correct_answer",
-                                                 "must_contain", "expected_output", "hint",
-                                                 "correct_feedback", "incorrect_feedback")}
-    if not item["code_text"].strip():
-        fields["code_text"] = ""          # an older text-match item stays one
-    raw_choices = data.get("wrong_choices") or []
+    # The editor's boxes. A box not sent keeps its saved value - e.g. the
+    # tile "wrong choices" (no box in the editor) or an older item's text.
+    keys = ("instruction", "content", "code_text", "correct_answer", "must_contain",
+            "expected_output", "hint", "correct_feedback", "incorrect_feedback")
+    fields = {key: (_text(data, key) if key in data else item[key]) for key in keys}
+    if fields["code_text"].strip():
+        fields["content"] = ""            # rebuilt from Question + Code, as the editor's save does
+    raw_choices = data["wrong_choices"] if "wrong_choices" in data else item["wrong_choices"]
     if isinstance(raw_choices, str):
         raw_choices = raw_choices.splitlines()
-    fields["wrong_choices"] = [str(c).strip() for c in raw_choices if str(c).strip()]
+    fields["wrong_choices"] = [str(c).strip() for c in raw_choices or [] if str(c).strip()]
     problem = check_fib(fields, "This item", strict=True, run_code=True)
     if problem:
         raise QuickEditError(problem)
