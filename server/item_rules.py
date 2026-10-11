@@ -44,6 +44,7 @@ LIMITS = {
     "ex_question": 500,
     "ex_clue": 500,
     "ex_expected": 1000,
+    "ex_feedback": 500,
 }
 
 
@@ -215,7 +216,7 @@ EXERCISE_REQUIRED = (
     ("problem_question", "Please state the Problem Question", "ex_question"),
     ("clue", "Please provide a Clue (hint)", "ex_clue"),
     ("expected_answer", "Please provide the Expected Output", "ex_expected"),
-    ("correct_feedback", "Please provide Correct Feedback", None),
+    ("correct_feedback", "Please provide Correct Feedback", "ex_feedback"),
 )
 
 

@@ -61,6 +61,17 @@
             <input type="number" class="cfb-goto" min="1" step="1" inputmode="numeric" placeholder="Go to #" aria-label="Go to ${noun} number">
             <label class="cfb-only"><input type="checkbox" class="cfb-only-box"> <span>Show matches only</span></label>`;
         opts.before.parentNode.insertBefore(bar, opts.before);
+        // A soft shadow only while the bar floats over the cards (stuck).
+        if ("IntersectionObserver" in window) {
+            const sentinel = document.createElement("div");
+            sentinel.setAttribute("aria-hidden", "true");
+            sentinel.style.height = "1px";
+            bar.parentNode.insertBefore(sentinel, bar);
+            new IntersectionObserver(([entry]) => {
+                bar.classList.toggle("is-stuck", !entry.isIntersecting && entry.boundingClientRect.top < 0);
+            }).observe(sentinel);
+        }
+
         // The bar can sit inside an editor's <form>: typing a search is not an
         // edit (no unsaved-changes warning, no field formatting, no submit).
         ["input", "change", "keydown", "keyup", "paste", "focusin", "focusout"].forEach((type) => {

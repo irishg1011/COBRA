@@ -3,69 +3,65 @@
    feat/quick-edit-items. Used by the activity editor, the coding exercise
    editor and the preview's Review list. */
 
+/* Same look as the editors' fields and cards (create-activity-page.css):
+   gray 1px borders, 6-8px corners, white inputs, green focus. */
 .cfb {
     position: sticky;
-    top: var(--cfb-top, 8px);
+    top: var(--cfb-top, 0px);
     z-index: 30;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     margin: 0 0 14px;
-    padding: 8px 10px;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.97);
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
-    backdrop-filter: blur(4px);
+    padding: 10px 12px;
+    border: 1px solid var(--admin-line, #e5e7eb);
+    border-radius: 8px;
+    background: #ffffff;
     font-family: inherit;
 }
+/* Only once it sticks over the cards: a soft edge underneath. */
+.cfb.is-stuck { box-shadow: 0 6px 12px -8px rgba(15, 23, 42, 0.25); }
 .cfb-search { position: relative; flex: 1 1 220px; min-width: 0; }
-.cfb-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none; }
-.cfb-input {
-    width: 100%;
+.cfb-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #6b7280; font-size: 13px; pointer-events: none; }
+.cfb-input,
+.cfb-goto {
     box-sizing: border-box;
-    height: 36px;
-    padding: 0 10px 0 32px;
-    border: 1px solid #cbd5e1;
-    border-radius: 9px;
-    background: #f8fafc;
+    height: 40px;
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
+    background: #ffffff;
     font: inherit;
     font-size: 14px;
-    color: #0f172a;
+    color: var(--admin-text, #1e293b);
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-.cfb-input:focus, .cfb-goto:focus { outline: none; border-color: #16a34a; background: #ffffff; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }
-.cfb-count { min-width: 64px; font-size: 13px; font-weight: 700; color: #64748b; white-space: nowrap; text-align: center; }
+.cfb-input { width: 100%; padding: 0 14px 0 36px; }
+.cfb-input::placeholder, .cfb-goto::placeholder { color: #9ca3af; }
+.cfb-input:focus, .cfb-goto:focus { outline: none; border-color: #09B300; box-shadow: 0 0 0 3px rgba(9, 179, 0, 0.15); }
+.cfb-count { min-width: 64px; font-size: 13px; font-weight: 500; color: var(--admin-text, #334155); white-space: nowrap; text-align: center; }
 .cfb-count.is-none { color: #dc2626; }
-.cfb-nav { display: inline-flex; gap: 4px; }
+.cfb-nav { display: inline-flex; gap: 6px; }
 .cfb-btn {
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid #cbd5e1;
-    border-radius: 9px;
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
     background: #ffffff;
-    color: #334155;
+    color: #374151;
     cursor: pointer;
     font-size: 12px;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
 }
-.cfb-btn:hover:not(:disabled) { border-color: #16a34a; color: #15803d; }
+.cfb-btn:hover:not(:disabled) { border-color: #09B300; background: #f5fcf5; color: #0F7A3D; }
 .cfb-btn:disabled { opacity: 0.45; cursor: default; }
-.cfb-goto {
-    width: 92px;
-    height: 34px;
-    box-sizing: border-box;
-    padding: 0 8px;
-    border: 1px solid #cbd5e1;
-    border-radius: 9px;
-    font: inherit;
-    font-size: 13px;
-}
-.cfb-goto.is-error { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
-.cfb-only { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; white-space: nowrap; user-select: none; }
-.cfb-only input { width: 16px; height: 16px; accent-color: #16a34a; margin: 0; }
+.cfb-goto { width: 96px; padding: 0 10px; }
+.cfb-goto.is-error { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444; }
+.cfb-only { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--admin-text, #334155); cursor: pointer; white-space: nowrap; user-select: none; }
+.cfb-only input { width: 16px; height: 16px; accent-color: #09B300; margin: 0; }
 
 /* Cards */
 .cfb-match { box-shadow: 0 0 0 2px #fde68a !important; }
@@ -73,7 +69,7 @@
 .cfb-hidden { display: none !important; }
 
 @media (max-width: 640px) {
-    .cfb { gap: 6px; padding: 6px 8px; }
+    .cfb { gap: 6px; padding: 8px; }
     .cfb-search { flex-basis: 100%; }
     .cfb-count { min-width: 0; text-align: left; }
     .cfb-goto { width: 80px; }

@@ -257,7 +257,7 @@
         const r2 = row(f);
         field(r2, { name: "expected_output", label: "Expected output", value: item.expected_output, code: true, rows: 3, required: true, limit: "ex_expected" });
         field(r2, { name: "given_input", label: "Given input (optional)", value: item.given_input, code: true, rows: 3, hint: "One value per line, fed to input() in order." });
-        field(f, { name: "correct_feedback", label: "Correct feedback", value: item.correct_feedback, multiline: true, rows: 2, required: true });
+        field(f, { name: "correct_feedback", label: "Correct feedback", value: item.correct_feedback, multiline: true, rows: 2, required: true, limit: "ex_feedback" });
         if ((item.required || []).length) {
             f.appendChild(el("p", "qe-hint qe-tags", `Must use: ${item.required.join(" · ")} (change these in the full editor)`));
         }
