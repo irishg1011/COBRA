@@ -1,2 +1,5 @@
 # Local environment / secrets
 .env
+
+# feat/admin-extras: database backups (deploy/backup.sh) - never in git
+backups/

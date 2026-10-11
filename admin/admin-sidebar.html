@@ -90,6 +90,21 @@
             <span class="sidebar-icon mask-icon icon-nav-reports"></span>
             <span class="nav-label">Reports</span>
         </a>
+
+        {# feat/admin-extras: audit trail, health, read-only database records #}
+        <div class="sidebar-section-label"><span>System</span></div>
+        <a href="{{ url_for('admin_bp.activity_log_page') }}" title="Activity Log" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.activity_log_page' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-activity"></span>
+            <span class="nav-label">Activity Log</span>
+        </a>
+        <a href="{{ url_for('admin_bp.system_health_page') }}" title="System Health" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.system_health_page' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-health"></span>
+            <span class="nav-label">System Health</span>
+        </a>
+        <a href="{{ url_for('admin_bp.records_page') }}" title="Records (read-only)" class="nav-item {{ 'active' if request.endpoint == 'admin_bp.records_page' else '' }}">
+            <span class="sidebar-icon mask-icon icon-nav-records"></span>
+            <span class="nav-label">Records</span>
+        </a>
         {% endif %}
     </nav>
 

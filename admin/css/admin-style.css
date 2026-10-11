@@ -59,6 +59,9 @@ body {
 /* Sidebar icons (existing PNGs) */
 .icon-nav-dashboard       { --icon: url('/assets/images/dashboard-1.png'); }
 .icon-nav-account         { --icon: url('/assets/images/book-3-11.png'); }
+.icon-nav-activity        { --icon: url('/assets/images/icons/icon-file-text.svg'); }   /* feat/admin-extras */
+.icon-nav-health          { --icon: url('/assets/images/icons/icon-bolt.svg'); }
+.icon-nav-records         { --icon: url('/assets/images/icons/icon-search.svg'); }
 .icon-nav-publishing      { --icon: url('/assets/images/icons/icon-send.svg'); }
 .icon-nav-course          { --icon: url('/assets/images/book-1.png'); }
 .icon-nav-resources       { --icon: url('/assets/images/video-1.png'); }

@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/password-checklist.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/account-tools.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
@@ -208,6 +209,8 @@
                     <div class="table-pagination">
                         <span id="logsShowingCount">Showing {{ logs|length }} of {{ total }} log{{ 's' if total != 1 else '' }}</span>
                         <div class="pagination-controls">
+                            {# feat/admin-extras: CSV with the same search / filters / dates (every page) #}
+                            <a href="#" class="btn-pill-light ax-export" id="logsExportCsv"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> Export CSV</a>
                             <button type="button" class="btn-pagination" id="logsPrevBtn" {{ 'disabled' if page <= 1 }} title="Previous Page">&lt;</button>
                             <span id="logsPageLabel">{{ page }} of {{ total_pages }}</span>
                             <button type="button" class="btn-pagination" id="logsNextBtn" {{ 'disabled' if page >= total_pages }} title="Next Page">&gt;</button>

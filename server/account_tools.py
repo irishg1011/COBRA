@@ -113,6 +113,9 @@ def ensure_account_tools_schema(connection):
         _schema_ready = True
     except Error as e:
         print(f"account_tools: could not prepare the account-tools tables: {e}")
+    # feat/admin-extras: log_action() writes to the Activity Log tables
+    from audit import ensure_audit_schema
+    ensure_audit_schema(connection)
 
 
 def password_signature(password_hash):
@@ -203,21 +206,23 @@ def set_setting(key, value, admin_id, ip_address=None):
 # ------------------------------------------------------------------
 def log_action(cursor, action, acc_id, done_by, details=None, ip_address=None):
     """
-    One account_actions_log_tbl row on the CALLER's cursor, so it is saved
-    (or rolled back) together with the action itself. Never raises.
+    feat/admin-extras: writes to the ONE Activity Log (audit.activity_log_tbl)
+    on the CALLER's cursor, so it is saved (or rolled back) together with the
+    action itself. acc_id = the account it happened to. Never raises.
+    (account_actions_log_tbl is no longer written; its old rows were copied.)
     """
-    try:
-        cursor.execute(
-            f"""INSERT INTO {ACTIONS_TABLE} (action, acc_id, done_by, details, ip_address)
-                VALUES (%s, %s, %s, %s, %s)""",
-            (action, acc_id, done_by, (details or None) and str(details)[:500], ip_address)
-        )
-    except Error as e:
-        print(f"account_tools: could not log '{action}' for {acc_id}: {e}")
+    from audit import log_on_cursor, ACCOUNT_TOOL_CATEGORIES
+    log_on_cursor(
+        cursor, action, ACCOUNT_TOOL_CATEGORIES.get(action, "accounts"), actor=done_by,
+        target_type="account" if acc_id else None, target_id=acc_id,
+        details=details, ip_address=ip_address, endpoint="account_tools",
+    )
 
 
 def log_action_standalone(action, acc_id, done_by, details=None, ip_address=None):
     def work(connection):
+        from audit import ensure_audit_schema
+        ensure_audit_schema(connection)
         cursor = connection.cursor()
         log_action(cursor, action, acc_id, done_by, details, ip_address)
         connection.commit()
@@ -232,17 +237,20 @@ def get_account_actions(acc_id, limit=20):
     Security: [{"action", "label", "details", "by", "at"}]. [] on a DB error.
     """
     from admin_time import fmt_datetime
+    from audit import describe
 
     def work(connection):
         cursor = connection.cursor(dictionary=True)
+        from audit import ensure_audit_schema, ACTIVITY_TABLE
+        ensure_audit_schema(connection)
         cursor.execute(
-            f"""SELECT l.action, l.details, l.created_at, l.done_by, l.acc_id,
+            f"""SELECT l.action, l.details, l.created_at, l.actor_acc_id AS done_by, l.target_id AS acc_id,
                        p.firstname, p.lastname, a.username
-                FROM {ACTIONS_TABLE} l
-                LEFT JOIN account_tbl a ON a.acc_id = l.done_by
-                LEFT JOIN profile_tbl p ON p.acc_id = l.done_by
-                WHERE l.acc_id = %s
-                ORDER BY l.created_at DESC, l.action_id DESC
+                FROM {ACTIVITY_TABLE} l
+                LEFT JOIN account_tbl a ON a.acc_id = l.actor_acc_id
+                LEFT JOIN profile_tbl p ON p.acc_id = l.actor_acc_id
+                WHERE l.target_type = 'account' AND l.target_id = %s
+                ORDER BY l.created_at DESC, l.log_id DESC
                 LIMIT %s""",
             (acc_id, int(limit))
         )
@@ -259,7 +267,7 @@ def get_account_actions(acc_id, limit=20):
                     or r.get("username") or r["done_by"]
             out.append({
                 "action": r["action"],
-                "label": ACTION_LABELS.get(r["action"], r["action"]),
+                "label": ACTION_LABELS.get(r["action"]) or describe(r["action"], None),
                 "details": r.get("details") or "",
                 "by": by,
                 "at": fmt_datetime(r.get("created_at")),

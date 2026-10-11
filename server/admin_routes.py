@@ -14,7 +14,7 @@ from login_logs import get_todays_login_metrics  # NEW: today's login/success/fa
 from password_reset_logs import get_password_resets_today_count  # NEW: today's password-reset count for the Login Logs metric cards
 from session_tracker import get_active_session_count, touch_session, end_session as end_active_session  # NEW: live "Active Sessions" tracking
 from lockout_logs import get_lockouts_today_count  # NEW: distinct-per-day "Locked Out Due to Fails" count
-from presence import get_presence, get_online_users, ONLINE_MINUTES, IDLE_MINUTES  # feat/admin-online: Who's online + status dots
+from presence import get_presence, get_online_users, get_all_states, ONLINE_MINUTES, IDLE_MINUTES  # feat/admin-online: Who's online + status dots
 from dashboard_cards import (  # feat/admin-online: clickable Dashboard cards + "Unlock now"
     CARD_LIMIT, get_newest_accounts, get_locked_accounts, unlock_account, seconds_left_text,
 )
@@ -129,6 +129,11 @@ from werkzeug.routing import BuildError
 from score_display import PASS_MARK, score_class, score_badge_class  # one color rule for scores (green >= pass mark, red below)
 from staff_search import search_everything  # feat/staff-search: the header's "Search anything..." box
 from staff_search import PAGES as STAFF_PAGES  # feat/publishing-presence: page names for "On: Publishing"
+from system_health import get_system_health  # feat/admin-extras
+from records import list_tables, browse as browse_records  # feat/admin-extras: read-only Records
+from audit import (  # feat/admin-extras: Activity Log + errors + CSV
+    install_audit_hooks, get_activity, log as audit_log, to_csv, skip_auto_log,
+)
 from staff_presence import heartbeat as presence_heartbeat, leave as presence_leave, get_staff_locations  # feat/publishing-presence
 from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
@@ -235,6 +240,9 @@ ROLE_FILTER_MAP = {
 # an empty string / "All Status") is treated as "no status filter".
 VALID_STATUS_FILTERS = {"active", "inactive"}
 LOCKED_STATUS_FILTER = "locked"   # feat/admin-online: Account & Security "Locked" option
+PENDING_STATUS_FILTER = "pending"  # feat/admin-extras: owner asked to delete it (30-day restore)
+ONLINE_FILTERS = {"online", "idle", "offline"}   # feat/admin-extras: Account & Security "Online" filter
+ACCOUNTS_PER_PAGE = 25            # feat/admin-extras: Account & Security table page size
 
 # Maps the Sort dropdown's value to a safe, hardcoded ORDER BY clause.
 # Never build ORDER BY directly from user input - only ever pick one of
@@ -700,7 +708,8 @@ def _fmt_datetime(dt):
     return fmt_datetime(dt, empty="Never")
 
 
-def get_accounts_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None):
+def get_accounts_overview(search_query=None, role_filter=None, status_filter=None, sort_by=None,
+                          online_filter=None):
     """
     Pulls every non-deleted account from account_tbl, joined against
     profile_tbl (for the display name) and usertype_tbl (for the role
@@ -821,8 +830,11 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
         # Task #17: Status Filter (Active / Inactive)
         # ------------------------------------------------------------
         normalized_status = (status_filter or "").strip().lower()
-        status_applied = normalized_status in VALID_STATUS_FILTERS or normalized_status == LOCKED_STATUS_FILTER
-        if normalized_status == LOCKED_STATUS_FILTER:
+        status_applied = normalized_status in VALID_STATUS_FILTERS or normalized_status in (
+            LOCKED_STATUS_FILTER, PENDING_STATUS_FILTER)
+        if normalized_status == PENDING_STATUS_FILTER:
+            base_query += " AND a.deletion_due_at IS NOT NULL"
+        elif normalized_status == LOCKED_STATUS_FILTER:
             # feat/admin-online: "Locked" = locked RIGHT NOW (same rule as the
             # is_locked badge and the Locked Accounts card).
             base_query += " AND a.lockout_until IS NOT NULL AND a.lockout_until > NOW()"
@@ -869,10 +881,20 @@ def get_accounts_overview(search_query=None, role_filter=None, status_filter=Non
                 "avatar_url": avatars.get(row["acc_id"]),
             })
 
+        # feat/admin-extras: every row's online state (green / yellow / grey
+        # dot) - for the Online filter and the CSV export. One query.
+        states = get_all_states()
+        for acc in accounts:
+            acc["online"] = states.get(acc["acc_id"], "offline")
+        online_wanted = (online_filter or "").strip().lower()
+        online_applied = online_wanted in ONLINE_FILTERS
+        if online_applied:
+            accounts = [a for a in accounts if a["online"] == online_wanted]
+
         # Metrics should always reflect the FULL registry, not the
         # search/role/status-filtered results, so compute them from an
         # unfiltered pass whenever THIS call itself applied any filter.
-        is_filtered = bool(term) or bool(mapped_role) or status_applied
+        is_filtered = bool(term) or bool(mapped_role) or status_applied or online_applied
         if is_filtered:
             full_overview = get_accounts_overview()
             metrics = full_overview["metrics"] if full_overview else {
@@ -1415,10 +1437,9 @@ def account_security():
         "status": request.args.get('status', '').strip(),
         "sort": request.args.get('sort', '').strip(),
     }
-    overview = get_accounts_overview(
-        search_query=filters["q"], role_filter=filters["role"],
-        status_filter=filters["status"], sort_by=filters["sort"],
-    )
+    filters["online"] = request.args.get('online', '').strip()
+    found = _accounts_page(request.args)
+    overview = None if found is None else {"accounts": found["accounts"], "metrics": found["metrics"]}
 
     if overview is None:
         # DB unreachable - render the page with empty state rather than crashing
@@ -1440,6 +1461,10 @@ def account_security():
         accounts=overview["accounts"],
         metrics=overview["metrics"],
         filters=filters,
+        # feat/admin-extras: paging
+        page=found["page"] if found else 1,
+        total_pages=found["total_pages"] if found else 1,
+        total_accounts=found["total"] if found else 0,
     )
 
 
@@ -1469,28 +1494,74 @@ def search_accounts():
     reload, and none of the filter controls' values are touched by the
     caller.
     """
-    term = request.args.get('q', '')
-    role = request.args.get('role', '')
-    status = request.args.get('status', '')
-    sort = request.args.get('sort', '')
-
-    overview = get_accounts_overview(
-        search_query=term,
-        role_filter=role,
-        status_filter=status,
-        sort_by=sort,
-    )
-    if overview is None:
+    found = _accounts_page(request.args)
+    if found is None:
         return jsonify({"success": False, "message": "Could not reach the database.", "accounts": []}), 500
 
     return jsonify({
         "success": True,
-        "accounts": overview["accounts"],
-        "total": len(overview["accounts"]),
+        "accounts": found["accounts"],
+        "total": found["total"],
+        "page": found["page"],
+        "total_pages": found["total_pages"],
+        "per_page": ACCOUNTS_PER_PAGE,
         # feat/archive-accounts: full-registry metric cards, so the page can
         # refresh them after an archive/restore without a reload.
-        "metrics": overview["metrics"],
+        "metrics": found["metrics"],
     }), 200
+
+
+def _account_filters(args):
+    return dict(
+        search_query=args.get('q', ''), role_filter=args.get('role', ''),
+        status_filter=args.get('status', ''), sort_by=args.get('sort', ''),
+        online_filter=args.get('online', ''),
+    )
+
+
+def _accounts_page(args):
+    """feat/admin-extras: one page (ACCOUNTS_PER_PAGE) of the filtered accounts. None on a DB error."""
+    overview = get_accounts_overview(**_account_filters(args))
+    if overview is None:
+        return None
+    accounts = overview["accounts"]
+    total = len(accounts)
+    total_pages = max(1, (total + ACCOUNTS_PER_PAGE - 1) // ACCOUNTS_PER_PAGE)
+    page = min(max(1, args.get('page', 1, type=int) or 1), total_pages)
+    start = (page - 1) * ACCOUNTS_PER_PAGE
+    return {"accounts": accounts[start:start + ACCOUNTS_PER_PAGE], "total": total, "page": page,
+            "total_pages": total_pages, "metrics": overview["metrics"]}
+
+
+ACCOUNT_CSV_COLUMNS = [
+    ("acc_id", "Account ID"), ("full_name", "Name"), ("username", "Username"), ("email", "Email"),
+    ("role", "Role"), ("status_text", "Status"), ("online", "Online"), ("date_created", "Date created"),
+    ("last_login", "Last login"),
+]
+
+
+@admin_bp.route('/accounts/export.csv')
+def accounts_export_csv():
+    """feat/admin-extras: Account & Security -> CSV of exactly what the filters show (every page)."""
+    overview = get_accounts_overview(**_account_filters(request.args))
+    if overview is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    rows = []
+    for acc in overview["accounts"]:
+        status = "Pending deletion" if acc.get("pending_deletion") else ("Locked" if acc.get("is_locked") else acc.get("status"))
+        rows.append(dict(acc, status_text=status, online=acc.get("online", "offline").capitalize()))
+    audit_log("export_csv", "security", session.get("admin_id"), details=f"Accounts CSV - {len(rows)} rows",
+              ip_address=get_client_ip(), endpoint="accounts_export_csv")
+    return _csv_response(to_csv(ACCOUNT_CSV_COLUMNS, rows), "accounts")
+
+
+def _csv_response(text, name):
+    from flask import Response
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+    return Response(text, mimetype="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="cobrabyte-{name}-{stamp}.csv"',
+        "Cache-Control": "no-store",
+    })
 
 
 # Task #17 spec names the endpoint "/admin/accounts/filter" - registered
@@ -1809,6 +1880,107 @@ def login_logs_data():
 # ============================================================
 # ROUTE: LIVE LOGIN LOGS METRIC CARDS (JSON)
 # ============================================================
+LOGIN_LOG_CSV_COLUMNS = [
+    ("attempted_at", "Attempted at"), ("full_name", "Name"), ("acc_id", "Account ID"), ("email", "Email"),
+    ("role", "Role"), ("status", "Result"), ("ip_address", "IP address"),
+]
+
+
+@admin_bp.route('/login-logs/export.csv')
+def login_logs_export_csv():
+    """feat/admin-extras: Login Logs -> CSV with the same search / filters / dates (every page)."""
+    logs = get_login_logs_overview(
+        search_query=request.args.get('q', ''), role_filter=request.args.get('role', ''),
+        status_filter=request.args.get('status', ''), sort_by=request.args.get('sort', ''),
+        date_from=_clean_ymd(request.args.get('from', '')), date_to=_clean_ymd(request.args.get('to', '')),
+        limit=50000,
+    )
+    if logs is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    audit_log("export_csv", "security", session.get("admin_id"), details=f"Login Logs CSV - {len(logs)} rows",
+              ip_address=get_client_ip(), endpoint="login_logs_export_csv")
+    return _csv_response(to_csv(LOGIN_LOG_CSV_COLUMNS, logs), "login-logs")
+
+
+# ============================================================
+# feat/admin-extras: SYSTEM HEALTH + RECORDS (read-only, admin only)
+# ============================================================
+@admin_bp.route('/system-health')
+def system_health_page():
+    return render_template('system-health.html', health=get_system_health())
+
+
+@admin_bp.route('/system-health/data')
+def system_health_data():
+    return jsonify({"success": True, "health": get_system_health()}), 200
+
+
+@admin_bp.route('/records')
+def records_page():
+    groups = list_tables() or []
+    return render_template('records.html', groups=groups, initial_table=request.args.get('table', ''))
+
+
+@admin_bp.route('/records/data')
+def records_data():
+    """One page of one allowed table. SELECT only; secret columns are never read."""
+    found, message = browse_records(request.args.get('table', ''), request.args.get('q', ''),
+                                    request.args.get('page', 1, type=int))
+    if found is None:
+        return jsonify({"success": False, "message": message}), 400
+    return jsonify({"success": True, **found}), 200
+
+
+# ============================================================
+# feat/admin-extras: ACTIVITY LOG page (admin only) - audit.py
+# ============================================================
+def _activity_filters(args):
+    return {
+        "q": args.get('q', '').strip(),
+        "actor": args.get('actor', '').strip(),
+        "category": args.get('category', '').strip(),
+        "action": args.get('action', '').strip(),
+        "date_from": _clean_ymd(args.get('from', '')) or "",
+        "date_to": _clean_ymd(args.get('to', '')) or "",
+    }
+
+
+@admin_bp.route('/activity-log')
+def activity_log_page():
+    filters = _activity_filters(request.args)
+    found = get_activity(filters, request.args.get('page', 1, type=int)) or {
+        "rows": [], "total": 0, "page": 1, "total_pages": 1, "people": [], "actions": [], "categories": []}
+    return render_template('activity-log.html', filters=filters, **found)
+
+
+@admin_bp.route('/activity-log/data')
+def activity_log_data():
+    filters = _activity_filters(request.args)
+    if filters["date_from"] and filters["date_to"] and filters["date_from"] > filters["date_to"]:
+        return jsonify({"success": False, "rows": [], "message": "The end date must be on or after the start date."}), 400
+    found = get_activity(filters, request.args.get('page', 1, type=int))
+    if found is None:
+        return jsonify({"success": False, "rows": [], "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **found}), 200
+
+
+ACTIVITY_CSV_COLUMNS = [
+    ("when_iso", "When"), ("actor_name", "Who"), ("actor_acc_id", "Who (ID)"), ("actor_role", "Role"),
+    ("category_label", "Category"), ("label", "Action"), ("target_type", "Item type"), ("target_id", "Item ID"),
+    ("target_name", "Item"), ("details", "Details"), ("ip_address", "IP address"),
+]
+
+
+@admin_bp.route('/activity-log/export.csv')
+def activity_log_export_csv():
+    found = get_activity(_activity_filters(request.args), export=True)
+    if found is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    audit_log("export_csv", "security", session.get("admin_id"), details=f"Activity Log CSV - {found['total']} rows",
+              ip_address=get_client_ip(), endpoint="activity_log_export_csv")
+    return _csv_response(to_csv(ACTIVITY_CSV_COLUMNS, found["rows"]), "activity-log")
+
+
 @admin_bp.route('/login-logs/metrics')
 def login_logs_metrics():
     """
@@ -5211,3 +5383,11 @@ def save_coding_exercise_draft():
                 "message": msg
             }), 400
         return redirect(url_for('admin_bp.create_coding_exercise'))
+
+
+# ============================================================
+# feat/admin-extras: ACTIVITY LOG - every successful admin write is
+# logged automatically (audit.ROUTE_ACTIONS). Installed LAST, so the
+# session / permission checks above always run first.
+# ============================================================
+install_audit_hooks(admin_bp)

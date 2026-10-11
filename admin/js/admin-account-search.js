@@ -28,6 +28,27 @@
         const sortSelect = document.getElementById("sortFilterSelect");
         const tableBody = document.getElementById("accountsTableBody");
         const showingCount = document.getElementById("accountsShowingCount");
+        // feat/admin-extras: Online filter, paging, CSV export
+        const onlineSelect = document.getElementById("onlineFilterSelect");
+        const pageLabel = document.getElementById("accountsPageLabel");
+        const prevBtn = document.getElementById("accountsPrevBtn");
+        const nextBtn = document.getElementById("accountsNextBtn");
+        const exportLink = document.getElementById("accountsExportCsv");
+        let page = pageLabel ? Number(pageLabel.dataset.page) || 1 : 1;
+        let totalPages = pageLabel ? Number(pageLabel.dataset.totalPages) || 1 : 1;
+
+        function updatePager(result) {
+            if (!result || !pageLabel) return;
+            page = result.page || 1;
+            totalPages = result.total_pages || 1;
+            pageLabel.textContent = `${page} of ${totalPages}`;
+            if (prevBtn) prevBtn.disabled = page <= 1;
+            if (nextBtn) nextBtn.disabled = page >= totalPages;
+            if (showingCount) {
+                const total = result.total || 0;
+                showingCount.textContent = `Showing ${(result.accounts || []).length} of ${total} account${total !== 1 ? "s" : ""}`;
+            }
+        }
 
         if (!searchInput || !tableBody) return;
 
@@ -149,6 +170,8 @@
 
             if (roleSelect && roleSelect.value) params.set("role", roleSelect.value);
             if (statusSelect && statusSelect.value) params.set("status", statusSelect.value);
+            if (onlineSelect && onlineSelect.value) params.set("online", onlineSelect.value);
+            params.set("page", page);
 
             // Sort always has a meaningful value (defaults to Date
             // Created), so it's always sent - this keeps the requested
@@ -176,6 +199,7 @@
 
                 if (result.success) {
                     renderRows(result.accounts);
+                    updatePager(result);
                     if (window.CobraLive) CobraLive.changed("accounts-rows", result.accounts);
                     updateMetrics(result.metrics);
                 } else {
@@ -221,22 +245,36 @@
                     const value = result.metrics ? result.metrics[el.dataset.metric] : undefined;
                     if (value !== undefined) CobraLive.setText(el, value);
                 });
-                if (!modalOpen && CobraLive.changed("accounts-rows", result.accounts)) renderRows(result.accounts);
+                if (!modalOpen && CobraLive.changed("accounts-rows", result.accounts)) {
+                    renderRows(result.accounts);
+                    updatePager(result);
+                }
             });
         }
 
         // Live search: debounced so it doesn't fire a request on every
         // single keystroke.
-        searchInput.addEventListener("input", scheduleSearch);
+        searchInput.addEventListener("input", () => { page = 1; scheduleSearch(); });
 
         // Task #17: Role / Status / Sort - each change re-runs the same
         // combined search immediately (debounced only to coalesce rapid
         // successive changes), preserving whatever is currently in the
         // search box and in the other dropdowns rather than resetting
         // anything (Requirement #11).
-        [roleSelect, statusSelect, sortSelect].forEach((select) => {
+        // Any filter change starts again from page 1.
+        [roleSelect, statusSelect, sortSelect, onlineSelect].forEach((select) => {
             if (!select) return;
-            select.addEventListener("change", scheduleSearch);
+            select.addEventListener("change", () => { page = 1; scheduleSearch(); });
         });
+        if (prevBtn) prevBtn.addEventListener("click", () => { if (page > 1) { page--; runSearch(); } });
+        if (nextBtn) nextBtn.addEventListener("click", () => { if (page < totalPages) { page++; runSearch(); } });
+        if (exportLink) {
+            exportLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                const params = buildQueryParams();
+                params.delete("page");   // every page
+                window.location.href = `/admin/accounts/export.csv?${params.toString()}`;
+            });
+        }
     });
 })();

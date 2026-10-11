@@ -127,6 +127,17 @@ ENDPOINT_ROLES = {
     "admin_bp.accounts_archived": ADMIN,
     "admin_bp.account_unlock": ADMIN,
 
+    # feat/admin-extras - Activity Log, CSV exports, System Health, read-only Records
+    "admin_bp.activity_log_page": ADMIN,
+    "admin_bp.activity_log_data": ADMIN,
+    "admin_bp.activity_log_export_csv": ADMIN,
+    "admin_bp.accounts_export_csv": ADMIN,
+    "admin_bp.login_logs_export_csv": ADMIN,
+    "admin_bp.system_health_page": ADMIN,
+    "admin_bp.system_health_data": ADMIN,
+    "admin_bp.records_page": ADMIN,      # SELECT only - no editing anywhere
+    "admin_bp.records_data": ADMIN,
+
     # feat/account-tools - progress reset (learners), pending deletion, help requests
     "admin_bp.account_progress_reset_preview": ADMIN,
     "admin_bp.account_progress_reset": ADMIN,

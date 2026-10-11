@@ -1,0 +1,269 @@
+/* ==========================================================================
+   admin-extras.css - Activity Log, System Health, Records, CSV export
+   (feat/admin-extras). Builds on admin-style.css (table-card, data-table,
+   custom-select, btn-pill-light, toolbar).
+   ========================================================================== */
+
+/* --- toolbars with many filters --- */
+.table-toolbar.ax-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ax-filters {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ax-date-range {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--admin-muted);
+}
+
+.ax-export {
+    text-decoration: none;
+    font-size: 13px;
+    padding: 7px 14px;
+}
+
+.ax-form-error {
+    margin: 0;
+    padding: 0 16px;
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+.ax-form-error:empty {
+    display: none;
+}
+
+/* --- tables --- */
+.ax-table td {
+    vertical-align: top;
+}
+
+.ax-nowrap {
+    white-space: nowrap;
+}
+
+.ax-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--admin-muted);
+}
+
+.table-card .data-table td.ax-wrap,
+.table-card .data-table td.ax-details {
+    white-space: normal;
+}
+
+.ax-details {
+    min-width: 220px;
+    max-width: 320px;
+    overflow-wrap: anywhere;
+    font-size: 12.5px;
+}
+
+.ax-pager {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ax-pager button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+/* category chips */
+.ax-cat {
+    display: inline-block;
+    margin-right: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.ax-cat-content { background: #e0f2fe; color: #075985; }
+.ax-cat-accounts { background: #ede9fe; color: #5b21b6; }
+.ax-cat-security { background: #fee2e2; color: #991b1b; }
+.ax-cat-settings { background: #fef3c7; color: #92400e; }
+.ax-cat-logins { background: #dcfce7; color: #166534; }
+
+/* --- Records --- */
+.ax-readonly-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 13px;
+}
+
+.ax-table-pick {
+    min-width: 320px;
+    max-width: 100%;
+}
+
+.ax-hidden-cols {
+    margin: 0;
+    padding: 0 16px 8px;
+    font-size: 12px;
+    color: #92400e;
+}
+
+.ax-hidden-cols:empty {
+    display: none;
+}
+
+.ax-records-table td,
+.ax-records-table th {
+    max-width: 280px;
+    overflow-wrap: anywhere;
+    font-size: 12.5px;
+}
+
+.ax-records-table th {
+    text-transform: none;
+    font-family: Consolas, "Courier New", monospace;
+}
+
+.ax-null {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+/* --- System Health --- */
+.ax-health-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 14px;
+    margin-bottom: 16px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: #ecfdf5;
+    color: #065f46;
+}
+
+.ax-health-banner ul {
+    margin: 0;
+    padding-left: 18px;
+    flex: 1 1 100%;
+    font-size: 14px;
+}
+
+.ax-health-banner small {
+    margin-left: auto;
+    color: inherit;
+    opacity: 0.75;
+}
+
+.ax-health-banner.ax-health-warning { background: #fffbeb; color: #92400e; }
+.ax-health-banner.ax-health-down { background: #fef2f2; color: #991b1b; }
+
+.ax-health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.ax-health-card {
+    padding: 16px;
+    border-radius: 12px;
+    background: #ffffff;
+    border-top: 4px solid #22c55e;
+}
+
+.ax-health-card.ax-health-warning { border-top-color: #f59e0b; }
+.ax-health-card.ax-health-down { border-top-color: #dc2626; }
+
+.ax-health-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.ax-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #22c55e;
+}
+
+.ax-dot-warning { background: #f59e0b; }
+.ax-dot-down { background: #dc2626; }
+
+.ax-stats {
+    display: grid;
+    gap: 10px;
+}
+
+.ax-stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.ax-stat-label {
+    font-size: 12px;
+    color: var(--admin-muted);
+}
+
+.ax-stat-value {
+    font-size: 16px;
+    color: var(--admin-text);
+}
+
+.ax-stat-sub {
+    font-size: 12px;
+    color: var(--admin-muted);
+    overflow-wrap: anywhere;
+}
+
+.ax-errors .panel-header h3 {
+    font-size: 14px;
+}
+
+.ax-empty {
+    padding: 14px 16px;
+}
+
+/* --- Dashboard: System Health card --- */
+.ax-dash-health {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: #ffffff;
+    border-left: 4px solid #22c55e;
+    text-decoration: none;
+    color: var(--admin-text);
+}
+
+.ax-dash-health.ax-health-warning { border-left-color: #f59e0b; }
+.ax-dash-health.ax-health-down { border-left-color: #dc2626; }
+
+.ax-dash-health-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-size: 12.5px;
+    color: var(--admin-muted);
+}
