@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-progress.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-insights.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,36 +53,51 @@
                     </nav>
                 </div>
 
-                <!-- Metric cards (follow search, chapter/module and dates - not status) -->
+                <!-- feat/learner-progress-insights: "Needs attention" - who + why (click a name, or "See all") -->
+                <div class="lp-attention" id="lpAttention" aria-live="polite">
+                    <div class="lp-attention-head">
+                        <h3><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Needs attention <span class="lp-attention-count" id="lpAttentionCount">{{ overview.attention.count }}</span>
+                            <span class="lp-info" tabindex="0" role="note" data-tip="Learners whose average is below {{ pass_mark }}%, who haven't done anything for {{ lp_settings.inactive_days }}+ days, who needed {{ lp_settings.retakes_need_help }}+ retakes, or who left activity pages {{ lp_settings.leaves_need_help }}+ times.">i</span></h3>
+                        <button type="button" class="btn-pill-light lp-attention-all" data-lp-card="needs_attention">See all &rarr;</button>
+                    </div>
+                    <ul class="lp-attention-list" id="lpAttentionList"></ul>
+                </div>
+
+                <!-- Metric cards (follow search, chapter/module and dates - not status); each opens a list -->
                 <div class="metrics-grid progress-metrics-grid progress-metrics-5">
-                    <div class="metric-card">
+                    <div class="metric-card lp-card-link" data-lp-card="learners" role="button" tabindex="0" aria-haspopup="dialog">
                         <div class="metric-info">
-                            <span class="metric-title">Total Learners</span>
+                            <span class="metric-title">Total Learners <span class="lp-info" tabindex="0" role="note" data-tip="Every learner account (deleted accounts not counted), with the search and Chapter / Module filters.">i</span></span>
                             <h2 class="metric-value" id="metricTotalLearners">{{ metrics.total_learners }}</h2>
+                            <small class="lp-card-hint">Everyone &rarr;</small>
                         </div>
                     </div>
-                    <div class="metric-card">
+                    <div class="metric-card lp-card-link" data-lp-card="finished" role="button" tabindex="0" aria-haspopup="dialog">
                         <div class="metric-info">
-                            <span class="metric-title">Not Started</span>
-                            <h2 class="metric-value" id="metricNotStarted">{{ metrics.not_started }}</h2>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Average Score</span>
-                            <h2 class="metric-value {{ metrics.average_score|score_class }}" id="metricLearnerAvgScore">{{ metrics.average_score }}</h2>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-info">
-                            <span class="metric-title">Finished Course</span>
+                            <span class="metric-title">Finished Course <span class="lp-info" tabindex="0" role="note" data-tip="Learners who completed every published lesson (or every lesson of the Chapter / Module you picked).">i</span></span>
                             <h2 class="metric-value metric-value-good" id="metricFinished">{{ metrics.finished }}</h2>
+                            <small class="lp-card-hint">Who &rarr;</small>
                         </div>
                     </div>
-                    <div class="metric-card">
+                    <div class="metric-card lp-card-link" data-lp-card="not_started" role="button" tabindex="0" aria-haspopup="dialog">
                         <div class="metric-info">
-                            <span class="metric-title">Below {{ pass_mark }}%</span>
-                            <h2 class="metric-value metric-value-bad" id="metricLearnerBelow80">{{ metrics.below_80 }}</h2>
+                            <span class="metric-title">Not Started <span class="lp-info" tabindex="0" role="note" data-tip="Learners who haven't opened a lesson yet (in the Chapter / Module you picked).">i</span></span>
+                            <h2 class="metric-value" id="metricNotStarted">{{ metrics.not_started }}</h2>
+                            <small class="lp-card-hint">Who &rarr;</small>
+                        </div>
+                    </div>
+                    <div class="metric-card lp-card-link" data-lp-card="avg_score" role="button" tabindex="0" aria-haspopup="dialog">
+                        <div class="metric-info">
+                            <span class="metric-title">Average Score <span class="lp-info" tabindex="0" role="note" data-tip="The average of every learner's average. A learner's average = FIRST-TRY scores of the lessons they finished. Green {{ pass_mark }}%+, yellow {{ lp_settings.close_from }}–{{ pass_mark - 1 }}%, red below. Click for the learners in each colour.">i</span></span>
+                            <h2 class="metric-value lp-text-{{ metrics.average_band or 'none' }}" id="metricLearnerAvgScore">{{ metrics.average_score }}</h2>
+                            <small class="lp-card-hint">By colour &rarr;</small>
+                        </div>
+                    </div>
+                    <div class="metric-card lp-card-link" data-lp-card="needs_attention" role="button" tabindex="0" aria-haspopup="dialog">
+                        <div class="metric-info">
+                            <span class="metric-title">Needs Attention <span class="lp-info" tabindex="0" role="note" data-tip="Learners with the Needs help or Inactive {{ lp_settings.inactive_days }}+ days status. Click to see who and why.">i</span></span>
+                            <h2 class="metric-value metric-value-bad" id="metricNeedsAttention">{{ metrics.needs_attention }}</h2>
+                            <small class="lp-card-hint">Who &amp; why &rarr;</small>
                         </div>
                     </div>
                 </div>
@@ -97,9 +113,9 @@
                         <div class="toolbar-filters">
                             <select class="custom-select" id="learnerStatusSelect">
                                 <option value="">All Status</option>
-                                <option value="passed" {{ 'selected' if status_filter == 'passed' }}>Passed ({{ pass_mark }}% and up)</option>
-                                <option value="below" {{ 'selected' if status_filter == 'below' }}>Below {{ pass_mark }}%</option>
-                                <option value="no_score" {{ 'selected' if status_filter == 'no_score' }}>No score yet</option>
+                                {% for key, label in lp_settings.status_labels.items() %}
+                                <option value="{{ key }}" {{ 'selected' if status_filter == key }}>{{ label }}</option>
+                                {% endfor %}
                             </select>
 
                             <select class="custom-select" id="learnerChapterSelect">
@@ -135,72 +151,17 @@
                         <table class="data-table progress-table learners-table" id="learnersTable">
                             <thead>
                                 <tr>
-                                    <th>Learner ID</th>
-                                    <th>Name</th>
-                                    <th>Chapter</th>
-                                    <th>Module</th>
-                                    <th>Current Lesson</th>
-                                    <th>Progress</th>
-                                    <th>Avg Score</th>
-                                    <th>Course Completion</th>
-                                    <th>Last Active</th>
-                                    <th title="Times the learner left an activity page during a play">Left Page</th>
+                                    <th>Learner</th>
+                                    <th>Where they are <span class="lp-info" tabindex="0" role="note" data-tip="The lesson they are on now, counted in course order (or in the Chapter / Module you picked). The bar shows how many lessons they finished.">i</span></th>
+                                    <th>Avg Score <span class="lp-info" tabindex="0" role="note" data-tip="First-try average of the lessons they finished. The arrow compares the last {{ lp_settings.trend_days }} days with the {{ lp_settings.trend_days }} days before (a change of {{ lp_settings.trend_min_gap }}+ points).">i</span></th>
+                                    <th>Last active <span class="lp-info" tabindex="0" role="note" data-tip="The last time they did anything: opened or finished a lesson, answered a question or ran a coding exercise.">i</span></th>
+                                    <th>Status <span class="lp-info" tabindex="0" role="note" data-tip="Needs help: average below {{ pass_mark }}%, {{ lp_settings.retakes_need_help }}+ retakes or left activity pages {{ lp_settings.leaves_need_help }}+ times. Inactive: started but nothing for {{ lp_settings.inactive_days }}+ days. Hover a chip to see why.">i</span></th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
+                            {# Rows are drawn by admin-learner-progress-learners.js from #lpInitial #}
                             <tbody id="learnersTableBody" data-page="{{ page }}" data-total-pages="{{ total_pages }}">
-                                {% for l in learners %}
-                                <tr data-acc-id="{{ l.acc_id }}">
-                                    <td>{{ l.acc_id }}</td>
-                                    <td><div class="profile-cell"><span class="presence-avatar-wrap">{% if l.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ l.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}{{ presence_dot(l.acc_id) }}</span><span>{{ l.name }}</span></div></td>
-                                    <td>{{ l.current_chapter }}</td>
-                                    <td>{{ l.current_module }}</td>
-                                    <td>
-                                        {% if l.current_state == 'not_started' %}
-                                        <span class="progress-in-progress">Not started</span>
-                                        {% elif l.current_state == 'finished' %}
-                                        <span class="badge badge-active">Finished</span>
-                                        {% else %}
-                                        <div class="current-lesson-cell">
-                                            <span class="current-lesson-title">{{ l.current_lesson }}</span>
-                                            {% if l.current_state == 'idle' %}
-                                            <small class="current-lesson-path">Last completed</small>
-                                            {% endif %}
-                                        </div>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="progress-count-cell">
-                                            <span>{{ l.modules_completed }}/{{ l.modules_total }} modules</span>
-                                            <small>{{ l.lessons_completed }}/{{ l.lessons_total }} lessons</small>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {% if l.avg_score is none %}
-                                        <span class="progress-no-score">—</span>
-                                        {% else %}
-                                        <span class="badge {{ l.avg_score|score_badge_class }}">{{ l.avg_score }}%</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="completion-cell">
-                                            <progress class="completion-bar" value="{{ l.completion }}" max="100" aria-label="Course completion {{ l.completion }}%"></progress>
-                                            <span class="completion-pct">{{ l.completion }}%</span>
-                                        </div>
-                                    </td>
-                                    <td>{{ l.last_active }}</td>
-                                    <td>{% if l.leaves %}<span class="badge {{ 'badge-locked' if l.leave_forfeits else 'badge-inactive' }}">{{ l.leaves }}</span>{% else %}<span class="progress-no-score">0</span>{% endif %}</td>
-                                    <td>
-                                        <button type="button" class="icon-button-reset progress-view-btn js-view-learner-btn" data-acc-id="{{ l.acc_id }}" title="View course progress" aria-label="View course progress for {{ l.acc_id }}">
-                                            <span class="mask-icon icon-eye"></span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="11" class="text-muted table-empty-message">No learners found.</td>
-                                </tr>
-                                {% endfor %}
+                                <tr><td colspan="6" class="text-muted table-empty-message">Loading&hellip;</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -220,16 +181,25 @@
         </main>
     </div>
 
-    {# Course modal first, lesson modal second so the lesson modal stacks on top #}
+    {# Stacking (later = on top): card list -> lesson / learner -> one learner in one lesson #}
+    {% include 'progress-card-modal.html' %}
+    {% include 'learner-progress-lesson-modal.html' %}
     {% include 'learner-progress-learner-modal.html' %}
     {% include 'learner-progress-modal.html' %}
+
+    <script type="application/json" id="lpSettings">{{ lp_settings|tojson }}</script>
+    <script type="application/json" id="lpInitial">{{ overview|tojson }}</script>
 
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-progress-insights.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-progress-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-course-modal.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-learners-modal.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-progress-cards.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/chart.umd.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-progress-learners.js') }}"></script>
 </body>
 </html>

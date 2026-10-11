@@ -98,6 +98,7 @@ ENDPOINT_ROLES = {
     "admin_bp.learner_progress_learners": BOTH,
     "admin_bp.learner_progress_learners_data": BOTH,
     "admin_bp.learner_progress_learner_detail": BOTH,
+    "admin_bp.learner_progress_card": BOTH,      # feat/learner-progress-insights: clickable cards (read-only)
 
     # Online status dots (feat/admin-online) - mentors are answered for
     # learners only (admin_routes.presence)

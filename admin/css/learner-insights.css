@@ -1,0 +1,275 @@
+/* learner-insights.css - Learner Progress insights (feat/learner-progress-insights)
+   Colour bands come from the pass mark (progress_insights.py):
+   green = passed, yellow = close, red = needs help, grey = no score. */
+
+:root {
+    --lp-pass-bg: #DCF5DC;
+    --lp-pass: #0F7A3D;
+    --lp-close-bg: #FEF3C7;
+    --lp-close: #92400E;
+    --lp-fail-bg: #FEE2E2;
+    --lp-fail: #B91C1C;
+    --lp-none-bg: #F3F4F6;
+    --lp-none: #4B5563;
+    --lp-blue: #0284C7;
+}
+
+/* ---------- score pills + plain text colours ---------- */
+.badge.lp-band { white-space: nowrap; }
+.badge.lp-band-pass, .lp-band-count.lp-band-pass { background: var(--lp-pass-bg); color: var(--lp-pass); }
+.badge.lp-band-close, .lp-band-count.lp-band-close { background: var(--lp-close-bg); color: var(--lp-close); }
+.badge.lp-band-fail, .lp-band-count.lp-band-fail { background: var(--lp-fail-bg); color: var(--lp-fail); }
+.badge.lp-band-none { background: var(--lp-none-bg); color: var(--lp-none); }
+
+.metric-value.lp-text-pass { color: var(--lp-pass); }
+.metric-value.lp-text-close { color: #B7791F; }
+.metric-value.lp-text-fail { color: var(--lp-fail); }
+.metric-value.lp-text-none { color: var(--lp-none); }
+
+/* ---------- status chips ---------- */
+.lp-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: var(--lp-none-bg);
+    color: var(--lp-none);
+}
+.lp-chip-on_track { background: #E0F2FE; color: var(--lp-blue); }
+.lp-chip-finished { background: var(--lp-pass-bg); color: var(--lp-pass); }
+.lp-chip-needs_help { background: var(--lp-fail-bg); color: var(--lp-fail); }
+.lp-chip-inactive { background: var(--lp-close-bg); color: var(--lp-close); }
+.lp-chip-not_started { background: var(--lp-none-bg); color: var(--lp-none); }
+.lp-chip-close { background: var(--lp-close-bg); color: var(--lp-close); }
+
+.lp-why {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--admin-muted);
+    white-space: normal;
+    max-width: 260px;
+}
+
+.lp-reason {
+    display: inline-block;
+    margin: 1px 2px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--lp-fail-bg);
+    color: var(--lp-fail);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* ---------- the (i) tooltip ---------- */
+.lp-info {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    margin-left: 3px;
+    border-radius: 50%;
+    border: 1px solid #9ca3af;
+    color: #6b7280;
+    font: italic 600 10px/1 Georgia, serif;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: help;
+    vertical-align: middle;
+}
+.lp-info:hover, .lp-info:focus { border-color: var(--lp-blue); color: var(--lp-blue); outline: none; }
+.lp-info::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 6px);
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 260px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #111827;
+    color: #fff;
+    font: 400 12px/1.4 "Poppins", sans-serif;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 50;
+    transition: opacity 0.12s;
+}
+.lp-info:hover::after, .lp-info:focus::after { opacity: 1; visibility: visible; }
+th .lp-info::after { top: calc(100% + 6px); }
+
+/* ---------- trend arrow ---------- */
+.lp-score-trend { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lp-trend { font-size: 12px; cursor: help; }
+.lp-trend-up { color: var(--lp-pass); }
+.lp-trend-down { color: var(--lp-fail); }
+.lp-trend-same { color: #9ca3af; }
+.lp-trend-none { color: #d1d5db; }
+
+/* ---------- small bars ---------- */
+.lp-bar-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 120px;
+}
+.lp-bar {
+    display: block;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--admin-track, #dcdcdc);
+    overflow: hidden;
+}
+.lp-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--brand-gradient, #24C7B7);
+}
+.lp-bar-cell small { font-size: 11px; color: var(--admin-muted); white-space: nowrap; }
+
+.lp-path {
+    display: block;
+    font-size: 11px;
+    color: var(--admin-muted);
+    margin-top: 2px;
+}
+.lp-position-cell .lp-path { max-width: 220px; }
+.lp-learner-name { display: flex; flex-direction: column; text-align: left; }
+.lp-learner-name small { font-size: 11px; color: var(--admin-muted); }
+.lp-hardest { font-size: 12px; }
+
+.table-card .data-table td.lp-position-cell,
+.progress-table td .lp-why { white-space: normal; }
+.progress-table td:first-child { text-align: left; }
+
+/* ---------- clickable metric cards ---------- */
+.metric-card.lp-card-link {
+    cursor: pointer;
+    transition: box-shadow 0.15s, transform 0.15s;
+}
+.metric-card.lp-card-link:hover,
+.metric-card.lp-card-link:focus-visible {
+    box-shadow: 0 6px 16px rgba(2, 132, 199, 0.15);
+    transform: translateY(-1px);
+    outline: none;
+}
+.lp-card-hint { display: block; margin-top: 4px; font-size: 11px; color: var(--lp-blue); }
+.metric-value.lp-metric-text {
+    font-size: 16px;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* ---------- Needs attention box ---------- */
+.lp-attention {
+    background: #fff;
+    border: 1px solid #fecaca;
+    border-left: 4px solid var(--lp-fail);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+.lp-attention.is-empty { border-color: #bbf7d0; border-left-color: var(--lp-pass); }
+.lp-attention-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lp-attention-head h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.lp-attention-head h3 > i { color: var(--lp-fail); }
+.lp-attention.is-empty .lp-attention-head h3 > i { color: var(--lp-pass); }
+.lp-attention-count {
+    background: var(--lp-fail-bg);
+    color: var(--lp-fail);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 12px;
+}
+.lp-attention.is-empty .lp-attention-count { background: var(--lp-pass-bg); color: var(--lp-pass); }
+.lp-attention-all { font-size: 12px; padding: 6px 12px; }
+.lp-attention-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 8px;
+}
+.lp-attention-person {
+    width: 100%;
+    text-align: left;
+    background: #fafafa;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font: inherit;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+.lp-attention-person:hover, .lp-attention-person:focus-visible { border-color: var(--lp-blue); outline: none; }
+.lp-attention-person strong { font-size: 13px; }
+.lp-attention-person small { flex-basis: 100%; font-size: 11px; color: var(--admin-muted); }
+.lp-attention-more, .lp-attention-none { font-size: 12px; color: var(--admin-muted); align-self: center; }
+
+/* ---------- card list modal ---------- */
+.progress-detail-card.lp-card-dialog { max-width: 1040px; }
+.lp-card-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.lp-card-search { flex: 1 1 240px; max-width: 360px; }
+.lp-card-bands { display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
+.lp-band-count { font-size: 12px; padding: 4px 10px; border-radius: 12px; }
+.lp-export { font-size: 13px; padding: 7px 14px; cursor: pointer; }
+.lp-card-section-title { margin: 14px 0 6px; font-size: 14px; }
+.lp-card-table-wrap { max-height: 52vh; overflow: auto; }
+.lp-card-count { font-size: 12px; margin: 6px 0 0; }
+.lp-row-link { cursor: pointer; }
+.lp-row-link:hover td, .lp-row-link:focus td { background: #f0f9ff; }
+.lp-row-link:focus { outline: 2px solid var(--lp-blue); outline-offset: -2px; }
+.lp-card-table td { white-space: normal; }
+
+/* ---------- lesson modal ---------- */
+.lp-funnel { display: flex; flex-direction: column; gap: 6px; }
+.lp-funnel-step { display: grid; grid-template-columns: 130px 1fr 90px; align-items: center; gap: 10px; font-size: 13px; }
+.lp-funnel-track { height: 10px; border-radius: 5px; background: #eef2f7; overflow: hidden; }
+.lp-funnel-fill { display: block; height: 100%; background: var(--brand-gradient, #24C7B7); border-radius: 5px; }
+.lp-funnel-count { text-align: right; }
+.lp-funnel-count small { color: var(--admin-muted); }
+
+.lp-missed-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.lp-missed-item { padding: 8px 10px; border: 1px solid #eee; border-radius: 8px; }
+.lp-missed-item.is-check-key { border-color: #fca5a5; background: #fff7f7; }
+.lp-missed-item { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lp-missed-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 300px; }
+.lp-missed-text strong { font-weight: 500; font-size: 13px; }
+.lp-missed-text small, .lp-missed-stats small { font-size: 11px; color: var(--admin-muted); }
+.lp-missed-stats { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lp-check-key { color: var(--lp-fail); font-size: 12px; font-weight: 600; cursor: help; }
+.lp-edit-link { font-size: 12px; color: var(--lp-blue); font-weight: 600; text-decoration: none; }
+.lp-edit-link:hover { text-decoration: underline; }
+
+/* ---------- learner modal ---------- */
+.lp-learner-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; font-size: 13px; }
+.lp-learner-trend { display: inline-flex; align-items: center; gap: 6px; }
+.lp-why-list { flex-basis: 100%; margin: 0; padding-left: 18px; font-size: 12px; color: var(--lp-fail); }
+.lp-chart-wrap { position: relative; height: 220px; }
+.lp-topics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.lp-topics h5, #learnerCourseEffort h5 { margin: 6px 0; font-size: 13px; }
+.lp-topic-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.lp-effort-facts { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; margin-bottom: 6px; }
+
+@media (max-width: 700px) {
+    .lp-funnel-step { grid-template-columns: 90px 1fr 70px; }
+    .lp-info::after { max-width: 200px; }
+}

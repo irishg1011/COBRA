@@ -32,10 +32,16 @@ BY LESSON VIEW - COMPLETION
       published activity, the exercise (only if the lesson has one).
 
 BY LESSON VIEW - FILTERS
-    search (learner ID or name), status ('passed' = score >= 80,
-    'below' = score < 80, 'no_score' = no score yet), Started range,
+    search (lesson / module / chapter), Chapter / Module, status (each
+    learner's chip in the lesson - progress_insights.record_status:
+    on_track / close / needs_help / inactive / finished), Started range,
     Completed range. Metric cards follow search + dates, never the
-    status filter. Rows whose lesson is Archived, or whose module or
+    status filter.
+
+AVERAGES (feat/learner-progress-insights)
+    Every average (lesson, learner, cards) counts FINISHED lessons only:
+    a lesson still in progress has items not played yet. Bands, "needs
+    help" and the lesson / learner insights: progress_insights.py. Rows whose lesson is Archived, or whose module or
     category is archived, are hidden from this view.
 
 BY LEARNER VIEW: see the section further down.
@@ -52,10 +58,11 @@ from module_review import module_review_summary  # Module Review status in the C
 from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 from learner_exercise import EXERCISE_ITEMS  # an exercise is one gradable item
 from admin_time import fmt_datetime  # 'Oct 5, 2026 4:53 PM'
+import progress_insights as insights  # feat/learner-progress-insights: bands, needs help, lesson stats
 
 DEFAULT_PER_PAGE = 8
 PASS_MARK = PASS_PERCENT   # the module pass mark - set once, in activity_retakes.py
-VALID_STATUS_FILTERS = {"passed", "below", "no_score"}
+VALID_STATUS_FILTERS = set(insights.STATUS_FILTERS)   # see progress_insights.py
 
 
 # ------------------------------------------------------------------
@@ -89,7 +96,8 @@ def _full_name(row):
 
 
 def _empty_metrics():
-    return {"total_records": 0, "average_score": "—", "completed_100": 0, "below_80": 0}
+    return {"total_records": 0, "average_score": "—", "completed_100": 0, "below_80": 0,
+            "most_completed": None}
 
 
 def empty_learner_progress_overview():
@@ -519,19 +527,13 @@ def _last_touched(row):
     return max(times) if times else None
 
 
-def _status_matches(ev, status):
-    if status == "passed":
-        return ev["score"] is not None and ev["score"] >= PASS_MARK
-    if status == "below":
-        return ev["score"] is not None and ev["score"] < PASS_MARK
-    if status == "no_score":
-        return ev["score"] is None
-    return True
-
-
 def _lesson_scope(cursor, search_query=None, cat_id=None, module_id=None, started_from=None,
                   started_to=None, completed_from=None, completed_to=None, resource_id=None):
-    """(pairs, paths): every (row, evaluated) record in scope, and the lesson paths."""
+    """
+    (records, paths): every learner record in scope as a dict
+    {"row", "ev", "status", "result", "band", "touched"} (see
+    progress_insights.record_status), and the lesson paths.
+    """
     rows = _fetch_progress_rows(
         cursor, None,
         _clean_date(started_from), _clean_date(started_to),
@@ -558,16 +560,42 @@ def _lesson_scope(cursor, search_query=None, cat_id=None, module_id=None, starte
         return True
 
     rows = [r for r in rows if in_scope(r)]
-    return list(zip(rows, _evaluate_rows(cursor, rows))), paths
+    signals = insights.learner_signals(cursor, {r["acc_id"] for r in rows})
+    now = datetime.now()
+    records = []
+    for row, ev in zip(rows, _evaluate_rows(cursor, rows)):
+        touched = _last_touched(row)
+        seen = signals.get(row["acc_id"], {}).get("last_seen")
+        result = insights.record_result(ev)
+        records.append({
+            "row": row, "ev": ev, "touched": touched,
+            "status": insights.record_status(ev, max([t for t in (touched, seen) if t], default=None), now),
+            "result": result,
+            "band": insights.band(result),
+        })
+    return records, paths
 
 
-def _metrics(evaluated):
-    scored = [r["score"] for r in evaluated if r["score"] is not None]
+def _metrics(records):
+    """The four By Lesson cards. Average = finished lessons only (first try)."""
+    finished = [r["ev"]["score"] for r in records if r["ev"]["is_completed"] and r["ev"]["score"] is not None]
+    avg = insights.average(finished)
+    per_lesson = {}
+    for r in records:
+        if r["ev"]["is_completed"]:
+            per_lesson[r["row"]["resource_id"]] = per_lesson.get(r["row"]["resource_id"], 0) + 1
+    top = None
+    if per_lesson:
+        rid, count = max(per_lesson.items(), key=lambda kv: kv[1])
+        lesson = next(r["ev"]["lesson"] for r in records if r["row"]["resource_id"] == rid)
+        top = {"resource_id": rid, "lesson": lesson, "finished": count}
     return {
-        "total_records": len(evaluated),
-        "average_score": f"{round(sum(scored) / len(scored))}%" if scored else "—",
-        "completed_100": sum(1 for r in evaluated if r["completion"] == 100),
-        "below_80": sum(1 for s in scored if s < PASS_MARK),
+        "total_records": len(records),
+        "average_score": f"{avg}%" if avg is not None else "—",
+        "average_band": insights.band(avg),
+        "completed_100": sum(1 for r in records if r["ev"]["completion"] == 100),
+        "below_80": sum(1 for s in finished if s < PASS_MARK),
+        "most_completed": top,
     }
 
 
@@ -591,6 +619,39 @@ def _sort_lessons(lessons, sort):
         lessons.sort(key=lambda l: (l["lesson"] or "").lower())
 
 
+def _lesson_rows(records, paths, status=""):
+    """One row per lesson from the records that match the Status filter (unsorted, private keys kept)."""
+    groups = {}
+    for rec in records:
+        if insights.record_matches(rec, status):
+            groups.setdefault(rec["row"]["resource_id"], []).append(rec)
+
+    lessons = []
+    for rid, items in groups.items():
+        path = paths[rid]
+        extras = insights.lesson_row_extras([(r["row"], r["ev"], r["touched"]) for r in items])
+        touched = [r["touched"] for r in items if r["touched"]]
+        last_touched = max(touched) if touched else None
+        lessons.append({
+            "resource_id": rid,
+            "lesson": path["lesson"],
+            "module": path["module"],
+            "chapter": path["chapter"],
+            "learners": extras["started"],
+            "completed": extras["finished"],
+            "avg_score": extras["avg_score"],
+            "avg_band": insights.band(extras["avg_score"]),
+            "pass_rate": extras["pass_rate"],
+            "passed": extras["passed"],
+            "hardest": extras["hardest"],
+            "stuck_at": extras["stuck_at"],
+            "last_activity": fmt_datetime(last_touched),
+            "_order": path["order"],
+            "_last": last_touched,
+        })
+    return lessons
+
+
 @live_cached   # the admin pages refresh every 10 s - see live_cache.py
 def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=None, module_id=None,
                                   started_from=None, started_to=None,
@@ -600,6 +661,8 @@ def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=
     Returns {"lessons", "metrics", "total", "page", "per_page", "total_pages"}
     (total = number of lessons) or None if the database is unreachable.
     sort is one of LESSON_SORTS; anything else falls back to course order.
+    status_filter is one of progress_insights.STATUS_FILTERS, applied to
+    each learner's record in the lesson (cards never follow it).
     """
     connection = get_db_connection()
     if connection is None:
@@ -607,38 +670,13 @@ def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=
 
     try:
         cursor = connection.cursor(dictionary=True)
-        pairs, paths = _lesson_scope(cursor, search_query, cat_id, module_id,
-                                     started_from, started_to, completed_from, completed_to)
+        records, paths = _lesson_scope(cursor, search_query, cat_id, module_id,
+                                       started_from, started_to, completed_from, completed_to)
         cursor.close()
 
-        metrics = _metrics([ev for _, ev in pairs])   # cards: never the status filter
+        metrics = _metrics(records)   # cards: never the status filter
 
-        status = (status_filter or "").strip().lower()
-        groups = {}
-        for row, ev in pairs:
-            if _status_matches(ev, status):
-                groups.setdefault(row["resource_id"], []).append((row, ev))
-
-        lessons = []
-        for rid, items in groups.items():
-            path = paths[rid]
-            learners = {ev["acc_id"] for _, ev in items}
-            scores = [ev["score"] for _, ev in items if ev["score"] is not None]
-            completed = {ev["acc_id"] for _, ev in items if ev["is_completed"]}
-            touched = [t for t in (_last_touched(row) for row, _ in items) if t]
-            last_touched = max(touched) if touched else None
-            lessons.append({
-                "resource_id": rid,
-                "lesson": path["lesson"],
-                "module": path["module"],
-                "chapter": path["chapter"],
-                "learners": len(learners),
-                "avg_score": round(sum(scores) / len(scores)) if scores else None,
-                "completed": len(completed),
-                "last_activity": fmt_datetime(last_touched),
-                "_order": path["order"],
-                "_last": last_touched,
-            })
+        lessons = _lesson_rows(records, paths, (status_filter or "").strip().lower())
         _sort_lessons(lessons, sort)
         for lesson in lessons:
             del lesson["_order"]
@@ -667,14 +705,29 @@ def get_learner_progress_overview(search_query=None, status_filter=None, cat_id=
             connection.close()
 
 
+def _record_out(rec):
+    out = {key: rec["ev"][key] for key in TABLE_KEYS}
+    out.update({
+        "status": rec["status"],
+        "status_label": insights.STATUS_LABELS.get(rec["status"], ""),
+        "result": rec["result"],
+        "band": rec["band"],
+        "stuck_at": None if rec["ev"]["is_completed"] else insights.stuck_step(rec["ev"]),
+        "last_update": fmt_datetime(rec["touched"]),
+    })
+    return out
+
+
 def get_lesson_learners(resource_id, status_filter=None, started_from=None, started_to=None,
                         completed_from=None, completed_to=None):
     """
-    The By Lesson eye-button modal: every learner record for ONE lesson
-    (the same per-learner data the old one-row-per-record table showed),
-    with the page's Status and date filters applied. Newest start first.
-    Returns {"lesson", "module", "chapter", "records"} or None (not found /
-    database unreachable).
+    The By Lesson eye-button modal for ONE lesson, with the page's Status
+    and date filters applied:
+        records      every learner record (newest start first) + status chip
+        funnel       how many got past each step
+        per_type     first-try average, timeouts, skips, retakes per activity type
+        most_missed  the TOP 5 questions missed on the first try
+    Returns None (not found / database unreachable).
     """
     resource_id = _to_int(resource_id)
     if resource_id is None:
@@ -684,19 +737,34 @@ def get_lesson_learners(resource_id, status_filter=None, started_from=None, star
         return None
     try:
         cursor = connection.cursor(dictionary=True)
-        pairs, paths = _lesson_scope(cursor, None, None, None, started_from, started_to,
-                                     completed_from, completed_to, resource_id=resource_id)
-        if not pairs:
+        records, paths = _lesson_scope(cursor, None, None, None, started_from, started_to,
+                                       completed_from, completed_to, resource_id=resource_id)
+        if not records:
             paths = _lesson_paths(cursor, {resource_id})
-        cursor.close()
         path = paths.get(resource_id)
         if not path:
+            cursor.close()
             return None
 
         status = (status_filter or "").strip().lower()
-        records = [{key: ev[key] for key in TABLE_KEYS} for _, ev in pairs if _status_matches(ev, status)]
-        _attach_avatars(connection, records)
-        return {"lesson": path["lesson"], "module": path["module"], "chapter": path["chapter"], "records": records}
+        records = [r for r in records if insights.record_matches(r, status)]
+        evs = [r["ev"] for r in records]
+        structure = _load_lesson_structure(cursor, [resource_id])[resource_id]
+        per_type, most_missed = insights.lesson_activity_stats(cursor, structure["activities"], evs)
+        cursor.close()
+
+        out = [_record_out(r) for r in records]
+        _attach_avatars(connection, out)
+        extras = insights.lesson_row_extras([(r["row"], r["ev"], r["touched"]) for r in records])
+        return {
+            "resource_id": resource_id,
+            "lesson": path["lesson"], "module": path["module"], "chapter": path["chapter"],
+            "records": out,
+            "summary": extras,
+            "funnel": insights.lesson_funnel(evs, structure["has_video"], structure["exercise"] is not None),
+            "per_type": per_type,
+            "most_missed": most_missed,
+        }
     except Error as e:
         print(f"learner_progress_monitor: failed to load learners of lesson {resource_id}: {e}")
         return None
@@ -881,13 +949,14 @@ def _summarize_learner(learner, pairs, scope_ids, lesson_path, lessons_total, sc
     in_scope = [(row, ev) for row, ev in pairs if row["resource_id"] in scope_ids]
     completed = [(row, ev) for row, ev in in_scope if ev["is_completed"]]
     open_pairs = [(row, ev) for row, ev in in_scope if not ev["is_completed"]]
-    scores = [ev["score"] for _, ev in in_scope if ev["score"] is not None]
+    # feat/learner-progress-insights: the average counts FINISHED lessons
+    # only - a lesson still in progress has items not played yet.
+    scores = [ev["score"] for _, ev in completed if ev["score"] is not None]
 
-    last_active = None
-    for row, ev in in_scope:
-        for dt in (row.get("started_at"), row.get("completed_at") if ev["is_completed"] else None):
-            if dt and (last_active is None or dt > last_active):
-                last_active = dt
+    # Last active: anything done in ANY lesson (started / read / watched /
+    # completed); build_learner_summaries() adds plays, answers, exercises.
+    touched = [t for t in (_last_touched(row) for row, _ in pairs) if t]
+    last_active = max(touched) if touched else None
 
     current = None
     if not in_scope:
@@ -934,17 +1003,19 @@ def _summarize_learner(learner, pairs, scope_ids, lesson_path, lessons_total, sc
         "last_active": fmt_datetime(last_active),   # "Oct 5, 2026 4:53 PM"
         "_last_active_raw": last_active,
         "_current_resource_id": current_rid,
+        "_completed": [(row.get("completed_at"), ev["score"]) for row, ev in completed if ev["score"] is not None],
     }
 
 
 def _empty_learner_metrics():
-    return {"total_learners": 0, "not_started": 0, "average_score": "—", "finished": 0, "below_80": 0}
+    return {"total_learners": 0, "not_started": 0, "average_score": "—", "finished": 0, "below_80": 0,
+            "needs_attention": 0}
 
 
 def empty_learners_progress_overview():
     """Used when the DB is unreachable so the page still renders."""
     return {
-        "learners": [], "metrics": _empty_learner_metrics(),
+        "learners": [], "metrics": _empty_learner_metrics(), "attention": {"count": 0, "people": []},
         "total": 0, "page": 1, "per_page": DEFAULT_PER_PAGE, "total_pages": 1,
     }
 
@@ -997,11 +1068,85 @@ def build_learner_summaries(cursor, search_query=None, cat_id=None, module_id=No
         by_acc.setdefault(row["acc_id"], []).append((row, ev))
 
     scope_modules = _scope_modules(lesson_path, scope_ids)
-    return [
-        _summarize_learner(l, by_acc.get(l["acc_id"], []), scope_ids, lesson_path,
-                           len(scope_ids), scope_modules)
-        for l in learners
-    ]
+    scope_order = [rid for rid in lesson_path if rid in scope_ids]   # course order
+    signals = insights.learner_signals(cursor, [l["acc_id"] for l in learners])
+    now = datetime.now()
+    summaries = []
+    for l in learners:
+        summary = _summarize_learner(l, by_acc.get(l["acc_id"], []), scope_ids, lesson_path,
+                                     len(scope_ids), scope_modules)
+        add_insights(summary, signals.get(l["acc_id"]), scope_order, now)
+        summaries.append(summary)
+    return summaries
+
+
+def add_insights(summary, signal, scope_order, now=None):
+    """
+    feat/learner-progress-insights: status chip, reasons, trend, "Lesson 12
+    of 40", "3 days ago" - added to a _summarize_learner() row in place.
+    """
+    signal = signal or {}
+    seen = [t for t in (summary.get("_last_active_raw"), signal.get("last_seen")) if t]
+    last_seen = max(seen) if seen else None
+    summary["_last_active_raw"] = last_seen
+    summary["_last_seen_raw"] = last_seen
+    summary["last_active"] = fmt_datetime(last_seen)
+    summary["last_active_ago"] = insights.ago_text(last_seen, now)
+    summary["inactive_days"] = insights.days_since(last_seen, now)
+
+    reasons = insights.attention_reasons(summary, signal, now)
+    status = insights.learner_status(summary, reasons)
+    summary["reasons"] = reasons
+    summary["status"] = status
+    summary["status_label"] = insights.STATUS_LABELS[status]
+    summary["avg_band"] = insights.band(summary.get("avg_score"))
+    summary["trend"] = insights.score_trend(summary.get("_completed") or [], now)
+    summary["retakes"] = signal.get("retakes", 0)
+    summary["leaves"] = signal.get("leaves", 0)
+
+    total = summary.get("lessons_total") or 0
+    if summary["current_state"] == "finished":
+        position = total
+    elif summary.get("_current_resource_id") in scope_order:
+        position = scope_order.index(summary["_current_resource_id"]) + 1
+    else:
+        position = summary.get("lessons_completed") or 0
+    summary["position"] = position
+    return summary
+
+
+def _learner_metrics(summaries):
+    avgs = [s["avg_score"] for s in summaries if s["avg_score"] is not None]
+    avg = insights.average(avgs)
+    return {
+        "total_learners": len(summaries),
+        "not_started": sum(1 for s in summaries if s["current_state"] == "not_started"),
+        "average_score": f"{avg}%" if avg is not None else "—",
+        "average_band": insights.band(avg),
+        "finished": sum(1 for s in summaries if s["current_state"] == "finished"),
+        "below_80": sum(1 for a in avgs if a < PASS_MARK),
+        "needs_attention": sum(1 for s in summaries if s["status"] in insights.ATTENTION_STATUSES),
+    }
+
+
+ATTENTION_PREVIEW = 5
+
+
+def _attention_order(s):
+    """Most reasons first, then the longest inactive, then the lowest average."""
+    return (-len(s["reasons"]), -(s.get("inactive_days") or 0), s["avg_score"] if s["avg_score"] is not None else 101,
+            s["acc_id"])
+
+
+def _attention(summaries):
+    """The "Needs attention" box: how many + the first few (who + why)."""
+    people = sorted([s for s in summaries if s["status"] in insights.ATTENTION_STATUSES], key=_attention_order)
+    return {
+        "count": len(people),
+        "people": [{"acc_id": s["acc_id"], "name": s["name"], "status": s["status"],
+                    "status_label": s["status_label"], "reasons": [r["text"] for r in s["reasons"]]}
+                   for s in people[:ATTENTION_PREVIEW]],
+    }
 
 
 @live_cached   # the admin pages refresh every 10 s - see live_cache.py
@@ -1038,23 +1183,12 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
             ]
 
         # --- Metric cards ---
-        avgs = [s["avg_score"] for s in summaries if s["avg_score"] is not None]
-        metrics = {
-            "total_learners": len(summaries),
-            "not_started": sum(1 for s in summaries if s["current_state"] == "not_started"),
-            "average_score": f"{round(sum(avgs) / len(avgs))}%" if avgs else "—",
-            "finished": sum(1 for s in summaries if s["current_state"] == "finished"),
-            "below_80": sum(1 for a in avgs if a < PASS_MARK),
-        }
+        metrics = _learner_metrics(summaries)
+        attention = _attention(summaries)
 
         # --- Status filter (table only) ---
         status = (status_filter or "").strip().lower()
-        if status == "passed":
-            summaries = [s for s in summaries if s["avg_score"] is not None and s["avg_score"] >= PASS_MARK]
-        elif status == "below":
-            summaries = [s for s in summaries if s["avg_score"] is not None and s["avg_score"] < PASS_MARK]
-        elif status == "no_score":
-            summaries = [s for s in summaries if s["avg_score"] is None]
+        summaries = [s for s in summaries if insights.learner_matches(s, status)]
 
         # Most recently active first, never-started learners last
         summaries.sort(key=lambda s: (
@@ -1076,6 +1210,7 @@ def get_learners_progress_overview(search_query=None, status_filter=None, cat_id
         return {
             "learners": learners,
             "metrics": metrics,
+            "attention": attention,
             "total": total,
             "page": page,
             "per_page": per_page,
@@ -1132,6 +1267,12 @@ def get_learner_course_detail(acc_id):
         all_ids = set(lesson_path.keys())
         summary = _summarize_learner(learners[0], pairs, all_ids, lesson_path, len(all_ids),
                                      _scope_modules(lesson_path, all_ids))
+        # feat/learner-progress-insights: status, reasons, trend, timeline, topics...
+        extra_cursor = connection.cursor(dictionary=True)
+        signal = insights.learner_signals(extra_cursor, [acc_id]).get(acc_id)
+        add_insights(summary, signal, list(lesson_path), datetime.now())
+        extras = insights.learner_extras(extra_cursor, acc_id, pairs, lesson_path, signal)
+        extra_cursor.close()
         current_rid = summary["_current_resource_id"] if summary["current_state"] == "in_progress" else None
 
         by_resource = {}
@@ -1197,6 +1338,7 @@ def get_learner_course_detail(acc_id):
             previous_finished = stats["lessons_total"] > 0 and stats["lessons_completed"] == stats["lessons_total"]
 
         result = _strip_private(summary)
+        result["insights"] = extras
         result["chapters"] = chapters_out
         result["avatar_url"] = avatar_url
         # feat/leave-detection: every time this learner left a game or an exercise
@@ -1219,6 +1361,201 @@ def get_learner_course_detail(acc_id):
 
     except Error as e:
         print(f"learner_progress_monitor: failed to load course detail for {acc_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+# ==================================================================
+# CLICKABLE METRIC CARDS (feat/learner-progress-insights)
+# ------------------------------------------------------------------
+# One card -> one modal: {"title", "subtitle", "sections": [{"title",
+# "columns": [{"key", "label", "type"}], "rows": [...]}]}. Same filters as
+# the page (never the Status filter - the card numbers don't follow it).
+# Each row carries "_open": {"type": learner | lesson | record, "id"} so the
+# browser can open the learner / lesson / one-record modal from it.
+# Column types: text, learner, score (number, coloured by band), status
+# (chip), reasons (list), bar ({"value", "max"}).
+# ==================================================================
+CARD_ROW_LIMIT = 2000
+LESSON_CARDS = ("records", "avg_score", "completed_100", "most_completed")
+LEARNER_CARDS = ("learners", "finished", "not_started", "avg_score", "needs_attention")
+BAND_ORDER = {"fail": 0, "close": 1, "pass": 2, "none": 3}
+
+_LEARNER_COL = {"key": "learner", "label": "Learner", "type": "learner"}
+_LESSON_COL = {"key": "lesson", "label": "Lesson", "type": "text"}
+
+
+def _band_counts(values):
+    counts = {"pass": 0, "close": 0, "fail": 0}
+    for v in values:
+        b = insights.band(v)
+        if b in counts:
+            counts[b] += 1
+    return counts
+
+
+def _lesson_card(cursor, kind, filters):
+    records, paths = _lesson_scope(cursor, filters.get("search_query"), filters.get("cat_id"),
+                                   filters.get("module_id"), filters.get("started_from"),
+                                   filters.get("started_to"), filters.get("completed_from"),
+                                   filters.get("completed_to"))
+
+    def record_row(r):
+        path = paths.get(r["row"]["resource_id"]) or {}
+        return {
+            "learner": {"acc_id": r["ev"]["acc_id"], "name": r["ev"]["name"]},
+            "lesson": r["ev"]["lesson"],
+            "where": f"{path.get('chapter', '—')} › {path.get('module', '—')}",
+            "score": r["result"],
+            "status": r["status"],
+            "completion": r["ev"]["completion"],
+            "updated": fmt_datetime(r["touched"]),
+            "completed_at": r["ev"]["completed_at"],
+            "_sort": r["touched"] or datetime.min,
+            "_open": {"type": "record", "id": r["ev"]["progress_id"]},
+        }
+
+    if kind == "records":
+        rows = sorted((record_row(r) for r in records), key=lambda x: x["_sort"], reverse=True)
+        return {
+            "title": "Latest progress updates",
+            "subtitle": "Every learner record in the lessons shown, newest update first.",
+            "sections": [{"columns": [
+                {"key": "updated", "label": "Last update", "type": "text"}, _LEARNER_COL, _LESSON_COL,
+                {"key": "score", "label": "Score", "type": "score"},
+                {"key": "status", "label": "Status", "type": "status"}], "rows": rows}],
+        }
+    if kind == "completed_100":
+        rows = sorted((record_row(r) for r in records if r["ev"]["completion"] == 100),
+                      key=lambda x: x["_sort"], reverse=True)
+        return {
+            "title": "Completed 100%",
+            "subtitle": "Learners who did every step of a lesson (video, content, activities, exercise).",
+            "sections": [{"columns": [
+                _LEARNER_COL, _LESSON_COL, {"key": "score", "label": "Score", "type": "score"},
+                {"key": "completed_at", "label": "Completed", "type": "text"}], "rows": rows}],
+        }
+
+    lessons = _lesson_rows(records, paths)
+    for l in lessons:
+        l["where"] = f"{l['chapter']} › {l['module']}"
+        l["finished_bar"] = {"value": l["completed"], "max": l["learners"]}
+        l["_open"] = {"type": "lesson", "id": l["resource_id"]}
+        l.pop("_last", None)
+    if kind == "avg_score":
+        lessons.sort(key=lambda l: (BAND_ORDER[l["avg_band"]], l["avg_score"] if l["avg_score"] is not None else 0,
+                                    l["_order"]))
+        return {
+            "title": "Average score by lesson",
+            "subtitle": f"First try, finished lessons only. Green {PASS_MARK}%+, yellow "
+                        f"{PASS_MARK - insights.CLOSE_BAND}–{PASS_MARK - 1}%, red below.",
+            "bands": _band_counts([l["avg_score"] for l in lessons]),
+            "sections": [{"columns": [
+                _LESSON_COL, {"key": "where", "label": "Chapter › Module", "type": "text"},
+                {"key": "avg_score", "label": "Avg score", "type": "score"},
+                {"key": "pass_rate", "label": "Pass rate", "type": "percent"},
+                {"key": "completed", "label": "Finished", "type": "text"}], "rows": lessons}],
+        }
+    if kind == "most_completed":
+        cols = [_LESSON_COL, {"key": "where", "label": "Chapter › Module", "type": "text"},
+                {"key": "finished_bar", "label": "Started → finished", "type": "bar"},
+                {"key": "avg_score", "label": "Avg score", "type": "score"}]
+        by_finished = sorted(lessons, key=lambda l: (-l["completed"], l["_order"]))[:10]
+        by_learners = sorted(lessons, key=lambda l: (-l["learners"], l["_order"]))[:10]
+        return {
+            "title": "Most completed lessons",
+            "subtitle": "Top 10 by learners who finished, and top 10 by learners who started.",
+            "sections": [{"title": "Most finished", "columns": cols, "rows": by_finished},
+                         {"title": "Most learners", "columns": cols, "rows": by_learners}],
+        }
+    return None
+
+
+def _learner_card(cursor, kind, filters):
+    summaries = build_learner_summaries(cursor, filters.get("search_query"), filters.get("cat_id"),
+                                        filters.get("module_id"))
+    active_from, active_to = _clean_date(filters.get("active_from")), _clean_date(filters.get("active_to"))
+    if active_from or active_to:
+        summaries = [s for s in summaries if s["_last_active_raw"]
+                     and (not active_from or s["_last_active_raw"].strftime("%Y-%m-%d") >= active_from)
+                     and (not active_to or s["_last_active_raw"].strftime("%Y-%m-%d") <= active_to)]
+
+    def row(s):
+        return {
+            "learner": {"acc_id": s["acc_id"], "name": s["name"]},
+            "position": {"value": s["position"], "max": s["lessons_total"]},
+            "lessons": f"{s['lessons_completed']} of {s['lessons_total']}",
+            "current": s["current_lesson"],
+            "avg_score": s["avg_score"],
+            "status": s["status"],
+            "reasons": [r["text"] for r in s["reasons"]],
+            "last_active": s["last_active_ago"],
+            "_open": {"type": "learner", "id": s["acc_id"]},
+        }
+
+    base = [_LEARNER_COL, {"key": "position", "label": "Lesson", "type": "bar"},
+            {"key": "avg_score", "label": "Avg score", "type": "score"},
+            {"key": "status", "label": "Status", "type": "status"},
+            {"key": "last_active", "label": "Last active", "type": "text"}]
+    recent = lambda s: (s["_last_active_raw"] is None, -(s["_last_active_raw"].timestamp()) if s["_last_active_raw"] else 0)
+
+    if kind == "learners":
+        picked, title, sub = sorted(summaries, key=recent), "All learners", "Every learner, most recently active first."
+    elif kind == "finished":
+        picked = sorted([s for s in summaries if s["current_state"] == "finished"], key=recent)
+        title, sub = "Finished the course", "Learners who completed every lesson in scope."
+    elif kind == "not_started":
+        picked = sorted([s for s in summaries if s["current_state"] == "not_started"], key=lambda s: s["acc_id"])
+        title, sub = "Not started", "Learners who haven't opened a lesson in scope yet."
+    elif kind == "avg_score":
+        picked = sorted([s for s in summaries if s["avg_score"] is not None],
+                        key=lambda s: (BAND_ORDER[s["avg_band"]], s["avg_score"]))
+        return {
+            "title": "Average score by learner",
+            "subtitle": f"First try, finished lessons only. Green {PASS_MARK}%+, yellow "
+                        f"{PASS_MARK - insights.CLOSE_BAND}–{PASS_MARK - 1}%, red below.",
+            "bands": _band_counts([s["avg_score"] for s in picked]),
+            "sections": [{"columns": base, "rows": [row(s) for s in picked]}],
+        }
+    elif kind == "needs_attention":
+        picked = sorted([s for s in summaries if s["status"] in insights.ATTENTION_STATUSES], key=_attention_order)
+        return {
+            "title": "Needs attention",
+            "subtitle": f"Average below {PASS_MARK}%, no activity for {insights.INACTIVE_DAYS}+ days, "
+                        f"{insights.RETAKES_NEED_HELP}+ retakes, or left activity pages "
+                        f"{insights.LEAVES_NEED_HELP}+ times.",
+            "sections": [{"columns": [_LEARNER_COL, {"key": "status", "label": "Status", "type": "status"},
+                                      {"key": "reasons", "label": "Why", "type": "reasons"},
+                                      {"key": "avg_score", "label": "Avg score", "type": "score"},
+                                      {"key": "last_active", "label": "Last active", "type": "text"}],
+                          "rows": [row(s) for s in picked]}],
+        }
+    else:
+        return None
+    return {"title": title, "subtitle": sub, "sections": [{"columns": base, "rows": [row(s) for s in picked]}]}
+
+
+def get_progress_card(view, kind, **filters):
+    """The data behind one clickable card, or None (unknown card / DB down)."""
+    if (view, kind) not in {("lessons", k) for k in LESSON_CARDS} | {("learners", k) for k in LEARNER_CARDS}:
+        return None
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        card = _lesson_card(cursor, kind, filters) if view == "lessons" else _learner_card(cursor, kind, filters)
+        cursor.close()
+        if card is None:
+            return None
+        for section in card["sections"]:
+            section["total"] = len(section["rows"])
+            section["rows"] = [{k: v for k, v in r.items() if k == "_open" or not k.startswith("_")}
+                               for r in section["rows"][:CARD_ROW_LIMIT]]
+        return card
+    except Error as e:
+        print(f"learner_progress_monitor: failed to load card {view}/{kind}: {e}")
         return None
     finally:
         if connection.is_connected():

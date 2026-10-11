@@ -7,6 +7,10 @@
  *    (/admin/learner-progress/learners/data).
  * 2. Eye button: opens the shared Course Progress modal
  *    (admin-learner-course-modal.js - window.CobraLearnerCourseModal).
+ * feat/learner-progress-insights: rows show "Lesson 12 of 40", avg score
+ * (green / yellow / red) + trend arrow, "3 days ago" and a status chip;
+ * the "Needs attention" box and the metric cards open lists
+ * (admin-progress-cards.js); Chapter / Module / Status are remembered.
  */
 (function () {
     "use strict";
@@ -37,8 +41,11 @@
             not_started: document.getElementById("metricNotStarted"),
             average_score: document.getElementById("metricLearnerAvgScore"),
             finished: document.getElementById("metricFinished"),
-            below_80: document.getElementById("metricLearnerBelow80"),
+            needs_attention: document.getElementById("metricNeedsAttention"),
         };
+        const I = window.CobraInsights;
+        const attentionCountEl = document.getElementById("lpAttentionCount");
+        const attentionListEl = document.getElementById("lpAttentionList");
 
         if (!tableBody) return;
 
@@ -53,44 +60,22 @@
             return div.innerHTML;
         }
 
-        function scoreBadgeHtml(score) {
-            if (score === null || score === undefined) {
-                return `<span class="progress-no-score">—</span>`;
+        function positionHtml(l) {
+            if (l.current_state === "not_started") {
+                return I.barHtml(0, l.lessons_total, `Not started · ${l.lessons_total} lessons`);
             }
-            return `<span class="badge ${CobraScore.badgeClass(score)}">${escapeHtml(score)}%</span>`;
+            const label = l.current_state === "finished"
+                ? `Finished all ${l.lessons_total}`
+                : `Lesson ${l.position} of ${l.lessons_total}`;
+            const now = l.current_state === "finished" ? "" :
+                `<small class="lp-path cell-truncate" title="${escapeHtml(l.current_path)}">${l.current_state === "idle" ? "Last finished: " : ""}${escapeHtml(l.current_lesson)}</small>`;
+            return `${I.barHtml(l.lessons_completed, l.lessons_total, label)}${now}`;
         }
 
-        function completionHtml(pct, small = false) {
-            const value = Number(pct) || 0;
-            return `
-                <div class="completion-cell">
-                    <progress class="completion-bar${small ? " completion-bar-sm" : ""}" value="${value}" max="100" aria-label="Completion ${value}%"></progress>
-                    <span class="completion-pct">${value}%</span>
-                </div>
-            `;
-        }
-
-        function currentLessonHtml(l) {
-            if (l.current_state === "not_started") return `<span class="progress-in-progress">Not started</span>`;
-            if (l.current_state === "finished") return `<span class="badge badge-active">Finished</span>`;
-            const note = l.current_state === "idle"
-                ? `<small class="current-lesson-path">Last completed</small>`
-                : "";
-            return `
-                <div class="current-lesson-cell">
-                    <span class="current-lesson-title">${escapeHtml(l.current_lesson)}</span>
-                    ${note}
-                </div>
-            `;
-        }
-
-        function progressCountHtml(l) {
-            return `
-                <div class="progress-count-cell">
-                    <span>${escapeHtml(l.modules_completed)}/${escapeHtml(l.modules_total)} modules</span>
-                    <small>${escapeHtml(l.lessons_completed)}/${escapeHtml(l.lessons_total)} lessons</small>
-                </div>
-            `;
+        function statusHtml(l) {
+            const why = (l.reasons || []).map((r) => r.text).join(" · ");
+            return `<span title="${escapeHtml(why || l.status_label)}">${I.chipHtml(l.status, l.status_label)}</span>` +
+                (why ? `<small class="lp-why">${escapeHtml(why)}</small>` : "");
         }
 
         // --- Chapter -> Module (options come from the server-rendered list) ---
@@ -160,7 +145,7 @@
             if (!learners || learners.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="11" class="text-muted table-empty-message">No learners found.</td>
+                        <td colspan="6" class="text-muted table-empty-message">No learners found.</td>
                     </tr>
                 `;
                 return;
@@ -168,18 +153,13 @@
 
             tableBody.innerHTML = learners.map((l) => `
                 <tr data-acc-id="${escapeHtml(l.acc_id)}">
-                    <td>${escapeHtml(l.acc_id)}</td>
-                    <td><div class="profile-cell">${window.CobraPresence ? CobraPresence.avatar(l.acc_id, window.CobraAvatar.html(l.avatar_url)) : window.CobraAvatar.html(l.avatar_url)}<span>${escapeHtml(l.name)}</span></div></td>
-                    <td>${escapeHtml(l.current_chapter)}</td>
-                    <td>${escapeHtml(l.current_module)}</td>
-                    <td>${currentLessonHtml(l)}</td>
-                    <td>${progressCountHtml(l)}</td>
-                    <td>${scoreBadgeHtml(l.avg_score)}</td>
-                    <td>${completionHtml(l.completion)}</td>
-                    <td>${escapeHtml(l.last_active)}</td>
-                    <td>${leavesHtml(l)}</td>
+                    <td>${I.learnerHtml(l.acc_id, l.name, l.avatar_url)}</td>
+                    <td class="lp-position-cell">${positionHtml(l)}</td>
+                    <td><span class="lp-score-trend">${I.scoreHtml(l.avg_score)} ${I.trendHtml(l.trend)}</span></td>
+                    <td><span title="${escapeHtml(l.last_active)}">${escapeHtml(l.last_active_ago)}</span></td>
+                    <td>${statusHtml(l)}</td>
                     <td>
-                        <button type="button" class="icon-button-reset progress-view-btn js-view-learner-btn" data-acc-id="${escapeHtml(l.acc_id)}" title="View course progress" aria-label="View course progress for ${escapeHtml(l.acc_id)}">
+                        <button type="button" class="icon-button-reset progress-view-btn js-view-learner-btn" data-acc-id="${escapeHtml(l.acc_id)}" title="View course progress" aria-label="View course progress for ${escapeHtml(l.name)}">
                             <span class="mask-icon icon-eye"></span>
                         </button>
                     </td>
@@ -187,13 +167,20 @@
             `).join("");
         }
 
-        // feat/leave-detection: times the learner left an activity page
-        // (first leave in a play = warning; after that = forfeit).
-        function leavesHtml(l) {
-            const n = Number(l.leaves || 0);
-            if (!n) return '<span class="progress-no-score">0</span>';
-            const forfeits = Number(l.leave_forfeits || 0);
-            return `<span class="badge ${forfeits ? "badge-locked" : "badge-inactive"}" title="${forfeits} forfeited">${n}</span>`;
+        function renderAttention(attention) {
+            if (!attention || !attentionListEl) return;
+            if (attentionCountEl && attentionCountEl.textContent !== String(attention.count)) attentionCountEl.textContent = attention.count;
+            const box = document.getElementById("lpAttention");
+            if (box) box.classList.toggle("is-empty", !attention.count);
+            const html = attention.count
+                ? attention.people.map((p) => `
+                    <li><button type="button" class="lp-attention-person" data-acc-id="${escapeHtml(p.acc_id)}">
+                        <strong>${escapeHtml(p.name)}</strong> ${I.chipHtml(p.status, p.status_label)}
+                        <small>${escapeHtml(p.reasons.join(" · "))}</small>
+                    </button></li>`).join("") +
+                  (attention.count > attention.people.length ? `<li class="lp-attention-more">+ ${attention.count - attention.people.length} more</li>` : "")
+                : `<li class="lp-attention-none">Nobody right now - every learner is on track.</li>`;
+            if (attentionListEl.innerHTML !== html) attentionListEl.innerHTML = html;
         }
 
         function updateMetrics(metrics) {
@@ -203,8 +190,14 @@
                 if (metricEls[key] && metrics[key] !== undefined && metricEls[key].textContent !== String(metrics[key])) {
                     metricEls[key].textContent = metrics[key];
                 }
-                if (key === "average_score") CobraScore.apply(metricEls[key], metrics[key]);
             });
+            const avgEl = metricEls.average_score;
+            if (avgEl) {
+                const cls = `lp-text-${metrics.average_band || "none"}`;
+                if (!avgEl.classList.contains(cls)) {
+                    avgEl.className = avgEl.className.replace(/\blp-text-\w+/g, "").trim() + " " + cls;
+                }
+            }
         }
 
         function updatePagination(countOnPage, total, page, pages) {
@@ -237,10 +230,15 @@
                 renderRows(learners);
                 if (window.CobraLive) CobraLive.changed("learner-progress-rows", learners);
                 updateMetrics(data.metrics);
+                renderAttention(data.attention);
                 updatePagination(learners.length, data.total || 0, data.page || 1, data.total_pages || 1);
             } catch (err) {
                 console.error("admin-learner-progress-learners: failed to load learners:", err);
             }
+        }
+
+        function remember() {
+            I.rememberFilters(chapterSelect, moduleSelect, statusSelect);
         }
 
         function scheduleFetch(page = 1) {
@@ -249,16 +247,17 @@
         }
 
         if (searchInput) searchInput.addEventListener("input", () => scheduleFetch(1));
-        if (statusSelect) statusSelect.addEventListener("change", () => fetchLearners(1));
+        if (statusSelect) statusSelect.addEventListener("change", () => { remember(); fetchLearners(1); });
 
         if (chapterSelect) {
             chapterSelect.addEventListener("change", () => {
                 rebuildModules(chapterSelect.value, "");
+                remember();
                 fetchLearners(1);
             });
         }
 
-        if (moduleSelect) moduleSelect.addEventListener("change", () => fetchLearners(1));
+        if (moduleSelect) moduleSelect.addEventListener("change", () => { remember(); fetchLearners(1); });
 
         [activeFromInput, activeToInput].forEach((input) => {
             if (input) input.addEventListener("change", () => fetchLearners(1));
@@ -300,6 +299,7 @@
                 const data = await response.json();
                 if (startedAt !== activeRequestId) return;
                 updateMetrics(data.metrics);
+                renderAttention(data.attention);
                 if (modalOpen) return;
                 const learners = data.learners || [];
                 if (CobraLive.changed("learner-progress-rows", learners)) renderRows(learners);
@@ -318,6 +318,38 @@
                 window.CobraLearnerCourseModal.open(btn.dataset.accId);
             }
         });
+        if (attentionListEl) {
+            attentionListEl.addEventListener("click", (e) => {
+                const btn = e.target.closest(".lp-attention-person");
+                if (btn && window.CobraLearnerCourseModal) window.CobraLearnerCourseModal.open(btn.dataset.accId);
+            });
+        }
+
+        // ============================================================
+        // 3. FIRST ROWS, REMEMBERED FILTERS, CARDS
+        // ============================================================
+        const initial = I.readJson("lpInitial", null);
+        if (I.restoreFilters(chapterSelect, moduleSelect, statusSelect, rebuildModules)) {
+            fetchLearners(1);
+        } else if (initial) {
+            renderRows(initial.learners || []);
+            if (window.CobraLive) CobraLive.changed("learner-progress-rows", initial.learners || []);
+            updateMetrics(initial.metrics);
+            renderAttention(initial.attention);
+        }
+
+        if (window.CobraLessonModal) CobraLessonModal.setFilters(() => ({}));
+        if (window.CobraProgressCards) {
+            CobraProgressCards.init({
+                view: "learners",
+                params: () => {
+                    const params = buildParams(1);
+                    params.delete("status");
+                    params.delete("page");
+                    return params;
+                },
+            });
+        }
 
     });
 })();

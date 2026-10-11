@@ -156,8 +156,9 @@ from learner_progress_monitor import (  # NEW: Admin > Learner Progress page (By
     get_learner_progress_overview, get_learner_progress_detail, empty_learner_progress_overview,
     get_lesson_learners,
     get_learners_progress_overview, get_learner_course_detail, empty_learners_progress_overview,
-    get_progress_filter_options,
+    get_progress_filter_options, get_progress_card,
 )
+from progress_insights import settings as progress_insight_settings  # feat/learner-progress-insights
 
 ADMIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../admin'))
 
@@ -4050,6 +4051,8 @@ def learner_progress():
 
     return render_template(
         'learner-progress.html',
+        overview=overview,
+        lp_settings=progress_insight_settings(),
         lessons=overview["lessons"],
         metrics=overview["metrics"],
         total_lessons=overview["total"],
@@ -4130,6 +4133,8 @@ def learner_progress_learners():
 
     return render_template(
         'learner-progress-learners.html',
+        overview=overview,
+        lp_settings=progress_insight_settings(),
         learners=overview["learners"],
         metrics=overview["metrics"],
         total_learners=overview["total"],
@@ -4200,6 +4205,24 @@ def game_settings():
         "settings": [{"key": k, "value": values.get(k, v), "description": d}
                      for k, (v, d) in DEFAULT_SETTINGS.items()],
     }), 200
+
+
+@admin_bp.route('/learner-progress/cards/<view>/<kind>')
+def learner_progress_card(view, kind):
+    """
+    feat/learner-progress-insights: the modal behind one clickable metric
+    card (By Lesson: view=lessons, By Learner: view=learners), with the
+    page's filters (never Status). Read-only.
+    """
+    filters = {**_read_progress_filters(), **_read_learner_view_filters()} if view == "learners" \
+        else _read_progress_filters()
+    filters.pop("page", None)
+    filters.pop("status_filter", None)
+    filters.pop("sort", None)
+    card = get_progress_card(view, kind, **filters)
+    if card is None:
+        return jsonify({"success": False, "message": "This list could not be loaded."}), 404
+    return jsonify({"success": True, **card}), 200
 
 
 @admin_bp.route('/learner-progress/learner-detail/<acc_id>')
