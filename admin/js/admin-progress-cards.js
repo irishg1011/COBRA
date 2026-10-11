@@ -13,6 +13,10 @@
  * Those open ON TOP of this modal, so it is placed first in the page.
  *
  *   CobraProgressCards.init({ view: "lessons" | "learners", params: () => URLSearchParams })
+ * feat/analytics-insights: also Admin > Analytics -
+ *   init({ endpoint: "/admin/analytics/details", params, csvPrefix: "analytics" })
+ *   CobraProgressCards.open(kind, trigger, { key })   (a chart bar / point)
+ * Cards may carry data-lp-key for that extra key.
  */
 (function () {
     "use strict";
@@ -114,7 +118,14 @@
             ).join("");
         }
 
-        async function open(kind, trigger) {
+        function cardUrl(kind, extra) {
+            const params = options.params ? options.params() : new URLSearchParams();
+            Object.keys(extra || {}).forEach((k) => { if (extra[k] !== undefined && extra[k] !== "") params.set(k, extra[k]); });
+            const base = options.endpoint || `/admin/learner-progress/cards/${encodeURIComponent(options.view)}`;
+            return `${base}/${encodeURIComponent(kind)}?${params.toString()}`;
+        }
+
+        async function open(kind, trigger, extra) {
             kindOpen = kind;
             lastFocused = trigger || document.activeElement;
             current = null;
@@ -129,8 +140,7 @@
 
             const id = ++requestId;
             try {
-                const params = options.params ? options.params() : new URLSearchParams();
-                const response = await fetch(`/admin/learner-progress/cards/${encodeURIComponent(options.view)}/${encodeURIComponent(kind)}?${params.toString()}`, {
+                const response = await fetch(cardUrl(kind, extra), {
                     headers: { "X-Requested-With": "XMLHttpRequest" },
                     credentials: "include",
                 });
@@ -193,7 +203,7 @@
                 });
             });
             const stamp = new Date().toISOString().slice(0, 10);
-            I().downloadCsv(`learner-progress-${options.view}-${kindOpen}-${stamp}.csv`, columns, rows);
+            I().downloadCsv(`${options.csvPrefix || `learner-progress-${options.view}`}-${kindOpen}-${stamp}.csv`, columns, rows);
         });
 
         closeBtn.addEventListener("click", close);
@@ -206,12 +216,12 @@
         document.querySelectorAll("[data-lp-card]").forEach((card) => {
             card.addEventListener("click", (e) => {
                 if (e.target.closest(".lp-info")) return;      // the (i) only shows its tip
-                open(card.dataset.lpCard, card);
+                open(card.dataset.lpCard, card, { key: card.dataset.lpKey });
             });
             card.addEventListener("keydown", (e) => {
                 if ((e.key === "Enter" || e.key === " ") && !e.target.closest(".lp-info")) {
                     e.preventDefault();
-                    open(card.dataset.lpCard, card);
+                    open(card.dataset.lpCard, card, { key: card.dataset.lpKey });
                 }
             });
         });

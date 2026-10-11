@@ -107,7 +107,7 @@ from achievements import (  # feat/mentor-achievements: Mentor > Achievements pa
     BADGE_LIMITS, BADGE_COLOR_SWATCHES,
 )
 from badges import REQUIREMENT_TYPES, DEFAULT_BADGE_COLOR  # feat/mentor-achievements: Requirement Type dropdown + default swatch
-from learning_analytics import get_learning_analytics, empty_analytics  # Admin > Analytics
+from learning_analytics import get_learning_analytics, empty_analytics, get_analytics_details  # Admin > Analytics
 from profile_avatar import get_avatar_url, get_avatar_urls, set_avatar, remove_avatar  # feat/profile-photo: the staff header photo + table photos
 from staff_password import get_masked_email, send_change_code, verify_change_code, change_password  # feat/staff-change-password
 from staff_password import set_password_after_reset  # feat/account-tools: forced change after an admin reset
@@ -4242,12 +4242,26 @@ def analytics():
     admin-analytics.js from /admin/analytics/data right after the page
     opens - the numbers live in learning_analytics.py.
     """
-    return render_template('analytics.html')
+    return render_template('analytics.html', lp_settings=progress_insight_settings())
+
+
+@admin_bp.route('/analytics/details/<kind>')
+def analytics_details(kind):
+    """
+    feat/analytics-insights: what is behind one card / bar / point (the list
+    modal) - same ?status & range as the page, + ?key (module id, score band,
+    funnel step, day, weekday-hour or la_id-item_id). Read-only, ADMIN only.
+    """
+    card = get_analytics_details(kind, request.args.get('status', ''), request.args.get('range', ''),
+                                 request.args.get('key', ''))
+    if card is None:
+        return jsonify({"success": False, "message": "This list could not be loaded."}), 404
+    return jsonify({"success": True, **card}), 200
 
 
 @admin_bp.route('/analytics/data')
 def analytics_data():
-    """Every card of the Analytics page. ?status=all|active|inactive&range=all|7d|30d|90d"""
+    """Every card of the Analytics page. ?status=all|active|inactive&range=7d|30d (default)|90d|all"""
     status = request.args.get('status', '')
     date_range = request.args.get('range', '')
     data = get_learning_analytics(status, date_range)

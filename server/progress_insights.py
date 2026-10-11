@@ -424,83 +424,110 @@ def _question_texts(cursor, keys):
     return texts
 
 
-def lesson_activity_stats(cursor, activities, evs):
+def first_try_answers(cursor, activities, acc_ids, since=None):
     """
-    activities = [{"la_id", "title", "type"}] of the lesson; evs = the
-    learners in scope. Returns (per_type, most_missed):
+    Every FIRST-TRY answer of these learners to these activities:
+    [{"acc_id", "la_id", "item_id", "outcome", "at"}]. The first play of
+    each activity (new model) or, before plays existed, attempt 1 of each
+    item. outcome: correct / wrong / close / skipped / timed_out / left.
+    since = only answers given from then on. Also returns retake rounds
+    per la_id: (answers, {la_id: rounds}).
+    """
+    acc_ids = sorted(set(acc_ids))
+    la_ids = [a["la_id"] for a in activities]
+    answers, retakes = [], {}
+    if not acc_ids or not la_ids:
+        return answers, retakes
+    acc_ph, la_ph = _ph(acc_ids), _ph(la_ids)
+    first_played = set()
+    try:
+        if _table_exists(cursor, PLAYS_TABLE):
+            cursor.execute(
+                f"""SELECT p.acc_id, p.la_id, pi.item_id, pi.outcome, pi.answered_at
+                    FROM {PLAYS_TABLE} p JOIN {PLAY_ITEMS_TABLE} pi ON pi.play_id = p.play_id
+                    WHERE p.play_kind = 'first' AND p.acc_id IN ({acc_ph}) AND p.la_id IN ({la_ph})
+                      AND pi.outcome IS NOT NULL AND pi.outcome <> 'replaced'""",
+                tuple(acc_ids) + tuple(la_ids)
+            )
+            for r in cursor.fetchall():
+                first_played.add((r["acc_id"], r["la_id"]))
+                if since and r["answered_at"] and r["answered_at"] < since:
+                    continue
+                answers.append({"acc_id": r["acc_id"], "la_id": r["la_id"], "item_id": r["item_id"],
+                                "outcome": r["outcome"], "at": r["answered_at"]})
+
+        # Answers given before plays existed: the first attempt of each item.
+        for activity_type, (answers_table, id_col, items_table, _) in GAME_TABLES.items():
+            type_la = [a["la_id"] for a in activities if a["type"] == activity_type]
+            if not type_la:
+                continue
+            cursor.execute(
+                f"""SELECT i.la_id, a.{id_col} AS item_id, a.acc_id, a.status, a.answered_at
+                    FROM {answers_table} a JOIN {items_table} i ON i.{id_col} = a.{id_col}
+                    WHERE i.la_id IN ({_ph(type_la)}) AND a.acc_id IN ({acc_ph})
+                      AND a.attempt_number = 1 AND a.play_id IS NULL AND a.retake_id IS NULL
+                    ORDER BY a.answer_id ASC""",
+                tuple(type_la) + tuple(acc_ids)
+            )
+            seen = set()
+            for r in cursor.fetchall():
+                key = (r["acc_id"], r["item_id"])
+                if key in seen or (r["acc_id"], r["la_id"]) in first_played:
+                    continue
+                seen.add(key)
+                if since and r["answered_at"] and r["answered_at"] < since:
+                    continue
+                answers.append({"acc_id": r["acc_id"], "la_id": r["la_id"], "item_id": r["item_id"],
+                                "outcome": "correct" if r["status"] == "correct" else (
+                                    "skipped" if r["status"] == "skipped" else "wrong"),
+                                "at": r["answered_at"]})
+
+        if _table_exists(cursor, RETAKES_TABLE):
+            where_since = " AND started_at >= %s" if since else ""
+            cursor.execute(
+                f"""SELECT la_id, COUNT(*) AS n FROM {RETAKES_TABLE}
+                    WHERE acc_id IN ({acc_ph}) AND la_id IN ({la_ph}){where_since} GROUP BY la_id""",
+                tuple(acc_ids) + tuple(la_ids) + ((since,) if since else ())
+            )
+            for r in cursor.fetchall():
+                retakes[r["la_id"]] = int(r["n"] or 0)
+    except Error as e:
+        print(f"progress_insights: could not load first-try answers: {e}")
+    return answers, retakes
+
+
+def question_text(cursor, activity_type, item_id):
+    return _question_texts(cursor, {(activity_type, item_id)}).get((activity_type, item_id)) or "(question removed)"
+
+
+def lesson_activity_stats(cursor, activities, evs, top=TOP_MISSED, since=None):
+    """
+    activities = [{"la_id", "title", "type"}] (one lesson, or the whole
+    course for Analytics); evs = the learners in scope. Returns
+    (per_type, most_missed):
       per_type     [{"type", "avg", "learners", "timeouts", "skips", "retakes"}]
                    avg = first try, finished activities only
-      most_missed  top TOP_MISSED questions by miss rate on the FIRST try
-                   [{"la_id", "activity", "type", "question", "answered",
-                     "missed", "miss_percent", "check_key"}]
+      most_missed  the `top` questions by miss rate on the FIRST try
+                   [{"la_id", "item_id", "activity", "type", "question",
+                     "answered", "missed", "miss_percent", "check_key"}]
+    since = only answers (and retakes) from then on.
     """
-    acc_ids = sorted({ev["acc_id"] for ev in evs})
-    la_ids = [a["la_id"] for a in activities]
     act_by_id = {a["la_id"]: a for a in activities}
+    answers, retake_counts = first_try_answers(cursor, activities, [ev["acc_id"] for ev in evs], since)
     counts = {}       # la_id -> {"timeouts", "skips", "retakes"}
     items = {}        # (la_id, item_id) -> {"answered", "missed"}
-    first_played = set()   # (acc_id, la_id) with a first play (new model)
-
-    if acc_ids and la_ids:
-        acc_ph, la_ph = _ph(acc_ids), _ph(la_ids)
-        try:
-            if _table_exists(cursor, PLAYS_TABLE):
-                cursor.execute(
-                    f"""SELECT p.acc_id, p.la_id, pi.item_id, pi.outcome
-                        FROM {PLAYS_TABLE} p JOIN {PLAY_ITEMS_TABLE} pi ON pi.play_id = p.play_id
-                        WHERE p.play_kind = 'first' AND p.acc_id IN ({acc_ph}) AND p.la_id IN ({la_ph})
-                          AND pi.outcome IS NOT NULL AND pi.outcome <> 'replaced'""",
-                    tuple(acc_ids) + tuple(la_ids)
-                )
-                for r in cursor.fetchall():
-                    first_played.add((r["acc_id"], r["la_id"]))
-                    c = counts.setdefault(r["la_id"], {"timeouts": 0, "skips": 0, "retakes": 0})
-                    if r["outcome"] == "timed_out":
-                        c["timeouts"] += 1
-                    elif r["outcome"] == "skipped":
-                        c["skips"] += 1
-                    entry = items.setdefault((r["la_id"], r["item_id"]), {"answered": 0, "missed": 0})
-                    entry["answered"] += 1
-                    if r["outcome"] != "correct":
-                        entry["missed"] += 1
-
-            # Answers given before plays existed: the first attempt of each item.
-            for activity_type, (answers_table, id_col, items_table, _) in GAME_TABLES.items():
-                type_la = [a["la_id"] for a in activities if a["type"] == activity_type]
-                if not type_la:
-                    continue
-                cursor.execute(
-                    f"""SELECT i.la_id, a.{id_col} AS item_id, a.acc_id, a.status
-                        FROM {answers_table} a JOIN {items_table} i ON i.{id_col} = a.{id_col}
-                        WHERE i.la_id IN ({_ph(type_la)}) AND a.acc_id IN ({acc_ph})
-                          AND a.attempt_number = 1 AND a.play_id IS NULL AND a.retake_id IS NULL
-                        ORDER BY a.answer_id ASC""",
-                    tuple(type_la) + tuple(acc_ids)
-                )
-                seen = set()
-                for r in cursor.fetchall():
-                    key = (r["acc_id"], r["item_id"])
-                    if key in seen or (r["acc_id"], r["la_id"]) in first_played:
-                        continue
-                    seen.add(key)
-                    c = counts.setdefault(r["la_id"], {"timeouts": 0, "skips": 0, "retakes": 0})
-                    if r["status"] == "skipped":
-                        c["skips"] += 1
-                    entry = items.setdefault((r["la_id"], r["item_id"]), {"answered": 0, "missed": 0})
-                    entry["answered"] += 1
-                    if r["status"] != "correct":
-                        entry["missed"] += 1
-
-            if _table_exists(cursor, RETAKES_TABLE):
-                cursor.execute(
-                    f"""SELECT la_id, COUNT(*) AS n FROM {RETAKES_TABLE}
-                        WHERE acc_id IN ({acc_ph}) AND la_id IN ({la_ph}) GROUP BY la_id""",
-                    tuple(acc_ids) + tuple(la_ids)
-                )
-                for r in cursor.fetchall():
-                    counts.setdefault(r["la_id"], {"timeouts": 0, "skips": 0, "retakes": 0})["retakes"] = int(r["n"] or 0)
-        except Error as e:
-            print(f"progress_insights: could not load lesson activity stats: {e}")
+    for a in answers:
+        c = counts.setdefault(a["la_id"], {"timeouts": 0, "skips": 0, "retakes": 0})
+        if a["outcome"] == "timed_out":
+            c["timeouts"] += 1
+        elif a["outcome"] == "skipped":
+            c["skips"] += 1
+        entry = items.setdefault((a["la_id"], a["item_id"]), {"answered": 0, "missed": 0})
+        entry["answered"] += 1
+        if a["outcome"] != "correct":
+            entry["missed"] += 1
+    for la_id, n in retake_counts.items():
+        counts.setdefault(la_id, {"timeouts": 0, "skips": 0, "retakes": 0})["retakes"] = n
 
     scores = type_scores(evs)
     per_type = []
@@ -532,13 +559,14 @@ def lesson_activity_stats(cursor, activities, evs):
         for (la_id, item_id), entry in items.items() if entry["missed"] > 0
     ]
     missed.sort(key=lambda m: (-m["miss_percent"], -m["missed"], m["la_id"], m["item_id"]))
-    missed = missed[:TOP_MISSED]
+    missed = missed[:top]
     texts = _question_texts(cursor, {(act_by_id[m["la_id"]]["type"], m["item_id"]) for m in missed}) if missed else {}
     most_missed = []
     for m in missed:
         act = act_by_id[m["la_id"]]
         most_missed.append({
             "la_id": m["la_id"],
+            "item_id": m["item_id"],
             "activity": act["title"],
             "type": act["type"],
             "question": texts.get((act["type"], m["item_id"])) or "(question removed)",
