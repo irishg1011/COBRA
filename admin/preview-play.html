@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/preview-play.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/cobra-find-bar.css') }}">
     <link rel="stylesheet" href="/static/code-editor.css">
 </head>
 <body class="preview-play-body">
@@ -37,11 +38,8 @@
         </div>
 
         <!-- Review list: every question / card / puzzle / exercise with its answer key -->
-        <section class="preview-review" id="previewReview" hidden>
-            <div class="preview-review-bar">
-                <input type="search" class="preview-review-search" id="previewReviewSearch" placeholder="Search questions, answers, feedback..." aria-label="Search the review list">
-                <span class="preview-review-count" id="previewReviewCount"></span>
-            </div>
+        <section class="preview-review" id="previewReview" data-can-edit="{{ '1' if can_quick_edit else '0' }}" hidden>
+            <!-- feat/quick-edit-items: the shared find bar (cobra-find-bar.js) goes here -->
             <div id="previewReviewBody"><p class="preview-review-empty">Loading...</p></div>
         </section>
 
@@ -166,6 +164,8 @@
 
     <!-- Preview flag first, then the REAL learner scripts from the learner paths. -->
     <script src="{{ url_for('admin_bp.static', filename='js/admin-preview-play.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/cobra-find-bar.js') }}"></script>
+    {% if can_quick_edit %}<script src="{{ url_for('admin_bp.static', filename='js/admin-quick-edit.js') }}"></script>{% endif %}
     <script src="{{ url_for('admin_bp.static', filename='js/admin-preview-review.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/game-kit.js') }}"></script>

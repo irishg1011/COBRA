@@ -1,0 +1,117 @@
+/* cobra-find-bar.css - the "find in this activity" bar (cobra-find-bar.js)
+   and the "Editing Item #N" focus note (cobra-item-focus.js).
+   feat/quick-edit-items. Used by the activity editor, the coding exercise
+   editor and the preview's Review list. */
+
+.cfb {
+    position: sticky;
+    top: var(--cfb-top, 8px);
+    z-index: 30;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+    backdrop-filter: blur(4px);
+    font-family: inherit;
+}
+.cfb-search { position: relative; flex: 1 1 220px; min-width: 0; }
+.cfb-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none; }
+.cfb-input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 36px;
+    padding: 0 10px 0 32px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    background: #f8fafc;
+    font: inherit;
+    font-size: 14px;
+    color: #0f172a;
+}
+.cfb-input:focus, .cfb-goto:focus { outline: none; border-color: #16a34a; background: #ffffff; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }
+.cfb-count { min-width: 64px; font-size: 13px; font-weight: 700; color: #64748b; white-space: nowrap; text-align: center; }
+.cfb-count.is-none { color: #dc2626; }
+.cfb-nav { display: inline-flex; gap: 4px; }
+.cfb-btn {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #334155;
+    cursor: pointer;
+    font-size: 12px;
+}
+.cfb-btn:hover:not(:disabled) { border-color: #16a34a; color: #15803d; }
+.cfb-btn:disabled { opacity: 0.45; cursor: default; }
+.cfb-goto {
+    width: 92px;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    font: inherit;
+    font-size: 13px;
+}
+.cfb-goto.is-error { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
+.cfb-only { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; white-space: nowrap; user-select: none; }
+.cfb-only input { width: 16px; height: 16px; accent-color: #16a34a; margin: 0; }
+
+/* Cards */
+.cfb-match { box-shadow: 0 0 0 2px #fde68a !important; }
+.cfb-current { box-shadow: 0 0 0 3px #f59e0b, 0 0 18px rgba(245, 158, 11, 0.35) !important; }
+.cfb-hidden { display: none !important; }
+
+@media (max-width: 640px) {
+    .cfb { gap: 6px; padding: 6px 8px; }
+    .cfb-search { flex-basis: 100%; }
+    .cfb-count { min-width: 0; text-align: left; }
+    .cfb-goto { width: 80px; }
+    .cfb-only { margin-left: auto; }
+}
+
+/* ---------- "Open in full editor": the item it came for ---------- */
+.cie-focus { box-shadow: 0 0 0 3px #16a34a, 0 0 22px rgba(22, 163, 74, 0.35) !important; transition: box-shadow 0.3s; }
+.cie-note {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    padding: 9px 12px 9px 14px;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 13.5px;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+}
+.cie-note i { color: #4ade80; }
+.cie-note button {
+    border: 0;
+    border-radius: 999px;
+    padding: 5px 12px;
+    background: #ffffff;
+    color: #0f172a;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.cie-note button:hover { background: #dcfce7; }

@@ -57,6 +57,9 @@ from learning_activities import (  # NEW: Manage Learning Activities DB integrat
     get_learning_activities_grouped_overview,  # NEW: Manage Learning Activities table restructure (grouped by Lesson)
     get_activities_for_resource, archive_activity,  # NEW: Content preview / Edit dropdown / Archive checklist
 )
+from item_rules import check_exercise  # feat/quick-edit-items
+import quick_edit  # feat/quick-edit-items
+import item_rules  # feat/quick-edit-items
 from learning_activity_draft import save_activity_draft, get_activity_draft  # NEW: Unsaved Changes Protection - draft autosave for Create Learning Activity
 from learning_activity_form_parser import (  # NEW - Task #57: parses the raw multipart Publish submission's bracketed Section 2 fields (questions[]/fill_blanks[]/flashcards[]) into the same list-of-dicts shape Save Draft's JSON body already uses
     parse_questions_from_form, parse_fill_blanks_from_form, parse_flashcards_from_form,
@@ -3179,7 +3182,12 @@ def _preview_reply(payload, error_message, store=None, wrap_state=False):
 def preview_play_page():
     """The preview page itself. Every visit starts every game fresh."""
     _save_preview_store({})
-    return render_template('preview-play.html')
+    # feat/quick-edit-items: the Review list's pencil (mentors only)
+    return render_template('preview-play.html', can_quick_edit=_can_quick_edit())
+
+
+def _can_quick_edit():
+    return is_allowed('admin_bp.quick_edit_mcq', g.staff_role)
 
 
 @admin_bp.route('/preview-play/api/lesson-content')
@@ -3215,7 +3223,40 @@ def preview_play_review():
     review = preview_play.get_review_list(scope)
     if review is None:
         return jsonify({"success": False, "message": "Could not load the review list."}), 500
-    return jsonify({"success": True, **review}), 200
+    return jsonify({"success": True, "can_edit": _can_quick_edit(), "limits": item_rules.LIMITS, **review}), 200
+
+
+# ============================================================
+# QUICK EDIT ONE ITEM (feat/quick-edit-items) - mentors only.
+# The Review list's pencil; quick_edit.py does the work, with the rules
+# of item_rules.py. Body: the item's fields + "version" (refused with 409
+# when the item changed since it was loaded).
+# ============================================================
+def _quick_edit_reply(kind, item_id):
+    item, error = quick_edit.save_item(kind, item_id, request.get_json(silent=True) or {})
+    if error is not None:
+        return jsonify({"success": False, "message": str(error), "code": error.code}), error.status
+    return jsonify({"success": True, "message": "Saved", "item": item}), 200
+
+
+@admin_bp.route('/quick-edit/mcq/<int:item_id>', methods=['POST'])
+def quick_edit_mcq(item_id):
+    return _quick_edit_reply("mcq", item_id)
+
+
+@admin_bp.route('/quick-edit/fib/<int:item_id>', methods=['POST'])
+def quick_edit_fib(item_id):
+    return _quick_edit_reply("fib", item_id)
+
+
+@admin_bp.route('/quick-edit/flashcard/<int:item_id>', methods=['POST'])
+def quick_edit_flashcard(item_id):
+    return _quick_edit_reply("flashcard", item_id)
+
+
+@admin_bp.route('/quick-edit/exercise/<int:item_id>', methods=['POST'])
+def quick_edit_exercise(item_id):
+    return _quick_edit_reply("exercise", item_id)
 
 
 @admin_bp.route('/preview-play/api/lesson-activities/mcq/state')
@@ -5167,6 +5208,7 @@ def create_learning_activity_save_draft():
         fill_blanks=data.get('fill_blanks'),
         flashcards=data.get('flashcards'),
         uploaded_by=session.get('admin_id'),
+        strict=bool(data.get('for_ready')),  # feat/quick-edit-items: Mark Ready checks every item
     )
     return jsonify({
         "success": success,
@@ -5244,6 +5286,7 @@ def create_activity_submit():
         fill_blanks=fill_blanks,
         flashcards=flashcards,
         uploaded_by=session.get('admin_id'),
+        strict=True,  # feat/quick-edit-items: this form post is Mark Ready
     )
 
     if not success:
@@ -5399,6 +5442,14 @@ def create_coding_exercise():
         # Ready") saves, then moves it to Ready to Publish - it only goes
         # live from the Publishing page.
         admin_id = session.get('admin_id')
+        # feat/quick-edit-items: Mark Ready checks the same rules as Quick edit.
+        if action not in ('draft', 'save_draft', 'save'):
+            problem = check_exercise(data, "This exercise", strict=True)
+            if problem:
+                if is_ajax:
+                    return jsonify({"success": False, "message": problem}), 400
+                flash(problem, 'danger')
+                return redirect(url_for('admin_bp.create_coding_exercise', exercise_id=data.get('exercise_id') or None))
         success, exercise_id, msg = save_coding_exercise(data, status='Draft', uploaded_by=admin_id)
         if success and action not in ('draft', 'save_draft', 'save'):
             ready_ok, ready_message, _ = mark_item_ready("exercise", exercise_id)

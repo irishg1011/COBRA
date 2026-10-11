@@ -699,7 +699,8 @@
         // --------------------------------------------------------
         // Save Draft (POST /admin/create-learning-activity/save-draft)
         // --------------------------------------------------------
-        async function performSaveDraft() {
+        // forReady (Mark Ready): the server checks every item fully (item_rules.py).
+        async function performSaveDraft(forReady) {
             if (!validateActivityForm(false)) {
                 return false;
             }
@@ -727,6 +728,7 @@
                         questions: (selectedType === "Multiple Choice" || selectedType === "Quiz") ? collectMultipleChoiceQuestions() : [],
                         fill_blanks: selectedType === "Fill in the Blanks" ? collectFillBlanks() : [],
                         flashcards: selectedType === "Flashcards" ? collectFlashcards() : [],
+                        for_ready: !!forReady,
                     }),
                 });
                 const result = await response.json();
@@ -811,7 +813,7 @@
                 publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
             try {
-                const saved = await performSaveDraft();
+                const saved = await performSaveDraft(true);
                 if (!saved) return;
                 const activityId = activityIdInput ? activityIdInput.value : "";
                 const result = await window.cobraEditorStatusAction("activity", activityId, "mark-ready");

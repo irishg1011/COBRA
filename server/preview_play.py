@@ -48,6 +48,7 @@ from lesson_flashcards import (
 from publishing_preview import PREVIEW_STATUSES, get_preview_exercise
 from learner_exercise import add_public_spec   # the exercise screen's shape, same as the learner page
 from coding_exercises import ensure_output_exercise_schema
+from quick_edit import load_mcq, load_fib, load_flashcard, load_exercise   # feat/quick-edit-items
 
 PREVIEW_SESSION_KEY = "cobra_preview_play"
 
@@ -719,50 +720,14 @@ def get_review_list(scope):
                 kind = row.get("activity_type_name") or ""
                 entry = {"la_id": row["la_id"], "title": row["activity_title"], "type": kind,
                          "status": row["status_name"], "items": []}
+                # feat/quick-edit-items: quick_edit's loaders - every item
+                # carries its id, option ids, version and answered count.
                 if kind == MCQ_TYPE_NAME:
-                    cursor.execute(
-                        f"""SELECT q_id, question_text, correct_feedback, incorrect_feedback
-                            FROM {MCQ_QUESTIONS_TABLE} WHERE la_id = %s AND is_removed = 0
-                            ORDER BY sort_order ASC, q_id ASC""",
-                        (row["la_id"],)
-                    )
-                    for q in cursor.fetchall():
-                        cursor.execute(
-                            f"""SELECT option_letter, option_text, is_correct, feedback
-                                FROM {MCQ_OPTIONS_TABLE} WHERE q_id = %s AND is_removed = 0
-                                ORDER BY option_letter ASC""",
-                            (q["q_id"],)
-                        )
-                        entry["items"].append({
-                            "question": q["question_text"] or "",
-                            "options": [{"letter": o["option_letter"], "text": o["option_text"] or "",
-                                         "correct": bool(o["is_correct"]), "feedback": o["feedback"] or ""}
-                                        for o in cursor.fetchall()],
-                            "correct_feedback": q["correct_feedback"] or "",
-                            "incorrect_feedback": q["incorrect_feedback"] or "",
-                        })
+                    entry["items"] = load_mcq(cursor, la_id=row["la_id"])
                 elif kind == FIB_TYPE_NAME:
-                    cursor.execute(
-                        f"""SELECT instruction, content, code_text, correct_answer, answer_choices,
-                                   expected_output, hint, correct_feedback, incorrect_feedback
-                            FROM {FILL_BLANKS_TABLE} WHERE la_id = %s AND is_removed = 0
-                            ORDER BY sort_order ASC, fib_id ASC""",
-                        (row["la_id"],)
-                    )
-                    for r in cursor.fetchall():
-                        item = {key: (r[key] or "") for key in r}
-                        item["wrong_choices"] = parse_fib_choices(r["answer_choices"])   # tile mode only
-                        del item["answer_choices"]
-                        entry["items"].append(item)
+                    entry["items"] = load_fib(cursor, la_id=row["la_id"])
                 elif kind == FLASHCARD_TYPE_NAME:
-                    cursor.execute(
-                        f"""SELECT front_text, back_text, hint, correct_feedback, incorrect_feedback
-                            FROM {FLASHCARDS_TABLE} WHERE la_id = %s AND is_removed = 0
-                            ORDER BY flashcard_id ASC""",
-                        (row["la_id"],)
-                    )
-                    for r in cursor.fetchall():
-                        entry["items"].append({key: (r[key] or "") for key in r})
+                    entry["items"] = load_flashcard(cursor, la_id=row["la_id"])
                 activities.append(entry)
 
         exercises = []
@@ -771,30 +736,15 @@ def get_review_list(scope):
             if scope["walkthrough"]:
                 where, params = "ce.resource_id = %s", (scope["resource_id"],)
             cursor.execute(
-                f"""SELECT ce.exercise_id, ce.exercise_title, ce.instruction, ce.situation,
-                           ce.problem_question, ce.clue, ce.correct_feedback,
-                           {_status_select('ce', 'exercise_stats_id')} AS status_name
-                    FROM {CODING_EXERCISES_TABLE} ce
+                f"""SELECT ce.exercise_id FROM {CODING_EXERCISES_TABLE} ce
                     WHERE {where} AND COALESCE(ce.is_archived, 0) = 0
                     ORDER BY ce.exercise_id ASC""",
                 params
             )
-            for ex in cursor.fetchall():
-                if ex["status_name"] == "Archived":
-                    continue
-                add_public_spec(cursor, ex)
-                exercises.append({
-                    "title": ex["exercise_title"] or "Coding Exercise",
-                    "status": ex["status_name"],
-                    "instruction": ex["instruction"] or "",
-                    "situation": ex["situation"] or "",
-                    "question": ex["problem_question"] or "",
-                    "clue": ex["clue"] or "",
-                    "expected_output": ex.get("expected_output") or "",
-                    "given_input": ex.get("given_input") or "",
-                    "required": [t.get("label") or t.get("value") or "" for t in ex.get("required_tags") or []],
-                    "correct_feedback": ex["correct_feedback"] or "",
-                })
+            for ex_id in [r["exercise_id"] for r in cursor.fetchall()]:
+                ex = load_exercise(cursor, ex_id)
+                if ex and ex["status"] != "Archived":
+                    exercises.append(ex)
         cursor.close()
         return {"activities": activities, "exercises": exercises}
     except Error as e:

@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-learning-activity.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/create-activity-page.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/editor-preview.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/cobra-find-bar.css') }}"> <!-- feat/quick-edit-items -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -286,6 +287,9 @@
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-draft-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/create-learning-activity-validations.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-editor-preview.js') }}"></script>
+    <!-- feat/quick-edit-items: search inside the items + ?item= from Quick edit -->
+    <script src="{{ url_for('admin_bp.static', filename='js/cobra-find-bar.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/editor-item-tools.js') }}"></script>
     <!-- Python code colors + auto-indent (static/code-editor.js) -->
     <script src="/static/code-editor.js"></script>
 </body>

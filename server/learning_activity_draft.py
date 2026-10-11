@@ -70,7 +70,7 @@ from activity_points import calculate_activity_points_from_lists  # Task #55/#56
 from learning_activity_content import save_activity_content, get_activity_content, ContentInUseError  # Task #56: Section 2 persistence; ContentInUseError: feat/publishing-tree
 from title_history import ensure_title_history, log_title_change  # feat/module-title-history
 
-MCQ_MAX_OPTIONS = 6  # feat/activity-add-many: options A-F
+from item_rules import check_activity_items, MCQ_MAX_OPTIONS  # noqa: F401 - feat/quick-edit-items: the item rules (options A-F) live in item_rules.py
 
 
 def get_la_draft_status_id(connection=None):
@@ -216,7 +216,7 @@ def get_activity_draft(activity_id):
 
 def save_activity_draft(activity_id, activity_title, cat_id, module_id,
                          resource_id, activity_type, questions=None,
-                         fill_blanks=None, flashcards=None, uploaded_by=None):
+                         fill_blanks=None, flashcards=None, uploaded_by=None, strict=False):
     """
     Saves (creating or updating) a Draft learning_activities_tbl row -
     plus, as of Task #56, its Section 2 content (mcq_questions_tbl/
@@ -303,31 +303,14 @@ def save_activity_draft(activity_id, activity_title, cat_id, module_id,
         return False, result, None, 0
     title = result
 
-    # Task #103: Validate Multiple Choice questions for duplicate options and matching feedback
-    if activity_type_name in ("Multiple Choice", "Quiz") and questions:
-        for q_idx, q in enumerate(questions):
-            opts = q.get("options") or []
-            # feat/activity-add-many: at most 6 options (A-F) per question.
-            # Blank rows are dropped on save, so only filled ones count. The
-            # minimum of 2 stays an editor check, as before (drafts may be
-            # half-filled).
-            if len([o for o in opts if (o.get("text") or "").strip()]) > MCQ_MAX_OPTIONS:
-                return False, f"Question #{q_idx + 1} has more than {MCQ_MAX_OPTIONS} answer options (A-F).", None, 0
-            seen_opts = set()
-            for opt_idx, opt in enumerate(opts):
-                opt_text = (opt.get("text") or "").strip()
-                opt_feedback = (opt.get("feedback") or "").strip()
-                letter = chr(65 + opt_idx)
-
-                if opt_text:
-                    lower_text = opt_text.lower()
-                    # Exact text: "okay", "OKAY" and "Okay" are different choices.
-                    if opt_text in seen_opts:
-                        return False, f'Duplicate answer option "{opt_text}" found in Question #{q_idx + 1}. Each option must have a unique answer.', None, 0
-                    seen_opts.add(opt_text)
-
-                    if opt_feedback and lower_text == opt_feedback.lower():
-                        return False, f'Answer and Feedback for Learner cannot be identical in Question #{q_idx + 1} (Option {letter}).', None, 0
+    # Task #103 / feat/quick-edit-items: the item rules (item_rules.py,
+    # shared with Quick edit). Save Draft (strict=False) only refuses what
+    # can never be right (more than 6 options, duplicate options, answer =
+    # feedback, text over its limit); Mark Ready (strict=True) also needs
+    # every required field, exactly one correct option, the FIB blank...
+    item_problem = check_activity_items(activity_type_name, questions, fill_blanks, flashcards, strict=strict)
+    if item_problem:
+        return False, item_problem, None, 0
 
     # Task #55/#56: points are NEVER trusted from the client, for either
     # Save Draft or Publish - always recomputed here from the actual

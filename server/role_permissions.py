@@ -268,6 +268,11 @@ ENDPOINT_ROLES = {
     "admin_bp.ready_to_publish_learning_activity": MENTOR,
     "admin_bp.delete_activity": MENTOR,
     "admin_bp.create_learning_activity_page": MENTOR,
+    # Quick edit one item from the preview's Review list (feat/quick-edit-items)
+    "admin_bp.quick_edit_mcq": MENTOR,
+    "admin_bp.quick_edit_fib": MENTOR,
+    "admin_bp.quick_edit_flashcard": MENTOR,
+    "admin_bp.quick_edit_exercise": MENTOR,
     "admin_bp.create_learning_activity_save_draft": MENTOR,
     "admin_bp.create_activity_submit": MENTOR,
     "admin_bp.create_learning_activity_check_name": MENTOR,
