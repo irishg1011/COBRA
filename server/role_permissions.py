@@ -173,6 +173,8 @@ ENDPOINT_ROLES = {
     "admin_bp.analytics_details": ADMIN,   # feat/analytics-insights: list behind a card / chart (read-only)
     "admin_bp.reports": ADMIN,
     "admin_bp.reports_data": ADMIN,
+    "admin_bp.reports_course": ADMIN,         # feat/dashboard-reports: per chapter / module report
+    "admin_bp.reports_certificates": ADMIN,   # feat/dashboard-reports: certificates issued
 
     # Header bell (feat/admin-bell) - the admin's own notifications; mentors have no bell
     "admin_bp.staff_notifications_list": ADMIN,
@@ -184,6 +186,7 @@ ENDPOINT_ROLES = {
     # Mentor only - content and publishing actions
     # ------------------------------------------------------------
     "admin_bp.mentor_dashboard": MENTOR,  # the mentor's home page
+    "admin_bp.mentor_content_insights": MENTOR,  # feat/dashboard-reports: "How your content is doing" (read-only)
 
     # Publishing actions (mark ready, publish, unpublish, checklist, reorder)
     "admin_bp.publishing_item_action": MENTOR,

@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-insights.css') }}">
 </head>
 <body data-auth-guard-mode="refresh">
         
@@ -103,6 +104,8 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-live.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
+    <script type="application/json" id="lpSettings">{{ lp_settings|tojson }}</script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-progress-insights.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-cards.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-health.js') }}"></script>
 

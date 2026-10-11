@@ -29,6 +29,7 @@ import publishing as publishing_module
 from account_management import get_account_content, _fmt_datetime
 from reports import get_learner_ranking
 from learner_progress_monitor import get_learners_progress_overview
+from live_cache import live_cached
 
 STATUSES = ("Draft", "Ready to Publish", "Published")
 
@@ -212,11 +213,81 @@ def build_mentor_dashboard(acc_id):
 # (account / login sections are built in admin_routes.py, where
 #  get_accounts_overview / get_login_logs_* live)
 # ------------------------------------------------------------------
+TREND_DAYS = 7   # feat/dashboard-reports: "this week" = the last 7 days vs the 7 before
+
+
 def build_learning_section():
+    """
+    feat/dashboard-reports - six cards, each number + trend + subtitle:
+      active this week, lessons finished this week, avg score this week
+      (learning_analytics with range 7d - the same numbers as Analytics),
+      needs attention, finished course, not started (Learner Progress).
+    """
     def build():
+        from learning_analytics import get_learning_analytics
         overview = get_learners_progress_overview(page=1, per_page=1)
-        return None if overview is None else {"metrics": overview["metrics"]}
+        week = get_learning_analytics("all", f"{TREND_DAYS}d")
+        if overview is None or week is None:
+            return None
+        cards = week["cards"]
+        return {
+            "metrics": overview["metrics"],
+            "week": {
+                "active": cards["active"],
+                "lessons": cards["lessons_finished"],
+                "avg_score": cards["avg_score"],
+                "finished_in_week": cards["finished"]["in_period"],
+            },
+        }
     return _section(build)
+
+
+@live_cached
+def account_trends():
+    """
+    New accounts per role in the last 7 days, sign-in attempts today vs
+    yesterday, lockouts in the last 7 days. None on a database error.
+    """
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """SELECT ut.u_type AS role, COUNT(*) AS n
+               FROM account_tbl a JOIN usertype_tbl ut ON ut.ut_id = a.u_type
+               WHERE (a.is_deleted = 0 OR a.is_deleted IS NULL)
+                 AND a.created_at >= NOW() - INTERVAL %s DAY
+               GROUP BY ut.u_type""",
+            (TREND_DAYS,)
+        )
+        new = {r["role"]: int(r["n"]) for r in cursor.fetchall()}
+        cursor.execute(
+            """SELECT SUM(DATE(attempted_at) = CURDATE()) AS today,
+                      SUM(DATE(attempted_at) = CURDATE() - INTERVAL 1 DAY) AS yesterday
+               FROM login_logs_tbl WHERE attempted_at >= CURDATE() - INTERVAL 1 DAY"""
+        )
+        row = cursor.fetchone() or {}
+        cursor.execute("SELECT COUNT(*) AS n FROM lockout_logs_tbl WHERE locked_at >= NOW() - INTERVAL %s DAY",
+                       (TREND_DAYS,))
+        locks = int((cursor.fetchone() or {}).get("n") or 0)
+        cursor.close()
+        today, yesterday = int(row.get("today") or 0), int(row.get("yesterday") or 0)
+        return {
+            "new_learners": new.get("Learner", 0),
+            "new_mentors": new.get("Mentor", 0),
+            "new_admins": new.get("Admin", 0),
+            "logins_today": today,
+            "logins_yesterday": yesterday,
+            "logins_change": today - yesterday,
+            "locks_week": locks,
+        }
+    except Error as e:
+        print(f"dashboards: failed to load account trends: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
 
 
 def build_top_learners_section(limit=TOP_LEARNERS_LIMIT):

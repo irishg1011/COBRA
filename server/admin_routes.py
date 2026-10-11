@@ -1194,7 +1194,12 @@ def _admin_accounts_section():
         overview = get_accounts_overview()
         if overview is None:
             return None
-        return {"accounts": overview["metrics"], "logins": get_login_logs_metrics()}
+        # feat/dashboard-reports: trends ("+2 this week") + online / idle split
+        from dashboards import account_trends
+        online = get_online_users(limit=1)
+        return {"accounts": overview["metrics"], "logins": get_login_logs_metrics(),
+                "trends": account_trends() or {},
+                "presence": (online or {}).get("counts") or {}}
     return dashboard_section(build)
 
 
@@ -1217,7 +1222,8 @@ def _admin_dashboard_sections():
 
 @admin_bp.route('/dashboard')
 def admin_dashboard():
-    return render_template('admin_dashboard.html', **_admin_dashboard_sections())
+    return render_template('admin_dashboard.html', lp_settings=progress_insight_settings(),
+                           **_admin_dashboard_sections())
 
 
 # Live refresh of the Dashboard (admin-dashboard-live.js, every 10 s): the
@@ -1247,6 +1253,17 @@ DASHBOARD_CARD_ROLE_FILTER = {"learners": "Learner", "mentors": "Mentor", "admin
 
 def _today_ymd():
     return datetime.now().strftime("%Y-%m-%d")
+
+
+# feat/dashboard-reports: learning card -> (source, list kind, "View all" page)
+LEARNING_CARDS = {
+    "active_week": ("analytics", "active", "/admin/analytics?range=7d"),
+    "lessons_week": ("analytics", "lessons", "/admin/learner-progress"),
+    "avg_week": ("analytics", "avg_score", "/admin/analytics?range=7d"),
+    "needs_attention": ("progress", "needs_attention", "/admin/learner-progress/learners"),
+    "finished": ("analytics", "finished", "/admin/learner-progress/learners?status=finished"),
+    "not_started": ("progress", "not_started", "/admin/learner-progress/learners?status=not_started"),
+}
 
 
 @admin_bp.route('/dashboard/cards/<kind>')
@@ -1279,6 +1296,23 @@ def dashboard_card(kind):
             for row in data["rows"]:
                 row["time_left"] = seconds_left_text(row["seconds_left"])
         view_all = url_for('admin_bp.account_security', status="Locked")
+    elif kind in LEARNING_CARDS:
+        # feat/dashboard-reports: the learning cards - the same lists as
+        # Analytics (last 7 days) and Learner Progress, at most CARD_LIMIT rows
+        source, card_kind, view_all = LEARNING_CARDS[kind]
+        if source == "analytics":
+            card = get_analytics_details(card_kind, "all", "7d")
+        else:
+            card = get_progress_card("learners", card_kind)
+        if card is None:
+            data = None
+        else:
+            sections = [{"title": sec.get("title"), "columns": sec["columns"], "total": sec["total"],
+                         "rows": [{k: v for k, v in r.items() if not k.startswith("_")} for r in sec["rows"][:CARD_LIMIT]]}
+                        for sec in card["sections"][:2]]
+            data = {"title": card["title"], "subtitle": card.get("subtitle", ""), "bands": card.get("bands"),
+                    "sections": sections, "total": sections[0]["total"] if sections else 0}
+        view_all = url_for(*view_all) if isinstance(view_all, tuple) else view_all
     else:
         return jsonify({"success": False, "message": "Unknown card."}), 404
 
@@ -1424,7 +1458,23 @@ def presence():
 # ============================================================
 @admin_bp.route('/mentor-dashboard')
 def mentor_dashboard():
-    return render_template('mentor-dashboard.html', **build_mentor_dashboard(session.get("admin_id")))
+    return render_template('mentor-dashboard.html', lp_settings=progress_insight_settings(),
+                           **build_mentor_dashboard(session.get("admin_id")))
+
+
+@admin_bp.route('/mentor-dashboard/content-insights')
+def mentor_content_insights():
+    """
+    feat/dashboard-reports: "How your content is doing" - hardest activity,
+    most-missed questions, content health. ?mine=1 = only this mentor's
+    content (uploaded_by). Read-only, MENTOR only (content_health.py).
+    """
+    from content_health import get_content_insights
+    owner = session.get("admin_id") if request.args.get('mine') == '1' else None
+    data = get_content_insights(owner)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not load this right now."}), 500
+    return jsonify({"success": True, **data}), 200
 
 
 @admin_bp.route('/account-security.html')
@@ -4538,6 +4588,7 @@ def reports():
     ranking = get_learner_ranking(**filters) or empty_learner_ranking()
     return render_template(
         'reports.html',
+        lp_settings=progress_insight_settings(),
         learners=ranking["learners"],
         summary=ranking["summary"],
         chapters=get_report_filter_options(),
@@ -4545,6 +4596,26 @@ def reports():
         module_id=filters["module_id"] or '',
         search=filters["search"] or '',
     )
+
+
+@admin_bp.route('/reports/course')
+def reports_course():
+    """feat/dashboard-reports: per chapter / per module report (?cat_id, ?module_id). Read-only."""
+    from reports import get_course_report
+    data = get_course_report(request.args.get('cat_id') or None, request.args.get('module_id') or None)
+    if data is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, **data}), 200
+
+
+@admin_bp.route('/reports/certificates')
+def reports_certificates():
+    """feat/dashboard-reports: certificates issued (?q search). Read-only."""
+    from reports import get_certificates
+    rows = get_certificates(request.args.get('q', ''))
+    if rows is None:
+        return jsonify({"success": False, "message": "Could not reach the database."}), 500
+    return jsonify({"success": True, "certificates": rows, "total": len(rows)}), 200
 
 
 @admin_bp.route('/reports/data')
