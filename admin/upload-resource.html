@@ -242,7 +242,8 @@
      admin's browser. Nothing about this executes admin-authored code
      on the Flask server; editor-toolbar.js only calls into this after
      the admin explicitly clicks Run. -->
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<!-- feat/python-runner-no-freeze: Python runs in a background worker (py-worker.js) -->
+<script src="/static/py-runner.js"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/editor-paste-cleaner.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/editor-toolbar.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/upload-resource.js') }}"></script>

@@ -173,7 +173,8 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+    <!-- feat/python-runner-no-freeze: Python runs in a background worker (py-worker.js) -->
+    <script src="/static/py-runner.js"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-coding-sandbox.js') }}"></script>
     <!-- Python code colors + auto-indent (static/code-editor.js) -->
     <script src="/static/code-editor.js"></script>

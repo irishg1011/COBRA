@@ -4,6 +4,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
     <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
     <meta charset="UTF-8">
+    <script src="/static/busy.js"></script> <!-- "please wait" bar for slow requests (feat/python-runner-no-freeze) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CobraByte - Preview</title>
     <!-- feat/admin-real-game-preview: the REAL learner stylesheets, from the
@@ -168,7 +169,8 @@
     <script src="{{ url_for('admin_bp.static', filename='js/cobra-find-bar.js') }}"></script>
     {% if can_quick_edit %}<script src="{{ url_for('admin_bp.static', filename='js/admin-quick-edit.js') }}"></script>{% endif %}
     <script src="{{ url_for('admin_bp.static', filename='js/admin-preview-review.js') }}"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+    <!-- feat/python-runner-no-freeze: Python runs in a background worker (py-worker.js) -->
+    <script src="/static/py-runner.js"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/game-kit.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-fill-blanks.js') }}"></script>
     <script src="{{ url_for('learner_bp.serve_learner_assets', filename='js/lesson-flashcards.js') }}"></script>

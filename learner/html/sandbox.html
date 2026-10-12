@@ -4,6 +4,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
     <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
     <meta charset="UTF-8">
+    <script src="/static/busy.js"></script> <!-- "please wait" bar for slow requests (feat/python-runner-no-freeze) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CobraByte - Coding Sandbox</title>
     <link rel="stylesheet" href="../static/style.css">
@@ -144,7 +145,8 @@
          (see editor-toolbar.js) - loaded lazily by sandbox.js the first
          time Run Code is actually clicked, not on page load. -->
     <script src="../learner/js/clipboard-guard.js"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+    <!-- feat/python-runner-no-freeze: Python runs in a background worker (py-worker.js) -->
+    <script src="/static/py-runner.js"></script>
     <script src="../learner/js/sandbox.js"></script>
     <script src="../learner/js/learner.js"></script>
     <script src="../static/auth-guard.js"></script>

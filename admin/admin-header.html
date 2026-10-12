@@ -114,6 +114,7 @@
 {% include 'profile-photo-modal.html' %}
 {# One score color rule for every page (green at/above the pass mark, red below).
    Not deferred: page scripts below it call CobraScore. #}
+<script src="/static/busy.js"></script> <!-- "please wait" bar for slow requests, every staff page (feat/python-runner-no-freeze) -->
 <script src="{{ url_for('admin_bp.static', filename='js/admin-score.js') }}"></script>
 {# Auto-refresh of the stat cards / tables (one 10 s timer per page). Not deferred: page scripts register with it. #}
 <script src="{{ url_for('admin_bp.static', filename='js/admin-live-refresh.js') }}"></script>
