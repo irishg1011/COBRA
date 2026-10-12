@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../learner/css/profile-menu.css">
     <link rel="stylesheet" href="../learner/css/profile.css">
+    <link rel="stylesheet" href="../learner/css/badge-modal.css">
     <link rel="stylesheet" href="../learner/css/learner-responsive.css">
     <link rel="stylesheet" href="../static/delete-account.css">
 </head>
@@ -66,7 +67,7 @@
                     <p class="profile-hero-username" id="profileUsername"></p>
                     <div class="profile-hero-meta">
                         <span><i class="fa-regular fa-clock" aria-hidden="true"></i> <span id="heroHours">0h</span> total</span>
-                        <span><i class="fa-solid fa-award" aria-hidden="true"></i> <span id="heroBadges">0/0</span> badges</span>
+                        <span><i class="fa-solid fa-award" aria-hidden="true"></i> <button type="button" class="profile-hero-badges" id="heroBadgesBtn" aria-controls="panelBadges"><span id="heroBadges">0/0</span> badges</button></span>
                     </div>
                 </div>
                 <div class="profile-hero-figures">
@@ -163,6 +164,7 @@
 
     <!-- External Script References -->
     <script src="../learner/js/learner.js"></script>
+    <script src="../learner/js/badge-modal.js"></script>
     <script src="../learner/js/profile.js"></script>
     <script src="../static/delete-account.js"></script>
     <script src="../static/auth-guard.js"></script>

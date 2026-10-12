@@ -70,6 +70,21 @@ REQUIREMENT_TYPES = [
 ]
 REQUIREMENT_BY_KEY = {t["key"]: t for t in REQUIREMENT_TYPES}
 
+# feat/badge-modal: the words after "1 / 3" on a badge's progress bar.
+PROGRESS_UNITS = {
+    "lessons_completed": ("lesson completed", "lessons completed"),
+    "modules_passed": ("module passed", "modules passed"),
+    "chapters_completed": ("chapter completed", "chapters completed"),
+    "perfect_mcq": ("perfect Multiple Choice score", "perfect Multiple Choice scores"),
+    "perfect_fib": ("perfect Fill in the Blanks score", "perfect Fill in the Blanks scores"),
+    "perfect_flashcards": ("perfect Flashcards score", "perfect Flashcards scores"),
+    "exercises_passed": ("coding exercise passed", "coding exercises passed"),
+    "sandbox_runs": ("Sandbox run", "Sandbox runs"),
+    "snippets_saved": ("snippet saved", "snippets saved"),
+    "learning_hours": ("hour of learning", "hours of learning"),
+    "login_days": ("login day", "login days"),
+}
+
 # code, name, description, Font Awesome icon (fallback until a mentor
 # uploads an image), requirement type, required value
 STARTER_BADGES = [
@@ -120,6 +135,12 @@ def criteria_text(requirement_type, required_value):
     return req["singular"] if n == 1 else req["plural"].format(n=n)
 
 
+def badge_link(code):
+    """feat/badge-modal: the profile opens this badge's window right away."""
+    from urllib.parse import quote
+    return f"/profile?badge={quote(str(code or ''), safe='')}#badges"
+
+
 def badge_icon_url(icon_file):
     return f"{BADGE_ICON_URL_PREFIX}{icon_file}" if icon_file else None
 
@@ -136,6 +157,62 @@ def badge_rule_met(badge, facts):
     if badge.get("requirement_type") not in REQUIREMENT_BY_KEY:
         return False
     return fact_value(facts, badge["requirement_type"]) >= (badge.get("required_value") or 1)
+
+
+def badge_progress(badge, facts):
+    """
+    feat/badge-modal: (current, target, unit) for a badge's progress bar -
+    the SAME number badge_rule_met() compares, capped at the target.
+    Hours keep one decimal (rounded down, so 9.96 never shows as 10).
+    Unknown rule -> (None, None, "").
+    """
+    req_type = badge.get("requirement_type")
+    if req_type not in REQUIREMENT_BY_KEY:
+        return None, None, ""
+    target = int(badge.get("required_value") or 1)
+    value = fact_value(facts, req_type)
+    if req_type == "learning_hours":
+        current = min(int(value * 10) / 10, target)
+        if current == int(current):
+            current = int(current)
+    else:
+        current = min(int(value), target)
+    singular, plural = PROGRESS_UNITS.get(req_type, ("", ""))
+    return current, target, singular if target == 1 else plural
+
+
+def badge_rarity(cursor):
+    """
+    feat/badge-modal: {badge_id: percent of learners who earned it} and the
+    learner total, in ONE query. Learners = learner accounts that are not
+    archived (account_tbl.is_deleted = 0). Badges nobody earned are absent
+    (-> 0%). With no learners at all the total is 0 and rarity is hidden.
+    """
+    cursor.execute(
+        f"""SELECT lb.badge_id, COUNT(*) AS earned,
+                   (SELECT COUNT(*) FROM account_tbl a2
+                     JOIN usertype_tbl u2 ON u2.ut_id = a2.u_type
+                     WHERE u2.u_type = 'Learner' AND COALESCE(a2.is_deleted, 0) = 0) AS learners
+            FROM {LEARNER_BADGES_TABLE} lb
+            JOIN account_tbl a ON a.acc_id = lb.acc_id
+            JOIN usertype_tbl u ON u.ut_id = a.u_type
+            WHERE u.u_type = 'Learner' AND COALESCE(a.is_deleted, 0) = 0
+            GROUP BY lb.badge_id"""
+    )
+    rows = cursor.fetchall()
+    if rows:
+        total = int(rows[0]["learners"] or 0)
+    else:
+        cursor.execute(
+            """SELECT COUNT(*) AS learners FROM account_tbl a
+               JOIN usertype_tbl u ON u.ut_id = a.u_type
+               WHERE u.u_type = 'Learner' AND COALESCE(a.is_deleted, 0) = 0"""
+        )
+        total = int((cursor.fetchone() or {}).get("learners") or 0)
+    if not total:
+        return {}, 0
+    # Earned by someone -> at least 1% (0% would read as "nobody has it").
+    return {r["badge_id"]: max(1, round(int(r["earned"]) * 100 / total)) for r in rows}, total
 
 
 def _first_value(row):
@@ -257,7 +334,10 @@ def award_and_list_badges(connection, acc_id, facts, notify_as_read=False):
     first sync), then returns the badges this learner can see, in
     display order:
         [{code, name, description, criteria, icon, icon_url, color,
-          earned, earned_at}, ...]
+          earned, earned_at, current, target, unit, rarity_percent}, ...]
+    current / target / unit: the progress bar (badge_progress).
+    rarity_percent: % of learners who have it (badge_rarity); None when
+    there are no learners at all.
     An archived badge is listed only for learners who already earned it.
     """
     cursor = connection.cursor(dictionary=True)
@@ -281,7 +361,7 @@ def award_and_list_badges(connection, acc_id, facts, notify_as_read=False):
             if cursor.rowcount == 1:
                 notify(cursor, acc_id, "badge",
                        f"You earned the **{badge['badge_name']}** badge",
-                       badge["description"], "/profile#badges",
+                       badge["description"], badge_link(badge["badge_code"]),
                        f"badge:{badge['badge_code']}", is_read=notify_as_read)
         connection.commit()
 
@@ -290,6 +370,16 @@ def award_and_list_badges(connection, acc_id, facts, notify_as_read=False):
             (acc_id,)
         )
         earned = {r["badge_id"]: r["earned_at"] for r in cursor.fetchall()}
+        rarity, learners = badge_rarity(cursor)
+
+        def extras(b):
+            current, target, unit = badge_progress(b, facts)
+            return {
+                "current": target if b["badge_id"] in earned and target else current,
+                "target": target,
+                "unit": unit,
+                "rarity_percent": rarity.get(b["badge_id"], 0) if learners else None,
+            }
 
         return [
             {
@@ -302,6 +392,7 @@ def award_and_list_badges(connection, acc_id, facts, notify_as_read=False):
                 "color": b["color"],
                 "earned": b["badge_id"] in earned,
                 "earned_at": earned[b["badge_id"]].strftime("%b %d, %Y") if b["badge_id"] in earned else None,
+                **extras(b),
             }
             for b in catalogue
             if not b["is_archived"] or b["badge_id"] in earned

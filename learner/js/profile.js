@@ -132,23 +132,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<i class="fa-solid ${esc(b.icon || 'fa-award')}"></i>`;
     }
 
+    // feat/badge-modal: every card is a button that opens the badge's window
+    // (badge-modal.js) - mouse, tap, Enter / Space.
+    let badgeList = [];
+    let accId = '';
+    let loaded = false;
+
     function renderBadges(badges, stats) {
         const grid = $('badgeGrid');
+        badgeList = badges;
         $('badgesCount').textContent = `${stats.badges_earned} of ${stats.badges_total} earned`;
         if (!badges.length) {
             grid.innerHTML = '<p class="badge-empty">No badges are available yet.</p>';
             return;
         }
         // A locked badge shows how to earn it; an earned one shows its description.
-        grid.innerHTML = badges.map((b) => `
-            <div class="badge-card ${b.earned ? '' : 'is-locked'}">
-                <div class="badge-medal" aria-hidden="true"${b.earned && b.color ? ` data-badge-color="${esc(b.color)}"` : ''}>
+        grid.innerHTML = badges.map((b, i) => `
+            <button type="button" class="badge-card ${b.earned ? '' : 'is-locked'}" data-badge-index="${i}"
+                    aria-haspopup="dialog" aria-label="${esc(`${b.name} - ${b.earned ? 'earned' : 'locked'}. Show details`)}">
+                <span class="badge-medal" aria-hidden="true"${b.earned && b.color ? ` data-badge-color="${esc(b.color)}"` : ''}>
                     ${badgeIconHtml(b)}
-                </div>
-                <div class="badge-name">${esc(b.name)}</div>
-                <div class="badge-desc">${esc(b.earned ? b.description : (b.criteria || b.description))}</div>
-                <div class="badge-date">${b.earned ? `Earned ${esc(b.earned_at)}` : 'Locked'}</div>
-            </div>`).join('');
+                </span>
+                <span class="badge-name">${esc(b.name)}</span>
+                <span class="badge-desc">${esc(b.earned ? b.description : (b.criteria || b.description))}</span>
+                <span class="badge-date">${b.earned ? `Earned ${esc(b.earned_at)}` : 'Locked'}</span>
+            </button>`).join('');
 
         // The badge's color goes into the --badge-color variable used by
         // profile.css (.badge-medal.has-color) - no inline styles in the HTML.
@@ -157,6 +165,43 @@ document.addEventListener('DOMContentLoaded', () => {
             medal.style.setProperty('--badge-color', medal.dataset.badgeColor);
             medal.classList.add('has-color');
         });
+    }
+
+    function badgeCard(i) {
+        return $('badgeGrid').querySelector(`[data-badge-index="${i}"]`);
+    }
+
+    function openBadge(i) {
+        if (!window.CobraBadgeModal || !badgeList[i]) return;
+        CobraBadgeModal.open(badgeList, i, { accId, trigger: badgeCard(i), cardFor: badgeCard });
+    }
+
+    $('badgeGrid').addEventListener('click', (e) => {
+        const card = e.target.closest('[data-badge-index]');
+        if (card) openBadge(Number(card.dataset.badgeIndex));
+    });
+
+    // /profile?badge=<code>#badges (a badge notification) or #badges&badge=<code>:
+    // the Badges tab, then that badge's window. Unknown code -> just the tab.
+    function requestedBadge() {
+        const fromQuery = new URLSearchParams(window.location.search).get('badge');
+        if (fromQuery) return fromQuery;
+        const hash = window.location.hash.replace(/^#/, '');
+        const fromHash = new URLSearchParams(hash.replace(/^badges&?/, '')).get('badge');
+        return fromHash || '';
+    }
+
+    function openRequestedBadge() {
+        const code = requestedBadge();
+        if (!code) return;
+        selectTab(1, false);
+        const i = badgeList.findIndex((b) => b.code === code);
+        // Keep a refresh from opening it again: the address becomes /profile#badges.
+        try { window.history.replaceState(null, '', `${window.location.pathname}#badges`); } catch (e) { /* old browser */ }
+        if (i < 0) return;
+        const card = badgeCard(i);
+        if (card) card.scrollIntoView({ block: 'center' });
+        openBadge(i);
     }
 
     // feat/certificate: the Certificate of Completion card above the badges.
@@ -207,7 +252,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    if (window.location.hash === '#badges') selectTab(1, false);
+    if (/^#badges/.test(window.location.hash) || new URLSearchParams(window.location.search).get('badge')) selectTab(1, false);
+
+    // Already on the profile and only the hash changed (#badges&badge=<code>).
+    window.addEventListener('hashchange', () => {
+        if (!loaded) return;
+        if (/^#badges/.test(window.location.hash)) selectTab(1, false);
+        openRequestedBadge();
+    });
+
+    // feat/badge-modal: the hero's "N/M badges" opens the Badges tab.
+    $('heroBadgesBtn').addEventListener('click', () => {
+        selectTab(1, false);
+        $('panelBadges').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        try { window.history.replaceState(null, '', `${window.location.pathname}#badges`); } catch (e) { /* old browser */ }
+    });
 
     // ---------------- Load ----------------
     fetch('/api/profile/overview', { credentials: 'include' })
@@ -218,10 +277,13 @@ document.addEventListener('DOMContentLoaded', () => {
             renderStats(data.stats);
             renderTopics(data.topics, data.pass_percent);
             renderAreas(data.areas_to_improve, data.pass_percent);
+            accId = (data.profile && data.profile.acc_id) || '';
             renderBadges(data.badges, data.stats);
             renderCertificate(data.certificate);
             $('profileLoading').hidden = true;
             $('profileContent').hidden = false;
+            openRequestedBadge();
+            loaded = true;
         })
         .catch(() => {
             $('profileLoading').hidden = true;

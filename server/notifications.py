@@ -149,6 +149,20 @@ def notify(cursor, acc_id, notif_type, title, detail=None, link=None,
         return False
 
 
+def _item_link(row):
+    """
+    feat/badge-modal: a badge notification opens THAT badge on the profile.
+    Older ones were saved with plain "/profile#badges" - their dedupe key
+    ("badge:<code>") still names the badge, so the link is built here
+    (nothing in the database changes).
+    """
+    key = row.get("dedupe_key") or ""
+    if row.get("notif_type") == "badge" and key.startswith("badge:") and len(key) > 6:
+        from badges import badge_link
+        return badge_link(key[6:])
+    return row.get("link_url")
+
+
 def notify_standalone(acc_id, notif_type, title, detail=None, link=None, dedupe_key=None):
     """Same as notify() but with its own connection (for code with no open cursor)."""
     connection = get_db_connection()
@@ -374,7 +388,7 @@ def list_notifications():
             where.append("notif_id < %s")
             params.append(before_id)
         cursor.execute(
-            f"""SELECT notif_id, notif_type, title, detail, link_url, is_read, created_at,
+            f"""SELECT notif_id, notif_type, title, detail, link_url, dedupe_key, is_read, created_at,
                        TIMESTAMPDIFF(SECOND, created_at, {PH_NOW_SQL}) AS secs_ago,
                        (DATE(created_at) = DATE({PH_NOW_SQL})) AS is_today
                 FROM {NOTIFICATIONS_TABLE}
@@ -394,7 +408,7 @@ def list_notifications():
             "type": r["notif_type"],
             "title": r["title"],
             "detail": r["detail"] or "",
-            "link": r["link_url"],
+            "link": _item_link(r),
             "is_read": bool(r["is_read"]),
             "is_today": bool(r["is_today"]),
             "relative": _relative(r["secs_ago"]),
