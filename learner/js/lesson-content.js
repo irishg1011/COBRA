@@ -4,8 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Undefined on learner pages, so everything below runs exactly as before.
     const PREVIEW = window.COBRA_PREVIEW_MODE || null;
     const API_BASE_URL = PREVIEW ? PREVIEW.apiBase : ""; // feat/admin-login-page: same-origin, works on 127.0.0.1 and localhost
-    const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
-    const LESSON_MODULES_DIR = "/lesson_modules";
     const VIDEO_WATCH_THRESHOLD = 0.9; // 90% watched unlocks Continue
     const CONTENT_SCROLL_THRESHOLD = 0.95; // 95% scrolled unlocks Continue
 
@@ -341,7 +339,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ---------------- Pyodide (unchanged from before) ----------------
+    // ---------------- Python (feat/python-runner-no-freeze) ----------------
+    // Python runs in a background worker (static/py-runner.js -> CobraPy), so
+    // this page never freezes. The programs it runs are the same as before.
+    const CobraPy = window.CobraPy;
+    const LOAD_FAILED = CobraPy.messages.LOAD_FAILED_MESSAGE;
+
+    // input() for the exercise's free Run: the inline field in its output box.
     function showTerminalInputPrompt(promptText) {
         return new Promise((resolve) => {
             const outputBox = activeOutputBox;
@@ -371,33 +375,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-    window.cobraByteTerminalInput = showTerminalInputPrompt;
-
-    let pyodideLoadPromise = null;
-
-    function getPyodideInstance() {
-        if (!pyodideLoadPromise) {
-            if (typeof loadPyodide !== "function") {
-                return Promise.reject(new Error("Pyodide script did not load."));
-            }
-            pyodideLoadPromise = loadPyodide({ indexURL: PYODIDE_INDEX_URL });
-        }
-        return pyodideLoadPromise;
-    }
-
-    function syncModuleFilesToFS(pyodide, files) {
-        try {
-            pyodide.FS.mkdirTree(LESSON_MODULES_DIR);
-        } catch (err) { /* already exists */ }
-        files.forEach(({ filename, code }) => {
-            const name = (filename || "").trim();
-            if (!name.toLowerCase().endsWith(".py")) return;
-            const baseName = name.split('/').pop().split('\\').pop();
-            try {
-                pyodide.FS.writeFile(`${LESSON_MODULES_DIR}/${baseName}`, code || "", { encoding: "utf8" });
-            } catch (err) { /* ignore */ }
-        });
-    }
 
     // `skipWrapper` (the clicked block) is left out when given.
     function getAllCodeBlockFiles(skipWrapper) {
@@ -416,155 +393,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Used by the exercise step's free "Run" button (output collected and
     // returned). Lesson code blocks use runCodeBlock() below instead.
-    async function runPythonCode(code, files = []) {
-        let pyodide;
-        try {
-            pyodide = await getPyodideInstance();
-        } catch (err) {
-            return "Could not load the Python runtime. Check your internet connection and try again.";
-        }
-
-        syncModuleFilesToFS(pyodide, files);
-
-        pyodide.globals.set("_cobrabyte_user_code", code || "");
-
-        try {
-            const result = await pyodide.runPythonAsync(
-                "import sys, io, traceback, builtins, importlib, ast, types\n" +
-                "import js as _cobrabyte_js\n" +
-                `_cobrabyte_modules_dir = ${JSON.stringify(LESSON_MODULES_DIR)}\n` +
-                "if _cobrabyte_modules_dir not in sys.path:\n" +
-                "    sys.path.insert(0, _cobrabyte_modules_dir)\n" +
-                "importlib.invalidate_caches()\n" +
-                "_cobrabyte_stdout = io.StringIO()\n" +
-                "_cobrabyte_stderr = io.StringIO()\n" +
-                "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
-                "_old_input = builtins.input\n" +
-                "sys.stdout, sys.stderr = _cobrabyte_stdout, _cobrabyte_stderr\n" +
-                "async def _cobrabyte_input(prompt=''):\n" +
-                "    if prompt:\n" +
-                "        sys.stdout.write(str(prompt))\n" +
-                "    _val = await _cobrabyte_js.cobraByteTerminalInput(str(prompt) if prompt else '')\n" +
-                "    if _val is None:\n" +
-                "        raise EOFError('Input was cancelled while testing.')\n" +
-                "    _val = str(_val)\n" +
-                "    sys.stdout.write(_val + chr(10))\n" +
-                "    return _val\n" +
-                "builtins.input = _cobrabyte_input\n" +
-                "class _CobrabyteAsyncify:\n" +
-                "    # input() -> await input(). Any function that calls input() - directly\n" +
-                "    # or through other user functions/methods - becomes async, and every\n" +
-                "    # call to it is awaited, so input() works anywhere in the code.\n" +
-                "    def __init__(self, tree):\n" +
-                "        self.tree = tree\n" +
-                "        self.async_names = set()\n" +
-                "        self.method_names = set()\n" +
-                "    @staticmethod\n" +
-                "    def _own_calls(fn):\n" +
-                "        stack = list(fn.body)\n" +
-                "        while stack:\n" +
-                "            node = stack.pop()\n" +
-                "            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):\n" +
-                "                continue\n" +
-                "            if isinstance(node, ast.Call):\n" +
-                "                yield node\n" +
-                "            stack.extend(ast.iter_child_nodes(node))\n" +
-                "    def _call_name(self, call):\n" +
-                "        f = call.func\n" +
-                "        if isinstance(f, ast.Name):\n" +
-                "            return f.id\n" +
-                "        if isinstance(f, ast.Attribute) and f.attr in self.method_names:\n" +
-                "            return f.attr\n" +
-                "        return None\n" +
-                "    @staticmethod\n" +
-                "    def _can_be_async(fn):\n" +
-                "        if fn.name.startswith('__') and fn.name.endswith('__'):\n" +
-                "            return False\n" +
-                "        for node in ast.walk(fn):\n" +
-                "            if isinstance(node, (ast.Yield, ast.YieldFrom)):\n" +
-                "                return False\n" +
-                "        return True\n" +
-                "    def run(self):\n" +
-                "        self.method_names = {\n" +
-                "            item.name\n" +
-                "            for cls in ast.walk(self.tree) if isinstance(cls, ast.ClassDef)\n" +
-                "            for item in cls.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))\n" +
-                "        }\n" +
-                "        funcs = [n for n in ast.walk(self.tree) if isinstance(n, ast.FunctionDef) and self._can_be_async(n)]\n" +
-                "        changed = True\n" +
-                "        while changed:\n" +
-                "            changed = False\n" +
-                "            for fn in funcs:\n" +
-                "                if fn.name in self.async_names:\n" +
-                "                    continue\n" +
-                "                for call in self._own_calls(fn):\n" +
-                "                    name = self._call_name(call)\n" +
-                "                    if name == 'input' or name in self.async_names:\n" +
-                "                        self.async_names.add(fn.name)\n" +
-                "                        changed = True\n" +
-                "                        break\n" +
-                "        self._rewrite(self.tree, True)\n" +
-                "        ast.fix_missing_locations(self.tree)\n" +
-                "        return self.tree\n" +
-                "    def _rewrite(self, node, in_async):\n" +
-                "        for field, value in ast.iter_fields(node):\n" +
-                "            if isinstance(value, list):\n" +
-                "                setattr(node, field, [self._visit(v, in_async) if isinstance(v, ast.AST) else v for v in value])\n" +
-                "            elif isinstance(value, ast.AST):\n" +
-                "                setattr(node, field, self._visit(value, in_async))\n" +
-                "    def _visit(self, node, in_async):\n" +
-                "        if isinstance(node, ast.FunctionDef):\n" +
-                "            if node.name in self.async_names and self._can_be_async(node):\n" +
-                "                extra = {'type_params': node.type_params} if hasattr(node, 'type_params') else {}\n" +
-                "                new = ast.AsyncFunctionDef(name=node.name, args=node.args, body=node.body,\n" +
-                "                                           decorator_list=node.decorator_list, returns=node.returns,\n" +
-                "                                           type_comment=None, **extra)\n" +
-                "                ast.copy_location(new, node)\n" +
-                "                self._rewrite(new, True)\n" +
-                "                return new\n" +
-                "            self._rewrite(node, False)\n" +
-                "            return node\n" +
-                "        if isinstance(node, ast.AsyncFunctionDef):\n" +
-                "            self._rewrite(node, True)\n" +
-                "            return node\n" +
-                "        if isinstance(node, ast.Lambda):\n" +
-                "            self._rewrite(node, False)\n" +
-                "            return node\n" +
-                "        if isinstance(node, ast.ClassDef):\n" +
-                "            self._rewrite(node, in_async)\n" +
-                "            return node\n" +
-                "        self._rewrite(node, in_async)\n" +
-                "        if isinstance(node, ast.Call):\n" +
-                "            name = self._call_name(node)\n" +
-                "            if name == 'input' or name in self.async_names:\n" +
-                "                if in_async:\n" +
-                "                    return ast.copy_location(ast.Await(value=node), node)\n" +
-                "                if name == 'input':\n" +
-                "                    node.func = ast.copy_location(ast.Name(id='_cobrabyte_input_unsupported', ctx=ast.Load()), node.func)\n" +
-                "        return node\n" +
-                "def _cobrabyte_input_unsupported(*args, **kwargs):\n" +
-                "    raise RuntimeError(\"input() can't be used inside __init__, a lambda, or a generator here. Move it into a normal function.\")\n" +
-                "async def _cobrabyte_exec_async(source, mod_globals):\n" +
-                "    tree = ast.parse(source or '', filename='<exec>', mode='exec')\n" +
-                "    tree = _CobrabyteAsyncify(tree).run()\n" +
-                "    code = compile(tree, '<exec>', 'exec', flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)\n" +
-                "    mod_globals['_cobrabyte_input_unsupported'] = _cobrabyte_input_unsupported\n" +
-                "    result = eval(code, mod_globals)\n" +
-                "    if result is not None and hasattr(result, '__await__'):\n" +
-                "        await result\n" +
-                "try:\n" +
-                "    await _cobrabyte_exec_async(_cobrabyte_user_code, {'__name__': '__main__'})\n" +
-                "except Exception:\n" +
-                "    traceback.print_exc()\n" +
-                "finally:\n" +
-                "    builtins.input = _old_input\n" +
-                "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
-                "_cobrabyte_stdout.getvalue() + _cobrabyte_stderr.getvalue()\n"
-            );
-            return result;
-        } catch (err) {
-            return "Error running code: " + (err && err.message ? err.message : String(err));
-        }
+    // `opts.onStop` puts a Stop button next to the Run button.
+    async function runPythonCode(code, files = [], _unused, opts = {}) {
+        const outcome = await CobraPy.run({
+            mode: "exrun", code, files, maxSeconds: 5,
+            onInput: showTerminalInputPrompt,
+            onStarted: opts.onStarted,
+        });
+        if (outcome.ok) return outcome.result;
+        if (outcome.loadFailed) return LOAD_FAILED;
+        if (outcome.stopped || outcome.killed) return outcome;
+        return "Error running code: " + outcome.message;
     }
 
     // Code block run popup - built once on first use, like learner.js's
@@ -623,258 +462,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // waiting for an answer, and whether Stop was clicked.
     // ------------------------------------------------------------
     let currentRun = null;
-    let pyodideReady = false;
 
-    const RUN_BTN_STOP_HTML = '<i class="fa-solid fa-stop"></i> Stop';
-    const RUN_BTN_LOADING_HTML = '<i class="fa-solid fa-stop"></i> Loading Python...';
 
-    // Clicked block's code only runs other lesson blocks it actually
+    // The clicked block's code only runs other lesson blocks it actually
     // imports (by filename, transitively, each at most once) - never the
-    // whole lesson. Output is streamed live through _cobrabyte_write.
-    const CODE_BLOCK_RUN_PY =
-        "import sys, time, traceback, builtins, importlib, ast, types\n" +
-        `_cobrabyte_modules_dir = ${JSON.stringify(LESSON_MODULES_DIR)}\n` +
-        "if _cobrabyte_modules_dir not in sys.path:\n" +
-        "    sys.path.insert(0, _cobrabyte_modules_dir)\n" +
-        "importlib.invalidate_caches()\n" +
-        "# Safety limits, so a runaway program stops by itself instead of\n" +
-        "# freezing the page: at most 1,000 output lines, and 5 seconds of running\n" +
-        "# time (time spent waiting for an input() answer does not count).\n" +
-        "_COBRABYTE_MAX_LINES = 1000\n" +
-        "_COBRABYTE_MAX_SECONDS = 5\n" +
-        "class _CobrabyteLimit(BaseException):\n" +
-        "    # BaseException, so the program's own `except Exception` can't catch it.\n" +
-        "    pass\n" +
-        "class _CobrabyteGuard:\n" +
-        "    def __init__(self):\n" +
-        "        self.lines = 0\n" +
-        "        self.at_line_start = True\n" +
-        "        self.hit = None\n" +
-        "        self.used = 0.0\n" +
-        "        self.started = time.monotonic()\n" +
-        "    def pause(self):\n" +
-        "        self.used += time.monotonic() - self.started\n" +
-        "    def resume(self):\n" +
-        "        self.started = time.monotonic()\n" +
-        "    def check_time(self):\n" +
-        "        if self.hit is None and self.used + (time.monotonic() - self.started) > _COBRABYTE_MAX_SECONDS:\n" +
-        "            self.hit = 'Program stopped: it ran longer than ' + str(_COBRABYTE_MAX_SECONDS) + ' seconds.'\n" +
-        "        if self.hit is not None:\n" +
-        "            raise _CobrabyteLimit()\n" +
-        "    def report(self):\n" +
-        "        _cobrabyte_write(('' if self.at_line_start else chr(10)) + self.hit)\n" +
-        "_cobrabyte_guard = _CobrabyteGuard()\n" +
-        "class _CobrabyteLoopGuard(ast.NodeTransformer):\n" +
-        "    # Every loop body starts with a quick time check, so even a one-line\n" +
-        "    # `while True: pass` is stopped once the time limit is up.\n" +
-        "    def _guard(self, node):\n" +
-        "        self.generic_visit(node)\n" +
-        "        tick = ast.Expr(value=ast.Call(func=ast.Name(id='_cobrabyte_tick', ctx=ast.Load()), args=[], keywords=[]))\n" +
-        "        node.body.insert(0, ast.copy_location(tick, node))\n" +
-        "        return node\n" +
-        "    visit_For = visit_AsyncFor = visit_While = _guard\n" +
-        "class _CobrabyteStream:\n" +
-        "    # print() output goes straight to the clicked block's Output box.\n" +
-        "    def __init__(self, write_fn):\n" +
-        "        self._write_fn = write_fn\n" +
-        "    def write(self, text):\n" +
-        "        text = str(text)\n" +
-        "        guard = _cobrabyte_guard\n" +
-        "        if guard.hit is not None:\n" +
-        "            raise _CobrabyteLimit()\n" +
-        "        if text:\n" +
-        "            if guard.lines >= _COBRABYTE_MAX_LINES:\n" +
-        "                guard.hit = 'Program stopped: too much output (limit ' + format(_COBRABYTE_MAX_LINES, ',') + ' lines).'\n" +
-        "                raise _CobrabyteLimit()\n" +
-        "            guard.lines += text.count(chr(10))\n" +
-        "            guard.at_line_start = text.endswith(chr(10))\n" +
-        "            self._write_fn(text)\n" +
-        "        return len(text)\n" +
-        "    def flush(self):\n" +
-        "        pass\n" +
-        "    def isatty(self):\n" +
-        "        return False\n" +
-        "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
-        "_old_input = builtins.input\n" +
-        "sys.stdout = _CobrabyteStream(_cobrabyte_write)\n" +
-        "sys.stderr = _CobrabyteStream(_cobrabyte_write)\n" +
-        "async def _cobrabyte_input(prompt=''):\n" +
-        "    _cobrabyte_guard.pause()\n" +
-        "    try:\n" +
-        "        _val = await _cobrabyte_read_input(str(prompt) if prompt else '')\n" +
-        "    finally:\n" +
-        "        _cobrabyte_guard.resume()\n" +
-        "    if not isinstance(_val, str):\n" +
-        "        raise EOFError('Input was cancelled while testing.')\n" +
-        "    _cobrabyte_guard.at_line_start = True\n" +
-        "    return _val\n" +
-        "builtins.input = _cobrabyte_input\n" +
-        "class _CobrabyteAsyncify:\n" +
-        "    # input() -> await input(). Any function that calls input() - directly\n" +
-        "    # or through other user functions/methods - becomes async, and every\n" +
-        "    # call to it is awaited, so input() works anywhere in the code.\n" +
-        "    def __init__(self, tree):\n" +
-        "        self.tree = tree\n" +
-        "        self.async_names = set()\n" +
-        "        self.method_names = set()\n" +
-        "    @staticmethod\n" +
-        "    def _own_calls(fn):\n" +
-        "        stack = list(fn.body)\n" +
-        "        while stack:\n" +
-        "            node = stack.pop()\n" +
-        "            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):\n" +
-        "                continue\n" +
-        "            if isinstance(node, ast.Call):\n" +
-        "                yield node\n" +
-        "            stack.extend(ast.iter_child_nodes(node))\n" +
-        "    def _call_name(self, call):\n" +
-        "        f = call.func\n" +
-        "        if isinstance(f, ast.Name):\n" +
-        "            return f.id\n" +
-        "        if isinstance(f, ast.Attribute) and f.attr in self.method_names:\n" +
-        "            return f.attr\n" +
-        "        return None\n" +
-        "    @staticmethod\n" +
-        "    def _can_be_async(fn):\n" +
-        "        if fn.name.startswith('__') and fn.name.endswith('__'):\n" +
-        "            return False\n" +
-        "        for node in ast.walk(fn):\n" +
-        "            if isinstance(node, (ast.Yield, ast.YieldFrom)):\n" +
-        "                return False\n" +
-        "        return True\n" +
-        "    def run(self):\n" +
-        "        self.method_names = {\n" +
-        "            item.name\n" +
-        "            for cls in ast.walk(self.tree) if isinstance(cls, ast.ClassDef)\n" +
-        "            for item in cls.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))\n" +
-        "        }\n" +
-        "        funcs = [n for n in ast.walk(self.tree) if isinstance(n, ast.FunctionDef) and self._can_be_async(n)]\n" +
-        "        changed = True\n" +
-        "        while changed:\n" +
-        "            changed = False\n" +
-        "            for fn in funcs:\n" +
-        "                if fn.name in self.async_names:\n" +
-        "                    continue\n" +
-        "                for call in self._own_calls(fn):\n" +
-        "                    name = self._call_name(call)\n" +
-        "                    if name == 'input' or name in self.async_names:\n" +
-        "                        self.async_names.add(fn.name)\n" +
-        "                        changed = True\n" +
-        "                        break\n" +
-        "        self._rewrite(self.tree, True)\n" +
-        "        ast.fix_missing_locations(self.tree)\n" +
-        "        return self.tree\n" +
-        "    def _rewrite(self, node, in_async):\n" +
-        "        for field, value in ast.iter_fields(node):\n" +
-        "            if isinstance(value, list):\n" +
-        "                setattr(node, field, [self._visit(v, in_async) if isinstance(v, ast.AST) else v for v in value])\n" +
-        "            elif isinstance(value, ast.AST):\n" +
-        "                setattr(node, field, self._visit(value, in_async))\n" +
-        "    def _visit(self, node, in_async):\n" +
-        "        if isinstance(node, ast.FunctionDef):\n" +
-        "            if node.name in self.async_names and self._can_be_async(node):\n" +
-        "                extra = {'type_params': node.type_params} if hasattr(node, 'type_params') else {}\n" +
-        "                new = ast.AsyncFunctionDef(name=node.name, args=node.args, body=node.body,\n" +
-        "                                           decorator_list=node.decorator_list, returns=node.returns,\n" +
-        "                                           type_comment=None, **extra)\n" +
-        "                ast.copy_location(new, node)\n" +
-        "                self._rewrite(new, True)\n" +
-        "                return new\n" +
-        "            self._rewrite(node, False)\n" +
-        "            return node\n" +
-        "        if isinstance(node, ast.AsyncFunctionDef):\n" +
-        "            self._rewrite(node, True)\n" +
-        "            return node\n" +
-        "        if isinstance(node, ast.Lambda):\n" +
-        "            self._rewrite(node, False)\n" +
-        "            return node\n" +
-        "        if isinstance(node, ast.ClassDef):\n" +
-        "            self._rewrite(node, in_async)\n" +
-        "            return node\n" +
-        "        self._rewrite(node, in_async)\n" +
-        "        if isinstance(node, ast.Call):\n" +
-        "            name = self._call_name(node)\n" +
-        "            if name == 'input' or name in self.async_names:\n" +
-        "                if in_async:\n" +
-        "                    return ast.copy_location(ast.Await(value=node), node)\n" +
-        "                if name == 'input':\n" +
-        "                    node.func = ast.copy_location(ast.Name(id='_cobrabyte_input_unsupported', ctx=ast.Load()), node.func)\n" +
-        "        return node\n" +
-        "def _cobrabyte_input_unsupported(*args, **kwargs):\n" +
-        "    raise RuntimeError(\"input() can't be used inside __init__, a lambda, or a generator here. Move it into a normal function.\")\n" +
-        "async def _cobrabyte_exec_async(source, mod_globals):\n" +
-        "    tree = ast.parse(source or '', filename='<exec>', mode='exec')\n" +
-        "    tree = _CobrabyteAsyncify(tree).run()\n" +
-        "    tree = _CobrabyteLoopGuard().visit(tree)\n" +
-        "    ast.fix_missing_locations(tree)\n" +
-        "    code = compile(tree, '<exec>', 'exec', flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)\n" +
-        "    mod_globals['_cobrabyte_input_unsupported'] = _cobrabyte_input_unsupported\n" +
-        "    mod_globals['_cobrabyte_tick'] = _cobrabyte_guard.check_time\n" +
-        "    result = eval(code, mod_globals)\n" +
-        "    if result is not None and hasattr(result, '__await__'):\n" +
-        "        await result\n" +
-        "def _cobrabyte_imported_names(source):\n" +
-        "    # Top-level names of every `import x` / `from x import y` in source.\n" +
-        "    try:\n" +
-        "        tree = ast.parse(source or '')\n" +
-        "    except SyntaxError:\n" +
-        "        return []\n" +
-        "    nodes = [n for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))]\n" +
-        "    nodes.sort(key=lambda n: (n.lineno, n.col_offset))\n" +
-        "    names = []\n" +
-        "    for node in nodes:\n" +
-        "        if isinstance(node, ast.Import):\n" +
-        "            names.extend(alias.name.split('.')[0] for alias in node.names)\n" +
-        "        elif node.level == 0 and node.module:\n" +
-        "            names.append(node.module.split('.')[0])\n" +
-        "    return names\n" +
-        "# Other lesson blocks by module name (the clicked block is never in here).\n" +
-        "_cobrabyte_lesson_modules = {}\n" +
-        "for _mf in _cobrabyte_module_files.to_py():\n" +
-        "    _mf_name = (_mf.get('filename') or '').strip()\n" +
-        "    if not _mf_name.lower().endswith('.py'):\n" +
-        "        continue\n" +
-        "    _mod_name = _mf_name.split('/')[-1].split(chr(92))[-1][:-3]\n" +
-        "    if _mod_name and _mod_name not in _cobrabyte_lesson_modules:\n" +
-        "        _cobrabyte_lesson_modules[_mod_name] = _mf.get('code') or ''\n" +
-        "# Forget lesson modules from earlier runs, so edited code is loaded fresh.\n" +
-        "for _name, _m in list(sys.modules.items()):\n" +
-        "    if getattr(_m, '__cobrabyte_lesson__', False) or str(getattr(_m, '__file__', '') or '').startswith(_cobrabyte_modules_dir + '/'):\n" +
-        "        sys.modules.pop(_name, None)\n" +
-        "_cobrabyte_loaded = set()\n" +
-        "async def _cobrabyte_load_module(name):\n" +
-        "    # Runs one imported lesson block as a module, its own lesson imports\n" +
-        "    # first. Each block loads at most once, so import cycles stop here.\n" +
-        "    if name in _cobrabyte_loaded or name not in _cobrabyte_lesson_modules:\n" +
-        "        return\n" +
-        "    _cobrabyte_loaded.add(name)\n" +
-        "    source = _cobrabyte_lesson_modules[name]\n" +
-        "    mod = types.ModuleType(name)\n" +
-        "    mod.__file__ = _cobrabyte_modules_dir + '/' + name + '.py'\n" +
-        "    mod.__cobrabyte_lesson__ = True\n" +
-        "    sys.modules[name] = mod\n" +
-        "    for dep in _cobrabyte_imported_names(source):\n" +
-        "        await _cobrabyte_load_module(dep)\n" +
-        "    try:\n" +
-        "        await _cobrabyte_exec_async(source, mod.__dict__)\n" +
-        "    except Exception:\n" +
-        "        traceback.print_exc()\n" +
-        "_cobrabyte_guard.resume()\n" +
-        "try:\n" +
-        "    for _dep in _cobrabyte_imported_names(_cobrabyte_user_code):\n" +
-        "        await _cobrabyte_load_module(_dep)\n" +
-        "    await _cobrabyte_exec_async(_cobrabyte_user_code, {'__name__': '__main__'})\n" +
-        "except _CobrabyteLimit:\n" +
-        "    pass\n" +
-        "except SystemExit:\n" +
-        "    pass\n" +
-        "except Exception:\n" +
-        "    traceback.print_exc()\n" +
-        "finally:\n" +
-        "    builtins.input = _old_input\n" +
-        "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
-        "    if _cobrabyte_guard.hit is not None:\n" +
-        "        _cobrabyte_guard.report()\n";
+    // whole lesson. Output is streamed live. (The program is "block" mode in
+    // static/py-worker.js, with its 1,000-line / 5-second safety guard.)
 
     // Writes text straight into the run's Output box, as it happens.
     function appendRunOutput(run, text) {
@@ -930,19 +523,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Stop: a waiting input() gets null, so the program ends through
-    // EOFError - its traceback is hidden, since nothing prints once stopped.
+    // Stop: the background Python is ended (and a fresh one starts), so even
+    // `while True: pass` stops at once - the page never froze meanwhile.
     function stopCurrentRun() {
         const run = currentRun;
         if (!run || run.stopped) return;
         run.stopped = true;
         if (run.inputResolve) run.inputResolve(null);
+        CobraPy.stop();
         const box = run.outputBox;
         const text = box.textContent;
         box.appendChild(document.createTextNode((text && !text.endsWith("\n") ? "\n" : "") + "Program stopped."));
         box.scrollTop = box.scrollHeight;
-        run.runBtn.disabled = true;
-        run.signalStop();
+    }
+
+    // Appends a message on its own line (load failure, backup time limit).
+    function appendRunNote(run, message) {
+        const box = run.outputBox;
+        const text = box.textContent;
+        box.appendChild(document.createTextNode((text && !text.endsWith("\n") ? "\n" : "") + message));
+        box.scrollTop = box.scrollHeight;
     }
 
     // An always-true loop (`while True:` / `while 1:`) whose body has no
@@ -977,61 +577,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Runs one block. Never throws - the finally always puts every Run
     // button back, whether the code finished, failed or was stopped.
+    // While it runs: "Running... 3s" + Stop; the page stays usable.
     async function runCodeBlock(opts) {
-        let signalStop = null;
         const run = {
             runBtn: opts.runBtn,
             outputBox: opts.outputBox,
             inputResolve: null,
             stopped: false,
-            stopPromise: new Promise((resolve) => { signalStop = resolve; }),
         };
-        run.signalStop = () => signalStop(null);
 
         const runBtn = run.runBtn;
-        const originalHtml = runBtn.innerHTML;
-        const originalTitle = runBtn.getAttribute("title");
         const otherBtns = Array.from(opts.scopeEl.querySelectorAll(".run-btn"))
             .filter((btn) => btn !== runBtn && !btn.disabled);
         currentRun = run;
+        let done = () => {};
 
         try {
             otherBtns.forEach((btn) => { btn.disabled = true; });
-            runBtn.disabled = false;
-            runBtn.classList.add("run-btn--stop");
-            runBtn.setAttribute("title", "Stop");
-            runBtn.innerHTML = pyodideReady ? RUN_BTN_STOP_HTML : RUN_BTN_LOADING_HTML;
+            done = CobraPy.runningButton(runBtn, { onStop: stopCurrentRun });
             run.outputBox.textContent = "";
+            if (!CobraPy.isReady()) appendRunOutput(run, CobraPy.messages.STARTING_MESSAGE);
 
-            let pyodide;
-            try {
-                pyodide = await Promise.race([getPyodideInstance(), run.stopPromise]);
-            } catch (err) {
-                appendRunOutput(run, "Could not load the Python runtime. Check your internet connection and try again.");
-                return;
-            }
-            if (run.stopped || !pyodide) return;
-            pyodideReady = true;
-            runBtn.innerHTML = RUN_BTN_STOP_HTML;
-
-            syncModuleFilesToFS(pyodide, opts.allFiles);
-            pyodide.globals.set("_cobrabyte_user_code", opts.code || "");
-            pyodide.globals.set("_cobrabyte_module_files", opts.moduleFiles);
-            pyodide.globals.set("_cobrabyte_write", (text) => appendRunOutput(run, text));
-            pyodide.globals.set("_cobrabyte_read_input", (promptText) => readRunInput(run, promptText));
-
-            try {
-                await pyodide.runPythonAsync(CODE_BLOCK_RUN_PY);
-            } catch (err) {
-                appendRunOutput(run, "Error running code: " + (err && err.message ? err.message : String(err)));
-            }
+            const outcome = await CobraPy.run({
+                mode: "block",
+                code: opts.code || "",
+                files: opts.allFiles,
+                moduleFiles: opts.moduleFiles,
+                maxSeconds: 5,
+                onStarted: () => { if (!run.stopped) run.outputBox.textContent = ""; },
+                onOutput: (text) => appendRunOutput(run, text),
+                onInput: (promptText) => readRunInput(run, promptText),
+            });
+            if (run.stopped || outcome.stopped) return;
+            if (outcome.loadFailed) { run.outputBox.textContent = ""; appendRunNote(run, LOAD_FAILED); }
+            else if (outcome.killed) appendRunNote(run, outcome.message);
+            else if (!outcome.ok) appendRunOutput(run, "Error running code: " + outcome.message);
         } finally {
+            done();
             otherBtns.forEach((btn) => { btn.disabled = false; });
             runBtn.disabled = false;
-            runBtn.classList.remove("run-btn--stop");
-            if (originalTitle === null) runBtn.removeAttribute("title");
-            else runBtn.setAttribute("title", originalTitle);
-            runBtn.innerHTML = originalHtml;
             if (currentRun === run) currentRun = null;
         }
     }
@@ -1041,6 +625,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const consoleBox = wrapper.querySelector(".editor-console-box");
         const outputBox = wrapper.querySelector(".editor-output-box");
         if (!runBtn || !consoleBox || !outputBox) return;
+        // feat/python-runner-no-freeze: this page has code - get Python ready
+        // in the background now, with a small status chip by the Run button.
+        CobraPy.preload();
+        CobraPy.chip(runBtn);
 
         runBtn.addEventListener("click", async function () {
             // While a run is going, this block's button is Stop and the
@@ -1123,70 +711,54 @@ document.addEventListener('DOMContentLoaded', () => {
         return text ? text.split('\n') : [];
     }
 
+    // Grading run in the background worker ("grade" mode, same program as
+    // before). Now with the safety guard: a program that hits a limit gets
+    // its output so far + the "Program stopped: ..." message as its error, so
+    // it is graded wrong with a clear reason instead of freezing the page.
+    // {killed} / {stopped} come back when the backup limit or Stop ended it.
     async function runExerciseForGrading(code) {
-        let pyodide;
-        try {
-            pyodide = await getPyodideInstance();
-        } catch (err) {
-            return null;
-        }
-
-        pyodide.globals.set("_cobrabyte_grade_code", code || "");
-        pyodide.globals.set("_cobrabyte_grade_inputs", givenInputLines());
-
-        try {
-            const result = await pyodide.runPythonAsync(
-                "import sys, io, json, traceback, builtins\n" +
-                "_cobrabyte_grade_stdout = io.StringIO()\n" +
-                "_cobrabyte_grade_error = ''\n" +
-                "_old_stdout, _old_stderr = sys.stdout, sys.stderr\n" +
-                "sys.stdout = sys.stderr = _cobrabyte_grade_stdout\n" +
-                "_cobrabyte_grade_queue = list(_cobrabyte_grade_inputs.to_py())\n" +
-                "def _cobrabyte_grade_input(prompt=''):\n" +
-                "    if not _cobrabyte_grade_queue:\n" +
-                "        raise EOFError('EOF when reading a line')\n" +
-                "    return _cobrabyte_grade_queue.pop(0)\n" +
-                "_old_input = builtins.input\n" +
-                "builtins.input = _cobrabyte_grade_input\n" +
-                "try:\n" +
-                "    exec(compile(_cobrabyte_grade_code, '<string>', 'exec'), {'__name__': '__main__'})\n" +
-                "except SystemExit:\n" +
-                "    pass\n" +
-                "except BaseException:\n" +
-                "    _cobrabyte_grade_error = traceback.format_exc()\n" +
-                "finally:\n" +
-                "    builtins.input = _old_input\n" +
-                "    sys.stdout, sys.stderr = _old_stdout, _old_stderr\n" +
-                "json.dumps([_cobrabyte_grade_stdout.getvalue(), _cobrabyte_grade_error])\n"
-            );
-            const [output, error] = JSON.parse(result);
-            return { output: output || "", error: error || "" };
-        } catch (err) {
-            return { output: "", error: "Error running code: " + (err && err.message ? err.message : String(err)) };
-        }
+        const outcome = await CobraPy.run({
+            mode: "grade", code: code || "", givenInputs: givenInputLines(), maxSeconds: 5,
+        });
+        if (outcome.loadFailed) return null;
+        if (outcome.stopped) return { output: "", error: "Program stopped.", stopped: true };
+        if (outcome.killed) return { output: "", error: outcome.message };
+        if (!outcome.ok) return { output: "", error: "Error running code: " + outcome.message };
+        const [output, error] = JSON.parse(outcome.result);
+        return { output: output || "", error: error || "" };
     }
 
     const runText = (run) => [run.output.replace(/\s+$/, ""), run.error.trim()].filter(Boolean).join("\n");
 
+    // Run: "Running... 3s" + Stop while it runs; the page stays usable.
     exerciseRunBtn.addEventListener('click', async () => {
         const code = exerciseCodeBox.innerText.trim();
-        if (!code) return;
-        exerciseRunBtn.disabled = true;
-        exerciseRunBtn.textContent = "Running...";
-        exerciseOutputBox.textContent = "";
-        if (givenInputLines().length) {
-            // The exercise gives its own input - run with it, same as Submit.
-            const run = await runExerciseForGrading(code);
-            exerciseOutputBox.textContent = run ? runText(run)
-                : "Could not load the Python runtime. Check your internet connection and try again.";
-        } else {
-            activeOutputBox = exerciseOutputBox;
-            const output = await runPythonCode(code, [], "");
-            activeOutputBox = null;
-            exerciseOutputBox.textContent = (output || "").trim();
+        if (!code || CobraPy.isRunning()) return;
+        exerciseOutputBox.textContent = CobraPy.isReady() ? "" : CobraPy.messages.STARTING_MESSAGE;
+        let stopped = false;
+        const done = CobraPy.runningButton(exerciseRunBtn, {
+            stopClass: "console-action-btn",
+            onStop: () => { stopped = true; CobraPy.stop(); },
+        });
+        try {
+            if (givenInputLines().length) {
+                // The exercise gives its own input - run with it, same as Submit.
+                const run = await runExerciseForGrading(code);
+                exerciseOutputBox.textContent = stopped ? "Program stopped."
+                    : run ? runText(run) : LOAD_FAILED;
+            } else {
+                activeOutputBox = exerciseOutputBox;
+                const output = await runPythonCode(code, [], "", {
+                    onStarted: () => { exerciseOutputBox.textContent = ""; },
+                });
+                activeOutputBox = null;
+                exerciseOutputBox.textContent = stopped ? "Program stopped."
+                    : (output && typeof output === "object") ? output.message
+                    : (output || "").trim();
+            }
+        } finally {
+            done();
         }
-        exerciseRunBtn.disabled = false;
-        exerciseRunBtn.textContent = "Run";
     });
 
     // "You must use:" chips + the expected output (shown, never hidden).
@@ -1374,12 +946,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     exerciseSubmitBtn.addEventListener('click', async () => {
         const code = exerciseCodeBox.innerText;
-        if (!code.trim() || exerciseSubmitBtn.disabled) return;
+        if (!code.trim() || exerciseSubmitBtn.disabled || CobraPy.isRunning()) return;
 
         exerciseSubmitBtn.disabled = true;
         exerciseSubmitBtn.dataset.running = '1';
         exerciseSubmitNote.hidden = true;
-        exerciseSubmitBtn.textContent = "Checking...";
+        // feat/python-runner-no-freeze: the first run may still be loading Python.
+        exerciseSubmitBtn.textContent = CobraPy.isReady() ? "Checking..." : "Starting Python...";
+        const unwatch = CobraPy.onState((st) => {
+            if (st === "ready" && exerciseSubmitBtn.dataset.running === '1') exerciseSubmitBtn.textContent = "Checking...";
+        });
 
         let failed = false;
         try {
@@ -1443,6 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
             exerciseResultBox.textContent = "Could not check your code. Check your internet connection and try again.";
         } finally {
             delete exerciseSubmitBtn.dataset.running;
+            unwatch();
         }
 
         if (!lessonData.exercise_completed) {
@@ -1877,6 +1454,11 @@ document.addEventListener('DOMContentLoaded', () => {
             lessonResourceTitle.style.display = 'block';
             lessonContentBody.innerHTML = data.content_html || '';
             preparePageForLearner();
+            // The coding exercise also needs Python: start it early.
+            if (data.exercise) {
+                CobraPy.preload();
+                CobraPy.chip(exerciseRunBtn);
+            }
 
             // Images can grow the content after first render, so
             // re-measure once each one finishes loading.
