@@ -14,7 +14,7 @@
    createBattle(canvas, { terrain, ... }) -> api
      api.render(frame)          draw one frame
      api.burst(where, color, n) where = 'hero' | 'foe'
-     api.float(where, text, color)
+     api.float(where, text, color, lift)  lift = extra height (default 0)
      api.resize()               call when the canvas changes size
      api.warmUp()               -> Promise: stage made ready ahead of the first frame
      api.dispose()              free GPU memory + listeners
@@ -288,10 +288,11 @@ export function createBattle(canvas, opts = {}) {
     }
   }
 
-  function float(where, text, color) {
+  // lift: extra height, so two labels at once never overlap (fix/game-feedback)
+  function float(where, text, color, lift = 0) {
     const a = where === 'hero' ? heroAnchor : foeAnchor;
     const sp = makeTextSprite(text, color);
-    sp.position.set(a.x, a.y + 2.2, a.z);
+    sp.position.set(a.x, a.y + 2.2 + lift, a.z);
     scene.add(sp);
     floats.push({ sp, life: 1 });
   }

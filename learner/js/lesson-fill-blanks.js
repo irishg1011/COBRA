@@ -227,7 +227,7 @@
                     </div>
                     <p class="fib-stage-hint">Drag the arena to look around · double-click to reset</p>
                 </section>
-                <section class="fib-board">
+                <section class="fib-board" data-f="board">
                     <div class="fib-board-head">
                         <span class="fib-chip" data-f="qmeta"></span>
                         <span class="fib-chip is-muted" data-f="modeChip"></span>
@@ -271,6 +271,8 @@
         `;
         container.appendChild(root);
 
+        // Lives before the last server answer: "-1 life" only when they went down (fix/game-feedback).
+        let livesBefore = null;
         const ui = {};
         root.querySelectorAll("[data-f]").forEach((node) => { ui[node.dataset.f] = node; });
         ui.title.textContent = activity.activity_title || "";
@@ -326,6 +328,7 @@
         }
 
         function applyState(state) {
+            livesBefore = server ? server.total_lives : null;
             server = state;
             // feat/question-pool-draw: the play's drawn items (revealed ones in full).
             if (state && Array.isArray(state.items) && state.items.length) {
@@ -855,8 +858,12 @@
             ui.checkBtn.disabled = !playing || !hasAnswer;
             ui.clearBtn.disabled = !playing || !hasAnswer;
             // Skip always costs 1 life (feat/one-attempt-flow).
-            ui.playSkipText.textContent = "Skip (−1 life)";
-            ui.playSkipBtn.setAttribute("aria-label", "Skip this puzzle, costs 1 life");
+            // Admin preview: lives never go down, so no "−1 life" on the button.
+            ui.playSkipText.textContent = PREVIEW ? "Skip" : "Skip (−1 life)";
+            ui.playSkipBtn.classList.toggle("is-preview", !!PREVIEW);
+            const shortLbl = ui.playSkipBtn.querySelector(".game-lbl-short");
+            if (PREVIEW && shortLbl) shortLbl.remove();     // no "Skip −1♥" on phones either
+            ui.playSkipBtn.setAttribute("aria-label", PREVIEW ? "Skip this puzzle" : "Skip this puzzle, costs 1 life");
             ui.playSkipBtn.disabled = !playing || items.length === 0 || !server || server.total_lives <= 0;
             ui.pauseBtn.disabled = !playing || items.length === 0;
             ui.controls.hidden = mode === "review";
@@ -895,7 +902,7 @@
                 : result.timed_out ? "Time's up" : result.is_close ? "Almost there" : "Not quite";
             ui.fbText.textContent = result.is_correct
                 ? (result.feedback || "")
-                : `${result.feedback || ""} SyntaxBug bites back (−1 life). This puzzle counts as missed.`.trim();
+                : `${result.feedback || ""} ${PREVIEW ? "Preview - no life lost." : "SyntaxBug bites back (−1 life)."} This puzzle counts as missed.`.trim();
             showConsole(result.console ? Object.assign({ correct: !!result.is_correct }, result.console) : null);
             // One try per puzzle: the only way forward is the next puzzle.
             // The correct answer is never shown.
@@ -956,7 +963,7 @@
             wrongOnCurrent = true;
             streak = 0;
             bump(ui.livesStat);
-            foeStrike();
+            foeStrike("Wrong");
             if (slotEl) slotEl.classList.add("is-wrong");
             if (triedChoice !== null) {
                 wrongChoices.add(triedChoice);
@@ -989,14 +996,18 @@
             }
             streak = 0;
             hideFeedback();
-            // SyntaxBug bites (-1 life) for a skip.
+            // fix/game-feedback: SyntaxBug bites (-1 life), "Skipped" floats over
+            // the COBRA and the puzzle drops and fades on the learner's side -
+            // nothing hits the bug.
             bump(ui.livesStat);
             bt.heroHP = heroLives(server);
-            foeStrike();
-            if (stage3d) stage3d.float("foe", "Skipped", "#64748b");
+            foeStrike(null);
+            if (stage3d) stage3d.float("hero", "Skipped", "#64748b", 1.2);
+            if (ui.board) ui.board.classList.add("is-discarding");
             updateHUD();
             setTimeout(() => {
                 if (disposed) return;
+                if (ui.board) ui.board.classList.remove("is-discarding");
                 if (server.completed) {
                     finish();
                     return;
@@ -1027,7 +1038,7 @@
             streak = 0;
             bump(ui.livesStat);
             bt.heroHP = heroLives(server);
-            foeStrike();
+            foeStrike("Time's up");
             showFeedback({ is_correct: false, timed_out: true, feedback: data.feedback });
             setMode("review");
             ui.nextBtn.focus({ preventScroll: true });
@@ -1159,7 +1170,9 @@
 
         function heroStrike() {
             playAnim("strike", () => {
-                bt.foeHP = Math.max(0, bt.foeHP - 1);
+                // fix/game-feedback: the server's number (syncBugBars already
+                // set it before the strike) - "-1" here took a second point off.
+                bt.foeHP = server && server.bug_hp != null ? Math.max(0, server.bug_hp) : Math.max(0, bt.foeHP - 1);
                 bt.flashFoe = 1;
                 bt.shake = 16;
                 if (stage3d) {
@@ -1175,13 +1188,18 @@
             });
         }
 
-        function foeStrike() {
+        // label: what floats over the cobra when NO life was lost (the admin
+        // preview) - "Wrong" / "Time's up"; null = nothing (a skip floats its
+        // own "Skipped"). A real loss always says "-1 life".
+        function foeStrike(label) {
+            const lost = livesBefore !== null && server && server.total_lives < livesBefore;
             playAnim("foebite", () => {
                 bt.heroHP = server ? heroLives(server) : Math.max(0, bt.heroHP - 1);
                 bt.flashHero = 1;
                 bt.shake = 14;
                 if (stage3d) {
-                    stage3d.float("hero", "-1 life", "#dc2626");
+                    if (lost) stage3d.float("hero", "-1 life", "#dc2626");
+                    else if (label) stage3d.float("hero", label, "#64748b");
                     stage3d.burst("hero", "#16a34a", 18);
                 }
                 drawBars();

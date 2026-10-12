@@ -794,3 +794,30 @@ html.fib-focus-lock body {
     .fib-overlay-card h4 { font-size: 18px; }
     .fib-overlay-card p { font-size: 13.5px; }
 }
+
+/* fix/game-feedback: a SKIPPED puzzle drops and fades on the learner's side
+   (the bug is never hit). The board's frame stays; its contents fall away. */
+.fib-board.is-discarding {
+    overflow: hidden;
+}
+
+.fib-board.is-discarding > * {
+    animation: fib-discard 0.9s ease-in forwards;
+    pointer-events: none;
+}
+
+@keyframes fib-discard {
+    0% { transform: translateY(0) rotate(0); opacity: 1; }
+    20% { transform: translateY(-6px) rotate(-0.5deg); opacity: 1; }
+    100% { transform: translate(-18px, 70px) rotate(-4deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fib-board.is-discarding > * {
+        animation: fib-discard-fade 0.6s linear forwards;
+    }
+
+    @keyframes fib-discard-fade {
+        to { opacity: 0; }
+    }
+}

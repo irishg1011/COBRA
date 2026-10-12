@@ -28,7 +28,7 @@ ONE ATTEMPT (Task 2)
       play item outcome   answers.status   cobra
       correct             correct          -
       wrong               incorrect        -1 life
-      close (Flashcards)  close            -      (accepted, as before)
+      close (Flashcards)  close            -      (accepted - counts as correct everywhere)
       skipped             skipped          -1 life
       timed_out           timed_out        -1 life
       left                left             -1 life
@@ -83,7 +83,8 @@ from lesson_activities import (
     total_lives,
     lives_payload,
 )
-from activity_retakes import (
+from activity_retakes import (  # noqa
+    PASSED_OUTCOMES,
     GAME_TABLES, MCQ_TYPE, FIB_TYPE, FLASHCARD_TYPE,
     item_ids_for_activity, complete_retake, activity_standing,
 )
@@ -743,7 +744,8 @@ def _set_outcome(cursor, ctx, item, outcome):
 
 
 def _correct_count(ctx):
-    return sum(1 for i in ctx["items"] if i["outcome"] == "correct")
+    # fix/game-feedback: a Flashcards "close" answer passes too (bug HP, score).
+    return sum(1 for i in ctx["items"] if i["outcome"] in PASSED_OUTCOMES)
 
 
 def _save_first_completion(cursor, acc_id, la_id, score):

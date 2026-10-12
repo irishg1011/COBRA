@@ -634,7 +634,7 @@ def preview_flashcards(store, la_id, action, data=None):
             feedback = card.get("incorrect_feedback") or FC_INCORRECT_FEEDBACK
         attempt_number = _attempt(play, flashcard_id)
         passed = status in ("correct", "close")
-        if passed and attempt_number == 1 and status == "correct":
+        if passed and attempt_number == 1:      # "close" counts as correct (fix/game-feedback)
             play["first_try"] += 1
         if not passed and flashcard_id not in play["wrong"]:
             play["wrong"].append(flashcard_id)

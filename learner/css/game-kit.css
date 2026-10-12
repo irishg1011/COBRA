@@ -305,3 +305,8 @@ html.game-leave-check .fc-root {
     .game-lbl-long { display: none; }
     .game-lbl-short { display: inline; }
 }
+
+/* fix/game-feedback: admin preview never loses a life - its Skip button
+   shows plain "Skip" on phones too (no "−1 ♥" short label). */
+.is-preview .game-lbl-short { display: none !important; }
+.is-preview .game-lbl-long { display: inline !important; }

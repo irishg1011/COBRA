@@ -209,7 +209,7 @@
             </div>
             <div class="mcq-arena-toolbar">
                 <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b> before the bar runs out. One try per question: a wrong letter, a skip, running out of time or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one; the daily bonus lives are a reserve used after your 5 lives are gone.</p>
-                <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn" disabled aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
+                <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn" disabled aria-label="${PREVIEW ? "Skip this question" : "Skip this question, costs 1 life"}"><i class="fa-solid fa-forward"></i> ${PREVIEW ? "Skip" : '<span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span>'}</button>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
                 <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn" aria-label="Exit full screen"><i class="fa-solid fa-compress"></i> <span class="game-lbl-long">Exit full screen</span><span class="game-lbl-short">Exit</span></button>
             </div>
@@ -435,7 +435,7 @@
                     <p class="mcq-arena-preview-above"><i class="fa-solid fa-arrow-up"></i> Read the question and choices above, then press Play.</p>
                     <p class="mcq-arena-subnote" data-ui="cardNote"></p>
                     <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-ghost-btn" data-ui="previewSkipBtn" aria-label="Skip this question, costs 1 life"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
+                        <button type="button" class="mcq-arena-ghost-btn" data-ui="previewSkipBtn" aria-label="${PREVIEW ? "Skip this question" : "Skip this question, costs 1 life"}"><i class="fa-solid fa-forward"></i> ${PREVIEW ? "Skip" : '<span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span>'}</button>
                         <button type="button" class="mcq-arena-primary-btn" data-ui="previewBtn"><i class="fa-solid fa-play"></i> Play</button>
                     </div>
                 </div>
@@ -611,7 +611,7 @@
                     <h4>Not quite</h4>
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
                     <div class="mcq-arena-reveal" data-ui="tryReveal" hidden></div>
-                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} counts as missed - if your module needs a retake, you'll get new questions.</p>
+                    <p class="mcq-arena-subnote">${PREVIEW ? `Preview - no life lost. Question ${qIndex + 1} counts as missed.` : `You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} counts as missed - if your module needs a retake, you'll get new questions.`}</p>
                     <p class="game-next-note" data-ui="nextNote"></p>
                     <div class="mcq-arena-overlay-actions">
                         <button type="button" class="mcq-arena-primary-btn game-next-pulse" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
@@ -656,7 +656,7 @@
                 finish();
                 return;
             }
-            flash(`Question skipped · -1 life · ${server.total_lives} ${server.total_lives === 1 ? "life" : "lives"} left.`, false, 3000);
+            flash(PREVIEW ? "Question skipped." : `Question skipped · -1 life · ${server.total_lives} ${server.total_lives === 1 ? "life" : "lives"} left.`, false, 3000);
             await revealNext();
         }
 
@@ -1002,7 +1002,7 @@
                     <i class="fa-solid fa-hourglass-end mcq-arena-overlay-icon is-danger"></i>
                     <h4>Time's up</h4>
                     <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
-                    <p class="mcq-arena-subnote">You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. This question counts as missed.</p>
+                    <p class="mcq-arena-subnote">${PREVIEW ? "Preview - no life lost. This question counts as missed." : `You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. This question counts as missed.`}</p>
                     <p class="game-next-note" data-ui="nextNote"></p>
                     <div class="mcq-arena-overlay-actions">
                         <button type="button" class="mcq-arena-primary-btn game-next-pulse" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
