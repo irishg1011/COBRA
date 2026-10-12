@@ -34,7 +34,7 @@ from datetime import datetime, timedelta
 
 from mysql.connector import Error
 
-from activity_retakes import PASS_PERCENT, GAME_TABLES, RETAKES_TABLE
+from activity_retakes import PASS_PERCENT, GAME_TABLES, RETAKES_TABLE, PASSED_OUTCOMES
 
 PASS_MARK = PASS_PERCENT
 CLOSE_BAND = 10              # yellow = within 10 points under the pass mark
@@ -478,7 +478,7 @@ def first_try_answers(cursor, activities, acc_ids, since=None):
                 if since and r["answered_at"] and r["answered_at"] < since:
                     continue
                 answers.append({"acc_id": r["acc_id"], "la_id": r["la_id"], "item_id": r["item_id"],
-                                "outcome": "correct" if r["status"] == "correct" else (
+                                "outcome": r["status"] if r["status"] in PASSED_OUTCOMES else (
                                     "skipped" if r["status"] == "skipped" else "wrong"),
                                 "at": r["answered_at"]})
 
@@ -524,7 +524,7 @@ def lesson_activity_stats(cursor, activities, evs, top=TOP_MISSED, since=None):
             c["skips"] += 1
         entry = items.setdefault((a["la_id"], a["item_id"]), {"answered": 0, "missed": 0})
         entry["answered"] += 1
-        if a["outcome"] != "correct":
+        if a["outcome"] not in PASSED_OUTCOMES:   # "close" passes (fix/game-feedback)
             entry["missed"] += 1
     for la_id, n in retake_counts.items():
         counts.setdefault(la_id, {"timeouts": 0, "skips": 0, "retakes": 0})["retakes"] = n

@@ -47,7 +47,8 @@ from lesson_activities import (
     total_lives,
     lives_payload,
 )
-from activity_retakes import (  # Module 85% gate: retake rounds
+from activity_retakes import (  # noqa
+    PASSED_SQL,  # Module 85% gate: retake rounds
     FLASHCARD_TYPE, open_retake, retake_progress, complete_retake, retake_payload,
 )
 from learner_shuffle import order_rows, activity_scope  # feat/learner-shuffle
@@ -224,13 +225,13 @@ def _solved_ids(cursor, acc_id, card_ids):
 
 
 def _first_try_score(cursor, acc_id, card_ids):
-    """Cards answered exactly right on attempt_number = 1."""
+    """Cards answered right on attempt_number = 1 ("close" counts - fix/game-feedback)."""
     if not card_ids:
         return 0
     placeholders = ",".join(["%s"] * len(card_ids))
     cursor.execute(
         f"""SELECT COUNT(*) AS cnt FROM {FLASHCARD_ANSWERS_TABLE}
-            WHERE acc_id = %s AND attempt_number = 1 AND status = 'correct'
+            WHERE acc_id = %s AND attempt_number = 1 AND status IN {PASSED_SQL}
               AND flashcard_id IN ({placeholders})""",
         tuple([acc_id] + card_ids)
     )

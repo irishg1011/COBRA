@@ -59,7 +59,7 @@ from account_status import refresh_inactive_accounts
 from admin_time import fmt_datetime
 from learner_progress_monitor import _fetch_progress_rows, _evaluate_rows, _load_course_tree, _load_lesson_structure
 import progress_insights as insights
-from activity_retakes import GAME_TABLES
+from activity_retakes import GAME_TABLES, PASSED_OUTCOMES
 
 STATUS_FILTERS = {"active": "Active", "inactive": "Inactive"}
 RANGE_DAYS = {"7d": 7, "30d": 30, "90d": 90}
@@ -1038,12 +1038,14 @@ def _details(ctx, kind, key):
             return None
         answers, _ = insights.first_try_answers(ctx["cursor"], [act], ctx["learner_ids"], ctx["start"])
         answers = [a for a in answers if a["item_id"] == item_id]
-        words = {"wrong": "Wrong", "close": "Close (not exact)", "skipped": "Skipped", "timed_out": "Time ran out",
+        words = {"wrong": "Wrong", "skipped": "Skipped", "timed_out": "Time ran out",
                  "left": "Left the page", "correct": "Correct"}
         missed = [learner_row(a["acc_id"], answer=words.get(a["outcome"], a["outcome"]), when=fmt_datetime(a["at"]))
-                  for a in answers if a["outcome"] != "correct" and a["acc_id"] in learners]
-        right = [learner_row(a["acc_id"], answer="Correct", when=fmt_datetime(a["at"]))
-                 for a in answers if a["outcome"] == "correct" and a["acc_id"] in learners]
+                  for a in answers if a["outcome"] not in PASSED_OUTCOMES and a["acc_id"] in learners]
+        # A Flashcards "close" answer passed (fix/game-feedback) - shown as such.
+        right = [learner_row(a["acc_id"], answer="Correct (close)" if a["outcome"] == "close" else "Correct",
+                             when=fmt_datetime(a["at"]))
+                 for a in answers if a["outcome"] in PASSED_OUTCOMES and a["acc_id"] in learners]
         cols = [_LEARNER, {"key": "answer", "label": "First try", "type": "text"},
                 {"key": "when", "label": "When", "type": "text"}]
         return {"title": _plain_question(insights.question_text(ctx["cursor"], act["type"], item_id)),

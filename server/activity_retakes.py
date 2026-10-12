@@ -47,6 +47,14 @@ GAME_TABLES = {
 # answer is what counts, and the miss is fixed in the next retake round.
 DONE_STATUSES = ("correct", "close", "incorrect", "skipped")
 
+# fix/game-feedback: a Flashcards "close" answer (right apart from capitals /
+# spacing) PASSES - it counts as correct everywhere answers are counted
+# (bug HP, scores, standing, retakes, insights). Stored rows keep 'close';
+# they are recounted on read, so nothing in the database changes.
+PASSED_OUTCOMES = ("correct", "close")
+PASSED_SQL = "('correct', 'close')"
+
+
 _retake_schema_ensured = False
 
 
@@ -138,7 +146,7 @@ def passed_item_ids(cursor, acc_id, activity_type, item_ids):
 
     cursor.execute(
         f"""SELECT DISTINCT {id_col} AS item_id FROM {answers_table}
-            WHERE acc_id = %s AND attempt_number = 1 AND status = 'correct' AND play_id IS NULL
+            WHERE acc_id = %s AND attempt_number = 1 AND status IN {PASSED_SQL} AND play_id IS NULL
               AND {id_col} IN ({placeholders})""",
         params
     )
@@ -152,7 +160,7 @@ def passed_item_ids(cursor, acc_id, activity_type, item_ids):
                   WHERE acc_id = %s AND retake_id IS NOT NULL AND play_id IS NULL
                     AND {id_col} IN ({placeholders})
                   GROUP BY retake_id, {id_col}) f ON a.answer_id = f.first_id
-            WHERE a.status = 'correct'""",
+            WHERE a.status IN {PASSED_SQL}""",
         params
     )
     passed |= {_row_value(r, "item_id") for r in cursor.fetchall()}
@@ -212,7 +220,7 @@ def _retake_correct(cursor, acc_id, la_id):
     cursor.execute(
         f"""SELECT COUNT(*) AS cnt FROM {PLAY_ITEMS_TABLE} pi
             JOIN {PLAYS_TABLE} p ON p.play_id = pi.play_id
-            WHERE p.acc_id = %s AND p.la_id = %s AND p.play_kind = 'retake' AND pi.outcome = 'correct'""",
+            WHERE p.acc_id = %s AND p.la_id = %s AND p.play_kind = 'retake' AND pi.outcome IN {PASSED_SQL}""",
         (acc_id, la_id)
     )
     return _row_value(cursor.fetchone(), "cnt") or 0
@@ -243,13 +251,13 @@ def activity_standing(cursor, acc_id, activity_type, la_id):
     retake_correct = _retake_correct(cursor, acc_id, la_id)
     if first is not None:
         slots = len(first)
-        first_correct = sum(1 for _i, o in first if o == "correct")
+        first_correct = sum(1 for _i, o in first if o in PASSED_OUTCOMES)
         passed = min(slots, first_correct + retake_correct)
         return {
             "model": "pool", "slots": slots, "passed": passed, "missed": slots - passed,
             "first_correct": first_correct,
             "first_answered": sum(1 for _i, o in first if o is not None),
-            "first_missed_ids": [i for i, o in first if o is not None and o != "correct"],
+            "first_missed_ids": [i for i, o in first if o is not None and o not in PASSED_OUTCOMES],
         }
     item_ids = item_ids_for_activity(cursor, activity_type, la_id)
     if not _has_legacy_answers(cursor, acc_id, activity_type, item_ids):
@@ -278,7 +286,7 @@ def _first_try_correct_ids(cursor, acc_id, activity_type, item_ids):
     placeholders = ",".join(["%s"] * len(item_ids))
     cursor.execute(
         f"""SELECT DISTINCT {id_col} AS item_id FROM {answers_table}
-            WHERE acc_id = %s AND attempt_number = 1 AND status = 'correct' AND play_id IS NULL
+            WHERE acc_id = %s AND attempt_number = 1 AND status IN {PASSED_SQL} AND play_id IS NULL
               AND {id_col} IN ({placeholders})""",
         tuple([acc_id] + list(item_ids))
     )
@@ -359,7 +367,7 @@ def retake_progress(cursor, acc_id, activity_type, retake):
     """
     (done_ids, fixed_ids) for this round:
       done_ids   items the game has moved past in this round (correct/close/skipped)
-      fixed_ids  items whose FIRST answer in this round was 'correct'
+      fixed_ids  items whose FIRST answer in this round passed (correct / close)
     """
     answers_table, id_col, _, _ = GAME_TABLES[activity_type]
     cursor.execute(
@@ -374,7 +382,7 @@ def retake_progress(cursor, acc_id, activity_type, retake):
         status = r["status"] if isinstance(r, dict) else r[1]
         if item_id not in seen:
             seen.add(item_id)
-            if status == "correct":
+            if status in PASSED_OUTCOMES:
                 fixed.add(item_id)
         if status in DONE_STATUSES:
             done.add(item_id)

@@ -13,6 +13,10 @@
  *   - wrong / skip / time up: the scorpion stings (-1 life), the card's
  *     feedback shows (never its back) and Next card moves on - one try
  *     per card (feat/one-attempt-flow), no Try Again.
+ *   - skip (fix/game-feedback): after the sting the card is DISCARDED on the
+ *     cobra's side ("Skipped" over the cobra) - it never hits the scorpion.
+ *   - "-1 life" floats only when a life was really lost (the admin preview
+ *     never loses one: it shows "Wrong" / "Skipped" / "Time's up").
  * A preview modal shows each card's front (and its hint) before it is played.
  *
  * Rules (all enforced server-side - see game_plays.py):
@@ -41,7 +45,7 @@
     const FC_JS_BASE = (document.currentScript && document.currentScript.src)
         ? new URL(".", document.currentScript.src).href
         : "";
-    const FC_ANIM = { win: 1700, sting: 1300, death: 1700 };
+    const FC_ANIM = { win: 1700, sting: 1300, death: 1700, discard: 1000 };
 
     // ---------------- small helpers ----------------
     function el(tag, className) {
@@ -114,6 +118,7 @@
 
     function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
     function easeIn(t) { return t * t; }
+    function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
 
     // ---------------- card text with code ----------------
     // A card's text may hold a fenced code block:
@@ -335,8 +340,10 @@
         const fx = {
             foeMax: 1, foeHP: 1, heroMax: 5, heroHP: 5, collected: 0,
             anim: null, hitDone: false, shake: 0, flashFoe: 0, flashHero: 0,
-            thrown: false, glow: "", defeated: false, heroDown: false, t: 0, lastTs: 0
+            thrown: false, dropped: false, glow: "", defeated: false, heroDown: false, t: 0, lastTs: 0
         };
+        // Lives before the last server answer: "-1 life" only when they went down.
+        let livesBefore = null;
 
         // Before the play exists (a new learner, before Start) there is no
         // card at all - the board shows this empty one.
@@ -355,6 +362,7 @@
         }
 
         function applyState(state) {
+            livesBefore = server ? server.total_lives : null;
             server = state;
             // feat/question-pool-draw: the play's drawn cards (revealed ones in full).
             if (state && Array.isArray(state.items) && state.items.length) {
@@ -405,8 +413,10 @@
             ui.input.disabled = !playing;
             ui.checkBtn.disabled = !playing || !ui.input.value.trim();
             // Skip always costs 1 life (feat/one-attempt-flow).
-            ui.playSkipText.textContent = "Skip (−1 life)";
-            ui.playSkipBtn.setAttribute("aria-label", "Skip this card, costs 1 life");
+            // Admin preview: lives never go down, so no "−1 life" on the button.
+            ui.playSkipText.textContent = PREVIEW ? "Skip" : "Skip (−1 life)";
+            ui.playSkipBtn.classList.toggle("is-preview", !!PREVIEW);
+            ui.playSkipBtn.setAttribute("aria-label", PREVIEW ? "Skip this card" : "Skip this card, costs 1 life");
             ui.playSkipBtn.disabled = !playing || !server || server.total_lives <= 0;
             ui.pauseBtn.disabled = !playing;
             ui.answerRow.hidden = mode === "review";
@@ -600,7 +610,7 @@
                     <p class="fc-hint" data-c="pvHint" hidden></p>
                     <p data-c="pvNote"></p>
                     <div class="fc-overlay-actions">
-                        <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="Skip this card, costs 1 life"><i class="fa-solid fa-forward"></i> <span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span></button>
+                        <button type="button" class="fc-ghost-btn" data-c="pvSkipBtn" aria-label="${PREVIEW ? "Skip this card" : "Skip this card, costs 1 life"}"><i class="fa-solid fa-forward"></i> ${PREVIEW ? "Skip" : '<span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span>'}</button>
                         <button type="button" class="fc-primary-btn" data-c="pvBtn"><i class="fa-solid fa-play"></i> Play</button>
                     </div>
                 </div>
@@ -666,7 +676,7 @@
                         <pre data-c="taErrorText"></pre>
                     </div>
                     <div class="fc-reveal" data-c="taReveal" hidden></div>
-                    <p class="fc-subnote">NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.</p>
+                    <p class="fc-subnote">${PREVIEW ? `Preview - no life lost. Card ${qIndex + 1} counts as missed.` : `NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.`}</p>
                     <div class="fc-overlay-actions">
                         <p class="game-next-note" data-c="taNote"></p>
                         <button type="button" class="fc-primary-btn game-next-pulse" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
@@ -734,7 +744,7 @@
             streak = 0;
             bump(ui.livesStat);
             fx.glow = "bad";
-            stingAnim();
+            stingAnim("Time's up");
             updateHUD();
             setTimeout(() => {
                 if (disposed) return;
@@ -931,6 +941,7 @@
             revealedAnswer = null;
             wrongOnCurrent = false;
             fx.thrown = false;
+            fx.dropped = false;
             fx.glow = "";
             if (stage3d) {
                 if (card.hidden) {
@@ -1049,7 +1060,7 @@
             revealedAnswer = result.answer || null;
             bump(ui.livesStat);
             fx.glow = "bad";
-            stingAnim();
+            stingAnim("Wrong");
             updateHUD();
             setMode("busy");
             setTimeout(() => {
@@ -1067,6 +1078,9 @@
             await sendSkip(true, false);
         }
 
+        // fix/game-feedback: the scorpion stings (-1 life), then the card is
+        // DISCARDED on the cobra's side - it never hits the scorpion, whose
+        // health stays the same. Then the next card (or the results).
         async function sendSkip(fromPreview, needsIntro) {
             const card = currentCard();
             let data = null;
@@ -1085,30 +1099,23 @@
             hideOverlay();
             streak = 0;
             updateHUD();
-            const flyOff = () => {
+            if (needsIntro && stage3d) stage3d.playIntro();
+            bump(ui.livesStat);
+            fx.glow = "bad";
+            // "-1 life" when one was lost; the discard below says "Skipped".
+            stingAnim(null);
+            setTimeout(() => {
                 if (disposed) return;
-                if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, fcParseCard(card.front_text), fcParseCard(revealedAnswer || "?"));
                 fx.glow = "";
-                winAnim(true);
-                setTimeout(() => {
+                discardAnim(() => {
                     if (disposed) return;
                     if (server.completed) {
                         setTimeout(() => { if (!disposed) finish(); }, fx.anim ? FC_ANIM.death : 0);
                         return;
                     }
                     revealNext();
-                }, FC_ANIM.win + 60);
-            };
-            if (!fromPreview) {
-                flyOff();
-                return;
-            }
-            // Preview skip: the scorpion stings first (-1 life), then the card flies off.
-            if (needsIntro && stage3d) stage3d.playIntro();
-            bump(ui.livesStat);
-            fx.glow = "bad";
-            stingAnim();
-            setTimeout(flyOff, FC_ANIM.sting);
+                });
+            }, FC_ANIM.sting);
         }
 
         function advance() {
@@ -1128,16 +1135,18 @@
             fx.hitDone = false;
         }
 
-        function winAnim(skipped) {
+        function winAnim() {
             playAnim("win", () => {
-                // Only a correct card takes NullScorpion's health (feat/lives-5v5).
-                if (!skipped) fx.foeHP = Math.max(0, fx.foeHP - 1);
+                // Only a correct (or close) card takes NullScorpion's health
+                // (feat/lives-5v5) - the server's number, so the bar always
+                // matches a page refresh (fix/game-feedback).
+                fx.foeHP = server && server.bug_hp != null ? Math.max(0, server.bug_hp) : Math.max(0, fx.foeHP - 1);
                 fx.collected += 1;
                 fx.flashFoe = 1;
-                fx.shake = skipped ? 6 : 16;
+                fx.shake = 16;
                 if (stage3d) {
-                    stage3d.float("foe", skipped ? "Skipped" : "-1 HP", skipped ? "#64748b" : "#7c3aed");
-                    stage3d.burst("foe", skipped ? "#94a3b8" : fx.glow === "close" ? "#f59e0b" : "#22c55e", skipped ? 14 : 30);
+                    stage3d.float("foe", "-1 HP", "#7c3aed");
+                    stage3d.burst("foe", fx.glow === "close" ? "#f59e0b" : "#22c55e", 30);
                 }
                 drawBars();
             }, () => {
@@ -1150,13 +1159,32 @@
             });
         }
 
-        function stingAnim() {
+        // fix/game-feedback: a skipped card drops and fades on the cobra's side.
+        // Nothing touches the scorpion (no HP, no shake, no burst on it).
+        function discardAnim(onEnd) {
+            playAnim("discard", () => {
+                if (stage3d) {
+                    stage3d.float("hero", "Skipped", "#64748b", 1.2);
+                    stage3d.burst("card", "#94a3b8", 10);
+                }
+            }, () => {
+                fx.dropped = true;
+                if (onEnd) onEnd();
+            });
+        }
+
+        // label: what floats over the cobra when NO life was lost (the admin
+        // preview) - "Wrong" / "Time's up"; null = nothing (a skip says
+        // "Skipped" in its own discard). A real loss always says "-1 life".
+        function stingAnim(label) {
+            const lost = livesBefore !== null && server && server.total_lives < livesBefore;
             playAnim("sting", () => {
                 fx.heroHP = server ? heroLives(server) : Math.max(0, fx.heroHP - 1);
                 fx.flashHero = 1;
                 fx.shake = 14;
                 if (stage3d) {
-                    stage3d.float("hero", "-1 life", "#dc2626");
+                    if (lost) stage3d.float("hero", "-1 life", "#dc2626");
+                    else if (label) stage3d.float("hero", label, "#64748b");
                     stage3d.burst("hero", "#fbbf24", 18);
                 }
                 drawBars();
@@ -1166,13 +1194,15 @@
 
         // frame values for flashcards3d.js from the current animation
         function frameValues() {
-            const v = { cardFlip: 0, cardThrow: fx.thrown ? 1 : 0, cardShake: 0, heroFlick: 0, sting: 0, dying: 0 };
+            const v = { cardFlip: 0, cardThrow: fx.thrown ? 1 : 0, cardDrop: fx.dropped ? 1 : 0, cardShake: 0, heroFlick: 0, sting: 0, dying: 0 };
             if (!fx.anim) return v;
             const p = Math.min(1, fx.anim.t / fx.anim.dur);
             if (fx.anim.name === "win") {
                 v.cardFlip = p < 0.3 ? easeOut(p / 0.3) : 1;
                 v.heroFlick = p < 0.35 ? 0 : p < 0.5 ? easeIn((p - 0.35) / 0.15) : p < 0.65 ? 1 - (p - 0.5) / 0.15 : 0;
                 v.cardThrow = p < 0.48 ? 0 : Math.min(1, (p - 0.48) / 0.35);
+            } else if (fx.anim.name === "discard") {
+                v.cardDrop = easeInOut(p);
             } else if (fx.anim.name === "sting") {
                 v.sting = p;
                 v.cardShake = p > 0.35 && p < 0.75 ? 1 : 0;
@@ -1192,7 +1222,7 @@
             if (fx.anim) {
                 fx.anim.t = performance.now() - fx.anim.startTs;
                 const p = fx.anim.t / fx.anim.dur;
-                const impactAt = fx.anim.name === "win" ? 0.8 : 0.5;
+                const impactAt = fx.anim.name === "win" ? 0.8 : fx.anim.name === "discard" ? 0.12 : 0.5;
                 if (!fx.hitDone && p >= impactAt && fx.anim.onImpact) { fx.hitDone = true; fx.anim.onImpact(); }
                 if (p >= 1) { const end = fx.anim.onEnd; fx.anim = null; if (end) end(); }
             }
@@ -1206,6 +1236,7 @@
                 t: fx.t,
                 cardFlip: v.cardFlip,
                 cardThrow: v.cardThrow,
+                cardDrop: v.cardDrop,
                 cardShake: v.cardShake,
                 cardGlow: fx.glow,
                 heroFlick: v.heroFlick,

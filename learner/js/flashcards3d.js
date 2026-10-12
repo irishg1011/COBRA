@@ -24,7 +24,7 @@
                                        [{ type: 'text' | 'code', text }]
      api.render(frame)                 draw one frame
      api.burst(where, color, n)        where = 'hero' | 'foe' | 'card'
-     api.float(where, text, color)
+     api.float(where, text, color, lift)  lift = extra height (default 0)
      api.holdIntro() / playIntro() / skipIntro()
      api.hideCard()                    hide the floating card (a card preview is open)
      api.showCard(animated)            show it again; animated = small pop-in
@@ -35,6 +35,7 @@
      api.warmUp()                      -> Promise: stage made ready ahead of the first frame
    frame = {
      t, cardFlip (0 front .. 1 back), cardThrow (0..1 flying to foe),
+     cardDrop (0..1 a skipped card dropped on the cobra's side),
      cardShake (0..1), cardGlow ('ok' | 'close' | 'bad' | ''),
      heroFlick (0..1), sting (0..1), heroFlash, foeFlash, shake,
      hp01, critical, dying, dead, heroDown, collected, remaining, status
@@ -260,6 +261,21 @@ export function createFlashStage(canvas, opts = {}) {
   );
   glowRing.position.z = 0;   // inside the card body, so only the rim shows as a halo
   cardPivot.add(glowRing);
+
+  // fix/game-feedback: where a skipped card lands - on the ground in front
+  // of the cobra (its side of the arena), never near the scorpion.
+  const DISCARD_SPOT = new THREE.Vector3(COIL_X + 4.2, 0.35, 2.2);
+  let cardFade = 1;
+  function setCardFade(v) {
+    v = Math.max(0, Math.min(1, v));
+    if (v === cardFade) return;
+    cardFade = v;
+    [cardBody, frontMesh, backMesh].forEach((m) => {
+      m.material.transparent = v < 1;
+      m.material.opacity = v;
+      m.material.depthWrite = v >= 1;
+    });
+  }
 
   function roundRect(g, x, y, w, h, r) {
     g.beginPath();
@@ -541,10 +557,11 @@ export function createFlashStage(canvas, opts = {}) {
     }
   }
 
-  function float(where, text, color) {
+  // lift: extra height, so two labels at once never overlap (fix/game-feedback)
+  function float(where, text, color, lift = 0) {
     const a = anchors[where] || anchors.foe;
     const sp = makeTextSprite(text, color);
-    sp.position.set(a.x, a.y + 2.2, a.z);
+    sp.position.set(a.x, a.y + 2.2 + lift, a.z);
     scene.add(sp);
     floats.push({ sp, life: 1 });
   }
@@ -740,16 +757,38 @@ export function createFlashStage(canvas, opts = {}) {
     const shakeC = f.cardShake || 0;
     const bob = Math.sin(t * 1.6) * 0.12;
     const target = tmpA.set(FOE_X - 1.2, 1.4, 0.4);
-    cardPivot.position.set(
-      CARD_HOME.x + (target.x - CARD_HOME.x) * easeIn(thr) + Math.sin(t * 60) * 0.14 * shakeC,
-      CARD_HOME.y + bob * (1 - thr) + (target.y - CARD_HOME.y) * easeIn(thr) + Math.sin(thr * Math.PI) * 1.2,
-      CARD_HOME.z + (target.z - CARD_HOME.z) * thr
-    );
-    cardPivot.rotation.y = flip * Math.PI + thr * Math.PI * 4;
-    cardPivot.rotation.z = Math.sin(t * 1.1) * 0.03 + thr * 0.6;
-    const cardScale = (1 - thr * 0.55) * popScale(t);
-    cardPivot.scale.setScalar(cardScale);
-    cardPivot.visible = cardShow.on && thr < 0.98;
+    // fix/game-feedback: cardDrop (0..1) = a SKIPPED card is discarded on
+    // the cobra's side - it tips over, drops to the ground and fades. It
+    // never travels to the scorpion.
+    const drop = Math.max(0, Math.min(1, f.cardDrop || 0));
+    if (drop > 0) {
+      const lift = drop < 0.18 ? Math.sin((drop / 0.18) * Math.PI / 2) * 0.35 : 0.35 * (1 - (drop - 0.18) / 0.82);
+      const fall = drop < 0.18 ? 0 : easeIn((drop - 0.18) / 0.82);
+      cardPivot.position.set(
+        CARD_HOME.x + (DISCARD_SPOT.x - CARD_HOME.x) * easeOut(drop),
+        CARD_HOME.y + lift + (DISCARD_SPOT.y - CARD_HOME.y) * fall,
+        CARD_HOME.z + (DISCARD_SPOT.z - CARD_HOME.z) * drop
+      );
+      cardPivot.rotation.y = flip * Math.PI - drop * 0.5;
+      cardPivot.rotation.z = drop * 1.15;          // tips over toward the cobra
+      cardPivot.rotation.x = -fall * 0.9;
+      cardPivot.scale.setScalar((1 - drop * 0.25) * popScale(t));
+      setCardFade(drop < 0.5 ? 1 : 1 - (drop - 0.5) / 0.5);
+      cardPivot.visible = cardShow.on && drop < 0.98;
+    } else {
+      cardPivot.position.set(
+        CARD_HOME.x + (target.x - CARD_HOME.x) * easeIn(thr) + Math.sin(t * 60) * 0.14 * shakeC,
+        CARD_HOME.y + bob * (1 - thr) + (target.y - CARD_HOME.y) * easeIn(thr) + Math.sin(thr * Math.PI) * 1.2,
+        CARD_HOME.z + (target.z - CARD_HOME.z) * thr
+      );
+      cardPivot.rotation.y = flip * Math.PI + thr * Math.PI * 4;
+      cardPivot.rotation.z = Math.sin(t * 1.1) * 0.03 + thr * 0.6;
+      cardPivot.rotation.x = 0;
+      const cardScale = (1 - thr * 0.55) * popScale(t);
+      cardPivot.scale.setScalar(cardScale);
+      setCardFade(1);
+      cardPivot.visible = cardShow.on && thr < 0.98;
+    }
     const glowHex = f.cardGlow === 'ok' ? 0x22c55e : f.cardGlow === 'close' ? 0xf59e0b : f.cardGlow === 'bad' ? 0xef4444 : 0;
     glowRing.material.color.setHex(glowHex || 0x22c55e);
     glowRing.material.opacity = glowHex ? 0.7 + 0.25 * Math.sin(t * 8) : 0;

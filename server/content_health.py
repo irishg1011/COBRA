@@ -30,7 +30,7 @@ Every row carries the editor link (the same editors Publishing opens).
 from mysql.connector import Error
 
 from cobradb import get_db_connection
-from activity_retakes import GAME_TABLES, DRAW_SIZE
+from activity_retakes import GAME_TABLES, DRAW_SIZE, PASSED_OUTCOMES
 import progress_insights as insights
 
 MIN_LEARNERS = 3
@@ -99,7 +99,7 @@ def _performance(cursor, owner):
         entry = per.setdefault(a["la_id"], {"answered": 0, "right": 0, "learners": set()})
         entry["answered"] += 1
         entry["learners"].add(a["acc_id"])
-        if a["outcome"] == "correct":
+        if a["outcome"] in PASSED_OUTCOMES:   # "close" passes (fix/game-feedback)
             entry["right"] += 1
     ranked = []
     for act in acts:
