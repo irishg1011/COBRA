@@ -861,6 +861,8 @@
             // Admin preview: lives never go down, so no "−1 life" on the button.
             ui.playSkipText.textContent = PREVIEW ? "Skip" : "Skip (−1 life)";
             ui.playSkipBtn.classList.toggle("is-preview", !!PREVIEW);
+            const shortLbl = ui.playSkipBtn.querySelector(".game-lbl-short");
+            if (PREVIEW && shortLbl) shortLbl.remove();     // no "Skip −1♥" on phones either
             ui.playSkipBtn.setAttribute("aria-label", PREVIEW ? "Skip this puzzle" : "Skip this puzzle, costs 1 life");
             ui.playSkipBtn.disabled = !playing || items.length === 0 || !server || server.total_lives <= 0;
             ui.pauseBtn.disabled = !playing || items.length === 0;
