@@ -36,6 +36,7 @@ from mysql.connector import Error
 
 from cobradb import get_db_connection
 from learner_exercise import exercise_score
+from coding_exercises import learner_exercise_title  # feat/exercise-flow-fixes: no pool number
 from activity_retakes import ensure_retake_schema
 from module_performance import (
     module_performance, module_lesson_ids, live_module_ids, module_locked_for_learner,
@@ -98,7 +99,7 @@ def _exercise_result(cursor, acc_id, resource_id):
     if not row:
         return None
     score = exercise_score(cursor, acc_id, row["exercise_id"])
-    return {"title": row["exercise_title"], "attempts": score["attempts"],
+    return {"title": learner_exercise_title(row), "attempts": score["attempts"],
             "passed": score["passed"], "skipped": score["skipped"]}
 
 

@@ -365,18 +365,27 @@ def exercise_score(cursor, acc_id, exercise_id):
     }
 
 
-def get_exercise_state(acc_id, exercise_id):
+def get_exercise_state(acc_id, exercise_id, with_unfinished=False):
     """exercise_score() with its own connection, plus the hint/skip rules
-    the lesson page needs. None on a database error."""
+    the lesson page needs. None on a database error.
+
+    with_unfinished: also "unfinished_activities" - the titles of the
+    lesson's activities still to finish (read-only), so the Exercise step
+    can say what is left before the lesson can be completed."""
     connection = get_db_connection()
     if connection is None:
         return None
     try:
         cursor = connection.cursor(dictionary=True)
         state = exercise_score(cursor, acc_id, exercise_id)
-        cursor.close()
         state["hint_after"] = HINT_AFTER_FAILS
         state["skip_after"] = SKIP_AFTER_FAILS
+        if with_unfinished:
+            cursor.execute(f"SELECT resource_id FROM {CODING_EXERCISES_TABLE} WHERE exercise_id = %s", (exercise_id,))
+            row = cursor.fetchone()
+            from lesson_activities import unfinished_activity_titles
+            state["unfinished_activities"] = (unfinished_activity_titles(acc_id, row["resource_id"]) if row else None) or []
+        cursor.close()
         return state
     except Error as e:
         print(f"learner_exercise: failed to read exercise state for exercise_id={exercise_id}: {e}")

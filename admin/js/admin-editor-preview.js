@@ -621,7 +621,7 @@
         prompt.appendChild(exercisePromptLine("Situation:", card.situation));
         prompt.appendChild(exercisePromptLine("Problem:", card.question));
         const clue = el("p", "exercise-clue");
-        clue.innerHTML = '<i class="fa-solid fa-lightbulb"></i> ' + escapeHtml(card.clue || "-");
+        clue.innerHTML = '<i class="fa-solid fa-lightbulb"></i> <span><strong>Hint:</strong> ' + escapeHtml(card.clue || "-") + '</span>';
         prompt.appendChild(clue);
         body.appendChild(prompt);
 

@@ -60,6 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const exerciseSkippedNote = document.getElementById('exerciseSkippedNote');
     const exerciseSubmitNote = document.getElementById('exerciseSubmitNote');
     const exerciseSkipBtn = document.getElementById('exerciseSkipBtn');
+    const exerciseHintWrap = document.getElementById('exerciseHintWrap');
+    const exerciseHintNote = document.getElementById('exerciseHintNote');
+    const exerciseSkipWrap = document.getElementById('exerciseSkipWrap');
+    const exerciseSkipNote = document.getElementById('exerciseSkipNote');
+    const exerciseBackToActivitiesBtn = document.getElementById('exerciseBackToActivitiesBtn');
+    const exerciseRetrySaveBtn = document.getElementById('exerciseRetrySaveBtn');
 
     const videoStep = document.getElementById('videoStep');
     const lessonVideoFrame = document.getElementById('lessonVideoFrame');
@@ -792,42 +798,90 @@ document.addEventListener('DOMContentLoaded', () => {
     exerciseCodeBox.addEventListener('input', updateSubmitLock);
     exerciseCodeBox.addEventListener('keyup', updateSubmitLock);
 
+    // feat/exercise-flow-fixes: Hint and Skip show from the start. Until the
+    // "try first" rule opens them they are grey, disabled and say how many
+    // more wrong tries unlock them; unlocking them glows once.
+    // [icon when unlocked, label] - a locked button shows a lock instead.
+    const HINT_LOOK = ['<i class="fa-solid fa-lightbulb" aria-hidden="true"></i> ', 'Show hint'];
+    const SKIP_LOOK = ['', 'Skip for now'];
+    const LOCK_ICON = '<i class="fa-solid fa-lock" aria-hidden="true"></i> ';
+    const lockedBefore = { hint: null, skip: null };
+
+    function triesLeftText(left) {
+        return `unlocks after ${left} more wrong ${left === 1 ? 'try' : 'tries'}`;
+    }
+
+    function setUnlockButton(key, btn, note, look, name, locked, left) {
+        btn.disabled = locked;
+        btn.classList.toggle('is-locked', locked);
+        btn.innerHTML = (locked ? LOCK_ICON : look[0]) + look[1];
+        note.textContent = locked ? triesLeftText(left) : '';
+        if (locked) btn.setAttribute('aria-label', `${name} - ${triesLeftText(left)}`);
+        else btn.removeAttribute('aria-label');
+        if (lockedBefore[key] === true && !locked) {
+            // Just unlocked by this Submit: a short glow (none with reduced motion - CSS).
+            btn.classList.remove('exercise-unlock-glow');
+            void btn.offsetWidth;
+            btn.classList.add('exercise-unlock-glow');
+        }
+        lockedBefore[key] = locked;
+    }
+
     function renderExerciseState() {
         const st = exerciseState;
         // Admin preview: the clue is always shown and there is nothing to skip.
         if (PREVIEW || !st) {
             exerciseClueRow.hidden = !lessonData.exercise.clue;
-            exerciseHintBtn.hidden = true;
-            exerciseSkipBtn.hidden = true;
+            exerciseHintWrap.hidden = true;
+            exerciseSkipWrap.hidden = true;
             exerciseSkippedNote.hidden = true;
             return;
         }
+        const failed = st.failed || 0;
         const hintOpen = !exerciseClueRow.hidden;
-        const canHint = !!lessonData.exercise.clue && (st.passed || st.failed >= st.hint_after);
-        exerciseHintBtn.hidden = !canHint || hintOpen;
-        if (!canHint) exerciseClueRow.hidden = true;
-        exerciseSkipBtn.hidden = st.passed || st.skipped || st.failed < st.skip_after;
+        // No clue = no Hint button at all. A passed exercise keeps it unlocked (as before).
+        const hasClue = !!lessonData.exercise.clue;
+        const hintLocked = !st.passed && failed < st.hint_after;
+        exerciseHintWrap.hidden = !hasClue || hintOpen;
+        if (hasClue && !hintOpen) {
+            setUnlockButton('hint', exerciseHintBtn, exerciseHintNote, HINT_LOOK, 'Hint', hintLocked, st.hint_after - failed);
+        }
+        if (!hasClue || hintLocked) exerciseClueRow.hidden = true;
+        // Skip: gone once passed or skipped.
+        exerciseSkipWrap.hidden = st.passed || st.skipped;
+        if (!exerciseSkipWrap.hidden) {
+            setUnlockButton('skip', exerciseSkipBtn, exerciseSkipNote, SKIP_LOOK, 'Skip', failed < st.skip_after, st.skip_after - failed);
+        }
         exerciseSkippedNote.hidden = !st.skipped || st.passed;
-        if (st.skipped && lessonData.is_completed) {
-            // Lesson finished by skipping: the way on to the Summary stays here.
-            exerciseCompleteRow.style.display = "flex";
-            exerciseCompleteStatus.style.display = "inline-flex";
+        if ((st.skipped || st.passed) && lessonData.is_completed) {
+            // Lesson finished: the way on to the Summary stays here.
+            showExerciseLessonComplete(false);
         }
     }
 
     exerciseHintBtn.addEventListener('click', () => {
+        if (exerciseHintBtn.disabled) return;
         exerciseClueRow.hidden = false;
-        exerciseHintBtn.hidden = true;
+        exerciseHintWrap.hidden = true;
     });
 
+    // Titles of the lesson's activities still to finish (from the exercise state).
+    function unfinishedActivities() {
+        return (exerciseState && Array.isArray(exerciseState.unfinished_activities)) ? exerciseState.unfinished_activities : [];
+    }
+
     exerciseSkipBtn.addEventListener('click', () => {
+        if (exerciseSkipBtn.disabled) return;
         const doSkip = () => skipExercise();
         if (!(window.CobraProceed && window.CobraProceed.open)) { doSkip(); return; }
+        const left = unfinishedActivities();
         window.CobraProceed.open({
             icon: 'fa-forward',
             title: 'Skip this exercise for now?',
             text: `The exercise will count as not passed in your lesson score, and "Applying the lesson" will show as Needs work. `
-                + `You can finish the lesson and come back any time - passing the exercise later gives full credit.`,
+                + (left.length
+                    ? `Finish ${left.join(', ')} first, then you can finish this lesson. You can come back any time - passing the exercise later gives full credit.`
+                    : `You can finish the lesson and come back any time - passing the exercise later gives full credit.`),
             yesLabel: 'Yes, skip for now',
             noLabel: 'Keep trying',
             onYes: doSkip
@@ -932,7 +986,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.state) exerciseState = result.state;
             renderExerciseState();
             if (result.success) {
-                await attemptCompleteLesson();
+                // Same as a pass: save, stay on the exercise and show the result.
+                if (!lessonData.is_completed) await finishLessonFromExercise();
+                else showExerciseLessonComplete(false);
             } else {
                 exerciseResultBox.style.display = 'block';
                 exerciseResultBox.className = 'exercise-result fail';
@@ -940,8 +996,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error('Error skipping exercise:', err);
+            exerciseResultBox.style.display = 'block';
+            exerciseResultBox.className = 'exercise-result fail';
+            exerciseResultBox.textContent = "Couldn't skip. Check your internet and try again.";
         }
-        exerciseSkipBtn.disabled = false;
+        renderExerciseState();
     }
 
     exerciseSubmitBtn.addEventListener('click', async () => {
@@ -990,8 +1049,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.success && result.status === "correct") {
                 exerciseResultBox.className = "exercise-result pass";
                 exerciseResultBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(result.feedback)}`;
-                exerciseCompleteRow.style.display = "flex";
-                exerciseCompleteStatus.style.display = "inline-flex";
                 lessonData.exercise_completed = true;
                 lockExercise();
                 renderExerciseState();
@@ -1002,6 +1059,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!lessonData.is_completed) {
                     if (PREVIEW) await attemptCompleteLesson();
                     else await finishLessonFromExercise();
+                } else if (!PREVIEW) {
+                    showExerciseLessonComplete(false);
                 }
             } else if (result.success) {
                 failed = true;
@@ -1046,38 +1105,68 @@ document.addEventListener('DOMContentLoaded', () => {
             exerciseResultBox.insertAdjacentElement('afterend', note);
         }
         exerciseSubmitNote.hidden = true;
-        exerciseSkipBtn.hidden = true;
+        exerciseSkipWrap.hidden = true;
         exerciseSkippedNote.hidden = true;
         note.innerHTML = `<i class="fa-solid fa-lock"></i> You passed this exercise. Your result is saved, so it can't be submitted again.`;
     }
 
-    // A first correct Submit: the "Correct!" feedback and output stay on
-    // screen. The completion is saved in the background (same call as
-    // always); then View Summary pulses. If the save fails, the reason
-    // shows here and View Summary retries it (its own click handler).
+    // A pass or a skip (or a reload of one): the feedback and output stay on
+    // screen and the completion is saved in the background (same call as
+    // always). Saved -> View Summary pulses. Refused -> the reason and a
+    // way on (showExerciseCompletionBlocked) - never a dead end.
+    let finishingLesson = false;
     async function finishLessonFromExercise() {
+        if (finishingLesson) return false;
+        finishingLesson = true;
         exerciseCompleteRow.style.display = "flex";
         exerciseCompleteStatus.style.display = "inline-flex";
         exerciseCompleteStatus.classList.remove('is-blocked');
         exerciseCompleteStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Saving your progress...</span>`;
         viewSummaryFromExerciseBtn.hidden = true;
+        exerciseBackToActivitiesBtn.hidden = true;
+        exerciseRetrySaveBtn.hidden = true;
         const saved = await attemptCompleteLesson({ stay: true });
+        finishingLesson = false;
+        if (saved) showExerciseLessonComplete(true);
+        return saved;
+    }
+
+    // The lesson is complete: the way on to the Summary, on the Exercise step.
+    function showExerciseLessonComplete(justNow) {
+        exerciseCompleteRow.style.display = "flex";
+        exerciseCompleteStatus.style.display = "inline-flex";
+        exerciseCompleteStatus.classList.remove('is-blocked');
+        exerciseBackToActivitiesBtn.hidden = true;
+        exerciseRetrySaveBtn.hidden = true;
         viewSummaryFromExerciseBtn.hidden = false;
-        viewSummaryFromExerciseBtn.classList.add('game-next-pulse');
-        if (saved) {
+        if (justNow) {
+            viewSummaryFromExerciseBtn.classList.add('game-next-pulse');
             exerciseCompleteStatus.innerHTML = `<span>🎉 Lesson complete! Press <strong>View Summary</strong> to continue.</span>`;
+        } else if (!exerciseCompleteStatus.querySelector('span')) {
+            exerciseCompleteStatus.innerHTML = `<i class="fa-solid fa-circle-check"></i> Lesson completed!`;
         }
     }
 
-    // The completion could not be saved on the Exercise step: say why,
-    // View Summary (still shown) tries again.
+    // The completion was refused on the Exercise step: ALWAYS the reason and
+    // a way out - unfinished activities -> Go back to activities; network or
+    // anything else -> Try again.
     function showExerciseCompletionBlocked(result) {
+        const titles = (result && Array.isArray(result.unfinished)) ? result.unfinished : [];
+        if (exerciseState) exerciseState.unfinished_activities = titles;
         exerciseCompleteRow.style.display = "flex";
         exerciseCompleteStatus.style.display = "inline-flex";
         exerciseCompleteStatus.classList.add('is-blocked');
-        exerciseCompleteStatus.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${escapeHtml(
-            (result && result.message) || 'This lesson could not be completed yet.')} Press <strong>View Summary</strong> to try again.</span>`;
+        viewSummaryFromExerciseBtn.hidden = true;
+        viewSummaryFromExerciseBtn.classList.remove('game-next-pulse');
+        exerciseBackToActivitiesBtn.hidden = !titles.length;
+        exerciseRetrySaveBtn.hidden = !!titles.length;
+        exerciseCompleteStatus.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${titles.length
+            ? `You still need to finish: ${escapeHtml(titles.join(', '))}.`
+            : "Couldn't save. Check your internet."}</span>`;
     }
+
+    if (exerciseBackToActivitiesBtn) exerciseBackToActivitiesBtn.addEventListener('click', () => goToStep("activities"));
+    if (exerciseRetrySaveBtn) exerciseRetrySaveBtn.addEventListener('click', () => finishLessonFromExercise());
 
     // ---------------- Activities step (unchanged behavior from before) ----------------
     // options.stay: a first completion does NOT jump to the Summary (the
@@ -1165,7 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function startActivitiesStep() {
         // A lesson with an exercise finishes THERE instead - this panel's
         // own complete row is only ever used for lessons with no exercise.
-        const onActivitiesDone = lessonData.exercise ? (() => goToStep("exercise")) : attemptCompleteLesson;
+        const onActivitiesDone = lessonData.exercise ? exerciseAfterActivities : attemptCompleteLesson;
 
         if (!lessonData.exercise) {
             lessonCompleteRow.style.display = 'flex';
@@ -1196,6 +1285,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 retake: urlParams.get('retake') === '1'
             });
         }
+    }
+
+    // Activities all done in a lesson with an exercise: on to the Exercise
+    // step. If the exercise is already passed or skipped (the lesson was
+    // only waiting on the activities), finish the lesson there now.
+    function exerciseAfterActivities() {
+        if (exerciseState) exerciseState.unfinished_activities = [];
+        goToStep("exercise");
+        if (!PREVIEW && !lessonData.is_completed && exerciseIsDone()) finishLessonFromExercise();
+    }
+
+    function exerciseIsDone() {
+        return !!(lessonData.exercise_completed || (exerciseState && (exerciseState.passed || exerciseState.skipped)));
     }
 
     if (backToActivitiesBtn) {
@@ -1483,11 +1585,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 exerciseClue.textContent = data.exercise.clue;
                 renderExerciseRequirements(data.exercise);
                 exerciseState = data.exercise_state || null;
-                if (data.exercise_completed) {
-                    exerciseCompleteRow.style.display = "flex";
-                    exerciseCompleteStatus.style.display = "inline-flex";
-                    lockExercise();
-                }
+                // The complete row (and its way on) is shown by renderExerciseState /
+                // finishLessonFromExercise below, depending on the lesson's state.
+                if (data.exercise_completed) lockExercise();
 
                 const lastSub = data.exercise_last_submission;
                 if (lastSub) {
@@ -1497,8 +1597,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     exerciseResultBox.style.display = "block";
                     const passed = lastSub.status === "correct";
                     exerciseResultBox.className = "exercise-result " + (passed ? "pass" : "fail");
-                    // First line only: attempts from before output-based grading saved tips below it.
-                    const savedFeedback = String(lastSub.feedback_given || "").split("\n")[0];
+                    // The full saved feedback, same as right after submitting (older
+                    // attempts also saved their "Test N: ..." tips below the message).
+                    const savedFeedback = String(lastSub.feedback_given || "").trim();
                     exerciseResultBox.innerHTML = `<i class="fa-solid fa-${passed ? "circle-check" : "circle-xmark"}"></i> ${escapeHtml(savedFeedback)}`;
                     if (!passed) {
                         // The editor holds the code that just failed - same lock as after submitting.
@@ -1508,6 +1609,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderExerciseState();
                 updateSubmitLock();
                 if (!PREVIEW) setupExercisePool(data);
+                // Passed or skipped but the lesson is not completed (e.g. an
+                // activity was unfinished, or the save failed): try once now;
+                // if it is still refused the Exercise step says why + a way on.
+                if (!PREVIEW && !data.is_completed && exerciseIsDone()) finishLessonFromExercise();
             }
 
             // Admin preview: only this preview's games and/or exercise,
@@ -1552,6 +1657,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 startKey = "activities";
             } else if (urlParams.get('step') === 'exercise' && data.exercise && (data.is_completed || data.exercise_state && data.exercise_state.skipped)) {
                 // Module Review "Try the exercise again" on a skipped exercise.
+                startKey = "exercise";
+            } else if (!data.is_completed && data.exercise && exerciseIsDone() && progress.content_read
+                && (!data.video || progress.video_watched)
+                && !((data.exercise_state && data.exercise_state.unfinished_activities) || []).length) {
+                // Exercise passed or skipped, nothing else left, but the lesson is not
+                // completed yet (e.g. the save failed): back on the Exercise step,
+                // where it is finished now (or says why not).
                 startKey = "exercise";
             } else if (data.is_completed) {
                 startKey = stepOrder[0].key;

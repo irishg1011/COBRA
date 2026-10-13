@@ -33,6 +33,7 @@ from cobradb import get_db_connection
 from activity_retakes import ensure_retake_schema, DRAW_SIZE
 from module_performance import module_performance, lesson_grade_percent, lesson_content_progress
 from learner_exercise import exercise_score
+from coding_exercises import learner_exercise_title  # feat/exercise-flow-fixes: no pool number
 
 
 def get_lesson_performance_summary(acc_id, resource_id):
@@ -131,7 +132,7 @@ def get_lesson_performance_summary(acc_id, resource_id):
             points_earned = ex_score["earned"]
 
             exercise_out = {
-                "exercise_title": exercise_row["exercise_title"],
+                "exercise_title": learner_exercise_title(exercise_row),
                 "points_earned": points_earned,
                 "points_total": ex_score["total"],
                 "completed": ex_completed,

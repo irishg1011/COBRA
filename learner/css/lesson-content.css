@@ -640,10 +640,23 @@
 
 .exercise-prompt p:last-child { margin-bottom: 0; }
 
-.exercise-clue {
-    color: #64748b !important;
-    font-style: italic;
+/* feat/exercise-flow-fixes: the hint is help, not an error - BLUE
+   (red = wrong, green = correct, orange = skipped, blue = hint/help). */
+.exercise-clue,
+.exercise-prompt .exercise-clue {   /* beats ".exercise-prompt p" (colour, margin) */
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+    background: #eff6ff;
+    color: #1e3a8a;
+    line-height: 1.5;
 }
+.exercise-clue i { color: #2563eb; }
+.exercise-clue strong { color: #1d4ed8; }
 
 /* feat/output-based-exercises: "You must use:" chips + the expected output.
    Translucent colors and the existing pane / output-box classes, so they
@@ -744,6 +757,7 @@
 .exercise-output-box { color: #64748b; }
 
 .exercise-result {
+    white-space: pre-line;   /* saved feedback can hold more than one line */
     padding: 14px 16px;
     border-radius: 10px;
     font-size: 14px;
@@ -763,20 +777,43 @@
     border: 1px solid #fca5a5;
 }
 
-/* Fix tips, hint, skip (exercise step) */
+/* Hint and Skip (exercise step): shown from the start, locked (grey + lock
+   + countdown) until the "try first" rule unlocks them, then a short glow. */
 .exercise-hint-btn {
     margin-top: 4px;
-    background: #fffbeb;
-    color: #92400e;
-    border: 1px solid #fcd34d;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #93c5fd;
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
 }
-.exercise-hint-btn:hover { background: #fef3c7; }
-.exercise-hint-btn[hidden], .exercise-clue[hidden] { display: none; }
+.exercise-hint-btn:hover { background: #dbeafe; }
+.exercise-hint-btn[hidden], .exercise-clue[hidden], .exercise-unlock[hidden] { display: none; }
+
+.exercise-unlock { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+.exercise-prompt .exercise-unlock { align-items: flex-start; margin-top: 4px; }
+.exercise-unlock-note { font-size: 12px; color: #64748b; text-align: center; }
+.exercise-unlock-note:empty { display: none; }
+.exercise-hint-btn.is-locked,
+.exercise-skip-btn.is-locked,
+.exercise-hint-btn.is-locked:hover,
+.exercise-skip-btn.is-locked:hover {
+    background: #f1f5f9;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+}
+.exercise-unlock-glow { animation: exercise-unlock-glow 0.9s ease-out 2; }
+@keyframes exercise-unlock-glow {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.55); }
+    100% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .exercise-unlock-glow { animation: none; }
+}
 
 .exercise-skipped-note {
     margin: 0 0 14px;
@@ -956,5 +993,25 @@ a.review-btn { text-decoration: none; }
 .exercise-code-box.is-locked { background: #f1f5f9; cursor: default; }
 #exerciseSubmitBtn[hidden] { display: none; }
 
-/* Exercise step: the lesson completion could not be saved - say why (View Summary retries) */
+/* Exercise step: the lesson completion could not be saved - say why, with
+   a way on (Go back to activities / Try again). */
 .mark-complete-confirm.is-blocked { color: #b91c1c; }
+#exerciseCompleteRow { flex-wrap: wrap; }
+#exerciseCompleteRow .exercise-skip-btn { padding: 10px 16px; }
+#viewSummaryFromExerciseBtn[hidden] { display: none; }
+
+/* Dark theme hooks (same ones the Python chip uses), for the hint pieces. */
+html.dark-mode .exercise-prompt .exercise-clue, body.dark-mode .exercise-prompt .exercise-clue, [data-theme="dark"] .exercise-prompt .exercise-clue,
+html.dark-mode .exercise-clue, body.dark-mode .exercise-clue, [data-theme="dark"] .exercise-clue {
+    background: rgba(59, 130, 246, 0.14); border-left-color: #60a5fa; color: #dbeafe;
+}
+html.dark-mode .exercise-clue i, body.dark-mode .exercise-clue i, [data-theme="dark"] .exercise-clue i,
+html.dark-mode .exercise-clue strong, body.dark-mode .exercise-clue strong, [data-theme="dark"] .exercise-clue strong { color: #93c5fd; }
+html.dark-mode .exercise-hint-btn, body.dark-mode .exercise-hint-btn, [data-theme="dark"] .exercise-hint-btn {
+    background: rgba(59, 130, 246, 0.16); color: #bfdbfe; border-color: rgba(96, 165, 250, 0.5);
+}
+html.dark-mode .exercise-hint-btn.is-locked, body.dark-mode .exercise-hint-btn.is-locked, [data-theme="dark"] .exercise-hint-btn.is-locked,
+html.dark-mode .exercise-skip-btn.is-locked, body.dark-mode .exercise-skip-btn.is-locked, [data-theme="dark"] .exercise-skip-btn.is-locked {
+    background: #1e293b; color: #64748b; border-color: #334155;
+}
+html.dark-mode .exercise-unlock-note, body.dark-mode .exercise-unlock-note, [data-theme="dark"] .exercise-unlock-note { color: #94a3b8; }

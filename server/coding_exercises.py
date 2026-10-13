@@ -260,6 +260,19 @@ def exercise_number(title):
     return int(match.group(1)) if match else 1
 
 
+def learner_exercise_title(row):
+    """
+    The title a LEARNER sees: "<Lesson> – Coding Exercise", without the pool
+    number (feat/exercise-flow-fixes), so a learner can't tell which of the
+    lesson's exercises they got. Takes an exercise row (exercise_title or
+    title key) or a plain title. Stored titles - and every staff page -
+    keep the number.
+    """
+    if isinstance(row, dict):
+        row = row.get("exercise_title") or row.get("title")
+    return _TITLE_NUMBER_RE.sub(EXERCISE_TITLE_TYPE, str(row or ""))
+
+
 def next_exercise_number(cursor, resource_id, exercise_id=None):
     """
     The number for an exercise of this lesson: an existing exercise keeps its

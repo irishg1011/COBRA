@@ -55,6 +55,7 @@ from module_performance import (  # Module 85% gate
 )
 from activity_retakes import ensure_retake_schema, PASS_PERCENT
 from exercise_pool import assigned_exercise_id, is_assigned  # feat/exercise-pool
+from coding_exercises import learner_exercise_title  # feat/exercise-flow-fixes: no pool number
 from learner_progress_unlocks import write_unlock, get_unlocked_at  # when a learner first reached a chapter (Task #16's "New" badge) - no longer decides what is locked
 
 learner_bp = Blueprint('learner_bp', __name__)
@@ -894,12 +895,13 @@ def lesson_content_data():
         exercise_last_submission = None
         exercise_state = None
         if exercise:
+            exercise["exercise_title"] = learner_exercise_title(exercise)   # learners never see the pool number
             exercise_completed = is_exercise_completed(acc_id, exercise["exercise_id"])
             exercise_last_submission = (
                 get_latest_submission(acc_id, exercise["exercise_id"], correct_only=True)
                 if exercise_completed else None
             ) or get_latest_submission(acc_id, exercise["exercise_id"])
-            exercise_state = get_exercise_state(acc_id, exercise["exercise_id"])
+            exercise_state = get_exercise_state(acc_id, exercise["exercise_id"], with_unfinished=True)
 
         # Ensure a progress row exists (first time opening this lesson),
         # without downgrading an already-completed one.
@@ -1099,7 +1101,7 @@ def lesson_exercise_submit():
         "feedback": result["feedback"],
         "output_passed": result["output_passed"],
         "tags_passed": result["tags_passed"],
-        "state": get_exercise_state(acc_id, exercise_id),
+        "state": get_exercise_state(acc_id, exercise_id, with_unfinished=True),
     }), 200
 
 
@@ -1191,6 +1193,8 @@ def lesson_exercise_skip():
     if not is_assigned(acc_id, data.get("resource_id"), exercise_id):   # feat/exercise-pool
         return jsonify({"success": False, "message": "This is not your exercise for this lesson. Reload the page."}), 409
     ok, message, state = skip_exercise(acc_id, exercise_id)
+    if ok:
+        state = get_exercise_state(acc_id, exercise_id, with_unfinished=True) or state
     return jsonify({"success": ok, "message": message, "state": state}), (200 if ok else 400)
 
 

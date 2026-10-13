@@ -439,6 +439,38 @@ def record_activity_progress(acc_id, la_id, status, score=None):
             connection.close()
 
 
+def _lesson_activity_rows(cursor, acc_id, resource_id):
+    """The lesson's Published activities with their item counts and is_done for this learner."""
+    cursor.execute(
+        f"""SELECT la.la_id, la.activity_title, atp.activity_type_name,
+                   (SELECT COUNT(*) FROM {MCQ_QUESTIONS_TABLE} q WHERE q.la_id = la.la_id AND q.is_removed = 0) AS mcq_n,
+                   (SELECT COUNT(*) FROM {FILL_BLANKS_TABLE} f WHERE f.la_id = la.la_id AND f.is_removed = 0) AS fib_n,
+                   (SELECT COUNT(*) FROM {FLASHCARDS_TABLE} c WHERE c.la_id = la.la_id AND c.is_removed = 0) AS fc_n,
+                   EXISTS(SELECT 1 FROM {PROGRESS_TABLE} p
+                          WHERE p.acc_id = %s AND p.la_id = la.la_id
+                            AND p.status = 'completed') AS is_done
+            FROM {LEARNING_ACTIVITIES_TABLE} la
+            JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
+            LEFT JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
+            WHERE la.resource_id = %s AND las.la_stats_name = 'Published'
+            ORDER BY la.la_id ASC""",
+        (acc_id, resource_id)
+    )
+    return cursor.fetchall()
+
+
+def _activity_item_total(row):
+    """How many items (questions / blanks / cards) an activity row has to play."""
+    type_name = row.get("activity_type_name") or ""
+    if type_name in ("Multiple Choice", "Quiz"):
+        return row["mcq_n"]
+    if type_name == "Fill in the Blanks":
+        return row["fib_n"]
+    if type_name == "Flashcards":
+        return row["fc_n"]
+    return 0
+
+
 def settle_lesson_activities(acc_id, resource_id):
     """
     Lesson-completion check used by /api/lesson-content/complete.
@@ -458,37 +490,13 @@ def settle_lesson_activities(acc_id, resource_id):
         return None
     try:
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(
-            f"""SELECT la.la_id, la.activity_title, atp.activity_type_name,
-                       (SELECT COUNT(*) FROM {MCQ_QUESTIONS_TABLE} q WHERE q.la_id = la.la_id AND q.is_removed = 0) AS mcq_n,
-                       (SELECT COUNT(*) FROM {FILL_BLANKS_TABLE} f WHERE f.la_id = la.la_id AND f.is_removed = 0) AS fib_n,
-                       (SELECT COUNT(*) FROM {FLASHCARDS_TABLE} c WHERE c.la_id = la.la_id AND c.is_removed = 0) AS fc_n,
-                       EXISTS(SELECT 1 FROM {PROGRESS_TABLE} p
-                              WHERE p.acc_id = %s AND p.la_id = la.la_id
-                                AND p.status = 'completed') AS is_done
-                FROM {LEARNING_ACTIVITIES_TABLE} la
-                JOIN {LA_STATS_TABLE} las ON la.la_stats_id = las.la_stats_id
-                LEFT JOIN {ACTIVITY_TYPES_TABLE} atp ON la.activity_type_id = atp.activity_type_id
-                WHERE la.resource_id = %s AND las.la_stats_name = 'Published'
-                ORDER BY la.la_id ASC""",
-            (acc_id, resource_id)
-        )
-        rows = cursor.fetchall()
+        rows = _lesson_activity_rows(cursor, acc_id, resource_id)
 
         unfinished = []
         for row in rows:
             if row["is_done"]:
                 continue
-            type_name = row.get("activity_type_name") or ""
-            if type_name in ("Multiple Choice", "Quiz"):
-                item_total = row["mcq_n"]
-            elif type_name == "Fill in the Blanks":
-                item_total = row["fib_n"]
-            elif type_name == "Flashcards":
-                item_total = row["fc_n"]
-            else:
-                item_total = 0
-
+            item_total = _activity_item_total(row)
             if item_total > 0:
                 unfinished.append(row["activity_title"])
                 continue
@@ -519,6 +527,32 @@ def settle_lesson_activities(acc_id, resource_id):
     except Error as e:
         connection.rollback()
         print(f"lesson_activities: failed to settle lesson activities for resource_id={resource_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def unfinished_activity_titles(acc_id, resource_id):
+    """
+    Read-only twin of settle_lesson_activities(): the titles of the lesson's
+    Published activities this learner still has to finish ([] = none), or
+    None on a DB error. An empty activity counts as done (the complete call
+    settles it), and nothing is written - safe to call on every page load.
+    """
+    if not resource_id:
+        return []
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        rows = _lesson_activity_rows(cursor, acc_id, resource_id)
+        cursor.close()
+        return [row["activity_title"] for row in rows
+                if not row["is_done"] and _activity_item_total(row) > 0]
+    except Error as e:
+        print(f"lesson_activities: failed to read unfinished activities for resource_id={resource_id}: {e}")
         return None
     finally:
         if connection.is_connected():
