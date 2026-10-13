@@ -798,6 +798,81 @@
         return { card, btn, extra };
     }
 
+    // feat/answer-card-timing: after an answer the result shows AT ONCE as
+    // a small banner on the game (no blur), the animation plays in full and
+    // stays clear, THEN the answer card slides in. Tapping the game or
+    // pressing Enter shows the card straight away.
+    //   stage: where the banner goes (the 3D stage / the arena)
+    //   kind:  "right" | "close" | "wrong" | "timeup"
+    //   ms:    how long the animation plays before the card
+    //   show:  builds the card (called once)
+    // Returns { skip(), cancel() }.
+    const ANSWER_HOLD = { right: 2000, wrong: 1800, defeat: 1700 };
+    const BANNER_TEXT = {
+        right: ["fa-circle-check", "Correct!"],
+        close: ["fa-circle-check", "Close enough!"],
+        wrong: ["fa-circle-xmark", "Not quite"],
+        timeup: ["fa-stopwatch", "Time's up"],
+    };
+    function holdThenCard(stage, kind, ms, show) {
+        const [icon, text] = BANNER_TEXT[kind] || BANNER_TEXT.wrong;
+        let banner = null;
+        if (stage) {
+            banner = document.createElement("div");
+            banner.className = `game-result-banner is-${kind}`;
+            banner.setAttribute("role", "status");
+            banner.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i> <span></span><small>Tap to continue</small>`;
+            banner.querySelector("span").textContent = text;
+            stage.appendChild(banner);
+        }
+        let done = false;
+        const cleanup = () => {
+            clearTimeout(timer);
+            if (stage) stage.removeEventListener("pointerdown", onTap);
+            window.removeEventListener("keydown", onKey, true);
+            if (banner) banner.remove();
+        };
+        const go = () => {
+            if (done) return;
+            done = true;
+            cleanup();
+            show();
+        };
+        const onTap = (e) => {
+            if (e.button && e.button !== 0) return;
+            // the same tap's click must not land on the card's Next button
+            // that has just appeared under the finger
+            // ... and the tap moves the focus to the page: give it back to the
+            // card's button so Enter goes Next
+            const refocus = () => {
+                const btn = (stage && stage.closest(".fib-root, .fc-root, .mcq-arena-root") || document).querySelector(".game-answer-btn");
+                if (btn) btn.focus({ preventScroll: true });
+            };
+            const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); refocus(); };
+            window.addEventListener("click", swallow, { capture: true, once: true });
+            setTimeout(() => { window.removeEventListener("click", swallow, true); refocus(); }, 700);
+            go();
+        };
+        // Enter while waiting = "show me the card" (never "Next" yet)
+        const onKey = (e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            e.stopPropagation();
+            go();
+        };
+        const timer = setTimeout(go, Math.max(0, ms));
+        if (stage) stage.addEventListener("pointerdown", onTap);
+        window.addEventListener("keydown", onKey, true);
+        return {
+            skip: go,
+            cancel() {
+                if (done) return;
+                done = true;
+                cleanup();
+            },
+        };
+    }
+
     // "Streak 3 · best 4" for a right answer (the small line on the card).
     function streakLine(streak, best) {
         if (!streak) return "";
@@ -805,5 +880,5 @@
     }
 
     window.CobraGameKit = { hearts, livesText, livesHtml, livesLabelHtml, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult, clampText, answerCard, streakLine };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult, clampText, answerCard, streakLine, holdThenCard, ANSWER_HOLD };
 })();

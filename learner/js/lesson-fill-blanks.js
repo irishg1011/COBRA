@@ -292,6 +292,7 @@
         let stage3d = null;         // battle3d.js api, null when WebGL/Three is unavailable
         let qIndex = 0;
         let streak = 0, bestStreak = 0;
+        let pendingHold = null;   // feat/answer-card-timing: the banner / wait before the answer card
         let placedChoice = null;    // index into the current item's choices
         let wrongChoices = new Set(); // tiles already tried (wrong) on this item, this session
         let wrongOnCurrent = false;   // learner already got THIS puzzle wrong -> answer-bar Skip is free
@@ -670,7 +671,7 @@
             ui.hint.textContent = item.hint ? `Hint: ${item.hint}` : "";
             ui.hint.hidden = !item.hint;
             // The expected output is not shown while answering - only the
-            // real output after a correct answer (now on the answer card).
+            // real output after an answer (under the code, showConsole).
             ui.expectedText.textContent = "";
             ui.expected.hidden = true;
             ui.consoleOut.hidden = true;
@@ -872,6 +873,7 @@
         }
 
         function hideFeedback() {
+            cancelPendingCard();
             ui.feedback.hidden = true;
             ui.nextBtn.hidden = true;
             ui.nextNote.hidden = true;
@@ -879,26 +881,41 @@
             ui.fbAnswer.hidden = true;
         }
 
-        // feat/feedback-card: right AND wrong answers (and time's up) get the
-        // same centred card over the game (CobraGameKit.answerCard) - green or
-        // red - after the strike / bite has landed. The panel under the board
-        // is no longer used for answers. Enter (or the button) goes Next.
-        const FIB_CARD_WAIT = { right: 1050, wrong: 1300 };
+        // feat/feedback-card + feat/answer-card-timing: right AND wrong answers
+        // (and time's up) show a banner at once, the strike / bite plays in
+        // full (no blur), then the same centred card as the other games
+        // (CobraGameKit.answerCard) - tap / Enter shows it sooner. What the
+        // code printed (or its Python error) goes UNDER THE CODE on the
+        // board, not on the card. The card's Next (or Enter) goes on.
+        function cancelPendingCard() {
+            if (pendingHold) pendingHold.cancel();
+            pendingHold = null;
+        }
+
+        function showConsole(consoleResult) {
+            if (!consoleResult) {
+                ui.consoleOut.hidden = true;
+                return;
+            }
+            // Correct -> the program's output (exactly the expected output).
+            // Wrong -> the Python error, or what their code printed instead.
+            const isError = !!consoleResult.error;
+            const correct = !!consoleResult.correct;
+            ui.consoleOut.hidden = false;
+            ui.consoleOut.classList.toggle("is-error", !correct);
+            ui.consoleLabel.textContent = correct ? "Output" : isError ? "Python error" : "Your output (not what the question asks for)";
+            ui.consoleText.textContent = isError ? consoleResult.error : (consoleResult.output || "(nothing was printed)");
+        }
+
         function showFeedback(result) {
             hideFeedback();
             const ok = !!result.is_correct;
             const item = currentItem();
-            const c = result.console;
-            const consoleOut = c ? {
-                isError: !ok,
-                label: ok ? "Output" : c.error ? "Python error" : "Your output (not what the question asks for)",
-                text: c.error ? c.error : (c.output || "(nothing was printed)"),
-            } : null;
+            showConsole(result.console ? Object.assign({ correct: ok }, result.console) : null);
             const opts = {
                 ok,
                 title: ok ? "Correct!" : result.timed_out ? "Time's up" : result.is_close ? "Almost there" : "Not quite",
                 text: result.feedback || (ok ? "" : "That's not what this blank needs."),
-                consoleOut,
                 sub: ok ? "" : `${PREVIEW ? "Preview - no life lost." : "SyntaxBug bites back (−1 life)."} Puzzle ${qIndex + 1} counts as missed.`,
                 streak: ok ? window.CobraGameKit.streakLine(streak, bestStreak) : "",
                 last: !!server.completed,
@@ -910,13 +927,19 @@
                     advance();
                 },
             };
-            setTimeout(() => {
-                // still on this answer (Enter may already have gone Next)
+            const kit = window.CobraGameKit;
+            // the last puzzle that defeats SyntaxBug: its fall plays too
+            const defeat = ok && server.completed && server.bug_hp === 0 ? kit.ANSWER_HOLD.defeat : 0;
+            const wait = (ok ? kit.ANSWER_HOLD.right : kit.ANSWER_HOLD.wrong) + defeat;
+            cancelPendingCard();
+            pendingHold = kit.holdThenCard(ui.stage, ok ? "right" : result.timed_out ? "timeup" : "wrong", wait, () => {
+                pendingHold = null;
+                // still on this answer
                 if (disposed || mode !== "review" || currentItem() !== item) return;
                 showOverlay("");
-                const card = window.CobraGameKit.answerCard(ui.overlay, opts);
+                const card = kit.answerCard(ui.overlay, opts);
                 card.btn.focus({ preventScroll: true });
-            }, ok ? FIB_CARD_WAIT.right : FIB_CARD_WAIT.wrong);
+            });
         }
 
         // ---- answering ----
@@ -1368,6 +1391,7 @@
         function dispose() {
             if (disposed) return;
             disposed = true;
+            cancelPendingCard();
             if (!PREVIEW && window.cobraWhere) window.cobraWhere.game(activity.la_id ?? activity.activity_id ?? activity.id, null);
             cancelAnimationFrame(rafId);
             clearInterval(countdownTimer);

@@ -261,6 +261,7 @@
         let counting = false;       // a 3 - 2 - 1 is running
         let cardTimer = null;       // the timer bar on the question card
         let awaitingFirstArrow = false;   // feat/mobile-lesson-flow: the cobra waits for the first arrow
+        let pendingHold = null;           // feat/answer-card-timing: the banner / wait before the answer card
         let held = false;           // Pause froze the question's clock on the server
         let holdChain = Promise.resolve();   // pause / resume requests go out in order
         // Before the play exists (a new learner, before Start) there is no
@@ -942,8 +943,9 @@
                 bestStreak = Math.max(bestStreak, streak);
                 if (chip) chip.classList.add("is-right");
                 bump(ui.scoreStat);
-                // Stays until the learner taps Next (no countdown while reading).
-                setTimeout(() => { if (!disposed) showRightAndNext(option, result.feedback); }, fallback ? 300 : 700);
+                // feat/answer-card-timing: banner at once, the burst plays (no
+                // blur), then the card - it stays until Next; tap / Enter sooner.
+                holdCard("right", () => showRightAndNext(option, result.feedback));
                 return;
             }
 
@@ -963,7 +965,19 @@
                 setTimeout(() => { if (!disposed) showOutOfLives(); }, 900);
                 return;
             }
-            showWrongAndNext(option, result.feedback);
+            holdCard("wrong", () => showWrongAndNext(option, result.feedback));
+        }
+
+        // The answer's banner + wait before its card (game-kit.js). Tap-to-
+        // answer mode (no arena) waits a moment with no banner.
+        function holdCard(kind, show) {
+            const kit = window.CobraGameKit;
+            const ms = fallback ? 600 : kind === "right" ? kit.ANSWER_HOLD.right : kit.ANSWER_HOLD.wrong;
+            if (pendingHold) pendingHold.cancel();
+            pendingHold = kit.holdThenCard(fallback ? null : ui.arena, kind, ms, () => {
+                pendingHold = null;
+                if (!disposed) show();
+            });
         }
 
         function advance() {
@@ -1262,6 +1276,11 @@
                 return;
             }
             if (e.code === "Enter" && target && target.tagName === "BUTTON") return; // let the focused button handle it
+            // feat/answer-card-timing: an answer card is open - Enter = its Next
+            if (e.code === "Enter") {
+                const cardBtn = root.querySelector(".game-answer-card .game-answer-btn");
+                if (cardBtn) { e.preventDefault(); cardBtn.click(); return; }
+            }
             if (e.code === "Enter" && mode === "ready") {
                 const startBtn = root.querySelector(".game-ready-cover .game-ready-btn");
                 if (startBtn) {
@@ -1354,6 +1373,7 @@
         function dispose() {
             if (disposed) return;
             disposed = true;
+            if (pendingHold) pendingHold.cancel();
             if (!PREVIEW && window.cobraWhere) window.cobraWhere.game(activity.la_id ?? activity.activity_id ?? activity.id, null);
             cancelAnimationFrame(rafId);
             clearInterval(countdownTimer);

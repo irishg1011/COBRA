@@ -329,6 +329,7 @@
         let qIndex = 0;
         let streak = 0, bestStreak = 0;
         let rightResult = null;   // feat/feedback-card: a right answer waiting for the win animation
+        let pendingHold = null;   // feat/answer-card-timing: the banner / wait before the answer card
         let revealedAnswer = null;  // the card's back, revealed after a wrong answer
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
@@ -755,10 +756,7 @@
             fx.glow = "bad";
             stingAnim("Time's up");
             updateHUD();
-            setTimeout(() => {
-                if (disposed) return;
-                showWrongAndNext(data.feedback, "Time's up");
-            }, FC_ANIM.sting);
+            holdCard("timeup", window.CobraGameKit.ANSWER_HOLD.wrong, () => showWrongAndNext(data.feedback, "Time's up"));
         }
 
         // feat/leave-detection: what the server decided when the learner came back.
@@ -936,6 +934,7 @@
             autoResizeInput();
             ui.feedback.hidden = true;
             rightResult = null;
+            cancelPendingCard();
             revealedAnswer = null;
             wrongOnCurrent = false;
             fx.thrown = false;
@@ -960,7 +959,23 @@
             rightResult = result;
         }
 
+        // feat/answer-card-timing: banner at once, the animation in full (no
+        // blur), then the card - tap the game / Enter shows it sooner.
+        function holdCard(kind, ms, show) {
+            cancelPendingCard();
+            pendingHold = window.CobraGameKit.holdThenCard(root.querySelector(".fc-stage"), kind, ms, () => {
+                pendingHold = null;
+                if (!disposed) show();
+            });
+        }
+
+        function cancelPendingCard() {
+            if (pendingHold) pendingHold.cancel();
+            pendingHold = null;
+        }
+
         function showRightCard(result) {
+            ui.nextBtn.disabled = false;   // shown early (tap): Next works at once
             const last = !!server.completed;
             showOverlay("");
             const card = window.CobraGameKit.answerCard(ui.overlay, {
@@ -1066,6 +1081,16 @@
                 showFeedback(result);
                 setMode("review");
                 ui.nextBtn.disabled = true;           // wait for the card to land
+                {
+                    const kit = window.CobraGameKit;
+                    // the last card that beats NullScorpion: its fall plays too
+                    const defeat = server.completed && server.bug_hp === 0 ? kit.ANSWER_HOLD.defeat : 0;
+                    holdCard(result.is_close ? "close" : "right", kit.ANSWER_HOLD.right + defeat, () => {
+                        if (mode !== "review") return;
+                        rightResult = null;
+                        showRightCard(result);
+                    });
+                }
                 return;
             }
 
@@ -1078,10 +1103,7 @@
             stingAnim("Wrong");
             updateHUD();
             setMode("busy");
-            setTimeout(() => {
-                if (disposed) return;
-                showWrongAndNext(result.feedback, null, result.syntax_error);
-            }, FC_ANIM.sting);
+            holdCard("wrong", window.CobraGameKit.ANSWER_HOLD.wrong, () => showWrongAndNext(result.feedback, null, result.syntax_error));
         }
 
         // Skip from the answer bar while playing: free if this card was
@@ -1167,11 +1189,7 @@
             }, () => {
                 fx.thrown = true;
                 ui.nextBtn.disabled = false;
-                if (mode === "review" && rightResult) {
-                    const result = rightResult;
-                    rightResult = null;
-                    showRightCard(result);
-                }
+
                 if (fx.foeHP === 0) {
                     playAnim("death", null, () => { fx.defeated = true; });
                 }
@@ -1343,6 +1361,9 @@
             if (e.key !== "Enter") return;
             const target = e.target;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "BUTTON")) return;
+            // feat/answer-card-timing: an answer card is open - Enter = its Next
+            const cardBtn = root.querySelector(".game-answer-card .game-answer-btn");
+            if (cardBtn) { e.preventDefault(); cardBtn.click(); return; }
             if (mode === "ready") {
                 const btn = overlayNode("pvBtn") || root.querySelector(".game-ready-btn");
                 if (btn) { e.preventDefault(); btn.click(); }
@@ -1432,6 +1453,7 @@
         function dispose() {
             if (disposed) return;
             disposed = true;
+            cancelPendingCard();
             if (!PREVIEW && window.cobraWhere) window.cobraWhere.game(activity.la_id ?? activity.activity_id ?? activity.id, null);
             cancelAnimationFrame(rafId);
             clearInterval(countdownTimer);

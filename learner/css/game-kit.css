@@ -538,3 +538,53 @@ html.game-leave-check .fc-root {
     .game-answer-card .game-next-note { font-size: 12px; margin-bottom: 8px; }
     .game-answer-btn { width: 100%; }
 }
+
+/* ============================================================
+   feat/answer-card-timing: the result banner shown AT ONCE on the
+   game while the animation plays (no blur), before the answer card
+   ============================================================ */
+.game-result-banner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 4;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 22px 8px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 2px solid #ef4444;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+    color: #991b1b;
+    font-size: 20px;
+    font-weight: 800;
+    text-align: center;
+    pointer-events: none;
+    transform: translate(-50%, -150%);
+    animation: game-banner-in 0.25s ease-out;
+}
+.game-result-banner > i { font-size: 24px; color: #ef4444; }
+.game-result-banner small {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+}
+.game-result-banner.is-right { border-color: #16a34a; color: #166534; }
+.game-result-banner.is-right > i { color: #16a34a; }
+.game-result-banner.is-close { border-color: #f59e0b; color: #92400e; }
+.game-result-banner.is-close > i { color: #f59e0b; }
+.game-result-banner.is-timeup { border-color: #f59e0b; color: #92400e; }
+.game-result-banner.is-timeup > i { color: #f59e0b; }
+@keyframes game-banner-in {
+    from { opacity: 0; transform: translate(-50%, -120%) scale(0.9); }
+    to { opacity: 1; transform: translate(-50%, -150%) scale(1); }
+}
+@media (max-width: 720px), (max-height: 500px) and (pointer: coarse) {
+    .game-result-banner { font-size: 17px; padding: 8px 16px 6px; }
+    .game-result-banner > i { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .game-result-banner { animation: none; }
+}
