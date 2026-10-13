@@ -810,7 +810,9 @@
     //   chip:  optional - the puzzle panel's chip ("Type the answer") also
     //          says the result next to the answer, until resetChip()
     // Returns { skip(), cancel() }.
-    const ANSWER_HOLD = { right: 2000, wrong: 1800, defeat: 1700 };
+    const ANSWER_HOLD = { right: 2500, wrong: 2200, defeat: 1700 };
+    const TAP_MAX_MOVE = 10;    // px
+    const TAP_MAX_MS = 500;
     const BANNER_TEXT = {
         right: ["fa-circle-check", "Correct!"],
         close: ["fa-circle-check", "Close enough!"],
@@ -832,7 +834,9 @@
         let done = false;
         const cleanup = () => {
             clearTimeout(timer);
-            if (stage) stage.removeEventListener("pointerdown", onTap);
+            if (stage) stage.removeEventListener("pointerdown", onDown);
+            window.removeEventListener("pointerup", onUp, true);
+            window.removeEventListener("pointercancel", onCancel, true);
             window.removeEventListener("keydown", onKey, true);
             if (banner) banner.remove();
         };
@@ -842,8 +846,25 @@
             cleanup();
             show();
         };
-        const onTap = (e) => {
+        // feat/answer-card-real-tap: only a real TAP skips the wait - a quick
+        // touch / click that doesn't move. A scroll, a swipe or dragging the
+        // arena to look around starts on the game too, and used to show the
+        // card before the animation had played.
+        let press = null;
+        const onDown = (e) => {
             if (e.button && e.button !== 0) return;
+            press = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+        };
+        const onCancel = () => { press = null; };
+        const onUp = (e) => {
+            const p = press;
+            press = null;
+            if (!p || e.pointerId !== p.id) return;
+            const moved = Math.hypot(e.clientX - p.x, e.clientY - p.y);
+            if (moved > TAP_MAX_MOVE || performance.now() - p.t > TAP_MAX_MS) return;
+            onTap();
+        };
+        const onTap = () => {
             // the same tap's click must not land on the card's Next button
             // that has just appeared under the finger
             // ... and the tap moves the focus to the page: give it back to the
@@ -865,7 +886,12 @@
             go();
         };
         const timer = setTimeout(go, Math.max(0, ms));
-        if (stage) stage.addEventListener("pointerdown", onTap);
+        if (stage) {
+            stage.addEventListener("pointerdown", onDown);
+            window.addEventListener("pointerup", onUp, true);
+            window.addEventListener("pointercancel", onCancel, true);
+            bringIntoView(stage);
+        }
         window.addEventListener("keydown", onKey, true);
         return {
             skip: go,
@@ -875,6 +901,31 @@
                 cleanup();
             },
         };
+    }
+
+    // Phones out of full screen: after Check the page is often scrolled down
+    // to the code (the keyboard was open) - bring the whole game into view
+    // so the animation is seen from its start, without a scroll that would
+    // touch the game. (Full screen always fits the visible screen.)
+    function bringIntoView(stage) {
+        if (!isPhone() || stage.closest(".is-focus")) return;
+        const fit = () => {
+            const r = stage.getBoundingClientRect();
+            const vh = window.innerHeight;
+            // what sticks at the top: the site header (it shows again when
+            // scrolling up) and the lesson mini-stepper
+            let top = 8;
+            document.querySelectorAll(".learner-header, .lesson-ministep").forEach((n) => {
+                const b = n.getBoundingClientRect();
+                if (b.height && getComputedStyle(n).display !== "none") top += b.height;
+            });
+            if (r.top >= top - 2 && r.bottom <= vh + 2) return;     // already in full view
+            const want = r.height + top <= vh ? Math.max(top, (vh - r.height) / 2) : top;
+            const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            window.scrollBy({ top: r.top - want, behavior: reduce ? "auto" : "smooth" });
+        };
+        fit();
+        setTimeout(fit, 350);   // the phone keyboard may still be closing
     }
 
     // The panel chip turns into the result ("✔ Correct!" / "✖ Not quite").
