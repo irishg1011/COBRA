@@ -1123,25 +1123,6 @@ html.dark-mode .exercise-unlock-note, body.dark-mode .exercise-unlock-note, [dat
 .exercise-task .exercise-expected { margin-bottom: 0; }
 .exercise-task-actions:empty { display: none; }
 
-/* "Your output should look like this" - right above the Output, to compare */
-.exercise-expected-mini {
-    padding: 8px 14px 10px;
-    border-bottom: 1px dashed #cbd5e1;
-    background: #f8fafc;
-}
-.exercise-expected-mini[hidden] { display: none; }
-.exercise-expected-mini-label {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 11.5px;
-    font-weight: 700;
-    color: #475569;
-}
-.exercise-expected-mini .exercise-output-box.exercise-expected-box {
-    max-height: 120px;
-    margin: 0;
-}
-
 /* "Back to code" after Run / Submit */
 .exercise-back-to-code {
     position: fixed;

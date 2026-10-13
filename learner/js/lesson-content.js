@@ -281,7 +281,6 @@ document.addEventListener('DOMContentLoaded', () => {
     //   - the Task card (situation, problem, hint, "you must use", expected
     //     output; on phones also Skip / Retake) folds to one "Task" line;
     //     open by default, remembered per exercise (localStorage)
-    //   - "Your output should look like this" is also right above Output
     //   - phones: Run + Submit in a sticky bottom bar
     //   - after Run / Submit the page scrolls to the output / result and a
     //     small "Back to code" button brings the editor back
@@ -325,20 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         taskHead.addEventListener('click', () => setTaskOpen(!task.classList.contains('is-open'), true));
 
-        // ---- "Your output should look like this", right above Output ----
         const outputPane = exerciseOutputBox.closest('.exercise-pane');
-        const mini = document.createElement('div');
-        mini.className = "exercise-expected-mini";
-        mini.hidden = true;
-        mini.innerHTML = '<span class="exercise-expected-mini-label">Your output should look like this</span><pre class="exercise-output-box exercise-expected-box"></pre>';
-        exerciseOutputBox.before(mini);   // inside the Output pane, right above the output
-        const miniPre = mini.querySelector('pre');
-        function syncMini() {
-            const text = exerciseExpectedBox.textContent || "";
-            miniPre.textContent = text;
-            mini.hidden = !text.trim();
-        }
-        new MutationObserver(syncMini).observe(exerciseExpectedBox, { childList: true, characterData: true, subtree: true });
 
         // ---- phones: Run next to Submit in the sticky bar (presses the real Run) ----
         const phoneRun = document.createElement('button');
@@ -426,7 +412,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 let open = true;
                 try { open = !storeKey || window.localStorage.getItem(storeKey) !== "closed"; } catch (e) { open = true; }
                 setTaskOpen(open, false);
-                syncMini();
             },
             onLayoutChange() { placeSkip(); syncBackBtn(); },
             syncBackBtn,
