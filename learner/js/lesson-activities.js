@@ -591,57 +591,44 @@
         // to the next question (or finished it after the last one).
         // A correct answer: the feedback stays until Next (the learner reads
         // at their own speed - the next question's clock is not running).
-        function showRightAndNext(option, feedback) {
-            setMode("tryagain");
-            const last = !!(server && server.completed);
-            showOverlay(`
-                <div class="mcq-arena-overlay-card">
-                    <i class="fa-solid fa-circle-check mcq-arena-overlay-icon is-ok"></i>
-                    <h4 class="mcq-arena-right-title" data-ui="rightTitle"></h4>
-                    <p class="mcq-arena-feedback is-ok" data-ui="rightFeedback"></p>
-                    <p class="game-next-note" data-ui="nextNote"></p>
-                    <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-primary-btn game-next-pulse" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
-                    </div>
-                </div>
-            `);
-            overlayNode("rightTitle").textContent = `Correct: ${option.option_letter}`;
-            overlayNode("rightFeedback").textContent = feedback || option.text;
-            overlayNode("nextNote").textContent = window.CobraGameKit.nextNoteText(last);
-            const btn = overlayNode("nextBtn");
-            btn.addEventListener("click", () => {
-                if (disposed || mode !== "tryagain") return;
-                hideOverlay();
-                advance();
-            });
-            btn.focus({ preventScroll: true });
-        }
-
-        function showWrongAndNext(option, feedback) {
+        // feat/feedback-card: right and wrong share ONE card design with the
+        // other two games (CobraGameKit.answerCard) - green or red.
+        function answerCardFor(ok, option, feedback) {
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
             const last = !!(server && server.completed);
-            showOverlay(`
-                <div class="mcq-arena-overlay-card">
-                    <i class="fa-solid fa-circle-xmark mcq-arena-overlay-icon is-danger"></i>
-                    <h4>Not quite</h4>
-                    <p class="mcq-arena-feedback" data-ui="tryFeedback"></p>
-                    <div class="mcq-arena-reveal" data-ui="tryReveal" hidden></div>
-                    <p class="mcq-arena-subnote">${PREVIEW ? `Preview - no life lost. Question ${qIndex + 1} counts as missed.` : `You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} counts as missed - if your module needs a retake, you'll get new questions.`}</p>
-                    <p class="game-next-note" data-ui="nextNote"></p>
-                    <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-primary-btn game-next-pulse" data-ui="nextBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> Finish' : '<i class="fa-solid fa-forward"></i> Next question'}</button>
-                    </div>
-                </div>
-            `);
-            overlayNode("tryFeedback").textContent = feedback || `${option.option_letter} isn't the right answer.`;
-            fillReveal(overlayNode("tryReveal"));
-            overlayNode("nextNote").textContent = window.CobraGameKit.nextNoteText(last);
-            overlayNode("nextBtn").addEventListener("click", () => {
-                if (disposed || mode !== "tryagain") return;
-                hideOverlay();
-                advance();
+            showOverlay("");
+            const card = window.CobraGameKit.answerCard(ui.overlay, {
+                ok,
+                title: ok ? "Correct!" : "Not quite",
+                text: ok ? `${option.option_letter}: ${feedback || option.text}`
+                    : (feedback || `${option.option_letter} isn't the right answer.`),
+                sub: ok ? "" : (PREVIEW ? `Preview - no life lost. Question ${qIndex + 1} counts as missed.`
+                    : `You lost 1 life · ${lives} ${lives === 1 ? "life" : "lives"} left. Question ${qIndex + 1} counts as missed - if your module needs a retake, you'll get new questions.`),
+                streak: ok ? window.CobraGameKit.streakLine(streak, bestStreak) : "",
+                last,
+                nextLabel: last ? "Finish" : "Next question",
+                btnClass: "mcq-arena-primary-btn",
+                onNext: () => {
+                    if (disposed || mode !== "tryagain") return;
+                    hideOverlay();
+                    advance();
+                },
             });
+            if (!ok && revealed) {
+                const reveal = el("div", "mcq-arena-reveal");
+                card.extra.appendChild(reveal);
+                fillReveal(reveal);
+            }
+            card.btn.focus({ preventScroll: true });
+        }
+
+        function showRightAndNext(option, feedback) {
+            answerCardFor(true, option, feedback);
+        }
+
+        function showWrongAndNext(option, feedback) {
+            answerCardFor(false, option, feedback);
         }
 
         // Skip the question on screen: costs 1 life, no score - the server

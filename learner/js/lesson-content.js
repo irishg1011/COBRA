@@ -276,96 +276,167 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Exercise on a phone: three tabs instead of one long page.
-    //   Task   - situation, problem, hint, "you must use", expected output, Skip
-    //   Code   - the editor filling the screen, Run + Submit at the bottom
-    //   Output - run output, the Submit result / feedback, View Summary
-    // Nothing moves: each block is only tagged (data-ex-tab) and the CSS
-    // shows the active tab's blocks, so every id, lock, hint, skip and the
-    // leave detection work exactly as before. Desktop shows everything.
-    const exTabs = (function setupExerciseTabs() {
+    // feat/exercise-page: the exercise is ONE page on every screen again -
+    // Task -> Code -> Output, top to bottom (the phone tabs are gone).
+    //   - the Task card (situation, problem, hint, "you must use", expected
+    //     output; on phones also Skip / Retake) folds to one "Task" line;
+    //     open by default, remembered per exercise (localStorage)
+    //   - "Your output should look like this" is also right above Output
+    //   - phones: Run + Submit in a sticky bottom bar
+    //   - after Run / Submit the page scrolls to the output / result and a
+    //     small "Back to code" button brings the editor back
+    // Existing blocks are only MOVED (never rebuilt), so every id, lock,
+    // countdown, hint, skip, retake and the leave detection keep working.
+    const exPage = (function setupExercisePage() {
         if (!exerciseStep) return null;
-        const tag = (node, tab) => { if (node) node.dataset.exTab = tab; };
-        tag(exerciseStep.querySelector('.exercise-prompt'), "task");
-        tag(exerciseRequiredRow, "task");
-        tag(exerciseStep.querySelector('.exercise-expected'), "task");
-        tag(exerciseSkippedNote, "task");
-        tag(exerciseSkipWrap, "task");
-        tag(document.getElementById('exerciseRetakeBtn'), "task");
-        tag(document.getElementById('exerciseRestoredNote'), "code");
-        tag(exerciseCodeBox.closest('.exercise-pane'), "code");
-        tag(exerciseSubmitNote, "code");
-        tag(exerciseSubmitBtn, "code");
-        tag(exerciseOutputBox.closest('.exercise-pane'), "output");
-        tag(exerciseResultBox, "output");
-        tag(exerciseCompleteRow, "output");
+        const prompt = exerciseStep.querySelector('.exercise-prompt');
+        const expectedPane = exerciseStep.querySelector('.exercise-expected');
+        const footerBtns = exerciseStep.querySelector('.exercise-footer-btns');
+        const retakeBtn = document.getElementById('exerciseRetakeBtn');
+        const eyebrow = exerciseStep.querySelector('.lesson-step-eyebrow');
+        if (eyebrow) eyebrow.hidden = true;   // the one title is "Coding Exercise" (below)
 
-        // Run sits next to Submit at the bottom on phones (it presses the real Run).
+        // ---- the Task card ----
+        const task = document.createElement('section');
+        task.className = "exercise-task is-open";
+        task.innerHTML = `
+            <button type="button" class="exercise-task-head" aria-expanded="true">
+                <span><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i> Task</span>
+                <i class="fa-solid fa-chevron-up exercise-task-chevron" aria-hidden="true"></i>
+            </button>
+            <div class="exercise-task-body"></div>`;
+        const taskHead = task.querySelector('.exercise-task-head');
+        const taskBody = task.querySelector('.exercise-task-body');
+        (prompt || exerciseTitle).before(task);
+        [prompt, exerciseRequiredRow, expectedPane, exerciseSkippedNote].forEach((n) => { if (n) taskBody.appendChild(n); });
+        const taskSkipSpot = document.createElement('div');
+        taskSkipSpot.className = "exercise-task-actions";
+        taskBody.appendChild(taskSkipSpot);
+
+        let storeKey = null;
+        function setTaskOpen(open, remember) {
+            task.classList.toggle('is-open', open);
+            taskHead.setAttribute('aria-expanded', String(open));
+            task.querySelector('.exercise-task-chevron').className =
+                `fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"} exercise-task-chevron`;
+            if (remember && storeKey) {
+                try { window.localStorage.setItem(storeKey, open ? "open" : "closed"); } catch (e) { /* private mode */ }
+            }
+        }
+        taskHead.addEventListener('click', () => setTaskOpen(!task.classList.contains('is-open'), true));
+
+        // ---- "Your output should look like this", right above Output ----
+        const outputPane = exerciseOutputBox.closest('.exercise-pane');
+        const mini = document.createElement('div');
+        mini.className = "exercise-expected-mini";
+        mini.hidden = true;
+        mini.innerHTML = '<span class="exercise-expected-mini-label">Your output should look like this</span><pre class="exercise-output-box exercise-expected-box"></pre>';
+        exerciseOutputBox.before(mini);   // inside the Output pane, right above the output
+        const miniPre = mini.querySelector('pre');
+        function syncMini() {
+            const text = exerciseExpectedBox.textContent || "";
+            miniPre.textContent = text;
+            mini.hidden = !text.trim();
+        }
+        new MutationObserver(syncMini).observe(exerciseExpectedBox, { childList: true, characterData: true, subtree: true });
+
+        // ---- phones: Run next to Submit in the sticky bar (presses the real Run) ----
         const phoneRun = document.createElement('button');
         phoneRun.type = "button";
         phoneRun.className = "exercise-run-btn exercise-run-btn-phone";
-        phoneRun.dataset.exTab = "code";
         phoneRun.innerHTML = '<i class="fa-solid fa-play" aria-hidden="true"></i> Run';
         phoneRun.addEventListener('click', () => exerciseRunBtn.click());
         exerciseSubmitBtn.before(phoneRun);
 
-        const bar = document.createElement('div');
-        bar.className = "exercise-tabs";
-        bar.setAttribute('role', 'tablist');
-        bar.setAttribute('aria-label', 'Exercise');
-        const TABS = [["task", "Task", "fa-clipboard-list"], ["code", "Code", "fa-code"], ["output", "Output", "fa-terminal"]];
-        const buttons = {};
-        TABS.forEach(([key, label, icon]) => {
-            const b = document.createElement('button');
-            b.type = "button";
-            b.className = "exercise-tab";
-            b.dataset.tab = key;
-            b.setAttribute('role', 'tab');
-            b.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i> ${label}<span class="exercise-tab-dot" aria-hidden="true"></span>`;
-            b.addEventListener('click', () => show(key, true));
-            buttons[key] = b;
-            bar.appendChild(b);
-        });
-        (exerciseTitle || exerciseStep.firstElementChild).after(bar);
-
-        let active = "task";
-        function show(key, scroll) {
-            active = key;
-            exerciseStep.dataset.exActive = key;
-            Object.entries(buttons).forEach(([k, b]) => {
-                b.classList.toggle('is-active', k === key);
-                b.setAttribute('aria-selected', k === key ? 'true' : 'false');
-                if (k === key) b.classList.remove('has-new');
+        // Phones: Skip / Retake live in the Task card (the sticky bar is Run +
+        // Submit only); desktop keeps them next to Submit, as before.
+        function placeSkip() {
+            const toTask = isPhoneLayout();
+            [retakeBtn, exerciseSkipWrap].forEach((n) => {
+                if (!n) return;
+                if (toTask && n.parentNode !== taskSkipSpot) taskSkipSpot.appendChild(n);
+                if (!toTask && n.parentNode !== footerBtns) footerBtns.insertBefore(n, phoneRun);
             });
-            if (scroll && isPhoneLayout()) {
-                const y = bar.getBoundingClientRect().top + window.scrollY - (miniStepper.offsetHeight || 0) - 8;
-                if (window.scrollY > y) window.scrollTo({ top: Math.max(0, y) });
+        }
+        placeSkip();
+
+        // ---- after Run / Submit: to the output, + "Back to code" ----
+        const codePane = exerciseCodeBox.closest('.exercise-pane');
+        const backBtn = document.createElement('button');
+        backBtn.type = "button";
+        backBtn.className = "exercise-back-to-code";
+        backBtn.hidden = true;
+        backBtn.innerHTML = '<i class="fa-solid fa-arrow-up" aria-hidden="true"></i> Back to code';
+        exerciseStep.appendChild(backBtn);
+        let usedRun = false;
+        // shown once Run / Submit was used, while the TOP of the editor is
+        // off screen (above the sticky mini-stepper or below the screen)
+        function syncBackBtn() {
+            let away = false;
+            if (usedRun && exerciseStep.style.display !== "none") {
+                const top = codePane.getBoundingClientRect().top;
+                const topLimit = (miniStepper && !miniStepper.hidden ? miniStepper.getBoundingClientRect().bottom : 0) + 8;
+                away = top < topLimit || top > window.innerHeight - 120;
             }
+            backBtn.hidden = !away;
         }
-        show("task", false);
+        let backTick = false;
+        window.addEventListener('scroll', () => {
+            if (backTick) return;
+            backTick = true;
+            requestAnimationFrame(() => { backTick = false; syncBackBtn(); });
+        }, { passive: true });
+        // Scrolling UP brings the site header back (phones), and the
+        // mini-stepper sits under it - so land the editor below both.
+        backBtn.addEventListener('click', () => {
+            let cover = 8;
+            if (isPhoneLayout()) {
+                if (siteHeader && getComputedStyle(siteHeader).position === "sticky") cover += siteHeader.offsetHeight;
+                if (miniStepper && !miniStepper.hidden) cover += miniStepper.offsetHeight;
+            }
+            const y = codePane.getBoundingClientRect().top + window.scrollY - cover;
+            window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+        });
 
-        // A dot on a tab that got something new while another tab was open.
-        function watch(tab, nodes) {
+        function scrollToNode(node) {
+            if (!node) return;
+            usedRun = true;
+            syncBackBtn();
+            requestAnimationFrame(() => node.scrollIntoView({ behavior: "smooth", block: "center" }));
+        }
+        exerciseRunBtn.addEventListener('click', () => scrollToNode(outputPane));
+        // Submit: the result box appears when the server answers - follow it there.
+        exerciseSubmitBtn.addEventListener('click', () => {
+            if (exerciseSubmitBtn.disabled) return;
+            scrollToNode(outputPane);
             const obs = new MutationObserver(() => {
-                if (active !== tab && isPhoneLayout()) buttons[tab].classList.add('has-new');
+                if (exerciseResultBox.style.display !== "none" && exerciseResultBox.textContent.trim()) {
+                    obs.disconnect();
+                    scrollToNode(exerciseResultBox);
+                }
             });
-            nodes.filter(Boolean).forEach((n) => obs.observe(n, {
-                childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["style", "hidden"],
-            }));
-        }
-        watch("output", [exerciseOutputBox, exerciseResultBox, exerciseCompleteRow]);
-        watch("task", [exerciseClueRow, exerciseHintWrap, exerciseSkipWrap, exerciseSkippedNote]);
+            obs.observe(exerciseResultBox, { attributes: true, attributeFilter: ["style"], childList: true, subtree: true });
+            setTimeout(() => obs.disconnect(), 20000);
+        });
 
-        // After Run or Submit: straight to the Output tab.
-        [exerciseRunBtn, exerciseSubmitBtn].forEach((btn) => btn.addEventListener('click', () => {
-            if (isPhoneLayout() && !btn.disabled) show("output", true);
-        }));
-        return { show };
+        return {
+            // called when an exercise is loaded: its own open / closed Task card
+            load(exerciseId) {
+                storeKey = exerciseId ? `cobraExerciseTask:${exerciseId}` : null;
+                let open = true;
+                try { open = !storeKey || window.localStorage.getItem(storeKey) !== "closed"; } catch (e) { open = true; }
+                setTaskOpen(open, false);
+                syncMini();
+            },
+            onLayoutChange() { placeSkip(); syncBackBtn(); },
+            syncBackBtn,
+        };
     })();
 
     if (PHONE_QUERY) {
         const onLayoutChange = () => {
             syncPhoneTexts();
+            if (exPage) exPage.onLayoutChange();
             syncHeaderAndStepper();
             if (!isPhoneLayout()) requestAnimationFrame(checkContentFits);
         };
@@ -393,6 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryStep.style.display = key === "summary" ? "block" : "none";
         renderStepper(key);
         syncPhoneTexts();
+        if (exPage) exPage.syncBackBtn();
         if (PREVIEW) PREVIEW.onStep(key);
         else reportWhere(key);
         if (key === "summary") loadSummary();
@@ -1887,11 +1959,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // shown, same reasoning as the video player - so reviewing it
             // later has something to show.
             if (data.exercise) {
-                exerciseTitle.textContent = data.exercise.exercise_title;
+                // feat/exercise-page: ONE title - the lesson title above, then just
+                // "Coding Exercise" (never "<Lesson> – Coding Exercise" again).
+                exerciseTitle.textContent = "Coding Exercise";
                 exerciseSituation.textContent = data.exercise.situation;
                 exerciseProblem.textContent = data.exercise.problem_question;
                 exerciseClue.textContent = data.exercise.clue;
                 renderExerciseRequirements(data.exercise);
+                if (exPage) exPage.load(data.exercise.exercise_id);
                 exerciseState = data.exercise_state || null;
                 reportWhere();
                 // The complete row (and its way on) is shown by renderExerciseState /

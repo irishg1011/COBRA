@@ -670,7 +670,7 @@
             ui.hint.textContent = item.hint ? `Hint: ${item.hint}` : "";
             ui.hint.hidden = !item.hint;
             // The expected output is not shown while answering - only the
-            // real output after a correct answer (showConsole).
+            // real output after a correct answer (now on the answer card).
             ui.expectedText.textContent = "";
             ui.expected.hidden = true;
             ui.consoleOut.hidden = true;
@@ -879,41 +879,44 @@
             ui.fbAnswer.hidden = true;
         }
 
-        function showConsole(consoleResult) {
-            if (!consoleResult) {
-                ui.consoleOut.hidden = true;
-                return;
-            }
-            // Correct -> the program's output (exactly the expected output).
-            // Wrong -> the Python error, or what their code printed instead.
-            const isError = !!consoleResult.error;
-            const correct = !!consoleResult.correct;
-            ui.consoleOut.hidden = false;
-            ui.consoleOut.classList.toggle("is-error", !correct);
-            ui.consoleLabel.textContent = correct ? "Output" : isError ? "Python error" : "Your output (not what the question asks for)";
-            ui.consoleText.textContent = isError ? consoleResult.error : (consoleResult.output || "(nothing was printed)");
-        }
-
+        // feat/feedback-card: right AND wrong answers (and time's up) get the
+        // same centred card over the game (CobraGameKit.answerCard) - green or
+        // red - after the strike / bite has landed. The panel under the board
+        // is no longer used for answers. Enter (or the button) goes Next.
+        const FIB_CARD_WAIT = { right: 1050, wrong: 1300 };
         function showFeedback(result) {
-            ui.feedback.hidden = false;
-            ui.feedback.classList.toggle("is-correct", !!result.is_correct);
-            ui.feedback.classList.toggle("is-incorrect", !result.is_correct);
-            ui.fbTitle.textContent = result.is_correct ? "Correct!"
-                : result.timed_out ? "Time's up" : result.is_close ? "Almost there" : "Not quite";
-            ui.fbText.textContent = result.is_correct
-                ? (result.feedback || "")
-                : `${result.feedback || ""} ${PREVIEW ? "Preview - no life lost." : "SyntaxBug bites back (−1 life)."} This puzzle counts as missed.`.trim();
-            showConsole(result.console ? Object.assign({ correct: !!result.is_correct }, result.console) : null);
-            // One try per puzzle: the only way forward is the next puzzle.
-            // The correct answer is never shown.
-            ui.fbAnswer.hidden = true;
-            ui.fbAnswer.innerHTML = "";
-            ui.fbActions.hidden = true;
-            ui.nextBtn.hidden = false;
-            ui.nextBtn.textContent = server.completed ? "See results" : "Next puzzle";
-            // The game waits here - say so (the next timer starts after the 3 - 2 - 1).
-            ui.nextNote.hidden = false;
-            ui.nextNote.textContent = window.CobraGameKit.nextNoteText(!!server.completed);
+            hideFeedback();
+            const ok = !!result.is_correct;
+            const item = currentItem();
+            const c = result.console;
+            const consoleOut = c ? {
+                isError: !ok,
+                label: ok ? "Output" : c.error ? "Python error" : "Your output (not what the question asks for)",
+                text: c.error ? c.error : (c.output || "(nothing was printed)"),
+            } : null;
+            const opts = {
+                ok,
+                title: ok ? "Correct!" : result.timed_out ? "Time's up" : result.is_close ? "Almost there" : "Not quite",
+                text: result.feedback || (ok ? "" : "That's not what this blank needs."),
+                consoleOut,
+                sub: ok ? "" : `${PREVIEW ? "Preview - no life lost." : "SyntaxBug bites back (−1 life)."} Puzzle ${qIndex + 1} counts as missed.`,
+                streak: ok ? window.CobraGameKit.streakLine(streak, bestStreak) : "",
+                last: !!server.completed,
+                nextLabel: server.completed ? "See results" : "Next puzzle",
+                btnClass: "fib-primary-btn",
+                onNext: () => {
+                    if (disposed || mode !== "review") return;
+                    hideOverlay();
+                    advance();
+                },
+            };
+            setTimeout(() => {
+                // still on this answer (Enter may already have gone Next)
+                if (disposed || mode !== "review" || currentItem() !== item) return;
+                showOverlay("");
+                const card = window.CobraGameKit.answerCard(ui.overlay, opts);
+                card.btn.focus({ preventScroll: true });
+            }, ok ? FIB_CARD_WAIT.right : FIB_CARD_WAIT.wrong);
         }
 
         // ---- answering ----
@@ -943,7 +946,6 @@
                 return;
             }
 
-            showFeedback(result);
             if (result.is_correct) {
                 syncBugBars();
                 if (slotEl) slotEl.classList.add("is-right");
@@ -953,7 +955,7 @@
                 heroStrike();
                 updateHUD();
                 setMode("review");
-                ui.nextBtn.focus({ preventScroll: true });
+                showFeedback(result);
                 return;
             }
 
@@ -970,9 +972,9 @@
                 paintSlot();
             }
             updateHUD();
-            // The checked answer stays on screen, locked; Next moves on.
+            // The checked answer stays on screen, locked; the card's Next moves on.
             setMode("review");
-            ui.nextBtn.focus({ preventScroll: true });
+            showFeedback(result);
         }
 
         // Skip the current puzzle: always -1 life, not correct - the server
@@ -1038,9 +1040,8 @@
             bump(ui.livesStat);
             bt.heroHP = heroLives(server);
             foeStrike("Time's up");
-            showFeedback({ is_correct: false, timed_out: true, feedback: data.feedback });
             setMode("review");
-            ui.nextBtn.focus({ preventScroll: true });
+            showFeedback({ is_correct: false, timed_out: true, feedback: data.feedback });
         }
 
         // feat/leave-detection: what the server decided when the learner came back.

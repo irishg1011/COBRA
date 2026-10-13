@@ -1083,3 +1083,84 @@ html.dark-mode .exercise-skip-btn.is-locked, body.dark-mode .exercise-skip-btn.i
     background: #1e293b; color: #64748b; border-color: #334155;
 }
 html.dark-mode .exercise-unlock-note, body.dark-mode .exercise-unlock-note, [data-theme="dark"] .exercise-unlock-note { color: #94a3b8; }
+
+/* ===================== feat/exercise-page: one page, Task -> Code -> Output ===================== */
+.exercise-task {
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+.exercise-task-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 12px 16px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    cursor: pointer;
+    text-align: left;
+}
+.exercise-task-head .fa-clipboard-list { color: #0ea5e9; margin-right: 6px; }
+.exercise-task-chevron { color: #64748b; }
+.exercise-task-head:focus-visible { outline: 2px solid #0ea5e9; outline-offset: -2px; }
+.exercise-task-body { display: none; padding: 0 16px 14px; }
+.exercise-task.is-open .exercise-task-body { display: block; }
+.exercise-task:not(.is-open) .exercise-task-head { padding-bottom: 12px; }
+/* the prompt is already inside a card: no second frame */
+.exercise-task .exercise-prompt {
+    margin-bottom: 12px;
+    padding: 0;
+    border: 0;
+    background: none;
+}
+.exercise-task .exercise-expected { margin-bottom: 0; }
+.exercise-task-actions:empty { display: none; }
+
+/* "Your output should look like this" - right above the Output, to compare */
+.exercise-expected-mini {
+    padding: 8px 14px 10px;
+    border-bottom: 1px dashed #cbd5e1;
+    background: #f8fafc;
+}
+.exercise-expected-mini[hidden] { display: none; }
+.exercise-expected-mini-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #475569;
+}
+.exercise-expected-mini .exercise-output-box.exercise-expected-box {
+    max-height: 120px;
+    margin: 0;
+}
+
+/* "Back to code" after Run / Submit */
+.exercise-back-to-code {
+    position: fixed;
+    right: 16px;
+    bottom: 20px;
+    z-index: 40;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #ffffff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.3);
+    cursor: pointer;
+}
+.exercise-back-to-code[hidden] { display: none; }
+.exercise-back-to-code:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }

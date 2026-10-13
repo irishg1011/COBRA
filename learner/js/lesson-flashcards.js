@@ -328,6 +328,7 @@
         let stage3d = null;
         let qIndex = 0;
         let streak = 0, bestStreak = 0;
+        let rightResult = null;   // feat/feedback-card: a right answer waiting for the win animation
         let revealedAnswer = null;  // the card's back, revealed after a wrong answer
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
@@ -680,43 +681,37 @@
             setMode("tryagain");
             const lives = server ? server.total_lives : 0;
             const last = !!(server && server.completed);
-            showOverlay(`
-                <div class="fc-overlay-card">
-                    <i class="fa-solid fa-circle-xmark fc-overlay-icon is-danger"></i>
-                    <h4 data-c="taTitle">Not quite</h4>
-                    <p class="fc-tryagain-feedback" data-c="taFeedback"></p>
-                    <div class="fib-console-out is-error" data-c="taError" hidden>
-                        <span class="fib-console-label">Python error</span>
-                        <pre data-c="taErrorText"></pre>
-                    </div>
-                    <div class="fc-reveal" data-c="taReveal" hidden></div>
-                    <p class="fc-subnote">${PREVIEW ? `Preview - no life lost. Card ${qIndex + 1} counts as missed.` : `NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.`}</p>
-                    <div class="fc-overlay-actions">
-                        <p class="game-next-note" data-c="taNote"></p>
-                        <button type="button" class="fc-primary-btn game-next-pulse" data-c="taBtn">${last ? '<i class="fa-solid fa-flag-checkered"></i> See results' : '<i class="fa-solid fa-forward"></i> Next card'}</button>
-                    </div>
-                </div>
-            `);
-            if (title) overlayNode("taTitle").textContent = title;
-            overlayNode("taFeedback").textContent = feedback || "That's not what's on the back of this card.";
-            // A code answer that is not valid Python shows the real SyntaxError.
-            overlayNode("taError").hidden = !syntaxError;
-            overlayNode("taErrorText").textContent = syntaxError || "";
-            fillReveal(overlayNode("taReveal"));
-            overlayNode("taNote").textContent = window.CobraGameKit.nextNoteText(last);
-            const btn = overlayNode("taBtn");
-            btn.addEventListener("click", () => {
-                if (disposed || mode !== "tryagain") return;
-                hideOverlay();
-                fx.glow = "";
-                if (server.completed) {
-                    setMode("busy");
-                    finish();
-                    return;
-                }
-                revealNext();
+            showOverlay("");
+            // feat/feedback-card: the same card as a right answer, but red.
+            const card = window.CobraGameKit.answerCard(ui.overlay, {
+                ok: false,
+                title: title || "Not quite",
+                text: feedback || "That's not what's on the back of this card.",
+                // A code answer that is not valid Python shows the real SyntaxError.
+                consoleOut: syntaxError ? { label: "Python error", text: syntaxError, isError: true } : null,
+                sub: PREVIEW ? `Preview - no life lost. Card ${qIndex + 1} counts as missed.`
+                    : `NullScorpion stung you (−1 life) · ${lives} ${lives === 1 ? "life" : "lives"} left. Card ${qIndex + 1} counts as missed.`,
+                last,
+                nextLabel: last ? "See results" : "Next card",
+                btnClass: "fc-primary-btn",
+                onNext: () => {
+                    if (disposed || mode !== "tryagain") return;
+                    hideOverlay();
+                    fx.glow = "";
+                    if (server.completed) {
+                        setMode("busy");
+                        finish();
+                        return;
+                    }
+                    revealNext();
+                },
             });
-            btn.focus({ preventScroll: true });
+            if (revealedAnswer) {
+                const reveal = el("div", "fc-reveal");
+                card.extra.appendChild(reveal);
+                fillReveal(reveal);
+            }
+            card.btn.focus({ preventScroll: true });
         }
 
         // The next card is revealed (and its clock started) by the server
@@ -940,6 +935,7 @@
             ui.input.value = "";
             autoResizeInput();
             ui.feedback.hidden = true;
+            rightResult = null;
             revealedAnswer = null;
             wrongOnCurrent = false;
             fx.thrown = false;
@@ -956,16 +952,34 @@
             updateControls();
         }
 
+        // feat/feedback-card: a right (or close) answer gets the same centred
+        // card as a wrong one, but green - once the card has landed on the
+        // scorpion (winAnim's end). The panel under the board is not used.
         function showFeedback(result) {
-            ui.feedback.hidden = false;
-            ui.feedback.classList.toggle("is-close", !!result.is_close);
-            ui.fbTitle.textContent = result.is_close ? "Close enough!" : "Correct!";
-            ui.fbText.textContent = result.feedback || "";
-            ui.fbExact.hidden = !result.is_close;
-            ui.fbExact.textContent = result.is_close ? `Exact answer: ${result.answer}` : "";
-            ui.nextBtn.textContent = server.completed ? "See results" : "Next card";
-            // The game waits here - say so (the next timer starts after the 3 - 2 - 1).
-            ui.nextNote.textContent = window.CobraGameKit.nextNoteText(!!server.completed);
+            ui.feedback.hidden = true;
+            rightResult = result;
+        }
+
+        function showRightCard(result) {
+            const last = !!server.completed;
+            showOverlay("");
+            const card = window.CobraGameKit.answerCard(ui.overlay, {
+                ok: true,
+                close: !!result.is_close,
+                title: result.is_close ? "Close enough!" : "Correct!",
+                exact: result.is_close && result.answer ? `Exact answer: ${result.answer}` : "",
+                text: result.feedback || "",
+                streak: window.CobraGameKit.streakLine(streak, bestStreak),
+                last,
+                nextLabel: last ? "See results" : "Next card",
+                btnClass: "fc-primary-btn",
+                onNext: () => {
+                    if (disposed || mode !== "review") return;
+                    hideOverlay();
+                    advance();
+                },
+            });
+            card.btn.focus({ preventScroll: true });
         }
 
         // ---- play flow ----
@@ -1153,7 +1167,11 @@
             }, () => {
                 fx.thrown = true;
                 ui.nextBtn.disabled = false;
-                if (mode === "review") ui.nextBtn.focus({ preventScroll: true });
+                if (mode === "review" && rightResult) {
+                    const result = rightResult;
+                    rightResult = null;
+                    showRightCard(result);
+                }
                 if (fx.foeHP === 0) {
                     playAnim("death", null, () => { fx.defeated = true; });
                 }

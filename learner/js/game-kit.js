@@ -742,6 +742,68 @@
         });
     }
 
+    // feat/feedback-card: ONE answer card for the three games - right
+    // (green, check) and wrong (red, cross) look the same: same size,
+    // spacing and place (centred over the game). Built with textContent only.
+    //   host: the game's overlay element (already shown)
+    //   opts: { ok, close, title, text, exact, consoleOut: {label, text, isError},
+    //           sub, streak, last, nextLabel, btnClass, onNext }
+    // Returns { card, btn, extra } - extra is an empty box for a game's own
+    // bits (e.g. the revealed right answer).
+    function answerCard(host, opts) {
+        opts = opts || {};
+        const kind = opts.ok ? (opts.close ? "is-close" : "is-right") : "is-wrong";
+        host.innerHTML = "";
+        const card = document.createElement("div");
+        card.className = `game-answer-card ${kind}`;
+        card.setAttribute("role", "status");
+        const add = (tag, cls, text) => {
+            const node = document.createElement(tag);
+            node.className = cls;
+            if (text != null) node.textContent = text;
+            card.appendChild(node);
+            return node;
+        };
+        const icon = add("span", "game-answer-icon");
+        icon.innerHTML = `<i class="fa-solid ${opts.ok ? "fa-circle-check" : "fa-circle-xmark"}" aria-hidden="true"></i>`;
+        add("h4", "game-answer-title", opts.title || (opts.ok ? "Correct!" : "Not quite"));
+        if (opts.exact) add("p", "game-answer-exact", opts.exact);
+        if (opts.text) add("p", "game-answer-text", opts.text);
+        if (opts.consoleOut && opts.consoleOut.text != null) {
+            const box = add("div", "game-answer-console" + (opts.consoleOut.isError ? " is-error" : ""));
+            const label = document.createElement("span");
+            label.className = "game-answer-console-label";
+            label.textContent = opts.consoleOut.label || "Output";
+            const pre = document.createElement("pre");
+            pre.textContent = opts.consoleOut.text;
+            box.appendChild(label);
+            box.appendChild(pre);
+        }
+        const extra = add("div", "game-answer-extra");
+        if (opts.sub) add("p", "game-answer-sub", opts.sub);
+        if (opts.streak) {
+            const st = add("p", "game-answer-streak");
+            st.innerHTML = '<i class="fa-solid fa-fire" aria-hidden="true"></i> ';
+            st.appendChild(document.createTextNode(opts.streak));
+        }
+        add("p", "game-next-note", nextNoteText(!!opts.last));
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `${opts.btnClass || "game-ready-btn"} game-next-pulse game-answer-btn`;
+        btn.innerHTML = `<i class="fa-solid ${opts.last ? "fa-flag-checkered" : "fa-forward"}" aria-hidden="true"></i> `;
+        btn.appendChild(document.createTextNode(opts.nextLabel || (opts.last ? "See results" : "Next")));
+        if (opts.onNext) btn.addEventListener("click", opts.onNext);
+        card.appendChild(btn);
+        host.appendChild(card);
+        return { card, btn, extra };
+    }
+
+    // "Streak 3 · best 4" for a right answer (the small line on the card).
+    function streakLine(streak, best) {
+        if (!streak) return "";
+        return best > streak ? `Streak ${streak} · best ${best}` : `Streak ${streak}`;
+    }
+
     window.CobraGameKit = { hearts, livesText, livesHtml, livesLabelHtml, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult, clampText };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult, clampText, answerCard, streakLine };
 })();

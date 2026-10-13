@@ -8,14 +8,13 @@
      - Video: full width, short title, "Show description", sticky Continue
      - Content: the text flows in the page (no inner scroll box), sticky
        Continue bar, the end of the text unlocks it
-     - Exercise: Task / Code / Output tabs
+     - Exercise: one page, Run + Submit in a sticky bottom bar
    Desktop (and anything wider than a phone) is unchanged: the mini-stepper,
-   the description toggle and the exercise tabs are hidden there.
+   the description toggle and the phone Run button are hidden there.
    ========================================================================== */
 
 .lesson-ministep,
 .lesson-video-desc-toggle,
-.exercise-tabs,
 .exercise-run-btn-phone { display: none; }
 
 @media (max-width: 720px), (max-height: 500px) and (pointer: coarse) {
@@ -222,69 +221,14 @@
     .lesson-content-body iframe,
     .lesson-content-body video { max-width: 100%; height: auto; }
 
-    /* ---------- Exercise: Task / Code / Output tabs ---------- */
-    #exerciseStep .lesson-step-eyebrow { display: none; }
-    #exerciseStep .exercise-title { margin-bottom: 8px; font-size: 17px; }
-
-    .exercise-tabs {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-        margin: 0 0 12px;
-        padding: 4px;
-        border-radius: 12px;
-        background: #f1f5f9;
-    }
-    .exercise-tab {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        min-height: 40px;
-        border: 0;
-        border-radius: 9px;
-        background: transparent;
-        color: #475569;
-        font: inherit;
-        font-size: 13.5px;
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .exercise-tab.is-active {
-        background: #ffffff;
-        color: #0f172a;
-        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
-    }
-    .exercise-tab:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 1px; }
-    .exercise-tab-dot {
-        display: none;
-        position: absolute;
-        top: 7px;
-        right: 10px;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #ef4444;
-    }
-    .exercise-tab.has-new .exercise-tab-dot { display: block; }
-
-    /* only the active tab's blocks */
-    #exerciseStep[data-ex-active="task"] [data-ex-tab]:not([data-ex-tab="task"]),
-    #exerciseStep[data-ex-active="code"] [data-ex-tab]:not([data-ex-tab="code"]),
-    #exerciseStep[data-ex-active="output"] [data-ex-tab]:not([data-ex-tab="output"]) {
-        display: none !important;
-    }
-    #exerciseStep[data-ex-active="output"] .exercise-footer { display: none; }
+    /* ---------- Exercise: ONE page (feat/exercise-page) ---------- */
+    #exerciseStep .exercise-title { margin-bottom: 10px; font-size: 17px; }
     #exerciseStep .exercise-editor-grid { display: block; }
+    #exerciseStep .exercise-pane-head .exercise-run-btn { display: none; }   /* Run is in the sticky bar */
+    #exerciseStep .exercise-code-box { min-height: 200px; }
 
-    /* Code: the editor fills the screen; Run + Submit stay at the bottom */
-    #exerciseStep[data-ex-active="code"] .exercise-pane-head .exercise-run-btn { display: none; }
-    #exerciseStep[data-ex-active="code"] .exercise-code-box {
-        min-height: calc(100dvh - 300px);
-        min-height: max(220px, calc(100dvh - 300px));
-    }
-    #exerciseStep[data-ex-active="code"] .exercise-footer {
+    /* Run + Submit: a sticky bottom bar, always reachable */
+    #exerciseStep .exercise-footer {
         position: sticky;
         bottom: 0;
         z-index: 20;
@@ -294,13 +238,13 @@
         border-top: 1px solid #e2e8f0;
         box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.06);
     }
-    #exerciseStep[data-ex-active="code"] .exercise-footer-btns {
+    #exerciseStep .exercise-footer-btns {
         flex-direction: row;
         width: 100%;
     }
-    #exerciseStep[data-ex-active="code"] .exercise-footer-btns > button { flex: 1 1 0; width: auto; }
-    #exerciseStep[data-ex-active="code"] .exercise-run-btn-phone { order: 1; }
-    #exerciseStep[data-ex-active="code"] #exerciseSubmitBtn { order: 2; }
+    #exerciseStep .exercise-footer-btns > button { flex: 1 1 0; width: auto; }
+    #exerciseStep .exercise-run-btn-phone { order: 1; }
+    #exerciseStep #exerciseSubmitBtn { order: 2; }
     .exercise-run-btn-phone {
         display: inline-flex;
         align-items: center;
@@ -310,5 +254,21 @@
         border-radius: 10px;
         font-size: 14px;
     }
-    #exerciseStep[data-ex-active="task"] .exercise-footer-btns { flex-direction: column; }
+    /* Skip / Retake sit in the Task card on phones */
+    .exercise-task-actions:not(:empty) {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .exercise-task-actions .exercise-unlock,
+    .exercise-task-actions .exercise-skip-btn { width: 100%; }
+
+    /* scrolled-to boxes stop above the sticky bar, never under it */
+    #exerciseStep .exercise-pane,
+    #exerciseStep .exercise-result { scroll-margin-bottom: 90px; scroll-margin-top: 60px; }
+    #exerciseStep .exercise-pane:first-child { scroll-margin-top: 56px; }
+
+    /* "Back to code": above the sticky bar */
+    .exercise-back-to-code { bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
