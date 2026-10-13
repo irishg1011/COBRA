@@ -855,9 +855,77 @@
 }
 #exerciseSubmitBtn[hidden] { display: none; }
 
+/* feat/exercise-ui-polish: Skip and Submit the same height, lined up at the
+   top (the Skip countdown sits under Skip). Phone: stacked full width,
+   Submit (the main action) first. */
+.exercise-footer-btns { align-items: flex-start; }
+.exercise-footer-btns .exercise-skip-btn,
+.exercise-footer-btns #exerciseSubmitBtn { min-height: 46px; box-sizing: border-box; }
 @media (max-width: 560px) {
-    .exercise-footer-btns { width: 100%; }
-    .exercise-footer-btns > button { flex: 1 1 0; }
+    .exercise-footer-btns { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; }
+    .exercise-footer-btns > button,
+    .exercise-footer-btns > .exercise-unlock,
+    .exercise-footer-btns .exercise-skip-btn { width: 100%; }
+    .exercise-footer-btns > .exercise-unlock { align-items: stretch; }
+    .exercise-footer-btns #exerciseSubmitBtn { order: -1; }
+}
+
+/* An empty editor shows "# Write your code here" as a real placeholder -
+   nothing to delete before typing. */
+.exercise-code-box:empty::before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    font-style: italic;
+    pointer-events: none;
+}
+
+/* "This is the code you last submitted." + Start over, above the editor. */
+.exercise-restored-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #475569;
+}
+.exercise-restored-note[hidden] { display: none; }
+.exercise-restored-note i { color: #64748b; }
+.exercise-start-over-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font: 600 12.5px/1.4 inherit;
+    font-family: inherit;
+    cursor: pointer;
+}
+.exercise-start-over-btn:hover { background: #f1f5f9; }
+
+/* The last Submit's result once the code has changed: faded and labelled,
+   so it never looks like the result of the new code. */
+.exercise-result.is-stale,
+.exercise-result.pass.is-stale,
+.exercise-result.fail.is-stale {
+    background: #f8fafc;
+    color: #64748b;
+    border-color: #e2e8f0;
+    font-weight: 500;
+}
+.exercise-result-stale-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #475569;
+}
+html.dark-mode .exercise-result.is-stale, body.dark-mode .exercise-result.is-stale, [data-theme="dark"] .exercise-result.is-stale {
+    background: #1e293b; color: #94a3b8; border-color: #334155;
+}
+html.dark-mode .exercise-result-stale-label, body.dark-mode .exercise-result-stale-label, [data-theme="dark"] .exercise-result-stale-label { color: #cbd5e1; }
+html.dark-mode .exercise-start-over-btn, body.dark-mode .exercise-start-over-btn, [data-theme="dark"] .exercise-start-over-btn {
+    background: #1e293b; color: #e2e8f0; border-color: #334155;
 }
 
 /* ===================== Summary step ===================== */

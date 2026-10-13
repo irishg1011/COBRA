@@ -172,10 +172,28 @@
         el.appendChild(text);
         el.appendChild(retryBtn);
         afterEl.insertAdjacentElement("afterend", el);
+        // Only shown while it matters (feat/exercise-ui-polish): loading or
+        // failed stays; "Python ready" shows ~2 s after a load, then fades
+        // away. Already ready when the chip is made: never shown at all.
+        let seenNotReady = false;
+        let hideTimer = null;
         onState((s) => {
+            clearTimeout(hideTimer);
             el.dataset.state = s;
             text.textContent = CHIP_TEXT[s] || "";
             retryBtn.hidden = s !== "error";
+            el.classList.remove("is-fading");
+            if (s !== "ready") {
+                seenNotReady = true;
+                el.hidden = false;
+                return;
+            }
+            el.hidden = !seenNotReady;
+            if (!seenNotReady) return;
+            hideTimer = setTimeout(() => {
+                el.classList.add("is-fading");
+                hideTimer = setTimeout(() => { el.hidden = true; }, 450);
+            }, 2000);
         });
         return el;
     }
@@ -243,6 +261,9 @@
 .cobrapy-chip[data-state="error"]::before { background: #dc2626; }
 .cobrapy-chip-retry { border: 0; border-radius: 999px; padding: 1px 9px; background: #991b1b; color: #fff; font: inherit; cursor: pointer; }
 .cobrapy-chip-retry[hidden] { display: none; }
+.cobrapy-chip { transition: opacity 0.4s ease; }
+.cobrapy-chip.is-fading { opacity: 0; }
+.cobrapy-chip[hidden] { display: none; }
 .cobrapy-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
   border-radius: 50%; vertical-align: -2px; animation: cobrapy-rot 0.8s linear infinite; }
 .cobrapy-stop-btn { margin-left: 6px; }

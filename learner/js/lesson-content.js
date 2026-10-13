@@ -740,6 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
     exerciseRunBtn.addEventListener('click', async () => {
         const code = exerciseCodeBox.innerText.trim();
         if (!code || CobraPy.isRunning()) return;
+        updateResultStale();
         exerciseOutputBox.textContent = CobraPy.isReady() ? "" : CobraPy.messages.STARTING_MESSAGE;
         let stopped = false;
         const done = CobraPy.runningButton(exerciseRunBtn, {
@@ -797,6 +798,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     exerciseCodeBox.addEventListener('input', updateSubmitLock);
     exerciseCodeBox.addEventListener('keyup', updateSubmitLock);
+
+    // feat/exercise-ui-polish: the result box is always the LAST SUBMIT's
+    // result (Run never changes it). Once the code differs from what was
+    // submitted it is faded and labelled, so it never reads as the result
+    // of the new code. Changing the code back un-fades it.
+    let resultCodeKey = null;   // the code the shown result was for (null = no graded result)
+    const STALE_TEXT = 'From your last Submit – press Submit to check your new code.';
+    function updateResultStale() {
+        if (resultCodeKey === null || lessonData.exercise_completed) return;
+        const stale = codeKey(exerciseCodeBox.innerText) !== resultCodeKey;
+        exerciseResultBox.classList.toggle('is-stale', stale);
+        let label = exerciseResultBox.querySelector('.exercise-result-stale-label');
+        if (stale && !label) {
+            label = document.createElement('span');
+            label.className = 'exercise-result-stale-label';
+            label.textContent = STALE_TEXT;
+            exerciseResultBox.prepend(label);
+        } else if (!stale && label) {
+            label.remove();
+        }
+    }
+    exerciseCodeBox.addEventListener('input', updateResultStale);
+    exerciseCodeBox.addEventListener('keyup', updateResultStale);
+
+    // The editor holds the last submitted code (restored on page load):
+    // say so, and let the learner clear it back to the empty placeholder.
+    const exerciseRestoredNote = document.getElementById('exerciseRestoredNote');
+    const exerciseStartOverBtn = document.getElementById('exerciseStartOverBtn');
+    if (exerciseStartOverBtn) {
+        exerciseStartOverBtn.addEventListener('click', () => {
+            exerciseCodeBox.textContent = '';
+            exerciseRestoredNote.hidden = true;
+            updateSubmitLock();
+            updateResultStale();
+            exerciseCodeBox.focus();
+        });
+    }
 
     // feat/exercise-flow-fixes: Hint and Skip show from the start. Until the
     // "try first" rule opens them they are grey, disabled and say how many
@@ -960,7 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.CobraGameKit.notice('Please stay on this page', event.message);
                     return;
                 }
-                exerciseCodeBox.textContent = '# Write your code here\n';
+                exerciseCodeBox.textContent = '';
                 if (window.CobraProceed) {
                     window.CobraProceed.open({
                         icon: 'fa-shuffle', title: 'New exercise', text: event.message,
@@ -1042,6 +1080,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (result.state) exerciseState = result.state;
+            // A graded result belongs to exactly this code (see updateResultStale).
+            resultCodeKey = result.success ? codeKey(code) : null;
+            if (result.success && exerciseRestoredNote) exerciseRestoredNote.hidden = true;
             if (result.locked) {
                 lockExercise();
                 return;
@@ -1076,6 +1117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             exerciseResultBox.style.display = "block";
             exerciseResultBox.className = "exercise-result fail";
             exerciseResultBox.textContent = "Could not check your code. Check your internet connection and try again.";
+            resultCodeKey = null;   // a message, not a graded result
         } finally {
             delete exerciseSubmitBtn.dataset.running;
             unwatch();
@@ -1593,6 +1635,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (lastSub) {
                     if (lastSub.submitted_code) {
                         exerciseCodeBox.textContent = lastSub.submitted_code;
+                        resultCodeKey = codeKey(lastSub.submitted_code);
+                        // Not for a passed (locked) exercise: its code stays as it passed.
+                        if (exerciseRestoredNote) exerciseRestoredNote.hidden = !!data.exercise_completed;
                     }
                     exerciseResultBox.style.display = "block";
                     const passed = lastSub.status === "correct";

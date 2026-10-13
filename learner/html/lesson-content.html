@@ -144,11 +144,16 @@
                 <pre class="exercise-output-box exercise-expected-box" id="exerciseExpectedBox"></pre>
             </div>
 
+            <!-- feat/exercise-ui-polish: the editor holds the last submitted code -->
+            <p class="exercise-restored-note" id="exerciseRestoredNote" hidden>
+                <span><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> This is the code you last submitted.</span>
+                <button type="button" class="exercise-start-over-btn" id="exerciseStartOverBtn">Start over</button>
+            </p>
+
             <div class="exercise-editor-grid">
                 <div class="exercise-pane">
                     <div class="exercise-pane-head">Your Code <button type="button" class="exercise-run-btn" id="exerciseRunBtn">Run</button></div>
-                    <pre class="exercise-code-box" id="exerciseCodeBox" contenteditable="true" spellcheck="false"># Write your code here
-</pre>
+                    <pre class="exercise-code-box" id="exerciseCodeBox" contenteditable="true" spellcheck="false" data-placeholder="# Write your code here"></pre>
                 </div>
                 <div class="exercise-pane">
                     <div class="exercise-pane-head">Output</div>
