@@ -411,3 +411,39 @@ html.game-leave-check .fc-root {
     .game-result-icon { width: 54px; height: 54px; font-size: 25px; }
     .game-result-title { font-size: 1.2rem; }
 }
+
+/* ============================================================
+   feat/mobile-lesson-flow - phones
+   ============================================================ */
+/* A long question shows its first lines + "Show more"; opened, it
+   scrolls inside its own box, so the game still fits the screen. */
+.game-more-btn { display: none; }
+@media (max-width: 720px), (max-height: 500px) and (pointer: coarse) {
+    .game-clamp {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .game-clamp.is-open {
+        display: block;
+        -webkit-line-clamp: unset;
+        max-height: 34dvh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    .game-more-btn {
+        display: inline-flex;
+        align-self: flex-start;
+        margin: 2px 0 4px;
+        padding: 2px 0;
+        border: 0;
+        background: none;
+        color: #0369a1;
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .game-more-btn[hidden] { display: none; }
+}

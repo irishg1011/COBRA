@@ -934,6 +934,7 @@
             // feat/game-countdown: nothing of a card exists before its clock starts.
             if (card.hidden) ui.front.textContent = "The card appears after the 3 - 2 - 1 countdown.";
             else fcRenderCard(ui.front, card.front_text);
+            if (window.CobraGameKit.clampText) window.CobraGameKit.clampText(ui.front);   // phones: "Show more"
             ui.hint.textContent = card.hint ? `Hint: ${card.hint}` : "";   // feat/hints-feedback
             ui.hint.hidden = !card.hint;
             ui.input.value = "";

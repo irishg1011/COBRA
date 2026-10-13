@@ -105,17 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDone) {
                 node.style.cursor = "pointer";
                 node.title = `Review ${s.label}`;
-                node.addEventListener('click', () => {
-                    // A game question's timer is running: looking at the lesson
-                    // now would be answering with the book open - finish first.
-                    const risk = window.CobraGameKit && window.CobraGameKit.leaveRisk();
-                    if (risk && risk.kind === "game") {
-                        window.CobraGameKit.notice("Finish this question first",
-                            "Its timer is running. Answer or skip it - then you can review the lesson.");
-                        return;
-                    }
-                    goToStep(s.key);
-                });
+                node.addEventListener('click', () => jumpToDoneStep(s.key));
             }
             lessonStepper.appendChild(node);
             if (i < stepOrder.length - 1) {
@@ -124,6 +114,263 @@ document.addEventListener('DOMContentLoaded', () => {
                 lessonStepper.appendChild(line);
             }
         });
+        renderMiniStepper(currentIndex);
+    }
+
+    // A finished step was tapped (big stepper or the phone mini-stepper).
+    function jumpToDoneStep(key) {
+        // A game question's timer is running: looking at the lesson
+        // now would be answering with the book open - finish first.
+        const risk = window.CobraGameKit && window.CobraGameKit.leaveRisk();
+        if (risk && risk.kind === "game") {
+            window.CobraGameKit.notice("Finish this question first",
+                "Its timer is running. Answer or skip it - then you can review the lesson.");
+            return;
+        }
+        goToStep(key);
+    }
+
+    // ---------------- feat/mobile-lesson-flow: phones ----------------
+    // Phones (<= 720px wide, or a touch screen <= 500px tall = a phone on
+    // its side) never fight the page: one slim sticky mini-stepper, a site
+    // header that slides away while scrolling down, the lesson text in the
+    // page itself (no box scrolling inside the scrolling page), sticky
+    // Continue bars and the exercise in three tabs. Desktop is unchanged.
+    // The CSS uses the same media query (learner/css/lesson-mobile.css).
+    const PHONE_QUERY = window.matchMedia
+        ? window.matchMedia("(max-width: 720px), (max-height: 500px) and (pointer: coarse)") : null;
+    function isPhoneLayout() {
+        return !!(PHONE_QUERY && PHONE_QUERY.matches);
+    }
+
+    // Mini-stepper: small dots + "Step 2 of 4 · Content" + the reading bar.
+    const miniStepper = document.createElement('div');
+    miniStepper.className = "lesson-ministep";
+    miniStepper.hidden = true;
+    miniStepper.innerHTML = `
+        <div class="lesson-ministep-row">
+            <div class="lesson-ministep-dots" role="list"></div>
+            <span class="lesson-ministep-label" aria-live="polite"></span>
+        </div>
+        <div class="lesson-readbar" hidden><span class="lesson-readbar-fill"></span></div>`;
+    if (lessonStepper) lessonStepper.after(miniStepper);
+    const miniDots = miniStepper.querySelector('.lesson-ministep-dots');
+    const miniLabel = miniStepper.querySelector('.lesson-ministep-label');
+    const readBar = miniStepper.querySelector('.lesson-readbar');
+    const readBarFill = miniStepper.querySelector('.lesson-readbar-fill');
+    let currentStepKey = null;
+
+    function renderMiniStepper(currentIndex) {
+        if (!stepOrder.length || currentIndex < 0) {
+            miniStepper.hidden = true;
+            return;
+        }
+        miniStepper.hidden = false;
+        miniDots.innerHTML = "";
+        stepOrder.forEach((s, i) => {
+            const isDone = i < currentIndex;
+            const dot = document.createElement(isDone ? 'button' : 'span');
+            dot.className = "lesson-ministep-dot" + (isDone ? " done" : i === currentIndex ? " current" : "");
+            dot.setAttribute('role', 'listitem');
+            if (isDone) {
+                dot.type = "button";
+                dot.title = `Review ${s.label}`;
+                dot.setAttribute('aria-label', `Step ${i + 1}: ${s.label} (done) - review it`);
+                dot.addEventListener('click', () => jumpToDoneStep(s.key));
+            } else {
+                dot.setAttribute('aria-label', `Step ${i + 1}: ${s.label}${i === currentIndex ? " (now)" : ""}`);
+            }
+            miniDots.appendChild(dot);
+        });
+        const cur = stepOrder[currentIndex];
+        miniLabel.textContent = `Step ${currentIndex + 1} of ${stepOrder.length} · ${cur.label}`;
+        currentStepKey = cur.key;
+        updateReadBar();
+    }
+
+    // The site header slides away while scrolling down and comes back when
+    // scrolling up (phones, sticky header only); the mini-stepper sits right
+    // under it - or at the very top while it is away.
+    const siteHeader = document.querySelector('.learner-header');
+    let lastScrollY = window.scrollY;
+    let scrollTicking = false;
+    function syncHeaderAndStepper() {
+        scrollTicking = false;
+        const root = document.documentElement;
+        const y = window.scrollY;
+        const sticky = !!siteHeader && getComputedStyle(siteHeader).position === "sticky";
+        let hidden = root.classList.contains('lesson-header-hidden');
+        const menuOpen = !!(siteHeader && siteHeader.querySelector('[aria-expanded="true"]'));
+        if (!isPhoneLayout() || !sticky || y < 40 || menuOpen) hidden = false;
+        else if (y > lastScrollY + 6) hidden = true;
+        else if (y < lastScrollY - 6) hidden = false;
+        if (Math.abs(y - lastScrollY) > 6 || hidden === false) lastScrollY = y;
+        root.classList.toggle('lesson-header-hidden', hidden);
+        const top = sticky && !hidden && isPhoneLayout() ? siteHeader.offsetHeight : 0;
+        root.style.setProperty('--lesson-header-h', `${top}px`);
+        updateReadBar();
+    }
+    window.addEventListener('scroll', () => {
+        if (scrollTicking) return;
+        scrollTicking = true;
+        requestAnimationFrame(syncHeaderAndStepper);
+    }, { passive: true });
+    window.addEventListener('resize', syncHeaderAndStepper);
+
+    // Reading bar (Content step, phones): how far down the lesson text
+    // the bottom of the screen has got.
+    function updateReadBar() {
+        const show = isPhoneLayout() && currentStepKey === "content" && contentStep.style.display !== "none";
+        readBar.hidden = !show;
+        if (!show) return;
+        const box = lessonContentScroll.getBoundingClientRect();
+        const seen = window.innerHeight - box.top;
+        const pct = box.height > 0 ? Math.max(0, Math.min(1, seen / box.height)) : 1;
+        readBarFill.style.width = `${Math.round((contentUnlocked ? 1 : pct) * 100)}%`;
+    }
+
+    // Content: "read to the end" on a phone = the end marker after the
+    // lesson text comes into view above the sticky Continue bar.
+    const contentEnd = document.createElement('div');
+    contentEnd.className = "lesson-content-end";
+    contentEnd.setAttribute('aria-hidden', 'true');
+    lessonContentScroll.appendChild(contentEnd);
+    if ('IntersectionObserver' in window) {
+        new IntersectionObserver((entries) => {
+            if (!isPhoneLayout() || contentStep.style.display === "none") return;
+            if (entries.some((e) => e.isIntersecting)) unlockContentContinue();
+        }, { rootMargin: "0px 0px -72px 0px" }).observe(contentEnd);
+    }
+
+    // Phones: while a step is locked its sticky Continue button itself is
+    // grey and says what to do ("Read to the end to continue"); unlocked it
+    // turns green with its normal label. Desktop keeps the lock line + label.
+    function syncPhoneTexts() {
+        updateContinueLabels();
+        const phone = isPhoneLayout();
+        if (phone && !contentUnlocked) {
+            contentContinueBtn.innerHTML = '<i class="fa-solid fa-lock" aria-hidden="true"></i> Read to the end to continue';
+        }
+        if (phone && !videoUnlocked) {
+            videoContinueBtn.innerHTML = '<i class="fa-solid fa-lock" aria-hidden="true"></i> Watch the video to continue';
+        }
+        contentContinueBtn.classList.toggle('is-locked-label', phone && !contentUnlocked);
+        videoContinueBtn.classList.toggle('is-locked-label', phone && !videoUnlocked);
+    }
+
+    // Video: the description folds away behind "Show description" (phones).
+    const videoDescToggle = document.createElement('button');
+    videoDescToggle.type = "button";
+    videoDescToggle.className = "lesson-video-desc-toggle";
+    videoDescToggle.innerHTML = '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> <span>Show description</span>';
+    videoDescToggle.setAttribute('aria-expanded', 'false');
+    videoDescToggle.hidden = true;
+    if (lessonVideoDescription) {
+        lessonVideoDescription.before(videoDescToggle);
+        videoDescToggle.addEventListener('click', () => {
+            const open = !lessonVideoDescription.classList.contains('is-open');
+            lessonVideoDescription.classList.toggle('is-open', open);
+            videoDescToggle.setAttribute('aria-expanded', String(open));
+            videoDescToggle.querySelector('span').textContent = open ? "Hide description" : "Show description";
+            videoDescToggle.querySelector('i').className = `fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"}`;
+        });
+    }
+
+    // Exercise on a phone: three tabs instead of one long page.
+    //   Task   - situation, problem, hint, "you must use", expected output, Skip
+    //   Code   - the editor filling the screen, Run + Submit at the bottom
+    //   Output - run output, the Submit result / feedback, View Summary
+    // Nothing moves: each block is only tagged (data-ex-tab) and the CSS
+    // shows the active tab's blocks, so every id, lock, hint, skip and the
+    // leave detection work exactly as before. Desktop shows everything.
+    const exTabs = (function setupExerciseTabs() {
+        if (!exerciseStep) return null;
+        const tag = (node, tab) => { if (node) node.dataset.exTab = tab; };
+        tag(exerciseStep.querySelector('.exercise-prompt'), "task");
+        tag(exerciseRequiredRow, "task");
+        tag(exerciseStep.querySelector('.exercise-expected'), "task");
+        tag(exerciseSkippedNote, "task");
+        tag(exerciseSkipWrap, "task");
+        tag(document.getElementById('exerciseRetakeBtn'), "task");
+        tag(document.getElementById('exerciseRestoredNote'), "code");
+        tag(exerciseCodeBox.closest('.exercise-pane'), "code");
+        tag(exerciseSubmitNote, "code");
+        tag(exerciseSubmitBtn, "code");
+        tag(exerciseOutputBox.closest('.exercise-pane'), "output");
+        tag(exerciseResultBox, "output");
+        tag(exerciseCompleteRow, "output");
+
+        // Run sits next to Submit at the bottom on phones (it presses the real Run).
+        const phoneRun = document.createElement('button');
+        phoneRun.type = "button";
+        phoneRun.className = "exercise-run-btn exercise-run-btn-phone";
+        phoneRun.dataset.exTab = "code";
+        phoneRun.innerHTML = '<i class="fa-solid fa-play" aria-hidden="true"></i> Run';
+        phoneRun.addEventListener('click', () => exerciseRunBtn.click());
+        exerciseSubmitBtn.before(phoneRun);
+
+        const bar = document.createElement('div');
+        bar.className = "exercise-tabs";
+        bar.setAttribute('role', 'tablist');
+        bar.setAttribute('aria-label', 'Exercise');
+        const TABS = [["task", "Task", "fa-clipboard-list"], ["code", "Code", "fa-code"], ["output", "Output", "fa-terminal"]];
+        const buttons = {};
+        TABS.forEach(([key, label, icon]) => {
+            const b = document.createElement('button');
+            b.type = "button";
+            b.className = "exercise-tab";
+            b.dataset.tab = key;
+            b.setAttribute('role', 'tab');
+            b.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i> ${label}<span class="exercise-tab-dot" aria-hidden="true"></span>`;
+            b.addEventListener('click', () => show(key, true));
+            buttons[key] = b;
+            bar.appendChild(b);
+        });
+        (exerciseTitle || exerciseStep.firstElementChild).after(bar);
+
+        let active = "task";
+        function show(key, scroll) {
+            active = key;
+            exerciseStep.dataset.exActive = key;
+            Object.entries(buttons).forEach(([k, b]) => {
+                b.classList.toggle('is-active', k === key);
+                b.setAttribute('aria-selected', k === key ? 'true' : 'false');
+                if (k === key) b.classList.remove('has-new');
+            });
+            if (scroll && isPhoneLayout()) {
+                const y = bar.getBoundingClientRect().top + window.scrollY - (miniStepper.offsetHeight || 0) - 8;
+                if (window.scrollY > y) window.scrollTo({ top: Math.max(0, y) });
+            }
+        }
+        show("task", false);
+
+        // A dot on a tab that got something new while another tab was open.
+        function watch(tab, nodes) {
+            const obs = new MutationObserver(() => {
+                if (active !== tab && isPhoneLayout()) buttons[tab].classList.add('has-new');
+            });
+            nodes.filter(Boolean).forEach((n) => obs.observe(n, {
+                childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["style", "hidden"],
+            }));
+        }
+        watch("output", [exerciseOutputBox, exerciseResultBox, exerciseCompleteRow]);
+        watch("task", [exerciseClueRow, exerciseHintWrap, exerciseSkipWrap, exerciseSkippedNote]);
+
+        // After Run or Submit: straight to the Output tab.
+        [exerciseRunBtn, exerciseSubmitBtn].forEach((btn) => btn.addEventListener('click', () => {
+            if (isPhoneLayout() && !btn.disabled) show("output", true);
+        }));
+        return { show };
+    })();
+
+    if (PHONE_QUERY) {
+        const onLayoutChange = () => {
+            syncPhoneTexts();
+            syncHeaderAndStepper();
+            if (!isPhoneLayout()) requestAnimationFrame(checkContentFits);
+        };
+        if (PHONE_QUERY.addEventListener) PHONE_QUERY.addEventListener('change', onLayoutChange);
+        else if (PHONE_QUERY.addListener) PHONE_QUERY.addListener(onLayoutChange);
     }
 
     let resumeNoteStep = null;   // the note only belongs to the step it was shown on
@@ -145,6 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exerciseStep.style.display = key === "exercise" ? "block" : "none";
         summaryStep.style.display = key === "summary" ? "block" : "none";
         renderStepper(key);
+        syncPhoneTexts();
         if (PREVIEW) PREVIEW.onStep(key);
         else reportWhere(key);
         if (key === "summary") loadSummary();
@@ -181,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lessonVideoDescription) {
             lessonVideoDescription.innerHTML = video.description || "";
             lessonVideoDescription.hidden = !(video.description || "").trim();
+            videoDescToggle.hidden = lessonVideoDescription.hidden;   // phones only (lesson-mobile.css)
         }
         const playerDiv = document.createElement('div');
         playerDiv.id = "ytPlayerTarget";
@@ -231,6 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ytPollTimer) clearInterval(ytPollTimer);
         videoContinueBtn.disabled = false;
         videoLockedNote.style.display = "none";
+        syncPhoneTexts();
         if (PREVIEW) return;   // admin preview: nothing saved
         try {
             await fetch(`${API_BASE_URL}/api/lesson-content/mark-video-watched`, {
@@ -256,6 +506,8 @@ document.addEventListener('DOMContentLoaded', () => {
         contentUnlocked = true;
         contentContinueBtn.disabled = false;
         contentLockedNote.style.display = "none";
+        if (typeof updateReadBar === "function") updateReadBar();
+        syncPhoneTexts();
         if (PREVIEW) return;   // admin preview: nothing saved
         try {
             await fetch(`${API_BASE_URL}/api/lesson-content/mark-content-read`, {
@@ -283,6 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // measures 0x0, so only check while the content box is on screen.
     function checkContentFits() {
         if (contentUnlocked) return;
+        if (isPhoneLayout()) return;   // phones: no box - the end marker in the page decides (see below)
         const el = lessonContentScroll;
         if (!el || el.offsetParent === null || el.clientHeight === 0) return;
         const scrollable = el.scrollHeight - el.clientHeight;
@@ -1754,6 +2007,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // learner navigates back to them (no gate re-imposed).
             if (progress.video_watched) { videoUnlocked = true; videoContinueBtn.disabled = false; videoLockedNote.style.display = "none"; }
             if (progress.content_read) { contentUnlocked = true; contentContinueBtn.disabled = false; contentLockedNote.style.display = "none"; }
+            syncPhoneTexts();   // feat/mobile-lesson-flow: the button labels follow the locks
 
         } catch (err) {
             console.error('Error loading lesson:', err);

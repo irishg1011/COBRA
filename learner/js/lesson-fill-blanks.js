@@ -664,6 +664,7 @@
             ui.modeChip.textContent = isTyping() ? "Type the answer" : "Pick a tile";
             ui.instruction.textContent = item.instruction || "";
             ui.instruction.hidden = !item.instruction;
+            if (window.CobraGameKit.clampText) window.CobraGameKit.clampText(ui.instruction);   // phones: "Show more"
             // feat/fib-console + feat/hints-feedback: hint and expected output
             // show while answering; the console shows the real run afterwards.
             ui.hint.textContent = item.hint ? `Hint: ${item.hint}` : "";

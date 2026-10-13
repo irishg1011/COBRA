@@ -917,3 +917,23 @@ html.fc-focus-lock body {
         min-height: max(170px, 34dvh);
     }
 }
+
+/* feat/mobile-lesson-flow: a phone on its side - the stats and the small
+   full-screen icon stay on ONE row, the short lives form, and long code
+   lines wrap instead of running off the board. */
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+    .fc-root.is-focus .fc-stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+        gap: 4px;
+    }
+    .fc-root.is-focus .fc-stat { padding: 3px 2px; }
+    .fc-root.is-focus .fc-stat b { font-size: 13px; }
+    .fc-root.is-focus .fc-stat i { font-size: 8.5px; }
+    .fc-root.is-focus .game-lives-long { display: none; }
+    .fc-root.is-focus .game-lives-short { display: inline; }
+    .fc-root.is-focus .game-fs-btn { width: 32px; min-height: 0; }
+    .fc-root.is-focus .fc-stage-hint { display: none; }
+    .fc-root.is-focus .fc-code { overflow-x: visible; font-size: 12.5px; }
+    .fc-root.is-focus .fc-code-row { min-width: 0; }
+    .fc-root.is-focus .fc-code-line { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+}

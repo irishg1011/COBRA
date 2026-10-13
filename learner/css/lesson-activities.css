@@ -1089,3 +1089,104 @@ html.mcq-focus-lock body {
 .mcq-arena-root[data-mode="outoflives"] .game-fs-btn,
 .mcq-arena-root[data-mode="done"] .game-fs-btn,
 .mcq-arena-root[data-mode="error"] .game-fs-btn { display: none; }
+
+/* ============================================================
+   feat/mobile-lesson-flow - the cobra waits for the FIRST arrow
+   ============================================================ */
+.mcq-arena-starthint {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px 9px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1.5px solid #fbbf24;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.25);
+    color: #78350f;
+    font-size: 13.5px;
+    font-weight: 600;
+    animation: arenaHintIn 0.3s ease-out;
+}
+.mcq-arena-starthint[hidden] { display: none; }
+.mcq-arena-starthint p { flex: 1 1 auto; margin: 0; line-height: 1.35; }
+.mcq-arena-starthint .fa-hand-pointer { color: #f59e0b; margin-right: 2px; }
+.mcq-arena-starthint .mcq-arena-ghost-btn { flex: 0 0 auto; white-space: nowrap; }
+
+@keyframes arenaHintIn {
+    from { transform: translateY(12px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+/* the arrows glow until the first one is pressed */
+.mcq-arena-root.is-awaiting-arrow .mcq-arena-dpad button {
+    border-color: #f59e0b;
+    color: #b45309;
+    animation: arenaArrowGlow 1.2s ease-in-out infinite;
+}
+@keyframes arenaArrowGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); }
+    50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+}
+
+@media (max-width: 720px) {
+    .mcq-arena-starthint { left: 6px; right: 6px; bottom: 6px; padding: 7px 8px 7px 10px; font-size: 12.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mcq-arena-starthint,
+    .mcq-arena-root.is-awaiting-arrow .mcq-arena-dpad button { animation: none; }
+}
+
+/* feat/mobile-lesson-flow: a phone on its side - the arena on the left, and
+   on the right the stats, the question, the buttons and the d-pad ALWAYS fit
+   the screen: only the question box scrolls inside itself when it is long. */
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+    .mcq-arena-root.is-focus {
+        height: 100vh;
+        height: 100dvh;
+        grid-template-rows: max-content minmax(0, 1fr) max-content max-content;
+        grid-template-areas:
+            "stage top"
+            "stage q"
+            "stage tools"
+            "stage pad";
+        overflow: hidden;
+    }
+    .mcq-arena-root.is-focus .mcq-arena-stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+        gap: 4px;
+    }
+    .mcq-arena-root.is-focus .mcq-arena-stat { padding: 3px 2px; }
+    .mcq-arena-root.is-focus .mcq-arena-stat b { font-size: 13px; }
+    .mcq-arena-root.is-focus .mcq-arena-stat i { font-size: 8.5px; }
+    .mcq-arena-root.is-focus .game-lives-long { display: none; }
+    .mcq-arena-root.is-focus .game-lives-short { display: inline; }
+    .mcq-arena-root.is-focus .game-fs-btn { width: 32px; }
+    .mcq-arena-root.is-focus .mcq-arena-qcard {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 6px 8px;
+    }
+    .mcq-arena-root.is-focus .mcq-arena-qtext { font-size: 13px; line-height: 1.3; }
+    .mcq-arena-root.is-focus .mcq-arena-choice,
+    .mcq-arena-root.is-focus .mcq-arena-choice:last-child:nth-child(3n + 1) {
+        flex-basis: 100%;
+        padding: 4px 8px;
+        font-size: 12px;
+        line-height: 1.25;
+    }
+    .mcq-arena-root.is-focus .mcq-arena-key { width: 20px; height: 20px; font-size: 11px; }
+    .mcq-arena-root.is-focus .mcq-arena-toolbar .mcq-arena-ghost-btn { padding: 5px 10px; font-size: 12px; }
+    .mcq-arena-root.is-focus .mcq-arena-dpad {
+        grid-template-columns: repeat(3, 50px);
+        grid-template-rows: repeat(2, 34px);
+        gap: 4px;
+    }
+    .mcq-arena-root.is-focus .mcq-arena-starthint { font-size: 12px; padding: 6px 8px; }
+}

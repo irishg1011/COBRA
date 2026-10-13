@@ -128,7 +128,8 @@
     const ARENA_PHONE_STEP_MS = 190;
     const ARENA_GRID = { wide: [40, 15], narrow: [20, 22], phone: [14, 16] };
     // Answer pellets: at least this many cells apart (in any direction),
-    // and never this close straight ahead of the snake's start.
+    // and never this close straight out of the snake's head (any direction -
+    // the first arrow decides where it goes).
     const PELLET_GAP = 4;
 
     function arenaColor(letter) {
@@ -213,6 +214,10 @@
             <div class="activity-feedback-box" data-ui="fallbackFeedback" hidden></div>
             <div class="mcq-arena-stage" data-ui="arena">
                 <canvas class="mcq-arena-canvas" data-ui="canvas"></canvas>
+                <div class="mcq-arena-starthint" data-ui="startHint" hidden>
+                    <p><i class="fa-solid fa-hand-pointer" aria-hidden="true"></i> <span data-ui="startHintText"></span></p>
+                    <button type="button" class="mcq-arena-ghost-btn" data-ui="hintSkipBtn" aria-label="${PREVIEW ? "Skip this question" : "Skip this question, costs 1 life"}"><i class="fa-solid fa-forward"></i> ${PREVIEW ? "Skip" : '<span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span>'}</button>
+                </div>
                 <div class="mcq-arena-flash" data-ui="flash"></div>
                 <div class="mcq-arena-overlay" data-ui="overlay" hidden></div>
             </div>
@@ -255,6 +260,7 @@
         let firstOpen = true;
         let counting = false;       // a 3 - 2 - 1 is running
         let cardTimer = null;       // the timer bar on the question card
+        let awaitingFirstArrow = false;   // feat/mobile-lesson-flow: the cobra waits for the first arrow
         let held = false;           // Pause froze the question's clock on the server
         let holdChain = Promise.resolve();   // pause / resume requests go out in order
         // Before the play exists (a new learner, before Start) there is no
@@ -271,6 +277,7 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            if (awaitingFirstArrow || !ui.startHint.hidden) hideStartHint();   // showQuestionCard turns it back on
             whereNow();
             root.classList.toggle("is-held", next === "paused");   // the question hides while paused
             if (timer && (next === "done" || next === "error" || next === "outoflives")) timer.hide();
@@ -434,10 +441,13 @@
             showLeaveEvents();   // the first open after a refresh counts an unclosed leave
         }
 
-        // The question card: the question and its choices, shown right after
-        // the 3 - 2 - 1 - its clock is ALREADY running, and the card says so
-        // and shows it. Play moves the cobra. (Tap-to-answer mode: no card,
-        // the choices on the page are the answers.)
+        // feat/mobile-lesson-flow: after the 3 - 2 - 1 the question and its
+        // choices are in the question box above the board (its clock is
+        // ALREADY running) and the cobra waits, still. A strip on the board
+        // says so, the arrows glow, and the FIRST arrow (d-pad, swipe or
+        // arrow key) starts the cobra in that direction. No Play button;
+        // Skip stays on the strip. (Tap-to-answer mode: no strip, the
+        // choices on the page are the answers.)
         function showQuestionCard(note) {
             if (fallback) {
                 go();
@@ -445,53 +455,38 @@
                 return;
             }
             setMode("ready");
-            const q = questions[qIndex] || NOT_YET;
-            showOverlay(`
-                <div class="mcq-arena-overlay-card mcq-arena-preview">
-                    <div class="mcq-arena-timer-started" data-ui="cardStarted"></div>
-                    <div data-ui="cardTimer"></div>
-                    <div class="mcq-arena-qmeta" data-ui="previewMeta"></div>
-                    <h4 class="mcq-arena-preview-question" data-ui="previewQuestion"></h4>
-                    <div class="mcq-arena-preview-choices" data-ui="previewChoices"></div>
-                    <p class="mcq-arena-preview-above"><i class="fa-solid fa-arrow-up"></i> Read the question and choices above, then press Play.</p>
-                    <p class="mcq-arena-subnote" data-ui="cardNote"></p>
-                    <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-ghost-btn" data-ui="previewSkipBtn" aria-label="${PREVIEW ? "Skip this question" : "Skip this question, costs 1 life"}"><i class="fa-solid fa-forward"></i> ${PREVIEW ? "Skip" : '<span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span>'}</button>
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="previewBtn"><i class="fa-solid fa-play"></i> Play</button>
-                    </div>
-                </div>
-            `);
-            overlayNode("cardStarted").innerHTML = PREVIEW
-                ? '<i class="fa-solid fa-eye"></i> Preview - no timer'
-                : '<i class="fa-solid fa-stopwatch"></i> Your timer has started!';
-            if (!PREVIEW && server && server.timer && window.CobraGameKit) {
-                cardTimer = window.CobraGameKit.timerBar(overlayNode("cardTimer"), "is-card");
-                cardTimer.sync(server.timer, server.current_q_id);
+            awaitingFirstArrow = true;
+            hideOverlay();
+            ui.startHint.hidden = false;
+            ui.startHintText.textContent = note
+                ? note
+                : PREVIEW ? "Preview - tap an arrow (or swipe / press an arrow key) to start."
+                : "Your timer is running - tap an arrow (or swipe / press an arrow key) to start.";
+            root.classList.add("is-awaiting-arrow");
+        }
+
+        function hideStartHint() {
+            awaitingFirstArrow = false;
+            ui.startHint.hidden = true;
+            root.classList.remove("is-awaiting-arrow");
+        }
+
+        // The first arrow: the cobra starts that way. Going back the way it
+        // faces would bite its own neck, so then it simply turns around
+        // (the body is reversed) before the first step.
+        function startOnArrow(name) {
+            const d = ARENA_DIRS[name];
+            if (!d || disposed || mode !== "ready" || !awaitingFirstArrow) return false;
+            if (d.x === -dir.x && d.y === -dir.y) {
+                snake.reverse();
+                prevSnake = snake.map((p) => ({ ...p }));
             }
-            overlayNode("previewMeta").textContent = `Question ${qIndex + 1} of ${total}`;
-            overlayNode("previewQuestion").textContent = q.question_text;
-            const list = overlayNode("previewChoices");
-            (q.options || []).forEach((opt) => {
-                const row = el("div", "mcq-arena-preview-choice");
-                const badge = el("span", "mcq-arena-key " + letterClass(opt.option_letter));
-                badge.textContent = opt.option_letter;
-                const text = el("span", "mcq-arena-choice-text");
-                text.textContent = opt.text;
-                row.appendChild(badge);
-                row.appendChild(text);
-                list.appendChild(row);
-            });
-            overlayNode("cardNote").textContent = note
-                || "Read the question, then press Play (or Enter) to move the cobra into the right letter.";
-            overlayNode("cardNote").classList.toggle("is-default", !note);   // phones hide the default line
-            const btn = overlayNode("previewBtn");
-            btn.addEventListener("click", () => {
-                if (disposed || mode !== "ready") return;
-                enterFocusIfPhone();
-                go();
-            });
-            overlayNode("previewSkipBtn").addEventListener("click", skipCurrent);
-            btn.focus({ preventScroll: true });
+            dir = d;
+            nextDir = d;
+            hideStartHint();
+            enterFocusIfPhone();
+            go();
+            return true;
         }
 
         // Pause freezes the question's clock on the server (game/pause) and
@@ -653,7 +648,8 @@
         // logs it as 'skipped' and the next one comes after a 3 - 2 - 1.
         async function skipCurrent() {
             if (disposed || !["playing", "paused", "ready"].includes(mode) || counting) return;
-            if (mode === "ready" && !overlayNode("previewSkipBtn")) return;   // only from the question card
+            if (mode === "ready" && !awaitingFirstArrow) return;   // only while the question waits for the first arrow
+            hideStartHint();
             held = false;   // a skip ends the question, paused or not
             setMode("busy");
             hideOverlay();
@@ -782,6 +778,7 @@
             // feat/game-countdown: a question is only sent (and its clock
             // started) after the 3 - 2 - 1, so before that there is nothing to show.
             ui.qtext.textContent = q.hidden ? "The question appears after the 3 - 2 - 1 countdown." : q.question_text;
+            if (window.CobraGameKit.clampText) window.CobraGameKit.clampText(ui.qtext);   // phones: "Show more"
             ui.choices.innerHTML = "";
             // A long choice wraps into a tall box in half a phone's width -
             // then the choices go one per row (lesson-activities.css).
@@ -826,7 +823,10 @@
             pellets = [];
             const head = snake[0] || { x: Math.min(6, COLS - 4), y: Math.floor(ROWS / 2) };
             const taken = new Set(snake.map((p) => p.x + "," + p.y));
-            const ahead = (x, y) => y === head.y && x > head.x && x <= head.x + PELLET_GAP;
+            // feat/mobile-lesson-flow: the first arrow may point any way, so
+            // the 4 cells straight out of the head in EVERY direction stay clear
+            const ahead = (x, y) => (y === head.y && x !== head.x && Math.abs(x - head.x) <= PELLET_GAP)
+                || (x === head.x && y !== head.y && Math.abs(y - head.y) <= PELLET_GAP);
             const near = (x, y, gap) => pellets.some((p) => Math.max(Math.abs(p.x - x), Math.abs(p.y - y)) < gap);
             (q.options || []).forEach((opt) => {
                 let spot = null;
@@ -854,7 +854,8 @@
             if (!head) return;
             const body = new Set(snake.map((p) => p.x + "," + p.y));
             const blocked = (p) => body.has(p.x + "," + p.y)
-                || (p.y === head.y && p.x > head.x && p.x <= head.x + PELLET_GAP);
+                || (p.y === head.y && Math.abs(p.x - head.x) <= PELLET_GAP)
+                || (p.x === head.x && Math.abs(p.y - head.y) <= PELLET_GAP);
             pellets.forEach((p) => {
                 if (!blocked(p)) return;
                 const others = pellets.filter((o) => o !== p);
@@ -1121,6 +1122,7 @@
 
         function steer(name) {
             if (fallback) return false;
+            if (mode === "ready" && awaitingFirstArrow) return startOnArrow(name);
             if (mode === "playing") {
                 setDir(name);
                 return true;
@@ -1274,7 +1276,7 @@
             }
             if (e.code === "Enter" && target && target.tagName === "BUTTON") return; // let the focused button handle it
             if (e.code === "Enter" && mode === "ready") {
-                const startBtn = overlayNode("previewBtn") || root.querySelector(".game-ready-btn");
+                const startBtn = root.querySelector(".game-ready-cover .game-ready-btn");
                 if (startBtn) {
                     e.preventDefault();
                     startBtn.click();
@@ -1400,6 +1402,8 @@
             if (!on) root.scrollIntoView({ block: "start" });
         });
 
+        ui.hintSkipBtn.addEventListener("click", skipCurrent);
+
         ui.dpad.querySelectorAll("button[data-dir]").forEach((btn) => {
             btn.addEventListener("click", () => steer(btn.dataset.dir));
         });
@@ -1505,7 +1509,7 @@
                 if (await openPlay()) {
                     showLeaveEvents();   // a tab closed mid-question counts as leaving
                     if (server.current_revealed) {
-                        showQuestionCard("Your timer kept running while you were away - press Play to continue.");
+                        showQuestionCard("Your timer kept running while you were away - tap an arrow to continue.");
                         return;
                     }
                 }

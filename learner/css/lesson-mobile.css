@@ -1,0 +1,314 @@
+/* ==========================================================================
+   lesson-mobile.css - feat/mobile-lesson-flow
+   --------------------------------------------------------------------------
+   Phones never fight the page: at most ONE scroll, and the learner always
+   knows where they are. Built by lesson-content.js (same media query):
+     - a slim sticky mini-stepper ("Step 2 of 4 · Content") + reading bar
+     - the site header slides away while scrolling down
+     - Video: full width, short title, "Show description", sticky Continue
+     - Content: the text flows in the page (no inner scroll box), sticky
+       Continue bar, the end of the text unlocks it
+     - Exercise: Task / Code / Output tabs
+   Desktop (and anything wider than a phone) is unchanged: the mini-stepper,
+   the description toggle and the exercise tabs are hidden there.
+   ========================================================================== */
+
+.lesson-ministep,
+.lesson-video-desc-toggle,
+.exercise-tabs,
+.exercise-run-btn-phone { display: none; }
+
+@media (max-width: 720px), (max-height: 500px) and (pointer: coarse) {
+
+    /* ---------- site header: slides away while scrolling down ---------- */
+    .learner-header {
+        transition: transform 0.22s ease;
+        will-change: transform;
+    }
+    html.lesson-header-hidden .learner-header {
+        transform: translateY(-100%);
+    }
+
+    /* ---------- mini-stepper (the big 1-2-3-4 stepper is desktop only) ---------- */
+    .lesson-page .lesson-stepper { display: none; }
+
+    .lesson-ministep {
+        display: block;
+        position: sticky;
+        top: var(--lesson-header-h, 0px);
+        z-index: 900;                       /* under the site header (1000) and the games' full screen (1500) */
+        margin: 0 -12px 10px;
+        padding: 7px 14px 0;
+        background: rgba(248, 250, 252, 0.96);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid #e2e8f0;
+        transition: top 0.22s ease;
+    }
+    .lesson-ministep[hidden] { display: none; }
+
+    .lesson-ministep-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 30px;
+        padding-bottom: 7px;
+    }
+    .lesson-ministep-dots { display: flex; align-items: center; gap: 6px; }
+    .lesson-ministep-dot {
+        width: 10px;
+        height: 10px;
+        padding: 0;
+        border-radius: 50%;
+        border: 2px solid #cbd5e1;
+        background: #ffffff;
+    }
+    .lesson-ministep-dot.done {
+        border-color: #16a34a;
+        background: #16a34a;
+        cursor: pointer;
+        /* a bigger invisible tap area around the small dot */
+        box-shadow: 0 0 0 9px transparent;
+        position: relative;
+    }
+    .lesson-ministep-dot.done::after {
+        content: "";
+        position: absolute;
+        inset: -10px -5px;
+    }
+    .lesson-ministep-dot.current {
+        width: 22px;
+        border-radius: 999px;
+        border-color: #0ea5e9;
+        background: #0ea5e9;
+    }
+    .lesson-ministep-dot.done:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 3px; }
+    .lesson-ministep-label {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* reading progress (Content step) */
+    .lesson-readbar {
+        height: 3px;
+        margin: 0 -14px;
+        background: #e2e8f0;
+    }
+    .lesson-readbar[hidden] { display: none; }
+    .lesson-readbar-fill {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, #0ea5e9, #22c55e);
+        transition: width 0.15s linear;
+    }
+
+    /* ---------- sticky Continue bar (Video + Content) ---------- */
+    #videoStep .lesson-step-footer,
+    #contentStep .lesson-step-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 12px -12px -14px;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(255, 255, 255, 0.97);
+        border-top: 1px solid #e2e8f0;
+        box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.06);
+    }
+    #videoStep .lesson-step-footer .lesson-step-locked-note,
+    #contentStep .lesson-step-footer .lesson-step-locked-note {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        font-size: 12.5px;
+    }
+    #videoStep .lesson-step-footer .lesson-step-btn,
+    #contentStep .lesson-step-footer .lesson-step-btn {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: 11px 18px;
+        white-space: nowrap;
+    }
+    /* still locked: the grey button itself says what to do (lesson-content.js) */
+    #videoStep .lesson-step-footer .lesson-step-locked-note,
+    #contentStep .lesson-step-footer .lesson-step-locked-note { display: none !important; }
+    #videoStep .lesson-step-footer .lesson-step-btn,
+    #contentStep .lesson-step-footer .lesson-step-btn { flex: 1 1 auto; margin-left: 0; }
+    .lesson-step-btn.is-locked-label { font-weight: 600; }
+    .lesson-step-btn.is-locked-label .fa-lock { margin-right: 4px; }
+    /* still locked: a grey button */
+    #videoStep .lesson-step-btn:disabled,
+    #contentStep .lesson-step-btn:disabled {
+        background: #cbd5e1;
+        color: #475569;
+        opacity: 1;
+    }
+
+    /* ---------- Video: full width on top, short title, folded description ---------- */
+    #videoStep .lesson-step-eyebrow { display: none; }
+    .lesson-page #videoStep .lesson-video-frame {
+        max-width: none;
+        margin: 0 -12px 10px;
+        width: calc(100% + 24px);
+        border-radius: 0;
+    }
+    .lesson-video-title {
+        margin: 0 0 6px;
+        font-size: 14.5px;
+        font-weight: 700;
+        color: #0f172a;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .lesson-video-desc-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 0 8px;
+        padding: 6px 0;
+        border: 0;
+        background: none;
+        color: #0369a1;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .lesson-video-desc-toggle[hidden] { display: none; }
+    .lesson-video-description { display: none; }
+    .lesson-video-description.is-open { display: block; margin-bottom: 10px; }
+    .lesson-video-description[hidden] { display: none; }
+
+    /* ---------- Content: ONE scroll - the text flows in the page ---------- */
+    #contentStep .lesson-step-eyebrow { margin-bottom: 6px; }
+    .lesson-page .lesson-content-scroll {
+        max-height: none;
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        padding: 0 0 0 14px;               /* room for pasted bullets with a negative indent */
+        margin-bottom: 0;
+    }
+    .lesson-content-end { height: 1px; }
+
+    /* very wide code / tables scroll sideways inside their own block only */
+    .lesson-content-body { overflow-wrap: anywhere; min-width: 0; }
+    .lesson-content-body pre,
+    .lesson-content-body table,
+    .lesson-content-body .editor-terminal-box,
+    .lesson-content-body .editor-console-box,
+    .lesson-content-body .editor-output-box {
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .lesson-content-body pre { white-space: pre; word-break: normal; overflow-wrap: normal; }
+    .lesson-content-body table { display: block; }
+    .lesson-content-body img,
+    .lesson-content-body iframe,
+    .lesson-content-body video { max-width: 100%; height: auto; }
+
+    /* ---------- Exercise: Task / Code / Output tabs ---------- */
+    #exerciseStep .lesson-step-eyebrow { display: none; }
+    #exerciseStep .exercise-title { margin-bottom: 8px; font-size: 17px; }
+
+    .exercise-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        margin: 0 0 12px;
+        padding: 4px;
+        border-radius: 12px;
+        background: #f1f5f9;
+    }
+    .exercise-tab {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 40px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: #475569;
+        font: inherit;
+        font-size: 13.5px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .exercise-tab.is-active {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+    }
+    .exercise-tab:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 1px; }
+    .exercise-tab-dot {
+        display: none;
+        position: absolute;
+        top: 7px;
+        right: 10px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ef4444;
+    }
+    .exercise-tab.has-new .exercise-tab-dot { display: block; }
+
+    /* only the active tab's blocks */
+    #exerciseStep[data-ex-active="task"] [data-ex-tab]:not([data-ex-tab="task"]),
+    #exerciseStep[data-ex-active="code"] [data-ex-tab]:not([data-ex-tab="code"]),
+    #exerciseStep[data-ex-active="output"] [data-ex-tab]:not([data-ex-tab="output"]) {
+        display: none !important;
+    }
+    #exerciseStep[data-ex-active="output"] .exercise-footer { display: none; }
+    #exerciseStep .exercise-editor-grid { display: block; }
+
+    /* Code: the editor fills the screen; Run + Submit stay at the bottom */
+    #exerciseStep[data-ex-active="code"] .exercise-pane-head .exercise-run-btn { display: none; }
+    #exerciseStep[data-ex-active="code"] .exercise-code-box {
+        min-height: calc(100dvh - 300px);
+        min-height: max(220px, calc(100dvh - 300px));
+    }
+    #exerciseStep[data-ex-active="code"] .exercise-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        margin: 10px -12px -14px;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(255, 255, 255, 0.97);
+        border-top: 1px solid #e2e8f0;
+        box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.06);
+    }
+    #exerciseStep[data-ex-active="code"] .exercise-footer-btns {
+        flex-direction: row;
+        width: 100%;
+    }
+    #exerciseStep[data-ex-active="code"] .exercise-footer-btns > button { flex: 1 1 0; width: auto; }
+    #exerciseStep[data-ex-active="code"] .exercise-run-btn-phone { order: 1; }
+    #exerciseStep[data-ex-active="code"] #exerciseSubmitBtn { order: 2; }
+    .exercise-run-btn-phone {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 46px;
+        border-radius: 10px;
+        font-size: 14px;
+    }
+    #exerciseStep[data-ex-active="task"] .exercise-footer-btns { flex-direction: column; }
+}

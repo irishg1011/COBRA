@@ -703,14 +703,45 @@
             if (opts.onContinue) opts.onContinue();
         }, { once: true });
         // Back on the page (phones leave full screen): show the card.
+        // The page scrolls to the card (phones come back from full screen here).
         requestAnimationFrame(() => {
-            const box = card.getBoundingClientRect();
-            if (box.top < 0 || box.bottom > window.innerHeight) card.scrollIntoView({ block: "center" });
+            card.scrollIntoView({ block: "center" });
             btn.focus({ preventScroll: true });
         });
         return card;
     }
 
+    // feat/mobile-lesson-flow: a long question on a phone shows its first
+    // lines and a "Show more" button, and opens INSIDE its own box (it
+    // scrolls there) instead of pushing the game off the screen.
+    // Call it every time the text changes. (game-kit.css: .game-clamp)
+    function clampText(node) {
+        if (!node) return;
+        let btn = node.nextElementSibling;
+        if (!btn || !btn.classList.contains("game-more-btn")) {
+            btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "game-more-btn";
+            btn.hidden = true;
+            btn.addEventListener("click", () => {
+                const open = !node.classList.contains("is-open");
+                node.classList.toggle("is-open", open);
+                btn.textContent = open ? "Show less" : "Show more";
+                btn.setAttribute("aria-expanded", String(open));
+            });
+            node.after(btn);
+        }
+        node.classList.add("game-clamp");
+        node.classList.remove("is-open");
+        btn.textContent = "Show more";
+        btn.setAttribute("aria-expanded", "false");
+        btn.hidden = true;
+        requestAnimationFrame(() => {
+            if (!node.isConnected) return;
+            btn.hidden = !(node.scrollHeight > node.clientHeight + 2);
+        });
+    }
+
     window.CobraGameKit = { hearts, livesText, livesHtml, livesLabelHtml, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult, clampText };
 })();
