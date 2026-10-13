@@ -18,6 +18,9 @@ exactly like for a brand-new learner.
 Not touched: account_tbl, profile_tbl, uploaded_images_tbl (photo),
 consent_tbl, login/lockout/password-reset logs, staff tables, and
 exercise_ai_verdicts_tbl (a shared cache with no learner column).
+
+Notifications: every one of the learner's notifications is deleted, then
+the same "Welcome to CobraByte!" a new account gets is added (unread).
 """
 
 from mysql.connector import Error
@@ -25,8 +28,7 @@ from mysql.connector import Error
 from cobradb import get_db_connection
 from account_tools import ensure_account_tools_schema, log_action, setting_is_on, ALLOW_PROGRESS_RESET
 from user_types import LEARNER_ROLE
-
-LEARNING_NOTIFICATION_TYPES = ("badge", "chapter_done", "course_done", "module_passed", "retake", "review")
+from notifications import notify_welcome, forget_sync
 
 # (table, label shown to the admin, WHERE clause - always one %s = acc_id)
 PROGRESS_TABLES = (
@@ -54,8 +56,9 @@ PROGRESS_TABLES = (
     ("learner_time_tbl", "Learning time", "acc_id = %s"),
     ("sandbox_runs_tbl", "Coding sandbox runs", "acc_id = %s"),
     ("sandbox_snippets_tbl", "Coding sandbox saved code", "acc_id = %s"),
-    ("notifications_tbl", "Learning notifications",
-     "acc_id = %s AND notif_type IN (" + ", ".join(f"'{t}'" for t in LEARNING_NOTIFICATION_TYPES) + ")"),
+    # ALL of them (security, lives, snippets too) - a fresh "Welcome to
+    # CobraByte!" is added again after the reset, like a new account's.
+    ("notifications_tbl", "Notifications", "acc_id = %s"),
 )
 
 DISABLED_MESSAGE = "Progress reset is turned off. Turn on \"Allow progress reset (testing)\" first."
@@ -153,6 +156,10 @@ def reset_learner_progress(acc_id, typed_acc_id, admin_id, ip_address=None):
             if cursor.rowcount:
                 deleted += cursor.rowcount
                 per_table.append(f"{label} {cursor.rowcount}")
+        if "notifications_tbl" in existing:
+            cursor.execute("SELECT firstname FROM profile_tbl WHERE acc_id = %s", (acc_id,))
+            profile = cursor.fetchone()
+            notify_welcome(cursor, acc_id, profile[0] if profile else "")
         log_action(cursor, "progress_reset", acc_id, admin_id,
                    f"Deleted {deleted} rows" + (f": {', '.join(per_table)}" if per_table else ""), ip_address)
         connection.commit()
@@ -166,5 +173,6 @@ def reset_learner_progress(acc_id, typed_acc_id, admin_id, ip_address=None):
         if connection.is_connected():
             connection.close()
 
+    forget_sync(acc_id)
     # The learner stays signed in; their next page load shows the fresh start.
     return True, f"Progress reset - {deleted} rows erased. {learner['username']} starts from the beginning.", deleted

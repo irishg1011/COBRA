@@ -262,6 +262,7 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            whereNow();
             root.classList.toggle("is-held", next === "paused");   // the question hides while paused
             if (timer && (next === "done" || next === "error" || next === "outoflives")) timer.hide();
             if (next === "done" || next === "error" || next === "outoflives") setFocus(false);
@@ -289,7 +290,15 @@
             updateHUD();
         }
 
+        // feat/learner-activity: staff's "Doing now" (game-kit.js) - never answers
+        function whereNow() {
+            if (window.CobraGameKit && window.CobraGameKit.reportWhere) {
+                window.CobraGameKit.reportWhere(PREVIEW, activity, mode, qIndex, total, server);
+            }
+        }
+
         function updateHUD() {
+            whereNow();
             // In a retake round the Score stat counts items fixed this round.
             ui.score.textContent = server ? (server.retake ? server.retake.fixed : server.score) : 0;
             ui.progress.textContent = `${Math.min(qIndex + 1, total)}/${total}`;
@@ -1316,6 +1325,7 @@
         function dispose() {
             if (disposed) return;
             disposed = true;
+            if (!PREVIEW && window.cobraWhere) window.cobraWhere.game(activity.la_id ?? activity.activity_id ?? activity.id, null);
             cancelAnimationFrame(rafId);
             clearInterval(countdownTimer);
             clearTimeout(flashTimer);

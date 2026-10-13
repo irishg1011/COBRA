@@ -71,10 +71,10 @@
             return window.CobraPresence ? CobraPresence.avatar(row.acc_id, img) : img;
         }
 
-        function nameCell(row, sub) {
+        function nameCell(row, sub, extraHtml) {
             return `<td><div class="profile-cell">${avatarHtml(row)}
                 <div class="dash-card-name"><strong class="cell-truncate-1">${escapeHtml(row.full_name)}</strong>
-                ${sub ? `<small class="text-muted cell-truncate-1">${escapeHtml(sub)}</small>` : ""}</div></div></td>`;
+                ${sub ? `<small class="text-muted cell-truncate-1">${escapeHtml(sub)}</small>` : ""}${extraHtml || ""}</div></div></td>`;
         }
 
         function roleBadge(role) {
@@ -135,10 +135,10 @@
             subEl.textContent = `${c.online || 0} online · ${c.idle || 0} idle · ${c.signed_in || 0} signed in`;
             if (!data.rows.length) return empty("Nobody is signed in right now.");
             return table(["Name", "Status", "Logged in since", "Last activity", "Device"], data.rows.map((r) => `
-                <tr>${nameCell(r, r.role)}
+                <tr data-acc-id="${escapeHtml(r.acc_id)}"${r.role === "Learner" ? ` class="is-learner-row" tabindex="0" title="Open ${escapeHtml(r.full_name)}'s learner progress"` : ""}>${nameCell(r, r.role, r.doing ? `<small class="online-doing">${escapeHtml(r.doing)}</small>` : "")}
                     <td>${stateBadge(r)}</td>
                     <td class="text-muted dash-nowrap" title="Signed in for ${escapeHtml(r.logged_in_for)}">${escapeHtml(r.logged_in_since)}</td>
-                    <td class="text-muted dash-nowrap">${escapeHtml(r.last_activity)}${r.editing || r.page ? `<small class="sp-where">${escapeHtml(r.editing || `On: ${r.page}`)}</small>` : ""}</td>
+                    <td class="text-muted dash-nowrap">${escapeHtml(r.last_activity)}${r.doing ? `<small class="sp-where learner-doing">${escapeHtml(r.doing)}</small>` : r.editing || r.page ? `<small class="sp-where">${escapeHtml(r.editing || `On: ${r.page}`)}</small>` : ""}</td>
                     <td class="dash-devices">${deviceList(r.devices)}</td></tr>`).join(""))
                 + (data.total > data.rows.length ? `<p class="dash-card-more text-muted">${showing(data.rows.length, data.total, "people signed in")}</p>` : "");
         }
@@ -291,7 +291,9 @@
             if (card) open(card.dataset.dashCard, card);
         });
         document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && !modal.classList.contains("is-hidden")) {
+            // (a Learner Progress modal on top that used this Escape calls
+            // preventDefault() - then only that one closes)
+            if (e.key === "Escape" && !e.defaultPrevented && !modal.classList.contains("is-hidden")) {
                 e.preventDefault();
                 close();
                 return;
@@ -351,6 +353,24 @@
                 showMessage("Could not reach the server.", false);
             }
             if (currentKind) load(currentKind, { quiet: true });
+        });
+
+        // feat/learner-activity: a learner in "Who's online now" opens their
+        // Learner Progress (the shared Course Progress modal, on top of this one).
+        function openLearnerRow(row) {
+            if (row && window.CobraLearnerCourseModal) window.CobraLearnerCourseModal.open(row.dataset.accId);
+        }
+        contentEl.addEventListener("click", (e) => {
+            if (e.target.closest("a, button")) return;
+            openLearnerRow(e.target.closest("tr.is-learner-row"));
+        });
+        contentEl.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            const row = e.target.closest("tr.is-learner-row");
+            if (row && e.target === row) {
+                e.preventDefault();
+                openLearnerRow(row);
+            }
         });
 
         // Same 10 s beat as the rest of the Dashboard, only while open.

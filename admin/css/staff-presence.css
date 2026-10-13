@@ -192,3 +192,54 @@
     color: #92400e;
     white-space: normal;
 }
+
+/* --- feat/learner-activity: a learner's "Doing now" (Who's Online + its Dashboard modal) --- */
+.sp-where.learner-doing {
+    color: #0f766e;
+    max-width: 260px;
+}
+.is-learner-row {
+    cursor: pointer;
+}
+.is-learner-row:hover td,
+.is-learner-row:focus-visible td {
+    background: rgba(14, 165, 233, 0.06);
+}
+.is-learner-row:focus-visible {
+    outline: 2px solid #0ea5e9;
+    outline-offset: -2px;
+}
+/* Narrow screens: the Last activity column scrolls off to the side, so the
+   learner's "Doing now" moves under the name (like .online-meta). */
+.online-doing {
+    display: none;
+}
+@media (max-width: 1000px) {
+    .data-table.online-table .online-doing {
+        display: block;
+        margin-top: 2px;
+        font-size: 11px;
+        line-height: 1.3;
+        color: #0f766e;
+        white-space: normal;
+        max-width: 180px;
+    }
+    .data-table.online-table .sp-where.learner-doing {
+        display: none;
+    }
+}
+/* The Dashboard's "Who's online now" modal on a phone: same move. */
+@media (max-width: 700px) {
+    #dashCardModal .online-doing {
+        display: block;
+        margin-top: 2px;
+        max-width: 180px;
+        font-size: 11px;
+        line-height: 1.3;
+        color: #0f766e;
+        white-space: normal;
+    }
+    #dashCardModal .sp-where.learner-doing {
+        display: none;
+    }
+}

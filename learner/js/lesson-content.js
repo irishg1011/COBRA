@@ -146,7 +146,18 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryStep.style.display = key === "summary" ? "block" : "none";
         renderStepper(key);
         if (PREVIEW) PREVIEW.onStep(key);
+        else reportWhere(key);
         if (key === "summary") loadSummary();
+    }
+
+    // feat/learner-activity: "Doing now" for staff (learner.js cobraWhere) -
+    // the step and, on the exercise, the number of tries. Never the code.
+    function reportWhere(step) {
+        if (PREVIEW || !window.cobraWhere) return;
+        const values = { resource_id: resourceId };
+        if (step) values.step = step;
+        values.tries = exerciseState && Number.isFinite(exerciseState.attempts) ? exerciseState.attempts : 0;
+        window.cobraWhere.set(values);
     }
 
     // ---------------- Video step (YouTube IFrame API) ----------------
@@ -1022,6 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             if (result.state) exerciseState = result.state;
+            reportWhere();
             renderExerciseState();
             if (result.success) {
                 // Same as a pass: save, stay on the exercise and show the result.
@@ -1080,6 +1092,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (result.state) exerciseState = result.state;
+            reportWhere();
             // A graded result belongs to exactly this code (see updateResultStale).
             resultCodeKey = result.success ? codeKey(code) : null;
             if (result.success && exerciseRestoredNote) exerciseRestoredNote.hidden = true;
@@ -1627,6 +1640,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 exerciseClue.textContent = data.exercise.clue;
                 renderExerciseRequirements(data.exercise);
                 exerciseState = data.exercise_state || null;
+                reportWhere();
                 // The complete row (and its way on) is shown by renderExerciseState /
                 // finishLessonFromExercise below, depending on the lesson's state.
                 if (data.exercise_completed) lockExercise();

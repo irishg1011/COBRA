@@ -16,6 +16,11 @@
  *     CobraPresence.dot(accId)   -> the dot's HTML, for JS-built rows
  *     CobraPresence.avatar(accId, avatarHtml) -> avatar with the dot on its corner
  *     CobraPresence.refresh()    -> ask again now
+ *     CobraPresence.doing(accId) -> feat/learner-activity: a small "Doing now"
+ *                                  line for a learner ("Playing Multiple Choice ·
+ *                                  Variables · Question 3 of 5 · 4 lives · since
+ *                                  4 min" / "Last on: Dashboard"), filled from
+ *                                  the same answers; empty when there is none.
  * Loaded (deferred) by admin-header.html on every staff page.
  */
 (function () {
@@ -25,6 +30,7 @@
     const NEW_IDS_DELAY_MS = 250;
     const MAX_IDS = 300;            // = presence.MAX_PRESENCE_IDS
     const SELECTOR = ".presence-dot[data-presence-id]";
+    const DOING_SELECTOR = ".presence-doing[data-doing-id]";
 
     const known = {};               // acc_id -> {state, label, last_activity}
     let timer = null;
@@ -41,6 +47,20 @@
         if (!accId || accId === "—") return "";
         const id = escapeAttr(accId);
         return `<span class="presence-dot" data-presence-id="${id}" role="img" aria-label="Checking status" title="Checking status…"></span>`;
+    }
+
+    function doing(accId) {
+        if (!accId || accId === "—") return "";
+        return `<small class="presence-doing" data-doing-id="${escapeAttr(accId)}" hidden></small>`;
+    }
+
+    function paintDoing(el) {
+        const info = known[el.dataset.doingId];
+        if (!info) return;
+        const text = info.doing || "";
+        if (el.textContent !== text) el.textContent = text;
+        if (el.title !== text) el.title = text;
+        el.hidden = !text;
     }
 
     function avatar(accId, avatarHtml) {
@@ -95,6 +115,7 @@
             if (!data.success || !data.presence) return;
             Object.assign(known, data.presence);
             dotsOnPage().forEach(paint);
+            document.querySelectorAll(DOING_SELECTOR).forEach(paintDoing);
             document.dispatchEvent(new CustomEvent("cobra:presence", { detail: data.presence }));
         } catch (err) {
             // A missed round is fine - the next one tries again.
@@ -129,6 +150,7 @@
             mutations.forEach((m) => {
                 m.addedNodes.forEach((node) => {
                     if (node.nodeType !== 1) return;
+                    (node.matches && node.matches(DOING_SELECTOR) ? [node] : node.querySelectorAll(DOING_SELECTOR)).forEach(paintDoing);
                     const dots = node.matches && node.matches(SELECTOR) ? [node] : node.querySelectorAll(SELECTOR);
                     dots.forEach((el) => {
                         sawDot = true;
@@ -145,7 +167,7 @@
         if (!document.hidden) refresh().then(schedule);
     });
 
-    window.CobraPresence = { dot, avatar, refresh, POLL_MS };
+    window.CobraPresence = { dot, avatar, doing, refresh, POLL_MS };
 
     function start() {
         watchNewDots();

@@ -11,6 +11,9 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/account-tools.css') }}">
+    <!-- feat/learner-activity: a learner row opens the shared Course Progress modal -->
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-progress.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-insights.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
@@ -120,19 +123,20 @@
                             </thead>
                             <tbody id="onlineTableBody">
                                 {% for u in users %}
-                                <tr data-acc-id="{{ u.acc_id }}">
+                                <tr data-acc-id="{{ u.acc_id }}"{% if u.role == 'Learner' %} class="is-learner-row" tabindex="0" title="Open {{ u.full_name }}'s learner progress"{% endif %}>
                                     <td class="profile-cell">
                                         <span class="presence-avatar-wrap">{% if u.avatar_url %}<div class="avatar-sm has-photo"><img src="{{ u.avatar_url }}" alt="" loading="lazy"></div>{% else %}<div class="avatar-sm">👤</div>{% endif %}{{ presence_dot(u.acc_id) }}</span>
                                         <div class="dash-card-name">
                                             <strong class="cell-truncate-1">{{ u.full_name }}</strong>
                                             <small class="text-muted cell-truncate-1">{{ u.email }}</small>
                                             <small class="online-meta text-muted">{{ u.role }} &middot; {{ u.label }}</small>
+                                            {% if u.doing %}<small class="online-doing">{{ u.doing }}</small>{% endif %}
                                         </div>
                                     </td>
                                     <td><span class="badge {{ role_badge.get(u.role, 'badge-inactive') }}">{{ u.role }}</span></td>
                                     <td><span class="dash-state dash-state-{{ u.state }}">{{ u.label }}</span></td>
                                     <td class="text-muted dash-nowrap" title="Signed in for {{ u.logged_in_for }}">{{ u.logged_in_since }}</td>
-                                    <td class="text-muted dash-nowrap">{{ u.last_activity }}{% if u.editing or u.page %}<small class="sp-where">{{ u.editing or ('On: ' ~ u.page) }}</small>{% endif %}</td>
+                                    <td class="text-muted dash-nowrap">{{ u.last_activity }}{% if u.doing %}<small class="sp-where learner-doing">{{ u.doing }}</small>{% elif u.editing or u.page %}<small class="sp-where">{{ u.editing or ('On: ' ~ u.page) }}</small>{% endif %}</td>
                                     <td class="dash-devices">
                                         {% for d in u.devices %}
                                         <span class="dash-device" title="IP {{ d.ip_address }} &middot; active {{ d.last_activity }}"><i class="fa-solid {{ 'fa-mobile-screen' if d.mobile else 'fa-desktop' }}" aria-hidden="true"></i>{{ d.label }}</span>
@@ -165,6 +169,15 @@
     <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
+    <script type="application/json" id="lpSettings">{{ lp_settings|tojson }}</script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-progress-insights.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/chart.umd.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-progress-modal.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-course-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-online-users.js') }}"></script>
+
+    {# feat/learner-activity - order matters: Course Progress, then Lesson Progress on top #}
+    {% include 'learner-progress-learner-modal.html' %}
+    {% include 'learner-progress-modal.html' %}
 </body>
 </html>

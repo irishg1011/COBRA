@@ -28,6 +28,9 @@ The time of the last real activity is kept in the session cookie
 ("active_at"). feat/admin-online: the same activity is also copied to
 active_sessions_tbl.last_activity_at (at most once a minute per device),
 so admins can see who is online / idle - see presence.py.
+
+feat/learner-activity: POST /session/where - learner pages report where
+they are ("Doing now", learner_where.py). It is NOT activity.
 """
 import os
 import time
@@ -197,6 +200,24 @@ def idle_activity():
     now = int(time.time())
     session["active_at"] = now
     _record_activity(now)
+    return jsonify({"success": True}), 200
+
+
+@idle_bp.route("/session/where", methods=["POST"])
+def learner_where_report():
+    """
+    feat/learner-activity: where a LEARNER is (page / lesson / step / game
+    progress) for staff's "Doing now" - see learner_where.py. NOT activity:
+    it never keeps a session online or signed in by itself.
+    """
+    if current_role() != "learner":
+        return jsonify({"success": False}), 401
+    from learner_routes import get_current_learner_acc_id   # imported here: learner_routes is big
+    from learner_where import save as save_where
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False}), 401
+    save_where(acc_id, request.get_json(silent=True) or {})
     return jsonify({"success": True}), 200
 
 

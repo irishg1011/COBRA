@@ -138,6 +138,7 @@ from audit import (  # feat/admin-extras: Activity Log + errors + CSV
     install_audit_hooks, get_activity, log as audit_log, to_csv, skip_auto_log,
 )
 from staff_presence import heartbeat as presence_heartbeat, leave as presence_leave, get_staff_locations  # feat/publishing-presence
+from learner_where import describe_many as describe_learners_doing  # feat/learner-activity: "Doing now"
 from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
@@ -146,7 +147,7 @@ from account_management import (  # feat/archive-accounts: Account Details modal
     get_account_detail, archive_account, restore_account, get_archived_accounts,
     get_archive_block_reason, is_account_archived,
 )
-from user_types import ADMIN_ROLE, MENTOR_ROLE, STAFF_ROLES, get_account_role, get_user_type_id  # feat/mentor-role
+from user_types import ADMIN_ROLE, MENTOR_ROLE, LEARNER_ROLE, STAFF_ROLES, get_account_role, get_user_type_id  # feat/mentor-role
 from role_permissions import (  # feat/mentor-role: ONE endpoint -> roles map, default-deny
     is_allowed, role_home_url, NO_ACCESS_PAGE_MESSAGE, NO_PERMISSION_MESSAGE,
 )
@@ -1342,7 +1343,7 @@ def online_users():
     online = get_online_users(filters["q"], filters["role"], filters["state"]) or \
         {"users": [], "total": 0, "counts": {"online": 0, "idle": 0, "signed_in": 0, "learners": 0, "staff": 0}}
     _add_staff_locations(online["users"])
-    return render_template('online-users.html', filters=filters,
+    return render_template('online-users.html', filters=filters, lp_settings=progress_insight_settings(),
                            online_minutes=ONLINE_MINUTES, idle_minutes=IDLE_MINUTES, **online)
 
 
@@ -1391,12 +1392,17 @@ def _editor_presence_items():
 
 
 def _add_staff_locations(users):
-    """Who's Online: "On: Publishing" / "Editing lesson: Variables" for staff rows."""
+    """
+    Who's Online: "On: Publishing" / "Editing lesson: Variables" for staff rows,
+    and feat/learner-activity: the "Doing now" line for learner rows.
+    """
     locations = get_staff_locations(PAGE_TITLES)
+    doing = describe_learners_doing({u["acc_id"]: u["state"] for u in users if u.get("role") == LEARNER_ROLE})
     for user in users:
         place = locations.get(user["acc_id"]) or {}
         user["page"] = place.get("page", "")
         user["editing"] = place.get("editing", "")
+        user["doing"] = doing.get(user["acc_id"], "")
 
 
 def _page_endpoint(path):
@@ -1452,6 +1458,12 @@ def presence():
     found = get_presence(ids, learners_only=learners_only)
     if found is None:
         return jsonify({"success": False, "presence": {}}), 500
+    # feat/learner-activity: "Doing now" for the learners among them (the
+    # rows only learner pages write - staff ids never get a line).
+    doing = describe_learners_doing({acc_id: info["state"] for acc_id, info in found.items()
+                                     if info["state"] != "offline"})
+    for acc_id, line in doing.items():
+        found[acc_id]["doing"] = line
     return jsonify({"success": True, "presence": found,
                     "online_minutes": ONLINE_MINUTES, "idle_minutes": IDLE_MINUTES}), 200
 

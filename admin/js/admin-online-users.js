@@ -44,21 +44,29 @@
                 `<span class="dash-device" title="IP ${escapeHtml(d.ip_address)} · active ${escapeHtml(d.last_activity)}"><i class="fa-solid ${d.mobile ? "fa-mobile-screen" : "fa-desktop"}" aria-hidden="true"></i>${escapeHtml(d.label)}</span>`
             ).join("");
             return `
-                <tr data-acc-id="${escapeHtml(u.acc_id)}">
+                <tr data-acc-id="${escapeHtml(u.acc_id)}"${u.role === "Learner" ? ` class="is-learner-row" tabindex="0" title="Open ${escapeHtml(u.full_name)}'s learner progress"` : ""}>
                     <td class="profile-cell">
                         ${window.CobraPresence ? CobraPresence.avatar(u.acc_id, img) : img}
                         <div class="dash-card-name">
                             <strong class="cell-truncate-1">${escapeHtml(u.full_name)}</strong>
                             <small class="text-muted cell-truncate-1">${escapeHtml(u.email)}</small>
                             <small class="online-meta text-muted">${escapeHtml(u.role)} · ${escapeHtml(u.label)}</small>
+                            ${u.doing ? `<small class="online-doing">${escapeHtml(u.doing)}</small>` : ""}
                         </div>
                     </td>
                     <td><span class="badge ${ROLE_BADGE[u.role] || "badge-inactive"}">${escapeHtml(u.role)}</span></td>
                     <td><span class="dash-state dash-state-${escapeHtml(u.state)}">${escapeHtml(u.label)}</span></td>
                     <td class="text-muted dash-nowrap" title="Signed in for ${escapeHtml(u.logged_in_for)}">${escapeHtml(u.logged_in_since)}</td>
-                    <td class="text-muted dash-nowrap">${escapeHtml(u.last_activity)}${u.editing || u.page ? `<small class="sp-where">${escapeHtml(u.editing || `On: ${u.page}`)}</small>` : ""}</td>
+                    <td class="text-muted dash-nowrap">${escapeHtml(u.last_activity)}${whereHtml(u)}</td>
                     <td class="dash-devices">${devices}</td>
                 </tr>`;
+        }
+
+        // Staff: "On: Publishing" / "Editing ..."; learners (feat/learner-activity): "Doing now".
+        function whereHtml(u) {
+            if (u.doing) return `<small class="sp-where learner-doing">${escapeHtml(u.doing)}</small>`;
+            if (u.editing || u.page) return `<small class="sp-where">${escapeHtml(u.editing || `On: ${u.page}`)}</small>`;
+            return "";
         }
 
         function message(text) {
@@ -110,6 +118,23 @@
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(runSearch, DEBOUNCE_MS);
         }
+
+        // feat/learner-activity: a learner row opens their Learner Progress (Course Progress modal).
+        function openLearnerRow(row) {
+            if (row && window.CobraLearnerCourseModal) window.CobraLearnerCourseModal.open(row.dataset.accId);
+        }
+        tableBody.addEventListener("click", (e) => {
+            if (e.target.closest("a, button")) return;
+            openLearnerRow(e.target.closest("tr.is-learner-row"));
+        });
+        tableBody.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            const row = e.target.closest("tr.is-learner-row");
+            if (row && e.target === row) {
+                e.preventDefault();
+                openLearnerRow(row);
+            }
+        });
 
         searchInput.addEventListener("input", scheduleSearch);
         roleSelect.addEventListener("change", scheduleSearch);

@@ -149,6 +149,21 @@ def notify(cursor, acc_id, notif_type, title, detail=None, link=None,
         return False
 
 
+# --- welcome (sign-up, and again after a progress reset) -------------------
+def notify_welcome(cursor, acc_id, first_name):
+    """The "Welcome to CobraByte!" notification a new account gets (login.py /signup)."""
+    name = (first_name or "").strip()
+    return notify(cursor, acc_id, "welcome",
+                  f"Welcome to CobraByte, **{name}**!" if name else "Welcome to CobraByte!",
+                  "Start with Chapter 1 on your Learning Map. Your progress, badges and lives show up here.",
+                  "/learning-map", "welcome")
+
+
+def forget_sync(acc_id):
+    """The next bell check syncs this learner at once (after a progress reset)."""
+    _last_sync.pop(acc_id, None)
+
+
 def _item_link(row):
     """
     feat/badge-modal: a badge notification opens THAT badge on the profile.

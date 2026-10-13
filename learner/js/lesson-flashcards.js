@@ -354,6 +354,7 @@
         function setMode(next) {
             mode = next;
             root.dataset.mode = next;
+            whereNow();
             root.classList.toggle("is-held", next === "paused");   // the card hides while paused
             // Results, an error and "out of lives" always show in the normal page.
             if (next === "done" || next === "error" || next === "cooldown") setFocus(false);
@@ -386,7 +387,15 @@
             fx.foeHP = Math.max(0, server.bug_hp ?? (total - server.solved_count));
         }
 
+        // feat/learner-activity: staff's "Doing now" (game-kit.js) - never answers
+        function whereNow() {
+            if (window.CobraGameKit && window.CobraGameKit.reportWhere) {
+                window.CobraGameKit.reportWhere(PREVIEW, activity, mode, qIndex, total, server);
+            }
+        }
+
         function updateHUD() {
+            whereNow();
             ui.score.textContent = score;
             ui.progress.textContent = total ? `${Math.min(qIndex + 1, total)}/${total}` : "-";
             ui.streak.textContent = streak;
@@ -1417,6 +1426,7 @@
         function dispose() {
             if (disposed) return;
             disposed = true;
+            if (!PREVIEW && window.cobraWhere) window.cobraWhere.game(activity.la_id ?? activity.activity_id ?? activity.id, null);
             cancelAnimationFrame(rafId);
             clearInterval(countdownTimer);
             document.removeEventListener("keydown", onKeyDown);

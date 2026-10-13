@@ -9,7 +9,7 @@
  *   info(text)                   the (i) tooltip
  *   trendHtml(trend)             ▲ ▼ ▬ arrow with its own tooltip
  *   barHtml(value, max, label)   small bar with "value of max"
- *   learnerHtml(accId, name, avatar)
+ *   learnerHtml(accId, name, avatar, withDoing)   withDoing: + the "Doing now" line
  *   downloadCsv(name, columns, rows)   formula-safe, UTF-8 BOM
  *   memory.load() / memory.save({cat_id, module_id, status})
  *        Chapter / Module / Status are remembered between visits and
@@ -92,10 +92,12 @@
         </div>`;
     }
 
-    function learnerHtml(accId, name, avatarUrl) {
+    function learnerHtml(accId, name, avatarUrl, withDoing) {
         const avatar = window.CobraAvatar ? CobraAvatar.html(avatarUrl) : "";
         const pic = window.CobraPresence && avatar ? CobraPresence.avatar(accId, avatar) : avatar;
-        return `<div class="profile-cell">${pic}<span class="lp-learner-name"><strong>${esc(name)}</strong><small>${esc(accId)}</small></span></div>`;
+        // feat/learner-activity: By Learner adds the "Doing now" line (admin-presence.js)
+        const doing = withDoing && window.CobraPresence && CobraPresence.doing ? CobraPresence.doing(accId) : "";
+        return `<div class="profile-cell">${pic}<span class="lp-learner-name"><strong>${esc(name)}</strong><small>${esc(accId)}</small>${doing}</span></div>`;
     }
 
     // ---------- CSV ----------

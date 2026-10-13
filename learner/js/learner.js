@@ -12,8 +12,8 @@
  *    carry their own inline-styled copy.
  *  - Learning-time heartbeat: once a minute while the tab is visible,
  *    for the profile's Total Hours and the "Dedicated" badge.
- *  - Notifications bell: Facebook-style dropdown (All / Unread, New /
- *    Earlier, unread dots, mark all as read, see previous) fed by
+ *  - Notifications bell: Facebook-style dropdown (New /
+ *    Earlier, "new" highlights, see previous) fed by
  *    /api/notifications (notifications.py); unread count polled every minute.
  *  - Dark mode toggle: a moon/sun button placed before the bell. It uses
  *    window.cobraByteTheme from theme.js (loaded in the <head>).
@@ -186,18 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
         panel.innerHTML = `
             <div class="notif-head">
                 <h2>Notifications</h2>
-                <div class="notif-more">
-                    <button type="button" class="notif-more-btn" aria-label="More options" data-n="moreBtn">
-                        <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
-                    </button>
-                    <div class="notif-more-menu" data-n="moreMenu" hidden>
-                        <button type="button" data-n="readAll"><i class="fa-solid fa-check" aria-hidden="true"></i> Mark all as read</button>
-                    </div>
-                </div>
-            </div>
-            <div class="notif-tabs" role="tablist">
-                <button type="button" class="notif-tab is-active" role="tab" aria-selected="true" data-filter="all">All</button>
-                <button type="button" class="notif-tab" role="tab" aria-selected="false" data-filter="unread">Unread</button>
             </div>
             <div class="notif-scroll" data-n="scroll">
                 <p class="notif-status" data-n="status">Loading...</p>
@@ -210,11 +198,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const listEl = q('list');
         const statusEl = q('status');
         const olderBtn = q('older');
-        const moreMenu = q('moreMenu');
-        let filter = 'all';
         let items = [];
         let loading = false;
         let unread = 0;   // the real number (the badge shows "9+" above 9)
+        // Facebook-style: opening the panel marks everything read on the
+        // server at once, but the items that WERE unread stay highlighted
+        // ("new") until the panel closes. Ids of those items:
+        let fresh = new Set();
 
         function setCount(n) {
             const count = Number(n) || 0;
@@ -229,12 +219,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
         }
 
+        function isNew(n) {
+            return !n.is_read || fresh.has(n.id);
+        }
+
         function itemHtml(n) {
             const t = NOTIF_TYPES[n.type] || { icon: 'fa-bell', badge: 'fa-circle-info', tone: 'teal' };
             const tag = n.link ? 'a' : 'button';
             const href = n.link ? ` href="${escapeHtml(n.link)}"` : ' type="button"';
             return `
-                <${tag}${href} class="notif-item${n.is_read ? '' : ' is-unread'}" data-id="${n.id}">
+                <${tag}${href} class="notif-item${isNew(n) ? ' is-unread' : ''}" data-id="${n.id}">
                     <span class="notif-avatar tone-${t.tone}" aria-hidden="true">
                         <i class="fa-solid ${t.icon}"></i>
                         <span class="notif-avatar-badge"><i class="fa-solid ${t.badge}"></i></span>
@@ -244,22 +238,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${n.detail ? `<span class="notif-detail">${rich(n.detail)}</span>` : ''}
                         <span class="notif-time" title="${escapeHtml(n.when)}">${escapeHtml(n.relative)} · ${escapeHtml(n.when)}</span>
                     </span>
-                    <span class="notif-dot" aria-label="${n.is_read ? '' : 'Unread'}"></span>
+                    <span class="notif-dot" aria-label="${isNew(n) ? 'New' : ''}"></span>
                 </${tag}>`;
         }
 
         function render() {
-            const fresh = items.filter(n => n.is_today);
+            const today = items.filter(n => n.is_today);
             const earlier = items.filter(n => !n.is_today);
             let html = '';
-            if (fresh.length) html += `<h3 class="notif-section">New</h3>${fresh.map(itemHtml).join('')}`;
+            if (today.length) html += `<h3 class="notif-section">New</h3>${today.map(itemHtml).join('')}`;
             if (earlier.length) html += `<h3 class="notif-section">Earlier</h3>${earlier.map(itemHtml).join('')}`;
             listEl.innerHTML = html;
             if (!items.length) {
                 statusEl.hidden = false;
-                statusEl.textContent = filter === 'unread'
-                    ? "You're all caught up - no unread notifications."
-                    : 'No notifications yet. Finish a lesson or earn a badge and it shows up here.';
+                statusEl.textContent = 'No notifications yet. Finish a lesson or earn a badge and it shows up here.';
             } else {
                 statusEl.hidden = true;
             }
@@ -274,15 +266,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             olderBtn.disabled = true;
             try {
-                const params = new URLSearchParams({ filter, limit: '12' });
+                const params = new URLSearchParams({ limit: '12' });
                 if (more && items.length) params.set('before_id', items[items.length - 1].id);
                 const res = await fetch(`/api/notifications?${params}`, { credentials: 'include' });
                 const data = await res.json();
                 if (!data.success) throw new Error();
                 items = more ? items.concat(data.items) : data.items;
-                setCount(data.unread_count);
                 render();
                 olderBtn.hidden = !data.has_more;
+                markAllSeen(data.unread_count);
             } catch (e) {
                 if (!more) {
                     listEl.innerHTML = '';
@@ -295,28 +287,69 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // The panel is open: what was unread is "seen" now. ONE /read-all
+        // call; the shown items keep their highlight until the panel closes.
+        // A notification that arrives while it is open (minute poll) shows
+        // highlighted and is marked read the next time the panel opens.
+        function markAllSeen(serverUnread) {
+            if (panel.hidden) return;
+            items.forEach(n => { if (!n.is_read) { fresh.add(n.id); n.is_read = true; } });
+            setCount(0);
+            if (!serverUnread) return;
+            fetch('/api/notifications/read-all', { method: 'POST', credentials: 'include', keepalive: true })
+                .catch(() => { /* best-effort - the next open tries again */ });
+        }
+
         async function pollCount() {
             if (document.visibilityState !== 'visible') return;
             try {
                 const res = await fetch('/api/notifications/count', { credentials: 'include' });
                 const data = await res.json();
-                if (data.success) setCount(data.unread_count);
+                if (!data.success) return;
+                if (panel.hidden) {
+                    setCount(data.unread_count);
+                } else if (data.unread_count > 0) {
+                    // Arrived while the panel is open: show it highlighted,
+                    // keep it unread on the server until the next open.
+                    setCount(data.unread_count);
+                    refreshOpenList();
+                }
             } catch (e) { /* keep the last count */ }
+        }
+
+        async function refreshOpenList() {
+            if (loading) return;
+            try {
+                const res = await fetch('/api/notifications?limit=12', { credentials: 'include' });
+                const data = await res.json();
+                if (!data.success || panel.hidden) return;
+                const shown = new Set(items.map(n => n.id));
+                const added = data.items.filter(n => !shown.has(n.id));
+                if (!added.length) return;
+                items = added.concat(items);
+                render();
+            } catch (e) { /* the next open shows it */ }
         }
 
         function openPanel() {
             closeMenu(false);
+            fresh = new Set();
             panel.hidden = false;
             bellBtn.setAttribute('aria-expanded', 'true');
+            setCount(0);
             load(false);
         }
 
         function closePanel(returnFocus) {
             if (panel.hidden) return;
             panel.hidden = true;
-            moreMenu.hidden = true;
+            // Closed: everything looks read the next time (anything that
+            // arrived while open is still unread - the count says so).
+            fresh = new Set();
+            items.forEach(n => { n.is_read = true; });
             bellBtn.setAttribute('aria-expanded', 'false');
             if (returnFocus) bellBtn.focus();
+            pollCount();
         }
 
         bellBtn.addEventListener('click', (e) => {
@@ -328,72 +361,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(true); });
         if (menuBtn) menuBtn.addEventListener('click', () => closePanel(false));
 
-        panel.querySelectorAll('.notif-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                filter = tab.dataset.filter;
-                panel.querySelectorAll('.notif-tab').forEach(t => {
-                    const on = t === tab;
-                    t.classList.toggle('is-active', on);
-                    t.setAttribute('aria-selected', on ? 'true' : 'false');
-                });
-                load(false);
-            });
-        });
-
-        q('moreBtn').addEventListener('click', () => { moreMenu.hidden = !moreMenu.hidden; });
-        q('readAll').addEventListener('click', async () => {
-            moreMenu.hidden = true;
-            try {
-                await fetch('/api/notifications/read-all', { method: 'POST', credentials: 'include' });
-            } catch (e) { /* the next load shows the real state */ }
-            items.forEach(n => { n.is_read = true; });
-            if (filter === 'unread') items = [];
-            setCount(0);
-            render();
-        });
-
         olderBtn.addEventListener('click', () => load(true));
 
-        // Clicking a notification marks it read, then follows its link
-        // (same idea as the admin bell): the dot, the bold and the count
-        // change at once; a link waits for the server (at most
-        // READ_WAIT_MS) so the next page already counts it as read. On a
-        // timeout / error it goes anyway - the minute poll fixes the count.
-        const READ_WAIT_MS = 1500;
-        let navigating = false;
-        listEl.addEventListener('click', (e) => {
-            const el = e.target.closest('.notif-item');
-            if (!el) return;
-            const n = items.find(x => String(x.id) === el.dataset.id);
-            if (!n || n.is_read) return;           // already read: a link just opens
-            const href = el.tagName === 'A' ? el.getAttribute('href') : null;
-            // Ctrl / Cmd / Shift / middle click opens a new tab - this page stays.
-            const newTab = e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1;
-            if (href && !newTab) {
-                e.preventDefault();
-                if (navigating) return;            // second click while waiting
-                navigating = true;
-            }
-
-            n.is_read = true;
-            el.classList.remove('is-unread');
-            const dot = el.querySelector('.notif-dot');
-            if (dot) dot.setAttribute('aria-label', '');
-            setCount(Math.max(0, unread - 1));
-            if (filter === 'unread') {
-                items = items.filter(x => x !== n);
-                if (!href || newTab) render();
-            }
-
-            const sent = fetch(`/api/notifications/${n.id}/read`, { method: 'POST', credentials: 'include', keepalive: true })
-                .then(res => res.json())
-                .then(data => { if (data && data.success) setCount(data.unread_count); })
-                .catch(() => { /* best-effort - the minute poll fixes the count */ });
-            if (!href || newTab) return;
-
-            const timeout = new Promise(resolve => setTimeout(resolve, READ_WAIT_MS));
-            Promise.race([sent, timeout]).then(() => { window.location.href = href; });
-        });
+        // Clicking a notification just opens its link: opening the panel
+        // already marked everything read (no extra call, no wait).
 
         pollCount();
         setInterval(pollCount, NOTIF_POLL_MS);
@@ -509,4 +480,79 @@ document.addEventListener('DOMContentLoaded', () => {
     script.defer = true;
     script.dataset.idleLogout = '1';
     document.head.appendChild(script);
+})();
+
+// "Doing now" for staff (feat/learner-activity) - server/learner_where.py.
+// Tells the server WHERE the learner is: the page, and on a lesson the
+// step, the game ("question 3 of 5", lives, paused / out of lives) and the
+// exercise's number of tries. NEVER code, typed answers or any answer.
+// Sent when something changes (1.5 s debounce) and when the tab comes back
+// to the front. It is not activity: it never keeps anyone online.
+//     window.cobraWhere.set({ step, resource_id, tries })
+//     window.cobraWhere.game(key, { game, game_state, q_num, q_total, lives } | null)
+(function () {
+    if (window.cobraWhere) return;
+    const PAGES = {
+        '/dashboard': 'dashboard', '/learning-map': 'learning_map', '/lessons': 'lessons',
+        '/lesson-content': 'lesson', '/module-review': 'module_review', '/sandbox': 'sandbox',
+        '/profile': 'profile', '/profile/edit': 'edit_profile',
+        '/profile/change-password': 'change_password', '/certificate': 'certificate',
+    };
+    const page = PAGES[window.location.pathname.replace(/\/+$/, '')] || null;
+    const DEBOUNCE_MS = 1500;
+    const place = { page };
+    if (page === 'lesson') place.resource_id = new URLSearchParams(window.location.search).get('resource_id');
+    let gameKey = null;
+    let game = null;
+    let timer = null;
+    let lastSent = '';
+
+    function body() {
+        return JSON.stringify(Object.assign({}, place, place.step === 'activities' && game ? game : {}));
+    }
+
+    function send(force) {
+        clearTimeout(timer);
+        timer = null;
+        if (!page || document.visibilityState !== 'visible') return;
+        const data = body();
+        if (!force && data === lastSent) return;
+        lastSent = data;
+        fetch('/session/where', {
+            method: 'POST', credentials: 'same-origin', keepalive: true,
+            headers: { 'Content-Type': 'application/json' }, body: data,
+        }).catch(() => { /* best-effort */ });
+    }
+
+    function later() {
+        if (!timer) timer = setTimeout(send, DEBOUNCE_MS);
+    }
+
+    window.cobraWhere = {
+        set(values) {
+            Object.assign(place, values || {});
+            later();
+        },
+        // key: the game's activity id - several games share the activities
+        // step; the one reported last is the one being played.
+        game(key, info) {
+            if (info) {
+                gameKey = key;
+                game = info;
+            } else if (key === gameKey) {
+                gameKey = null;
+                game = null;
+            } else {
+                return;
+            }
+            later();
+        },
+    };
+
+    if (page) {
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => later());
+        else later();
+        // The tab in front is the one that counts (several tabs open).
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') send(true); });
+    }
 })();

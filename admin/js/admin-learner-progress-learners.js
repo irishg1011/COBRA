@@ -153,7 +153,7 @@
 
             tableBody.innerHTML = learners.map((l) => `
                 <tr data-acc-id="${escapeHtml(l.acc_id)}">
-                    <td>${I.learnerHtml(l.acc_id, l.name, l.avatar_url)}</td>
+                    <td>${I.learnerHtml(l.acc_id, l.name, l.avatar_url, true)}</td>
                     <td class="lp-position-cell">${positionHtml(l)}</td>
                     <td><span class="lp-score-trend">${I.scoreHtml(l.avg_score)} ${I.trendHtml(l.trend)}</span></td>
                     <td><span title="${escapeHtml(l.last_active)}">${escapeHtml(l.last_active_ago)}</span></td>

@@ -30,7 +30,7 @@ from learner_fib_routes import learner_fib_bp  # Fill in the Blanks battle API (
 from learner_flashcard_routes import learner_flashcard_bp  # Flashcards card-duel API (own blueprint)
 from learner_game_routes import learner_game_bp  # shared game routes: question timer + leaving the page
 from learner_profile import learner_profile_bp  # Profile dropdown: View/Edit Profile, Change Password, badges
-from notifications import learner_notifications_bp, notify  # header bell notifications
+from notifications import learner_notifications_bp, notify_welcome  # header bell notifications
 from session_tracker import end_session, touch_session  # NEW: live "Active Sessions" tracking (Admin + Learner)
 from auth_core import (  # feat/admin-login-page: ONE copy of the sign-in / reset rules, shared with /staff/login
     authenticate, send_reset_code, verify_reset_code, reset_password, otp_storage,
@@ -393,10 +393,7 @@ def signup():
         record_consent(cursor, new_acc_id, guardian_declared=guardian_flag(data, age))
 
         # 4. Welcome notification for the header bell
-        notify(cursor, new_acc_id, "welcome",
-               f"Welcome to CobraByte, **{first_name}**!",
-               "Start with Chapter 1 on your Learning Map. Your progress, badges and lives show up here.",
-               "/learning-map", "welcome")
+        notify_welcome(cursor, new_acc_id, first_name)
 
         # 5. feat/admin-bell: the admins' header bell hears about the new learner
         #    (imported here: only this route needs it)

@@ -21,6 +21,9 @@
  *                                       The game behind it is blurred and the
  *                                       leave guard waits until it is closed.
  *   CobraGameKit.noticeOpen()           true while such a notice is open
+ *   CobraGameKit.reportWhere(...)       feat/learner-activity: the game's mode,
+ *                                       question N of M and lives for staff's
+ *                                       "Doing now" (never any answer)
  */
 (function () {
     "use strict";
@@ -598,6 +601,36 @@
         e.returnValue = "";
     });
 
+    // feat/learner-activity: "Doing now" for staff (learner.js cobraWhere).
+    // Only the game, its mode, "question N of M" and lives - never answers.
+    // Not in the admin preview (no cobraWhere there, and preview passes true).
+    const GAME_IDS = { "Multiple Choice": 1, "Fill in the Blanks": 2, "Flashcards": 3 };
+    const MODE_STATES = {
+        playing: "playing", busy: "playing", tryagain: "playing", review: "playing",
+        paused: "paused", outoflives: "out_of_lives", cooldown: "out_of_lives",
+    };
+    function reportWhere(preview, activity, mode, qIndex, total, server) {
+        if (preview || !window.cobraWhere || !activity) return;
+        const key = activity.la_id ?? activity.activity_id ?? activity.id;
+        if (mode === "loading") return;
+        // "ready" is the start screen AND the question preview (its clock is
+        // already running): playing only once the play is under way.
+        const inPlay = server && server.session_status === "in_progress" && server.total_lives > 0;
+        if (mode === "ready" && !inPlay) return;   // not started (yet) - nothing changes
+        const held = !!(server && server.timer && server.timer.held);   // "Your game is paused" start card
+        const state = mode === "ready" ? (held ? "paused" : "playing") : MODE_STATES[mode];
+        const game = GAME_IDS[activity.activity_type];
+        if (!state || !game) {
+            window.cobraWhere.game(key, null);    // done / error: back to the activities list
+            return;
+        }
+        window.cobraWhere.game(key, {
+            game, game_state: state,
+            q_num: total ? Math.min(qIndex + 1, total) : null, q_total: total || null,
+            lives: server && Number.isFinite(server.total_lives) ? server.total_lives : null,
+        });
+    }
+
     window.CobraGameKit = { hearts, livesText, livesHtml, livesLabelHtml, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere };
 })();

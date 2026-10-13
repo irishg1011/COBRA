@@ -15,6 +15,9 @@
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/reports.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/dashboards.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-extras.css') }}">
+    <!-- feat/learner-activity: a learner in "Who's online now" opens the shared Course Progress modal -->
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-progress.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-insights.css') }}">
     <script src="{{ url_for('admin_bp.static', filename='js/admin-sidebar-state.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/learner-insights.css') }}">
 </head>
@@ -106,9 +109,15 @@
     <script src="{{ url_for('admin_bp.static', filename='js/admin-avatar.js') }}"></script>
     <script type="application/json" id="lpSettings">{{ lp_settings|tojson }}</script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-progress-insights.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/chart.umd.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-lesson-progress-modal.js') }}"></script>
+    <script src="{{ url_for('admin_bp.static', filename='js/admin-learner-course-modal.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-cards.js') }}"></script>
     <script src="{{ url_for('admin_bp.static', filename='js/admin-dashboard-health.js') }}"></script>
 
     {% include 'dashboard-card-modal.html' %}
+    {# feat/learner-activity - on top of the card modal: Course Progress, then Lesson Progress #}
+    {% include 'learner-progress-learner-modal.html' %}
+    {% include 'learner-progress-modal.html' %}
 </body>
 </html>
