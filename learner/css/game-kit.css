@@ -544,30 +544,33 @@ html.game-leave-check .fc-root {
    game while the animation plays (no blur), before the answer card
    ============================================================ */
 .game-result-banner {
+    /* a slim pill at the bottom of the game, over the empty floor:
+       the fighters, the hit effects and the HP bars stay clear */
     position: absolute;
-    top: 50%;
+    bottom: 14px;
     left: 50%;
     z-index: 4;
     display: inline-flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 2px;
-    padding: 10px 22px 8px;
-    border-radius: 16px;
+    gap: 7px;
+    max-width: calc(100% - 24px);
+    padding: 7px 16px;
+    border-radius: 999px;
     background: rgba(255, 255, 255, 0.94);
     border: 2px solid #ef4444;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
     color: #991b1b;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 800;
-    text-align: center;
+    white-space: nowrap;
     pointer-events: none;
-    transform: translate(-50%, -150%);
+    transform: translateX(-50%);
     animation: game-banner-in 0.25s ease-out;
 }
-.game-result-banner > i { font-size: 24px; color: #ef4444; }
+.game-result-banner > i { font-size: 18px; color: #ef4444; }
 .game-result-banner small {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: #64748b;
 }
@@ -578,13 +581,30 @@ html.game-leave-check .fc-root {
 .game-result-banner.is-timeup { border-color: #f59e0b; color: #92400e; }
 .game-result-banner.is-timeup > i { color: #f59e0b; }
 @keyframes game-banner-in {
-    from { opacity: 0; transform: translate(-50%, -120%) scale(0.9); }
-    to { opacity: 1; transform: translate(-50%, -150%) scale(1); }
+    from { opacity: 0; transform: translate(-50%, 12px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
 }
 @media (max-width: 720px), (max-height: 500px) and (pointer: coarse) {
-    .game-result-banner { font-size: 17px; padding: 8px 16px 6px; }
-    .game-result-banner > i { font-size: 20px; }
+    .game-result-banner { bottom: 10px; gap: 6px; padding: 6px 13px; font-size: 14px; }
+    .game-result-banner > i { font-size: 16px; }
+    .game-result-banner small { font-size: 11px; }
 }
+/* the stage's own "Drag the arena to look around" line sits there too */
+.fib-stage:has(.game-result-banner) .fib-stage-hint,
+.fc-stage:has(.game-result-banner) .fc-stage-hint { visibility: hidden; }
+
+/* the puzzle panel chip says the result too ("✔ Correct!" / "✖ Not quite") */
+.fib-chip.is-result,
+.fc-chip.is-result { font-weight: 800; }
+.fib-chip.is-result.is-wrong,
+.fc-chip.is-result.is-wrong { color: #991b1b; background: #fef2f2; border-color: #fca5a5; }
+.fib-chip.is-result.is-right,
+.fc-chip.is-result.is-right { color: #166534; background: #f0fdf4; border-color: #86efac; }
+.fib-chip.is-result.is-close,
+.fc-chip.is-result.is-close,
+.fib-chip.is-result.is-timeup,
+.fc-chip.is-result.is-timeup { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
+
 @media (prefers-reduced-motion: reduce) {
     .game-result-banner { animation: none; }
 }

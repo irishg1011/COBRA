@@ -278,7 +278,7 @@
                 <section class="fc-board">
                     <div class="fc-board-head">
                         <span class="fc-chip" data-c="qmeta"></span>
-                        <span class="fc-chip is-muted">Type the back of the card</span>
+                        <span class="fc-chip is-muted" data-c="modeChip">Type the back of the card</span>
                     </div>
                     <div data-c="timerHost"></div>
                     <div class="fc-card">
@@ -924,6 +924,7 @@
         function loadCard() {
             const card = currentCard();
             ui.qmeta.textContent = `Card ${qIndex + 1} of ${total}`;
+            window.CobraGameKit.resetChip(ui.modeChip);
             // feat/game-countdown: nothing of a card exists before its clock starts.
             if (card.hidden) ui.front.textContent = "The card appears after the 3 - 2 - 1 countdown.";
             else fcRenderCard(ui.front, card.front_text);
@@ -966,7 +967,7 @@
             pendingHold = window.CobraGameKit.holdThenCard(root.querySelector(".fc-stage"), kind, ms, () => {
                 pendingHold = null;
                 if (!disposed) show();
-            });
+            }, ui.modeChip);
         }
 
         function cancelPendingCard() {

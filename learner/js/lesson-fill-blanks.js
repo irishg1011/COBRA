@@ -662,6 +662,7 @@
             slotInput = null;
 
             ui.qmeta.textContent = `Puzzle ${qIndex + 1} of ${total}`;
+            window.CobraGameKit.resetChip(ui.modeChip);
             ui.modeChip.textContent = isTyping() ? "Type the answer" : "Pick a tile";
             ui.instruction.textContent = item.instruction || "";
             ui.instruction.hidden = !item.instruction;
@@ -939,7 +940,7 @@
                 showOverlay("");
                 const card = kit.answerCard(ui.overlay, opts);
                 card.btn.focus({ preventScroll: true });
-            });
+            }, ui.modeChip);
         }
 
         // ---- answering ----

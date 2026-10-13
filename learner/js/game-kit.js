@@ -799,13 +799,16 @@
     }
 
     // feat/answer-card-timing: after an answer the result shows AT ONCE as
-    // a small banner on the game (no blur), the animation plays in full and
-    // stays clear, THEN the answer card slides in. Tapping the game or
-    // pressing Enter shows the card straight away.
-    //   stage: where the banner goes (the 3D stage / the arena)
+    // a slim pill at the bottom of the game, over the empty floor (no blur,
+    // never over the fighters or the HP bars), the animation plays in full,
+    // THEN the answer card slides in. Tapping the game or pressing Enter
+    // shows the card straight away.
+    //   stage: where the pill goes (the 3D stage / the arena)
     //   kind:  "right" | "close" | "wrong" | "timeup"
     //   ms:    how long the animation plays before the card
     //   show:  builds the card (called once)
+    //   chip:  optional - the puzzle panel's chip ("Type the answer") also
+    //          says the result next to the answer, until resetChip()
     // Returns { skip(), cancel() }.
     const ANSWER_HOLD = { right: 2000, wrong: 1800, defeat: 1700 };
     const BANNER_TEXT = {
@@ -814,14 +817,15 @@
         wrong: ["fa-circle-xmark", "Not quite"],
         timeup: ["fa-stopwatch", "Time's up"],
     };
-    function holdThenCard(stage, kind, ms, show) {
+    function holdThenCard(stage, kind, ms, show, chip) {
         const [icon, text] = BANNER_TEXT[kind] || BANNER_TEXT.wrong;
+        resultChip(chip, kind);
         let banner = null;
         if (stage) {
             banner = document.createElement("div");
             banner.className = `game-result-banner is-${kind}`;
             banner.setAttribute("role", "status");
-            banner.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i> <span></span><small>Tap to continue</small>`;
+            banner.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i> <span></span><small>· Tap to continue</small>`;
             banner.querySelector("span").textContent = text;
             stage.appendChild(banner);
         }
@@ -873,6 +877,26 @@
         };
     }
 
+    // The panel chip turns into the result ("✔ Correct!" / "✖ Not quite").
+    function resultChip(chip, kind) {
+        if (!chip) return;
+        const [icon, text] = BANNER_TEXT[kind] || BANNER_TEXT.wrong;
+        if (!("chipText" in chip.dataset)) chip.dataset.chipText = chip.textContent;
+        chip.classList.add("is-result", `is-${kind}`);
+        chip.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i> <span></span>`;
+        chip.querySelector("span").textContent = text;
+    }
+
+    // Back to the chip's own text (the next question).
+    function resetChip(chip) {
+        if (!chip) return;
+        chip.classList.remove("is-result", "is-right", "is-close", "is-wrong", "is-timeup");
+        if ("chipText" in chip.dataset) {
+            chip.textContent = chip.dataset.chipText;
+            delete chip.dataset.chipText;
+        }
+    }
+
     // "Streak 3 · best 4" for a right answer (the small line on the card).
     function streakLine(streak, best) {
         if (!streak) return "";
@@ -880,5 +904,5 @@
     }
 
     window.CobraGameKit = { hearts, livesText, livesHtml, livesLabelHtml, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult, clampText, answerCard, streakLine, holdThenCard, ANSWER_HOLD };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult, clampText, answerCard, streakLine, holdThenCard, ANSWER_HOLD, resultChip, resetChip };
 })();
