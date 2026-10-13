@@ -246,7 +246,7 @@
         container.innerHTML = "";
         const root = el("div", "fc-root");
         root.innerHTML = `
-            <header class="fc-topbar">
+            <header class="fc-topbar game-topbar">
                 <div class="fc-brand">
                     <span class="fc-brand-icon"><i class="fa-solid fa-layer-group"></i></span>
                     <div>
@@ -254,13 +254,13 @@
                         <h3 class="fc-brand-title" data-c="title"></h3>
                     </div>
                 </div>
-                <div class="fc-stats">
-                    <div class="fc-stat is-score" data-c="scoreStat"><b data-c="score">0</b><i>Score</i></div>
+                <div class="fc-stats game-stats">
+                    <div class="fc-stat is-score" data-c="scoreStat"><b data-c="score">0/0</b><i data-c="scoreLabel">Correct</i></div>
                     <div class="fc-stat"><b data-c="progress">-</b><i>Card</i></div>
-                    <div class="fc-stat"><b data-c="streak">0</b><i>Streak</i></div>
+                    <div class="fc-stat is-streak"><b><i class="fa-solid fa-fire game-streak-icon" aria-hidden="true"></i><span data-c="streak">0</span></b><i>Streak</i></div>
                     <div class="fc-stat is-lives" data-c="livesStat"><b><span class="fc-hearts" data-c="lives"></span><span class="fc-lives-count" data-c="livesCount"></span></b><i data-c="livesLabel">Lives</i></div>
+                    <button type="button" class="game-fs-btn fc-focus-btn" data-c="focusBtn" aria-label="Full screen" title="Full screen"><i class="fa-solid fa-expand"></i></button>
                 </div>
-                <button type="button" class="fc-ghost-btn fc-focus-btn" data-c="focusBtn" aria-label="Full screen"><i class="fa-solid fa-expand"></i> <span>Full screen</span></button>
             </header>
             <div class="fc-play">
                 <section class="fc-stage">
@@ -327,7 +327,7 @@
         let disposed = false;
         let stage3d = null;
         let qIndex = 0;
-        let score = 0, streak = 0, bestStreak = 0;
+        let streak = 0, bestStreak = 0;
         let revealedAnswer = null;  // the card's back, revealed after a wrong answer
         let rafId = null, countdownTimer = null, refreshing = false;
         const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
@@ -387,7 +387,10 @@
         }
 
         function updateHUD() {
-            ui.score.textContent = score;
+            // feat/games-mobile-polish: the SAVED first-try count ("Correct 2/5"; a retake round: "Fixed 1/2")
+            const correct = window.CobraGameKit.correctStat(server, total);
+            ui.score.textContent = correct.value;
+            ui.scoreLabel.textContent = correct.label;
             ui.progress.textContent = total ? `${Math.min(qIndex + 1, total)}/${total}` : "-";
             ui.streak.textContent = streak;
             ui.lives.innerHTML = fcHearts(server);
@@ -841,31 +844,18 @@
             if (btn) btn.disabled = !hasLife;
         }
 
+        // feat/games-mobile-polish: the shared end card (game-kit.js) - the
+        // stage and the board are hidden; only the title bar + the card stay.
         function finish() {
             setMode("done");
             if (stage3d) stage3d.skipIntro();
-            const firstTry = server ? server.first_try_correct : 0;
-            const rt = server && server.retake;   // Module 85% gate: finished a retake round
-            showOverlay(`
-                <div class="fc-overlay-card">
-                    <i class="fa-solid fa-trophy fc-overlay-icon"></i>
-                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : (server && server.bug_hp === 0 ? "NullScorpion defeated" : "Activity complete")}</h4>
-                    <div class="fc-results">
-                        <div><b>${rt ? `${Number(rt.fixed)}/${Number(rt.total)}` : `${firstTry}/${total}`}</b><span>${rt ? "Fixed" : "First try"}</span></div>
-                        <div><b>${bestStreak}</b><span>Best streak</span></div>
-                        <div><b>${score}</b><span>Score</span></div>
-                    </div>
-                    <p class="fc-subnote">${rt
-                        ? `${Number(rt.fixed)} of ${Number(rt.total)} missed cards fixed on the first try. Your module score is updated on the Lessons page.`
-                        : `Saved to your progress: ${firstTry} of ${total} cards right on the first try.`}</p>
-                    <div class="fc-overlay-actions">
-                        <button type="button" class="fc-primary-btn" data-c="continueBtn">Continue</button>
-                    </div>
-                </div>
-            `);
-            overlayNode("continueBtn").addEventListener("click", () => {
-                dispose();
-                onActivityDone();
+            hideOverlay();
+            window.CobraGameKit.showResult(root, {
+                state: server, total, bestStreak, preview: !!PREVIEW,
+                onContinue: () => {
+                    dispose();
+                    onActivityDone();
+                }
             });
         }
 
@@ -1044,7 +1034,6 @@
             if (result.is_correct) {
                 streak += 1;
                 bestStreak = Math.max(bestStreak, streak);
-                score += (result.first_try ? 100 : result.is_close ? 40 : 50) + streak * 20;
                 bump(ui.scoreStat);
                 if (stage3d) stage3d.setCard(`Card ${qIndex + 1} of ${total}`, fcParseCard(card.front_text), fcParseCard(result.answer || answer));
                 fx.glow = result.is_close ? "close" : "ok";
@@ -1073,7 +1062,7 @@
 
         // Skip from the answer bar while playing: free if this card was
         // already answered wrong (same as Skip card), otherwise -1 life
-        // like the preview skip. No score either way - logged as 'skipped'.
+        // like the preview skip. Not correct either way - logged as 'skipped'.
         async function skipFromBar() {
             if (disposed || mode !== "playing") return;
             setMode("busy");
@@ -1354,11 +1343,10 @@
         // It closes by itself on the results, an error, or when lives run
         // out, and the learner can leave / come back with the button in
         // the top bar. Styles: .fc-root.is-focus in the CSS file.
-        const touchQuery = window.matchMedia ? window.matchMedia("(hover: none) and (pointer: coarse)") : null;
         let focusDeclined = false;   // learner pressed "Exit full screen" - do not force it back on
 
         function isPhone() {
-            return !!(touchQuery && touchQuery.matches && Math.min(window.innerWidth, window.innerHeight) <= 600);
+            return window.CobraGameKit.isPhone();   // touch screen, short side <= 720px
         }
 
         // offsetParent is always null for position: fixed (full screen), so
@@ -1372,10 +1360,9 @@
             root.classList.toggle("can-focus", on || isPhone());
             if (ui.focusBtn.dataset.on === String(on)) return;   // label already right
             ui.focusBtn.dataset.on = String(on);
-            ui.focusBtn.innerHTML = on
-                ? '<i class="fa-solid fa-compress"></i> <span>Exit full screen</span>'
-                : '<i class="fa-solid fa-expand"></i> <span>Full screen</span>';
+            ui.focusBtn.innerHTML = `<i class="fa-solid ${on ? "fa-compress" : "fa-expand"}"></i>`;
             ui.focusBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+            ui.focusBtn.title = on ? "Exit full screen" : "Full screen";
         }
 
         // Keeps the full-screen game inside the part of the screen that is
@@ -1470,8 +1457,6 @@
                 onActivityDone();
                 return;
             }
-            score = play.state.first_try_correct * 100
-                + Math.max(0, play.state.solved_count - play.state.first_try_correct) * 50;
 
             try {
                 const loaded = await stageFiles;

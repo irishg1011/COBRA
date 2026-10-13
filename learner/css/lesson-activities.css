@@ -837,8 +837,6 @@
 /* ---------- Focus mode: the arena fills the phone screen while playing ----------
    lesson-activities.js adds .is-focus when a touch device starts a play,
    and removes it on exit, finish, or when lives run out. */
-.mcq-arena-exit-btn { display: none; }
-
 html.mcq-focus-lock,
 html.mcq-focus-lock body {
     overflow: hidden;
@@ -900,7 +898,6 @@ html.mcq-focus-lock body {
 .mcq-arena-root.is-focus .mcq-arena-hint { display: none; }
 .mcq-arena-root.is-focus .mcq-arena-toolbar { flex-wrap: nowrap; justify-content: center; gap: 8px; }
 .mcq-arena-root.is-focus .mcq-arena-toolbar .mcq-arena-ghost-btn { padding: 7px 14px; font-size: 13px; }
-.mcq-arena-root.is-focus .mcq-arena-exit-btn { display: inline-flex; }
 
 .mcq-arena-root.is-focus .mcq-arena-dpad {
     grid-template-columns: repeat(3, 64px);
@@ -1074,3 +1071,21 @@ html.mcq-focus-lock body {
         gap: 5px;
     }
 }
+
+/* ============================================================
+   feat/games-mobile-polish - phones
+   ============================================================ */
+@media (max-width: 720px) {
+    /* the four stats + the small full-screen icon: ONE slim row */
+    .mcq-arena-stats,
+    .mcq-arena-root.is-focus .mcq-arena-stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+        align-items: stretch;
+    }
+    .mcq-arena-stats .game-fs-btn { width: 36px; min-height: 0; }
+}
+
+.mcq-arena-root[data-mode="loading"] .game-fs-btn,
+.mcq-arena-root[data-mode="outoflives"] .game-fs-btn,
+.mcq-arena-root[data-mode="done"] .game-fs-btn,
+.mcq-arena-root[data-mode="error"] .game-fs-btn { display: none; }

@@ -310,3 +310,104 @@ html.game-leave-check .fc-root {
    shows plain "Skip" on phones too (no "−1 ♥" short label). */
 .is-preview .game-lbl-short { display: none !important; }
 .is-preview .game-lbl-long { display: inline !important; }
+
+/* ============================================================
+   feat/games-mobile-polish - shared by the three games
+   ============================================================ */
+
+/* The end of an activity (CobraGameKit.showResult): only the title bar
+   and ONE centred result card stay - no stage, board, toolbar or d-pad
+   (and no blurred last question) behind it. */
+.game-finished > :not(.game-topbar):not(.game-result) { display: none !important; }
+.game-finished .game-stats { display: none !important; }
+.game-result {
+    display: flex;
+    justify-content: center;
+    padding: 18px 0 6px;
+}
+.game-result-card {
+    width: 100%;
+    max-width: 420px;
+    padding: 26px 24px 22px;
+    border-radius: 18px;
+    background: #ffffff;
+    color: #0f172a;
+    text-align: center;
+    border: 1.5px solid #e2e8f0;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+}
+.game-result-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin-bottom: 10px;
+    border-radius: 50%;
+    background: #fef3c7;
+    color: #f59e0b;
+    font-size: 30px;
+}
+.game-result-title { margin: 0 0 6px; font-size: 1.35rem; font-weight: 800; }
+.game-result-line { margin: 0 0 14px; font-size: 1rem; font-weight: 600; color: #15803d; }
+.game-result-stats {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 0 14px;
+}
+.game-result-stats > div {
+    flex: 0 1 140px;
+    padding: 9px 8px;
+    border-radius: 12px;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+}
+.game-result-stats b {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.game-result-stats .fa-fire { color: #f97316; }
+.game-result-stats .fa-heart { color: #ef4444; }
+.game-result-stats .game-result-label {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+.game-result-saved { margin: 0 0 16px; font-size: 0.85rem; color: #475569; }
+.game-result-btn { min-width: 170px; }
+
+/* Streak stat: a small fire icon before the number */
+.game-streak-icon { color: #f97316; margin-right: 3px; font-size: 0.85em; }
+
+/* Full screen: a small icon in the stats row (phones only) */
+.game-fs-btn {
+    display: none;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    min-height: 38px;
+    padding: 0;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #334155;
+    font-size: 15px;
+    cursor: pointer;
+}
+.game-fs-btn:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }
+.can-focus .game-fs-btn { display: inline-flex; }
+
+@media (max-width: 720px) {
+    .game-result { padding-top: 10px; }
+    .game-result-card { padding: 22px 18px 18px; }
+    .game-result-icon { width: 54px; height: 54px; font-size: 25px; }
+    .game-result-title { font-size: 1.2rem; }
+}

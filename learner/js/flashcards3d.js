@@ -619,6 +619,8 @@ export function createFlashStage(canvas, opts = {}) {
     return { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
   }
 
+  const NARROW_ASPECT = 1.7, NARROW_FIT = 2.5, NARROW_MAX_FRAMING = 2.0;
+
   function resize() {
     const w = canvas.clientWidth || canvas.width;
     const h = canvas.clientHeight || canvas.height;
@@ -627,7 +629,11 @@ export function createFlashStage(canvas, opts = {}) {
     camera.aspect = w / h;
     // (up to 2.9 so a phone-width stage still shows the cobra AND the foe;
     // desktop stages are wide enough to stay under the old 1.9 cap)
-    const framing = Math.min(2.9, Math.max(0.62, 3.3 / camera.aspect));
+    // feat/games-mobile-polish: a narrow (phone) stage comes in closer so the
+    // cobra's head and the foe fill it (the cobra's tail may leave the frame).
+    const framing = camera.aspect < NARROW_ASPECT
+        ? Math.min(NARROW_MAX_FRAMING, Math.max(0.62, NARROW_FIT / camera.aspect))
+        : Math.min(2.9, Math.max(0.62, 3.3 / camera.aspect));
     camera.userData.baseY = CAM_BASE.y + framing * 1.6;
     camera.userData.baseZ = CAM_BASE.z * (0.72 + framing * 0.4);
     camera.position.set(CAM_BASE.x, camera.userData.baseY, camera.userData.baseZ);
