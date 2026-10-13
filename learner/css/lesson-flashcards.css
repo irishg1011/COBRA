@@ -592,17 +592,9 @@
    page behind cannot scroll (html.fc-focus-lock).
    ============================================================ */
 
-/* Full screen / Exit full screen button in the top bar: phones only
-   (.can-focus), and never on the loading / out of lives / results /
-   error screens. */
-.fc-focus-btn { display: none; }
-
-.fc-root.can-focus .fc-focus-btn {
-    display: inline-flex;
-    margin-left: auto;
-    padding: 6px 12px;
-    font-size: 12.5px;
-}
+/* Full screen / Exit full screen: a small icon in the stats row, phones
+   only (.can-focus - game-kit.css), and never on the loading / out of
+   lives / results / error screens. */
 
 .fc-root[data-mode="loading"] .fc-focus-btn,
 .fc-root[data-mode="cooldown"] .fc-focus-btn,
@@ -670,14 +662,6 @@ html.fc-focus-lock body {
 .fc-root.is-focus .fc-stat .fc-hearts { display: none; }   /* the count ("10/5") stays */
 .fc-root.is-focus .fc-lives-count { margin-left: 0; }
 
-.fc-root.is-focus .fc-focus-btn {
-    flex: 0 0 auto;
-    margin-left: 0;
-    padding: 0 12px;
-    font-size: 15px;
-}
-
-.fc-root.is-focus .fc-focus-btn span { display: none; }   /* icon only; the name is in aria-label */
 
 /* play area: the 3D stage takes the room that is left, the board
    scrolls inside itself when it is taller than the screen */
@@ -907,4 +891,29 @@ html.fc-focus-lock body {
     .fc-overlay-card p { font-size: 13.5px; }
     .fc-overlay-actions { flex-wrap: nowrap; gap: 8px; }
     .fc-preview .fc-overlay-actions > button { flex: 1 1 0; justify-content: center; white-space: nowrap; }
+}
+
+/* ============================================================
+   feat/games-mobile-polish - phones
+   ============================================================ */
+@media (max-width: 720px) {
+    /* the four stats + the small full-screen icon: ONE slim row */
+    .fc-stats,
+    .fc-root.is-focus .fc-stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+        align-items: stretch;
+    }
+    .fc-stats .game-fs-btn { width: 36px; min-height: 0; }
+}
+
+/* Full screen, phone upright: the 3D stage keeps about a third of the
+   screen and is never squeezed away by the board - the board below
+   scrolls inside its own area. (On-screen keyboard open: .is-compact
+   still hides the stage; phone on its side: stage and board side by side.) */
+@media (orientation: portrait) {
+    .fc-root.is-focus .fc-stage {
+        flex: 1 1 0;
+        min-height: max(170px, 34vh);
+        min-height: max(170px, 34dvh);
+    }
 }

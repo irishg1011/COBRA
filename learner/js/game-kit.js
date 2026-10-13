@@ -24,6 +24,9 @@
  *   CobraGameKit.reportWhere(...)       feat/learner-activity: the game's mode,
  *                                       question N of M and lives for staff's
  *                                       "Doing now" (never any answer)
+ *   CobraGameKit.isPhone()              touch screen, short side <= 720px
+ *   CobraGameKit.correctStat(state, n)  the "Correct 2/5" (retake: "Fixed 1/2") stat
+ *   CobraGameKit.showResult(root, opts) the end card shared by the 3 games
  */
 (function () {
     "use strict";
@@ -631,6 +634,83 @@
         });
     }
 
+    // ------------------------------------------------------------
+    // feat/games-mobile-polish: pieces the three games share
+    // ------------------------------------------------------------
+
+    // A phone: a touch screen whose short side is at most 720px (the same
+    // width the games' phone CSS uses). Used for full screen + the snake.
+    const coarseQuery = window.matchMedia ? window.matchMedia("(hover: none) and (pointer: coarse)") : null;
+    function isPhone() {
+        return !!(coarseQuery && coarseQuery.matches && Math.min(window.innerWidth, window.innerHeight) <= 720);
+    }
+
+    // The "Correct" stat: the SAVED first-try number, e.g. "2/5"
+    // (a retake round: "Fixed 1/2"). Never local game points.
+    function correctStat(state, total) {
+        const rt = state && state.retake;
+        if (rt) return { value: `${Number(rt.fixed) || 0}/${Number(rt.total) || 0}`, label: "Fixed" };
+        const right = state ? Number(state.first_try_correct ?? state.score ?? 0) : 0;
+        return { value: `${right}/${Number(total) || 0}`, label: "Correct" };
+    }
+
+    // The end of an activity: the game (stage, board, toolbar, d-pad) is
+    // hidden and ONE centred card shows the result - same in all 3 games.
+    //   opts: { state, total, bestStreak, preview, onContinue }
+    function showResult(root, opts) {
+        opts = opts || {};
+        const state = opts.state || null;
+        const rt = state && state.retake;
+        const total = Number(opts.total) || 0;
+        const right = state ? Number(state.first_try_correct ?? state.score ?? 0) : 0;
+        hideCover(root);
+        let card = root.querySelector(":scope > .game-result");
+        if (!card) {
+            card = document.createElement("div");
+            card.className = "game-result";
+            root.appendChild(card);
+        }
+        const line = rt
+            ? `${Number(rt.fixed) || 0} / ${Number(rt.total) || 0} fixed on the first try`
+            : `${right} / ${total} correct on the first try`;
+        const saved = opts.preview ? "Preview - nothing is saved."
+            : rt ? "Saved. Your module score is updated on the Lessons page."
+            : `Saved to your progress: ${right} of ${total} right on the first try.`;
+        const reserve = state ? Number(state.reserve_lives ?? state.bonus_lives ?? 0) : 0;
+        const lives = !opts.preview && state && state.lives != null
+            ? `${Number(state.lives)}/${Number(state.max_lives)}` + (reserve > 0 ? ` +${reserve}` : "") : "";
+        card.innerHTML = `
+            <div class="game-result-card" role="status">
+                <span class="game-result-icon" aria-hidden="true"><i class="fa-solid fa-trophy"></i></span>
+                <h4 class="game-result-title"></h4>
+                <p class="game-result-line"></p>
+                <div class="game-result-stats">
+                    <div><b><i class="fa-solid fa-fire" aria-hidden="true"></i> <span data-r="streak"></span></b><span class="game-result-label">Best streak</span></div>
+                    ${lives ? `<div><b><i class="fa-solid fa-heart" aria-hidden="true"></i> <span data-r="lives"></span></b><span class="game-result-label">Lives left</span></div>` : ""}
+                </div>
+                <p class="game-result-saved"></p>
+                <button type="button" class="game-ready-btn game-result-btn">Continue</button>
+            </div>`;
+        card.querySelector(".game-result-title").textContent = rt ? `Retake round ${Number(rt.round) || 1} complete` : "Activity complete!";
+        card.querySelector(".game-result-line").textContent = line;
+        card.querySelector('[data-r="streak"]').textContent = String(Number(opts.bestStreak) || 0);
+        if (lives) card.querySelector('[data-r="lives"]').textContent = lives;
+        card.querySelector(".game-result-saved").textContent = saved;
+        root.classList.add("game-finished");
+        const btn = card.querySelector(".game-result-btn");
+        btn.addEventListener("click", () => {
+            btn.disabled = true;
+            if (opts.onContinue) opts.onContinue();
+        }, { once: true });
+        // Back on the page (phones leave full screen): show the card.
+        requestAnimationFrame(() => {
+            const box = card.getBoundingClientRect();
+            if (box.top < 0 || box.bottom > window.innerHeight) card.scrollIntoView({ block: "center" });
+            btn.focus({ preventScroll: true });
+        });
+        return card;
+    }
+
     window.CobraGameKit = { hearts, livesText, livesHtml, livesLabelHtml, timerBar, timerBars, leaveGuard, notice, noticeOpen,
-        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere };
+        startCard, countdown, hideCover, nextNoteText, addLeaveRisk, leaveRisk, reportWhere, isPhone, correctStat, showResult };
 })();

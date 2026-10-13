@@ -122,6 +122,14 @@
         ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right"
     };
     const ARENA_STEP_MS = 130;
+    // feat/games-mobile-polish: phones (CobraGameKit.isPhone) - ~30% slower
+    // snake and bigger cells (fewer columns / rows), so the letters are
+    // larger and easier to aim at. Desktop is unchanged.
+    const ARENA_PHONE_STEP_MS = 190;
+    const ARENA_GRID = { wide: [40, 15], narrow: [20, 22], phone: [14, 16] };
+    // Answer pellets: at least this many cells apart (in any direction),
+    // and never this close straight ahead of the snake's start.
+    const PELLET_GAP = 4;
 
     function arenaColor(letter) {
         return ARENA_COLORS[letter] || "#475569";
@@ -178,7 +186,7 @@
         container.innerHTML = "";
         const root = el("div", "mcq-arena-root");
         root.innerHTML = `
-            <header class="mcq-arena-topbar">
+            <header class="mcq-arena-topbar game-topbar">
                 <div class="mcq-arena-brand">
                     <span class="mcq-arena-brand-icon"><i class="fa-solid fa-list-check"></i></span>
                     <div>
@@ -186,11 +194,12 @@
                         <h3 class="mcq-arena-brand-title" data-ui="title"></h3>
                     </div>
                 </div>
-                <div class="mcq-arena-stats">
-                    <div class="mcq-arena-stat is-score" data-ui="scoreStat"><b data-ui="score">0</b><i>Score</i></div>
+                <div class="mcq-arena-stats game-stats">
+                    <div class="mcq-arena-stat is-score" data-ui="scoreStat"><b data-ui="score">0/${total}</b><i data-ui="scoreLabel">Correct</i></div>
                     <div class="mcq-arena-stat"><b data-ui="progress">1/${total}</b><i>Question</i></div>
-                    <div class="mcq-arena-stat"><b data-ui="streak">0</b><i>Streak</i></div>
+                    <div class="mcq-arena-stat is-streak"><b><i class="fa-solid fa-fire game-streak-icon" aria-hidden="true"></i><span data-ui="streak">0</span></b><i>Streak</i></div>
                     <div class="mcq-arena-stat is-lives" data-ui="livesStat"><b><span class="mcq-arena-hearts" data-ui="lives"></span><span class="mcq-arena-lives-count" data-ui="livesCount"></span></b><i data-ui="livesLabel">Lives</i></div>
+                    <button type="button" class="game-fs-btn" data-ui="focusBtn" aria-label="Full screen" title="Full screen"><i class="fa-solid fa-expand"></i></button>
                 </div>
             </header>
             <section class="mcq-arena-qcard">
@@ -211,7 +220,6 @@
                 <p class="mcq-arena-hint" data-ui="hint">Eat the pellet carrying the <b>correct letter</b> before the bar runs out. One try per question: a wrong letter, a skip, running out of time or biting yourself costs a life. Walls are safe: go through one and you come out the other side. All 5 lives refill 10 minutes after you lose one; the daily bonus lives are a reserve used after your 5 lives are gone.</p>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="skipBtn" disabled aria-label="${PREVIEW ? "Skip this question" : "Skip this question, costs 1 life"}"><i class="fa-solid fa-forward"></i> ${PREVIEW ? "Skip" : '<span class="game-lbl-long">Skip (−1 life)</span><span class="game-lbl-short">Skip −1<i class="fa-solid fa-heart"></i></span>'}</button>
                 <button type="button" class="mcq-arena-ghost-btn" data-ui="pauseBtn"><i class="fa-solid fa-pause"></i> <span>Pause</span></button>
-                <button type="button" class="mcq-arena-ghost-btn mcq-arena-exit-btn" data-ui="exitBtn" aria-label="Exit full screen"><i class="fa-solid fa-compress"></i> <span class="game-lbl-long">Exit full screen</span><span class="game-lbl-short">Exit</span></button>
             </div>
             <div class="mcq-arena-dpad" data-ui="dpad">
                 <button type="button" class="mcq-arena-dpad-up" data-dir="up" aria-label="Up"><i class="fa-solid fa-arrow-up"></i></button>
@@ -238,6 +246,7 @@
         let revealed = null;        // correct option, revealed by the server after a wrong answer
         let streak = 0, bestStreak = 0;
         let COLS = 40, ROWS = 15;
+        let stepMs = ARENA_STEP_MS;
         let snake = [], prevSnake = [], pellets = [];
         let dir = { x: 1, y: 0 }, nextDir = { x: 1, y: 0 };
         let acc = 0, last = 0, shake = 0;
@@ -300,7 +309,10 @@
         function updateHUD() {
             whereNow();
             // In a retake round the Score stat counts items fixed this round.
-            ui.score.textContent = server ? (server.retake ? server.retake.fixed : server.score) : 0;
+            // feat/games-mobile-polish: the SAVED first-try count ("Correct 2/5"; a retake round: "Fixed 1/2")
+            const correct = window.CobraGameKit.correctStat(server, total);
+            ui.score.textContent = correct.value;
+            ui.scoreLabel.textContent = correct.label;
             ui.progress.textContent = `${Math.min(qIndex + 1, total)}/${total}`;
             ui.streak.textContent = streak;
             ui.lives.innerHTML = heartsHtml(server);
@@ -725,30 +737,17 @@
             if (btn) btn.disabled = !hasLife;
         }
 
+        // feat/games-mobile-polish: the shared end card (game-kit.js) - the
+        // arena, question card, toolbar and d-pad are hidden behind nothing.
         function finish() {
             setMode("done");
-            const score = server ? server.score : 0;
-            const rt = server && server.retake;   // Module 85% gate: finished a retake round
-            showOverlay(`
-                <div class="mcq-arena-overlay-card">
-                    <i class="fa-solid fa-trophy mcq-arena-overlay-icon"></i>
-                    <h4>${rt ? `Retake round ${Number(rt.round)} complete` : "Activity complete"}</h4>
-                    <div class="mcq-arena-results">
-                        <div><b>${rt ? `${Number(rt.fixed)}/${Number(rt.total)}` : `${score}/${total}`}</b><span>${rt ? "Fixed" : "Score"}</span></div>
-                        <div><b>${bestStreak}</b><span>Best streak</span></div>
-                        <div><b>${total}</b><span>Questions</span></div>
-                    </div>
-                    <p class="mcq-arena-subnote">${rt
-                        ? `${Number(rt.fixed)} of ${Number(rt.total)} missed questions fixed on the first try. Your module score is updated on the Lessons page.`
-                        : `Saved to your progress: ${score}/${total} answered right on the first try.`}</p>
-                    <div class="mcq-arena-overlay-actions">
-                        <button type="button" class="mcq-arena-primary-btn" data-ui="continueBtn">Continue</button>
-                    </div>
-                </div>
-            `);
-            overlayNode("continueBtn").addEventListener("click", () => {
-                dispose();
-                onActivityDone();
+            hideOverlay();
+            window.CobraGameKit.showResult(root, {
+                state: server, total, bestStreak, preview: !!PREVIEW,
+                onContinue: () => {
+                    dispose();
+                    onActivityDone();
+                }
             });
         }
 
@@ -818,31 +817,57 @@
             acc = 0;
         }
 
+        // feat/games-mobile-polish: the answer pellets keep PELLET_GAP cells
+        // from each other (in any direction) and never sit within PELLET_GAP
+        // cells straight ahead of the snake's start. A board too small for
+        // that relaxes the gap one cell at a time instead of giving up.
         function spawnPellets() {
             const q = questions[qIndex] || NOT_YET;
             pellets = [];
+            const head = snake[0] || { x: Math.min(6, COLS - 4), y: Math.floor(ROWS / 2) };
             const taken = new Set(snake.map((p) => p.x + "," + p.y));
-            const minX = Math.min(10, COLS - 6);
+            const ahead = (x, y) => y === head.y && x > head.x && x <= head.x + PELLET_GAP;
+            const near = (x, y, gap) => pellets.some((p) => Math.max(Math.abs(p.x - x), Math.abs(p.y - y)) < gap);
             (q.options || []).forEach((opt) => {
-                let x, y, guard = 0;
-                do {
-                    x = minX + Math.floor(Math.random() * Math.max(1, COLS - minX - 2));
-                    y = 1 + Math.floor(Math.random() * (ROWS - 2));
-                    guard++;
-                } while (taken.has(x + "," + y) && guard < 500);
-                taken.add(x + "," + y);
-                pellets.push({ x, y, letter: opt.option_letter, option: opt });
+                let spot = null;
+                for (let gap = PELLET_GAP; gap >= 1 && !spot; gap--) {
+                    for (let guard = 0; guard < 400; guard++) {
+                        const x = 1 + Math.floor(Math.random() * Math.max(1, COLS - 2));
+                        const y = 1 + Math.floor(Math.random() * Math.max(1, ROWS - 2));
+                        if (taken.has(x + "," + y) || ahead(x, y) || near(x, y, gap)) continue;
+                        // keep a little room around the snake's body too
+                        if (Math.abs(x - head.x) <= 1 && Math.abs(y - head.y) <= 1) continue;
+                        spot = { x, y };
+                        break;
+                    }
+                }
+                if (!spot) spot = { x: COLS - 2, y: 1 + pellets.length };   // never happens on a real board
+                taken.add(spot.x + "," + spot.y);
+                pellets.push({ x: spot.x, y: spot.y, letter: opt.option_letter, option: opt });
             });
         }
 
+        // The snake re-spawned (bit itself) but the pellets stay: move any
+        // pellet now on it / straight ahead of it, keeping the same gaps.
         function keepPelletsClear() {
-            const startX = Math.min(6, COLS - 4), startY = Math.floor(ROWS / 2);
-            const minX = Math.min(10, COLS - 6);
+            const head = snake[0];
+            if (!head) return;
+            const body = new Set(snake.map((p) => p.x + "," + p.y));
+            const blocked = (p) => body.has(p.x + "," + p.y)
+                || (p.y === head.y && p.x > head.x && p.x <= head.x + PELLET_GAP);
             pellets.forEach((p) => {
-                let guard = 0;
-                while (p.y === startY && p.x < startX + 4 && guard++ < 50) {
-                    p.x = minX + Math.floor(Math.random() * 4);
-                    p.y = 1 + Math.floor(Math.random() * (ROWS - 2));
+                if (!blocked(p)) return;
+                const others = pellets.filter((o) => o !== p);
+                for (let gap = PELLET_GAP; gap >= 1; gap--) {
+                    for (let guard = 0; guard < 400; guard++) {
+                        const x = 1 + Math.floor(Math.random() * Math.max(1, COLS - 2));
+                        const y = 1 + Math.floor(Math.random() * Math.max(1, ROWS - 2));
+                        const spot = { x, y };
+                        if (blocked(spot) || others.some((o) => Math.max(Math.abs(o.x - x), Math.abs(o.y - y)) < gap)) continue;
+                        p.x = x;
+                        p.y = y;
+                        return;
+                    }
                 }
             });
         }
@@ -1182,13 +1207,13 @@
             last = ts;
             if (mode === "playing") {
                 acc += dtMs;
-                while (acc >= ARENA_STEP_MS && mode === "playing") {
+                while (acc >= stepMs && mode === "playing") {
                     step();
-                    acc -= ARENA_STEP_MS;
+                    acc -= stepMs;
                 }
             }
             if (shake > 0) shake = Math.max(0, shake - dtMs * 0.05);
-            if (visible) draw(mode === "playing" ? Math.min(1, acc / ARENA_STEP_MS) : 1, dtMs / 1000);
+            if (visible) draw(mode === "playing" ? Math.min(1, acc / stepMs) : 1, dtMs / 1000);
             rafId = requestAnimationFrame(loop);
         }
 
@@ -1279,17 +1304,29 @@
         }
 
         // ---- focus mode (phones): the arena fills the screen while playing ----
-        const touchQuery = window.matchMedia ? window.matchMedia("(hover: none) and (pointer: coarse)") : null;
+
+        let focusDeclined = false;   // learner left full screen with the icon - do not force it back on
 
         function enterFocusIfPhone() {
-            const phone = touchQuery && touchQuery.matches && Math.min(window.innerWidth, window.innerHeight) <= 600;
-            if (phone && !fallback) setFocus(true);
+            if (window.CobraGameKit.isPhone() && !fallback && !focusDeclined) setFocus(true);
+        }
+
+        // The small full-screen icon in the stats row (phones only).
+        function updateFocusBtn() {
+            const on = root.classList.contains("is-focus");
+            root.classList.toggle("can-focus", !fallback && (on || window.CobraGameKit.isPhone()));
+            if (ui.focusBtn.dataset.on === String(on)) return;
+            ui.focusBtn.dataset.on = String(on);
+            ui.focusBtn.innerHTML = `<i class="fa-solid ${on ? "fa-compress" : "fa-expand"}"></i>`;
+            ui.focusBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+            ui.focusBtn.title = on ? "Exit full screen" : "Full screen";
         }
 
         function setFocus(on) {
             if (root.classList.contains("is-focus") === on) return;
             root.classList.toggle("is-focus", on);
             document.documentElement.classList.toggle("mcq-focus-lock", on);
+            updateFocusBtn();
             onResize();
         }
 
@@ -1304,8 +1341,9 @@
                 ? upright || stageW / stageH < 1.25
                 : width < 700;
             root.classList.toggle("is-narrow", narrow);
-            const cols = narrow ? 20 : 40;
-            const rows = narrow ? 22 : 15;
+            const phone = window.CobraGameKit.isPhone();
+            stepMs = phone ? ARENA_PHONE_STEP_MS : ARENA_STEP_MS;
+            const [cols, rows] = ARENA_GRID[narrow ? (phone ? "phone" : "narrow") : "wide"];
             if (cols === COLS && rows === ROWS) return false;
             COLS = cols;
             ROWS = rows;
@@ -1314,7 +1352,9 @@
         }
 
         function onResize() {
-            if (disposed || fallback) return;
+            if (disposed) return;
+            updateFocusBtn();   // a turned phone / resized window may change "is this a phone"
+            if (fallback) return;
             const gridChanged = computeLayout();
             if (arena) arena.resize();
             if (gridChanged && ["ready", "playing", "paused", "tryagain", "outoflives"].includes(mode)) {
@@ -1351,10 +1391,13 @@
             }
         });
 
-        ui.exitBtn.addEventListener("click", () => {
-            if (mode === "playing") pause();
-            setFocus(false);
-            root.scrollIntoView({ block: "start" });
+        ui.focusBtn.addEventListener("click", () => {
+            if (disposed || mode === "loading" || mode === "outoflives" || mode === "done" || mode === "error") return;
+            const on = !root.classList.contains("is-focus");
+            focusDeclined = !on;
+            if (!on && mode === "playing") pause();
+            setFocus(on);
+            if (!on) root.scrollIntoView({ block: "start" });
         });
 
         ui.dpad.querySelectorAll("button[data-dir]").forEach((btn) => {
