@@ -1,0 +1,186 @@
+/* ==========================================================================
+   Course finish line (course-finish.js - feat/certificate-finish-line)
+   "Almost there" card on the lesson Summary / retake screen, and the
+   Learning Map's "what's left before the certificate" panel.
+   ========================================================================== */
+.course-finish-card {
+    margin: 18px 0 16px;
+    padding: 18px 18px 14px;
+    border-radius: 14px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    text-align: left;
+}
+.course-finish-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.course-finish-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 18px;
+}
+.course-finish-head h3 { margin: 0 0 2px; font-size: 16px; font-weight: 800; color: #0f172a; }
+.course-finish-head p { margin: 0; font-size: 14px; line-height: 1.5; color: #475569; }
+
+.course-finish-modules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.course-finish-module {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+}
+.course-finish-module-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.course-finish-module-name { font-size: 14px; font-weight: 700; color: #0f172a; overflow-wrap: anywhere; }
+.course-finish-module-chapter { font-size: 12px; color: #64748b; }
+.course-finish-module-status { font-size: 13px; font-weight: 600; color: #64748b; }
+.course-finish-module-status.is-needs_retake { color: #c2410c; }
+.course-finish-module-status.is-in_progress { color: #b45309; }
+.course-finish-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 9px;
+    background: #f97316;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.course-finish-btn:hover { background: #ea580c; }
+.course-finish-btn:focus-visible { outline: 3px solid #fdba74; outline-offset: 2px; }
+
+/* --- Learning Map panel --- */
+.course-panel-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.45);
+}
+.course-panel-overlay[hidden] { display: none; }
+body.course-panel-open { overflow: hidden; }
+.course-panel {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    padding: 26px 22px 20px;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    text-align: center;
+    animation: course-panel-pop 0.18s ease-out;
+}
+@keyframes course-panel-pop {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.course-panel-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #64748b;
+    font-size: 18px;
+    cursor: pointer;
+}
+.course-panel-close:hover { background: #f1f5f9; }
+.course-panel-trophy {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    font-size: 26px;
+}
+.course-panel-lock {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    border-radius: 50%;
+    background: #475569;
+    color: #ffffff;
+    font-size: 11px;
+}
+.course-panel h3 { margin: 0 0 4px; font-size: 20px; color: #0f172a; }
+.course-panel-count { margin: 0 0 14px; font-size: 14px; font-weight: 600; color: #475569; }
+.course-panel-subtitle {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #94a3b8;
+    text-align: left;
+}
+.course-panel-list { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.course-panel-chapter h4 { margin: 0 0 6px; font-size: 14px; font-weight: 800; color: #334155; }
+.course-panel-rule {
+    margin: 16px 0 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f1f5f9;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+@media (max-width: 480px) {
+    .course-finish-module { flex-direction: column; align-items: stretch; }
+    .course-finish-btn { justify-content: center; }
+}
+
+/* --- Dark theme (same switches the rest of the learner pages use) --- */
+html.dark-mode .course-finish-card, body.dark-mode .course-finish-card, [data-theme="dark"] .course-finish-card {
+    background: #2a2110; border-color: #78350f;
+}
+html.dark-mode .course-finish-icon, body.dark-mode .course-finish-icon, [data-theme="dark"] .course-finish-icon {
+    background: #451a03; color: #fbbf24;
+}
+html.dark-mode .course-finish-head h3, body.dark-mode .course-finish-head h3, [data-theme="dark"] .course-finish-head h3,
+html.dark-mode .course-finish-module-name, body.dark-mode .course-finish-module-name, [data-theme="dark"] .course-finish-module-name,
+html.dark-mode .course-panel h3, body.dark-mode .course-panel h3, [data-theme="dark"] .course-panel h3 { color: #f1f5f9; }
+html.dark-mode .course-finish-head p, body.dark-mode .course-finish-head p, [data-theme="dark"] .course-finish-head p,
+html.dark-mode .course-panel-count, body.dark-mode .course-panel-count, [data-theme="dark"] .course-panel-count,
+html.dark-mode .course-panel-rule, body.dark-mode .course-panel-rule, [data-theme="dark"] .course-panel-rule { color: #cbd5e1; }
+html.dark-mode .course-finish-module, body.dark-mode .course-finish-module, [data-theme="dark"] .course-finish-module {
+    background: #1e293b; border-color: #334155;
+}
+html.dark-mode .course-finish-module-chapter, body.dark-mode .course-finish-module-chapter, [data-theme="dark"] .course-finish-module-chapter,
+html.dark-mode .course-finish-module-status, body.dark-mode .course-finish-module-status, [data-theme="dark"] .course-finish-module-status { color: #94a3b8; }
+html.dark-mode .course-finish-module-status.is-needs_retake, body.dark-mode .course-finish-module-status.is-needs_retake, [data-theme="dark"] .course-finish-module-status.is-needs_retake { color: #fdba74; }
+html.dark-mode .course-finish-module-status.is-in_progress, body.dark-mode .course-finish-module-status.is-in_progress, [data-theme="dark"] .course-finish-module-status.is-in_progress { color: #fcd34d; }
+html.dark-mode .course-panel, body.dark-mode .course-panel, [data-theme="dark"] .course-panel { background: #0f172a; }
+html.dark-mode .course-panel-trophy, body.dark-mode .course-panel-trophy, [data-theme="dark"] .course-panel-trophy { background: #334155; color: #94a3b8; }
+html.dark-mode .course-panel-chapter h4, body.dark-mode .course-panel-chapter h4, [data-theme="dark"] .course-panel-chapter h4 { color: #e2e8f0; }
+html.dark-mode .course-panel-rule, body.dark-mode .course-panel-rule, [data-theme="dark"] .course-panel-rule { background: #1e293b; }
+html.dark-mode .course-panel-close:hover, body.dark-mode .course-panel-close:hover, [data-theme="dark"] .course-panel-close:hover { background: #1e293b; }

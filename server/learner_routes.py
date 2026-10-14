@@ -56,6 +56,7 @@ from module_performance import (  # Module 85% gate
 from activity_retakes import ensure_retake_schema, PASS_PERCENT
 from exercise_pool import assigned_exercise_id, is_assigned  # feat/exercise-pool
 from coding_exercises import learner_exercise_title  # feat/exercise-flow-fixes: no pool number
+from course_status import course_block  # feat/certificate-finish-line: certificate check + finish line
 from learner_progress_unlocks import write_unlock, get_unlocked_at  # when a learner first reached a chapter (Task #16's "New" badge) - no longer decides what is locked
 
 learner_bp = Blueprint('learner_bp', __name__)
@@ -474,7 +475,12 @@ def learning_map_data():
                 write_unlock(connection, acc_id, "category", chapter["cat_id"])
 
         cursor.close()
-        return jsonify({"success": True, "chapters": chapters}), 200
+
+        # feat/certificate-finish-line: the Certificate stop at the end of
+        # the map - decided here (certificates.py rule), never in the browser.
+        certificate = _course_block_safe(connection, acc_id)
+
+        return jsonify({"success": True, "chapters": chapters, "certificate": certificate}), 200
 
     except Error as e:
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
@@ -1410,6 +1416,24 @@ def lesson_activities_mark_complete():
 
 
 # ============================================================
+# COURSE FINISH LINE (feat/certificate-finish-line)
+# Runs the certificate check (certificates.py - same rule, same single
+# certificate, same notification) and returns where the learner stands.
+# Never breaks the page it is part of: None on any error.
+# ============================================================
+def _course_block_safe(connection, acc_id):
+    try:
+        return course_block(connection, acc_id)
+    except Exception as e:
+        print(f"course_status: failed for acc_id={acc_id}: {e}")
+        try:
+            connection.rollback()
+        except Error:
+            pass
+        return None
+
+
+# ============================================================
 # ROUTE: MARK LESSON COMPLETE
 # ============================================================
 @learner_bp.route("/api/lesson-content/complete", methods=["POST"])
@@ -1477,7 +1501,13 @@ def mark_lesson_complete():
 
         connection.commit()
         cursor.close()
-        return jsonify({"success": True, "message": "Lesson marked as complete."}), 200
+
+        # feat/certificate-finish-line: finishing a lesson can finish the
+        # course - check right away instead of waiting for the profile or
+        # the bell. The lesson is already saved whatever happens here.
+        course = _course_block_safe(connection, acc_id)
+
+        return jsonify({"success": True, "message": "Lesson marked as complete.", "course": course}), 200
 
     except Error as e:
         connection.rollback()
@@ -1511,13 +1541,47 @@ def lesson_summary_data():
     review = get_review_status(acc_id, resource_id)
     next_info = get_next_lesson_info(resource_id, acc_id)   # Module gate aware
 
+    # feat/certificate-finish-line: certificate popup / "Almost there" card.
+    course = None
+    connection = get_db_connection()
+    if connection is not None:
+        try:
+            course = _course_block_safe(connection, acc_id)
+        finally:
+            if connection.is_connected():
+                connection.close()
+
     return jsonify({
         "success": True,
         **summary,
         "next": next_info,
         "review": review,
         "insights": get_lesson_insights(acc_id, resource_id),   # Strong / Needs work
+        "course": course,
     }), 200
+
+
+# ============================================================
+# ROUTE: COURSE STATUS (feat/certificate-finish-line)
+# The retake screen asks this when a retake round is finished: a retake
+# never re-completes the lesson, but it can pass the last module.
+# ============================================================
+@learner_bp.route("/api/course-status", methods=["POST"])
+def course_status_check():
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+    try:
+        course = _course_block_safe(connection, acc_id)
+        if course is None:
+            return jsonify({"success": False, "message": "Could not check your course progress."}), 500
+        return jsonify({"success": True, "course": course}), 200
+    finally:
+        if connection.is_connected():
+            connection.close()
 
 
 # ============================================================

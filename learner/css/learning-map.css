@@ -291,3 +291,60 @@
     100% { background-position: 0% 0%; }
 }
 
+
+/* --- Finish line: the Certificate stop (feat/certificate-finish-line) --- */
+.map-node.map-node-certificate.is-locked {
+    border-color: #cbd5e1;
+}
+.map-node.map-node-certificate .map-node-icon {
+    position: relative;
+    font-size: 20px;
+}
+.map-node.map-node-certificate.is-locked .map-node-icon {
+    background: #cbd5e1;
+    color: #64748b;
+}
+.map-certificate-lock {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #475569;
+    color: #ffffff;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffff;
+}
+.map-node.map-node-certificate.is-locked .chapter-meta {
+    font-weight: 600;
+}
+.map-node.map-node-certificate.is-unlocked {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, #fffbeb, #ffffff 60%);
+    animation: certificateGlow 2.4s ease-in-out infinite;
+}
+.map-node.map-node-certificate.is-unlocked .map-node-icon {
+    background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 70%);
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.75);
+}
+.map-node.map-node-certificate.is-unlocked .chapter-label,
+.map-node.map-node-certificate.is-unlocked .chapter-meta {
+    color: #b45309;
+    font-weight: 700;
+}
+.map-node.map-node-certificate:focus-visible {
+    outline: 3px solid #f59e0b;
+    outline-offset: 3px;
+}
+@keyframes certificateGlow {
+    0%, 100% { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1), 0 0 0 0 rgba(245, 158, 11, 0.35); }
+    50% { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1), 0 0 22px 6px rgba(245, 158, 11, 0.45); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .map-node.map-node-certificate.is-unlocked { animation: none; box-shadow: 0 0 18px 4px rgba(245, 158, 11, 0.4); }
+}

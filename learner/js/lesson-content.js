@@ -1795,6 +1795,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         renderReview(review, moduleReviewUrl);
+        renderCourse(data.course);
+    }
+
+    // ---------------- Summary: certificate finish line ----------------
+    // The server decides (course_status.py): a certificate earned just now
+    // -> the "Congratulations!" popup (once); every lesson finished but a
+    // module below its gate -> the "Almost there" card. Otherwise nothing.
+    function renderCourse(course) {
+        if (!course || !window.CobraCourseFinish) return;
+        const box = document.getElementById('summaryCourse');
+        const card = window.CobraCourseFinish.card(course);
+        if (box && card) {
+            box.innerHTML = '';
+            box.appendChild(card);
+            box.hidden = false;
+        }
+        window.CobraCourseFinish.celebrate(course);
     }
 
     // ---------------- Summary: missed items -> Module Review ----------------

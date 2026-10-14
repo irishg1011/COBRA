@@ -1739,6 +1739,7 @@
                         window.location.href = (link && link.getAttribute("href") && link.getAttribute("href") !== "#")
                             ? link.href : "/learning-map";
                     });
+                    showCourseAfterRetake(activityHost.querySelector(".activity-summary"));
                     return;
                 }
                 activityHost.innerHTML = `<div class="activity-summary"><p><i class="fa-solid fa-circle-check"></i> All activities completed!</p></div>`;
@@ -1750,6 +1751,24 @@
             activityHost.innerHTML = "";
             activityHost.appendChild(section);
             renderActivity(activity, section, () => runNext(index + 1), opts);
+        }
+    }
+
+    // feat/certificate-finish-line: a retake never re-completes the lesson,
+    // but it can pass the last module - so the same certificate check runs
+    // here (server-side, /api/course-status) and shows the same popup /
+    // "Almost there" card as the lesson Summary.
+    async function showCourseAfterRetake(host) {
+        if (!host || PREVIEW || !window.CobraCourseFinish) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/course-status`, { method: "POST", credentials: "include" });
+            const data = await response.json();
+            if (!response.ok || !data.success) return;
+            const card = window.CobraCourseFinish.card(data.course);
+            if (card) host.appendChild(card);
+            window.CobraCourseFinish.celebrate(data.course);
+        } catch (err) {
+            console.error("Could not check your course progress:", err);
         }
     }
 

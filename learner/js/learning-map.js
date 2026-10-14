@@ -100,7 +100,44 @@ document.addEventListener('DOMContentLoaded', () => {
         mapChain.insertBefore(svg, mapChain.firstChild);
     }
 
-    function renderMap(chapters) {
+    // feat/certificate-finish-line: the Certificate is the last stop on the
+    // map. Locked / unlocked comes from the server (course_status.py).
+    function renderCertificateStop(certificate, index) {
+        const unlocked = certificate.state === 'certificate';
+        const row = document.createElement('div');
+        row.className = `map-node-row ${index % 2 === 0 ? 'align-left' : 'align-right'}`;
+
+        const node = document.createElement('div');
+        node.className = `map-node map-node-certificate node-clickable ${unlocked ? 'is-unlocked' : 'is-locked'}`;
+        node.setAttribute('role', 'button');
+        node.tabIndex = 0;
+        const meta = unlocked
+            ? 'Certificate unlocked'
+            : `${certificate.chapters_passed || 0} of ${certificate.chapters_total || 0} chapters passed`;
+        node.setAttribute('aria-label', unlocked ? 'Certificate unlocked - open my certificate' : `Certificate locked - ${meta}`);
+        node.innerHTML = `
+            <div class="map-node-icon"><i class="fa-solid fa-trophy" aria-hidden="true"></i>${unlocked ? '' : '<span class="map-certificate-lock" aria-hidden="true"><i class="fa-solid fa-lock"></i></span>'}</div>
+            <div class="map-node-text">
+                <p class="chapter-label">Finish line</p>
+                <h3>Certificate</h3>
+                <p class="chapter-meta">${meta}</p>
+            </div>
+        `;
+
+        const open = () => {
+            if (unlocked) window.location.href = '/certificate';
+            else if (window.CobraCourseFinish) window.CobraCourseFinish.openPanel(certificate);
+        };
+        node.addEventListener('click', open);
+        node.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        });
+
+        row.appendChild(node);
+        mapChain.appendChild(row);
+    }
+
+    function renderMap(chapters, certificate) {
         mapChain.innerHTML = '';
 
         chapters.forEach((chapter, index) => {
@@ -132,9 +169,17 @@ document.addEventListener('DOMContentLoaded', () => {
             mapChain.appendChild(row);
         });
 
+        // The finish line: one more stop, joined like the chapters are
+        // (green once the last chapter is completed, lock until unlocked).
+        const stops = chapters.slice();
+        if (certificate && chapters.length) {
+            renderCertificateStop(certificate, chapters.length);
+            stops.push({ locked: certificate.state !== 'certificate', status: 'completed' });
+        }
+
         // Draw the curved connectors once all cards have their final
         // rendered positions (next animation frame, to be safe).
-        requestAnimationFrame(() => drawConnectors(chapters));
+        requestAnimationFrame(() => drawConnectors(stops));
     }
 
     async function loadMap() {
@@ -152,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             mapLoading.style.display = 'none';
-            renderMap(data.chapters);
+            renderMap(data.chapters, data.certificate);
 
         } catch (err) {
             console.error('Error loading learning map:', err);
