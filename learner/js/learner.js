@@ -2,8 +2,8 @@
  * learner.js - shared learner header behavior (every learner page)
  * -----------------------------------------------------------------
  *  - Profile dropdown: the profile icon opens a menu with the learner's
- *    clickable name (-> /profile), Edit Profile, Change Password and
- *    Logout. The menu markup is built here and mounted into the page's
+ *    clickable name (-> /profile), Edit Profile, Change Password, Take the
+ *    tour (feat/welcome-tour - replays tour.js) and Logout. The menu markup is built here and mounted into the page's
  *    <div class="profile-menu" data-profile-menu></div> placeholder, so
  *    every page shares one copy. The learner's profile photo (when they
  *    uploaded one) replaces the default icon there.
@@ -109,6 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Privacy Notice
                 </a>
                 <div class="profile-menu-divider" role="separator"></div>
+                <button type="button" class="profile-menu-item" role="menuitem" data-pm="tour">
+                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i> Take the tour
+                </button>
                 <button type="button" class="profile-menu-item profile-menu-logout" role="menuitem" data-pm="logout">
                     <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i> Logout
                 </button>
@@ -122,6 +125,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (menuPanel.hidden) openMenu(); else closeMenu(false);
         });
         menuPanel.addEventListener('click', (e) => e.stopPropagation());
+
+        // feat/welcome-tour: replays the tour for this page (tour.js). Pages
+        // without a tour (Profile, Certificate...) open it on the Dashboard.
+        mount.querySelector('[data-pm="tour"]').addEventListener('click', () => {
+            closeMenu(false);
+            if (window.CobraTour && window.CobraTour.hasTour()) window.CobraTour.replay();
+            else window.location.href = '/dashboard?tour=1';
+        });
         document.addEventListener('click', () => closeMenu(false));
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeMenu(true);

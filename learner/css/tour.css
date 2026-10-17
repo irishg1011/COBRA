@@ -163,3 +163,96 @@
         transition: none;
     }
 }
+
+/* Waiting for the page (or the next page) - a spinner and what is happening */
+.tour-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #334155;
+}
+
+.tour-loading[hidden] {
+    display: none;
+}
+
+.tour-spinner {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #bbf7d0;
+    border-top-color: #16a34a;
+    border-radius: 50%;
+    animation: tour-spin 0.8s linear infinite;
+}
+
+@keyframes tour-spin {
+    to { transform: rotate(360deg); }
+}
+
+.tour-card.is-loading .tour-text {
+    display: none;
+}
+
+/* Never taller than the screen (short phones held sideways) */
+.tour-card {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+}
+
+/* Bigger tap targets on touch screens */
+@media (pointer: coarse) {
+    .tour-btn {
+        min-height: 44px;
+    }
+
+    .tour-skip {
+        min-height: 40px;
+        padding: 8px;
+    }
+}
+
+/* Very narrow phones (320px): buttons share the row evenly */
+@media (max-width: 360px) {
+    .tour-actions {
+        flex-wrap: wrap;
+    }
+
+    .tour-actions .tour-btn {
+        flex: 1 1 auto;
+    }
+
+    .tour-title {
+        font-size: 16px;
+    }
+}
+
+/* Phones held sideways: short screen, so the card stays compact on the side */
+@media (max-height: 500px) and (min-width: 601px) {
+    .tour-card {
+        width: min(320px, 45vw);
+        padding: 12px 14px;
+    }
+
+    .tour-text {
+        font-size: 13px;
+    }
+
+    .tour-actions {
+        margin-top: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tour-spinner {
+        animation-duration: 2s;
+    }
+}
+
+/* Until the first popup (or the loading message) is ready: no empty card */
+.tour-card.is-pending {
+    visibility: hidden;
+}
