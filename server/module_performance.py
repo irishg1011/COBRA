@@ -376,9 +376,13 @@ def chapter_locked_for_learner(cursor, acc_id, cat_id):
     the first chapter is always open; any other chapter is open only
     while EVERY chapter before it is completed (all of its modules
     PASSED). A saved row in learner_progress_unlocks_tbl or a lesson the
-    learner already started does NOT keep a chapter open. True = locked.
+    learner already started does NOT keep a chapter open. A chapter the
+    learner SKIPPED (chapter_skips.py) counts as passed here - only here,
+    for opening the chapters after it. True = locked.
     Needs a dictionary cursor.
     """
+    from chapter_skips import skipped_chapter_ids   # imported here: keeps this module's imports DB-only
+    skipped = skipped_chapter_ids(cursor, acc_id)
     chapter_modules = {}   # cat_id -> the modules a learner can see in it (course order)
     for row in live_course_rows(cursor):
         module_ids = chapter_modules.setdefault(row["cat_id"], [])
@@ -390,6 +394,8 @@ def chapter_locked_for_learner(cursor, acc_id, cat_id):
         return False
     # Nearest chapter first - it is the one most likely to be unfinished.
     for previous_cat_id in reversed(chapter_ids[:chapter_ids.index(cat_id)]):
+        if previous_cat_id in skipped:
+            continue
         for module_id in chapter_modules[previous_cat_id]:
             if not module_performance(cursor, acc_id, module_id)["passed"]:
                 return True

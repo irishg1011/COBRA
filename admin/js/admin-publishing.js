@@ -1147,11 +1147,17 @@
             editCategoryModal.dataset.presenceItem = node.id;   // "✏️ <Name> is editing" for the others
             openModal(editCategoryModal);
             $("editCategoryName").focus();
+            if (window.CobraChapterSkip) window.CobraChapterSkip.load(numId(node.id));   // feat/skippable-chapter
         }
         wireSubmit($("editCategoryForm"), editCategoryModal, async () => {
             const name = ($("editCategoryName").value || "").trim();
             if (!name) return fieldError($("editCategoryName"), "Please enter a chapter name.");
-            return postForm(`/admin/manage-course/categories/${$("editCategoryId").value}/update`, { category_name: name });
+            const catId = $("editCategoryId").value;
+            const result = await postForm(`/admin/manage-course/categories/${catId}/update`, { category_name: name });
+            if (!result.success || !window.CobraChapterSkip) return result;
+            // feat/skippable-chapter: the Skippable switch is saved on its own route
+            const skipResult = await window.CobraChapterSkip.save(catId);
+            return skipResult.success ? result : skipResult;
         }, () => ($("editCategoryId").value ? `cat-${$("editCategoryId").value}` : null));
 
         // Edit module

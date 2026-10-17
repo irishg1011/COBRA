@@ -19,7 +19,7 @@
                 <i class="fa-solid fa-pen-to-square"></i>
             </div>
             <h2>Edit Category</h2>
-            <p>Update this category's name.</p>
+            <p>Update this category's name and skip setting.</p>
         </div>
 
         <form id="editCategoryForm" novalidate>
@@ -29,6 +29,20 @@
                 <label for="editCategoryName">Category Name</label>
                 <input type="text" id="editCategoryName" placeholder="Enter category name" maxlength="{{ title_limits.category }}" required>
                 <small class="char-counter" data-counter-for="editCategoryName"></small>
+            </div>
+
+            {# feat/skippable-chapter: filled and saved by js/chapter-skip-settings.js #}
+            <div class="chapter-skip-box" id="chapterSkipBox">
+                <label class="chapter-skip-switch">
+                    <input type="checkbox" id="editCategorySkippable" role="switch">
+                    <span class="chapter-skip-track" aria-hidden="true"></span>
+                    <span class="chapter-skip-label">Skippable</span>
+                </label>
+                <p class="chapter-skip-help">Learners who already know this chapter can skip it and go to the next one. The chapter is shown as "Skipped", not completed.</p>
+                <div class="form-group chapter-skip-question" id="chapterSkipQuestionGroup" hidden>
+                    <label for="editCategorySkipQuestion">Question shown to learners</label>
+                    <input type="text" id="editCategorySkipQuestion" maxlength="255" placeholder="Do you already have Python installed on your computer?">
+                </div>
             </div>
 
             <div class="modal-footer-actions modal-footer-actions--gap">

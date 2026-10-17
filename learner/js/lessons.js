@@ -318,6 +318,133 @@ document.addEventListener('DOMContentLoaded', () => {
         row.hidden = false;
     }
 
+    // ---- feat/skippable-chapter ----
+    // can_skip -> "Already set up?" card: Yes skips (after a confirm), No hides
+    //             it on this device and leaves a small "Skip this chapter" link.
+    // skipped  -> "You skipped this chapter" note: still readable, and it shows
+    //             "Completed" once every module is passed.
+    // The server decides both (and checks the skip again on POST).
+    const SKIP_DISMISS_KEY = `cobraSkipDismissed:${catId}`;
+
+    function escapeText(value) {
+        const div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    }
+
+    function skipDismissed() {
+        try { return window.localStorage.getItem(SKIP_DISMISS_KEY) === '1'; } catch (e) { return false; }
+    }
+
+    function nextChapterHref(next) {
+        return next ? `/lessons?cat_id=${encodeURIComponent(next.cat_id)}` : '/learning-map';
+    }
+
+    async function skipChapter(skip, button) {
+        if (button) button.disabled = true;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/chapters/${encodeURIComponent(catId)}/skip`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                window.CobraProceed.open({
+                    icon: 'fa-circle-exclamation',
+                    title: 'Could not skip',
+                    text: data.message || 'Something went wrong. Please try again.',
+                    yesLabel: 'OK',
+                    noLabel: false,
+                });
+                return;
+            }
+            window.location.href = nextChapterHref(data.next_chapter || skip.next_chapter);
+        } catch (err) {
+            window.CobraProceed.open({
+                icon: 'fa-circle-exclamation',
+                title: 'Could not skip',
+                text: 'Could not reach the server. Please try again.',
+                yesLabel: 'OK',
+                noLabel: false,
+            });
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
+
+    function confirmSkip(skip, button) {
+        const next = skip.next_chapter;
+        window.CobraProceed.open({
+            icon: 'fa-forward',
+            title: 'Skip this chapter?',
+            text: `${next ? `You'll go straight to ${next.category_name}. ` : ''}This chapter will show as "Skipped", not completed. You can still come back and read it anytime.`,
+            yesLabel: 'Yes, skip it',
+            noLabel: 'No, stay here',
+            onYes: () => skipChapter(skip, button),
+        });
+    }
+
+    function renderSkipCard(skip) {
+        const card = document.getElementById('chapterSkipCard');
+        if (!card) return;
+        card.className = 'lessons-card chapter-skip-card';
+        card.innerHTML = '';
+
+        if (!skip || (!skip.skipped && !skip.can_skip)) {
+            card.hidden = true;
+            return;
+        }
+
+        if (skip.skipped) {
+            const next = skip.next_chapter;
+            card.classList.add('is-skipped');
+            card.innerHTML = `
+                <div class="chapter-skip-icon"><i class="fa-solid fa-forward" aria-hidden="true"></i></div>
+                <div class="chapter-skip-body">
+                    <h2>You skipped this chapter <span class="lesson-badge status-skipped">Skipped</span></h2>
+                    <p>It's still here if you want to read it. Once you finish it, it will show as Completed.</p>
+                </div>
+                ${next ? `<div class="chapter-skip-actions">
+                    <a class="lesson-action-btn action-unlocked" href="${nextChapterHref(next)}">Go to ${escapeText(next.category_name)}</a>
+                </div>` : ''}
+            `;
+            card.hidden = false;
+            return;
+        }
+
+        if (skipDismissed()) {
+            card.classList.add('is-compact');
+            card.innerHTML = `
+                <div class="chapter-skip-body">
+                    <p>Already know this chapter? <button type="button" class="chapter-skip-link">Skip this chapter</button></p>
+                </div>
+            `;
+            const link = card.querySelector('.chapter-skip-link');
+            link.addEventListener('click', () => confirmSkip(skip, link));
+            card.hidden = false;
+            return;
+        }
+
+        card.innerHTML = `
+            <div class="chapter-skip-icon"><i class="fa-solid fa-laptop-code" aria-hidden="true"></i></div>
+            <div class="chapter-skip-body">
+                <h2>Already set up?</h2>
+                <p>${escapeText(skip.question)}</p>
+            </div>
+            <div class="chapter-skip-actions">
+                <button type="button" class="lesson-action-btn action-secondary" data-skip="no">No, start the chapter</button>
+                <button type="button" class="lesson-action-btn action-unlocked" data-skip="yes">Yes, skip this chapter</button>
+            </div>
+        `;
+        card.querySelector('[data-skip="no"]').addEventListener('click', () => {
+            try { window.localStorage.setItem(SKIP_DISMISS_KEY, '1'); } catch (e) { /* the full card just shows again next time */ }
+            renderSkipCard(skip);
+        });
+        const yes = card.querySelector('[data-skip="yes"]');
+        yes.addEventListener('click', () => confirmSkip(skip, yes));
+        card.hidden = false;
+    }
+
     async function loadLessons() {
         if (!catId) {
             lessonsLoading.style.display = 'none';
@@ -340,6 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lessonsLoading.style.display = 'none';
             renderLessons(data);
             renderNextChapter(data.next_chapter);
+            renderSkipCard(data.skip);
 
         } catch (err) {
             console.error('Error loading lessons:', err);

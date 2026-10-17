@@ -348,3 +348,10 @@
 @media (prefers-reduced-motion: reduce) {
     .map-node.map-node-certificate.is-unlocked { animation: none; box-shadow: 0 0 18px 4px rgba(245, 158, 11, 0.4); }
 }
+
+/* feat/skippable-chapter: a chapter the learner skipped - grey dashed border,
+   never the green "completed" look. */
+.map-node.is-skipped {
+    border-color: #94a3b8;
+    border-style: dashed;
+}

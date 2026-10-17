@@ -29,6 +29,7 @@ from datetime import datetime, timedelta
 
 from certificates import get_certificate, issue_certificate_if_complete, COURSE_NAME
 from module_performance import PASS_PERCENT
+from chapter_skips import skipped_chapter_ids  # feat/skippable-chapter
 
 # The celebration popup is only for a certificate earned just now (not for
 # learners who earned it before this release) - see lesson-content.js.
@@ -72,6 +73,11 @@ def _module_entry(module, perf):
     }
 
 
+def _chapters_needed(facts):
+    """Chapters the certificate still asks for: every chapter except the ones skipped (and not passed)."""
+    return int(facts.get("chapters_total") or 0) - int(facts.get("chapters_skipped") or 0)
+
+
 def course_block(connection, acc_id):
     from learner_profile import _build_overview   # imported here: learner_profile imports learner_routes
 
@@ -83,6 +89,9 @@ def course_block(connection, acc_id):
         collected, facts = [], None
         if certificate is None:
             _, _, _, facts = _build_overview(cursor, acc_id, collect=collected)
+        # feat/skippable-chapter: a skipped chapter is not on the way to the
+        # certificate - it is neither "remaining" nor counted in "x of y".
+        skipped = skipped_chapter_ids(cursor, acc_id)
     finally:
         cursor.close()
 
@@ -97,7 +106,7 @@ def course_block(connection, acc_id):
         })
         if facts:
             block["chapters_passed"] = int(facts.get("chapters_passed") or 0)
-            block["chapters_total"] = int(facts.get("chapters_total") or 0)
+            block["chapters_total"] = _chapters_needed(facts)
         return block
 
     remaining = []
@@ -105,7 +114,7 @@ def course_block(connection, acc_id):
     all_lessons_done = True
     for item in collected:
         chapter, module, perf = item["chapter"], item["module"], item["perf"]
-        if not module["lessons"]:
+        if not module["lessons"] or chapter["cat_id"] in skipped:
             continue
         all_lessons_done = all_lessons_done and perf["all_done"]
         if perf["passed"]:
@@ -120,7 +129,7 @@ def course_block(connection, acc_id):
     block.update({
         "state": "almost" if all_lessons_done and remaining else "none",
         "chapters_passed": int(facts.get("chapters_passed") or 0),
-        "chapters_total": int(facts.get("chapters_total") or 0),
+        "chapters_total": _chapters_needed(facts),
         "remaining": remaining,
     })
     return block

@@ -141,6 +141,9 @@ from staff_presence import heartbeat as presence_heartbeat, leave as presence_le
 from learner_where import describe_many as describe_learners_doing  # feat/learner-activity: "Doing now"
 from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
+from chapter_skips import (  # feat/skippable-chapter: Edit Chapter > Skippable
+    ensure_chapter_skip_schema, chapter_skip_settings, save_chapter_skip_settings,
+)
 from title_history_revert import revert_title  # feat/module-title-history: "Revert to this"
 from auth_core import authenticate, send_reset_code, verify_reset_code, reset_password  # feat/admin-login-page: same rules as the learner login
 from account_management import (  # feat/archive-accounts: Account Details modal + soft-delete archive/restore
@@ -2515,6 +2518,48 @@ def manage_course_create_category():
 def manage_course_update_category(cat_id):
     data = request.form if request.form else (request.get_json(silent=True) or {})
     success, message = update_category(cat_id, data.get('category_name'), changed_by=session.get('admin_id'))
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+
+# feat/skippable-chapter: the Skippable switch in Edit Chapter (Manage Course
+# and Publishing share the modal). Saved separately from the name, so turning
+# it on/off never touches the chapter's title history.
+@admin_bp.route('/manage-course/categories/<int:cat_id>/skip-settings', methods=['GET'])
+def manage_course_category_skip_settings(cat_id):
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to the database."}), 500
+    try:
+        ensure_chapter_skip_schema(connection)
+        cursor = connection.cursor()
+        settings = chapter_skip_settings(cursor, cat_id)
+        cursor.close()
+        return jsonify({"success": True, **settings}), 200
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+@admin_bp.route('/manage-course/categories/<int:cat_id>/skip-settings', methods=['POST'])
+def manage_course_save_category_skip_settings(cat_id):
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+    is_skippable = str(data.get('is_skippable', '')).lower() in ('1', 'true', 'on', 'yes')
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to the database."}), 500
+    try:
+        success, message, changes = save_chapter_skip_settings(
+            connection, cat_id, is_skippable, data.get('skip_question'))
+    finally:
+        if connection.is_connected():
+            connection.close()
+    # Logged here (with what changed) instead of by the generic hook, and
+    # only when something actually changed.
+    skip_auto_log()
+    if success and changes:
+        audit_log("edit", "content", actor=session.get('admin_id'), target_type="chapter",
+                  target_id=cat_id, details=changes, ip_address=get_client_ip(),
+                  endpoint="manage_course_save_category_skip_settings")
     return jsonify({"success": success, "message": message}), (200 if success else 400)
 
 

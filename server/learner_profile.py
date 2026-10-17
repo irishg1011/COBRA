@@ -42,6 +42,7 @@ from validators import validate_name_field, capitalize_name, validate_email_form
 from learner_routes import get_current_learner_acc_id, LEARNER_DIR
 from learner_progress_monitor import _load_course_tree, _fetch_progress_rows, _evaluate_rows, _load_lesson_structure
 from module_performance import module_performance, PASS_PERCENT
+from chapter_skips import skipped_chapter_ids  # feat/skippable-chapter: a skipped chapter does not block the certificate
 from learning_time import record_heartbeat, get_total_seconds
 from badges import award_and_list_badges
 from notifications import notify
@@ -203,6 +204,10 @@ def _build_overview(cursor, acc_id, collect=None):
     perfect = {"mcq": 0, "fib": 0, "flashcards": 0}
     lessons_total = lessons_completed = modules_passed = chapters_completed = 0
     chapters_total = chapters_passed = 0   # feat/certificate: chapters with lessons / with every module passed
+    # feat/skippable-chapter: chapters skipped and not passed - they never
+    # count as completed or passed, they only stop blocking the certificate.
+    chapters_skipped = 0
+    skipped = skipped_chapter_ids(cursor, acc_id)
     all_scores = []
     topics = []
 
@@ -265,6 +270,8 @@ def _build_overview(cursor, acc_id, collect=None):
             chapters_total += 1
             if ch_all_passed:
                 chapters_passed += 1
+            elif chapter["cat_id"] in skipped:
+                chapters_skipped += 1
 
         topics.append({
             "cat_id": chapter["cat_id"],
@@ -306,7 +313,8 @@ def _build_overview(cursor, acc_id, collect=None):
         # chapter is passed (same rule as the "Chapter complete" notification).
         "chapters_total": chapters_total,
         "chapters_passed": chapters_passed,
-        "course_completed": 1 if chapters_total and chapters_passed == chapters_total else 0,
+        "chapters_skipped": chapters_skipped,
+        "course_completed": 1 if chapters_total and chapters_passed + chapters_skipped == chapters_total else 0,
         "login_days": _count(
             cursor,
             """SELECT COUNT(DISTINCT DATE(attempted_at)) AS n FROM login_logs_tbl

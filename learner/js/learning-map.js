@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // A locked chapter only gets the locked look - even if the learner
             // has old progress in it (no orange / green border on a locked card).
             node.className = chapter.locked ? 'map-node status-locked' : `map-node status-${chapter.status}`;
+            if (chapter.skipped) node.classList.add('is-skipped');   // feat/skippable-chapter: never shown as completed
             if (!chapter.locked) node.classList.add('node-clickable');
 
             node.innerHTML = `
@@ -155,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="map-node-text">
                     <p class="chapter-label">Chapter ${index + 1}</p>
                     <h3>${chapter.category_name}</h3>
-                    <p class="chapter-meta">${chapter.locked ? labelForStatus(chapter.status, chapter.locked) : `${chapter.modules_completed} / ${chapter.modules_total} Modules`}</p>
+                    <p class="chapter-meta">${chapter.locked ? labelForStatus(chapter.status, chapter.locked) : `${chapter.skipped ? 'Skipped \u00b7 ' : ''}${chapter.modules_completed} / ${chapter.modules_total} Modules`}</p>
                 </div>
             `;
 

@@ -204,6 +204,8 @@ ENDPOINT_ROLES = {
     "admin_bp.manage_course_categories": MENTOR,  # also fills Publishing's + Module / Edit modals
     "admin_bp.manage_course_create_category": MENTOR,
     "admin_bp.manage_course_update_category": MENTOR,
+    "admin_bp.manage_course_category_skip_settings": MENTOR,  # feat/skippable-chapter: Edit Chapter > Skippable
+    "admin_bp.manage_course_save_category_skip_settings": MENTOR,
     "admin_bp.manage_course_category_ready_to_publish": MENTOR,
     "admin_bp.manage_course_category_move_to_draft": MENTOR,
     "admin_bp.manage_course_publish_category": MENTOR,

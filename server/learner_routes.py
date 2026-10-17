@@ -58,6 +58,10 @@ from exercise_pool import assigned_exercise_id, is_assigned  # feat/exercise-poo
 from coding_exercises import learner_exercise_title  # feat/exercise-flow-fixes: no pool number
 from course_status import course_block  # feat/certificate-finish-line: certificate check + finish line
 from learner_progress_unlocks import write_unlock, get_unlocked_at  # when a learner first reached a chapter (Task #16's "New" badge) - no longer decides what is locked
+from chapter_skips import (  # feat/skippable-chapter
+    skipped_chapter_ids, skippable_chapter_ids, chapter_skip_settings, record_skip,
+    ensure_chapter_skip_schema,
+)
 
 learner_bp = Blueprint('learner_bp', __name__)
 
@@ -463,10 +467,19 @@ def learning_map_data():
         # every learner gets the same rule. Progress inside a chapter that
         # locks again stays saved. Same rule on the server:
         # module_performance.chapter_locked_for_learner().
+        # feat/skippable-chapter: a chapter the learner skipped opens the
+        # ones after it (same as completed), but keeps its own status -
+        # it shows "Skipped", never "Completed".
+        skipped = skipped_chapter_ids(cursor, acc_id)
+        skippable = skippable_chapter_ids(cursor)
         previous_chapters_completed = True
         for chapter in chapters:
             chapter["locked"] = not previous_chapters_completed
-            previous_chapters_completed = previous_chapters_completed and chapter["status"] == "completed"
+            chapter["skipped"] = chapter["cat_id"] in skipped and chapter["status"] != "completed"
+            chapter["skippable"] = (chapter["cat_id"] in skippable and not chapter["locked"]
+                                    and chapter["status"] != "completed" and not chapter["skipped"])
+            previous_chapters_completed = previous_chapters_completed and (
+                chapter["status"] == "completed" or chapter["cat_id"] in skipped)
 
             # Still noted the first time a chapter is reached - only for the
             # "New" badge on the Lessons page (get_unlocked_at), never for
@@ -767,11 +780,29 @@ def lessons_data():
             if after and after.get("type") == "chapter":
                 next_chapter = after
 
+        # feat/skippable-chapter: the "Already set up?" card. Offered while
+        # the chapter is open, Skippable is ON, and it is neither passed nor
+        # skipped yet. A skipped chapter stays readable and shows "Skipped"
+        # until every module in it is passed.
+        chapter_passed = bool(modules_out) and all(m["passed"] for m in modules_out)
+        skip_settings = chapter_skip_settings(cursor, cat_id)
+        chapter_skipped = cat_id in skipped_chapter_ids(cursor, acc_id) and not chapter_passed
+        skip = {
+            "skipped": chapter_skipped,
+            "can_skip": (skip_settings["is_skippable"] and not chapter_locked
+                         and not chapter_passed and not chapter_skipped),
+            "question": skip_settings["skip_question"],
+            "next_chapter": None,
+        }
+        if chapter_skipped or skip["can_skip"]:
+            skip["next_chapter"] = _chapter_after(cursor, cat_id)
+
         cursor.close()
         return jsonify({
             "success": True,
             "next_chapter": next_chapter,
             "chapter_locked": chapter_locked,
+            "skip": skip,
             "category_name": category["category_name"],
             "overall_completed_lessons": overall_completed,
             "overall_total_lessons": overall_total,
@@ -781,6 +812,76 @@ def lessons_data():
 
     except Error as e:
         return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+def _chapter_after(cursor, cat_id):
+    """The live chapter right after cat_id ({"cat_id", "category_name"}), or None if it is the last."""
+    chapter_ids, names = [], {}
+    for row in live_course_rows(cursor):
+        if row["cat_id"] not in names:
+            chapter_ids.append(row["cat_id"])
+            names[row["cat_id"]] = row["category_name"]
+    if cat_id not in chapter_ids:
+        return None
+    index = chapter_ids.index(cat_id) + 1
+    if index >= len(chapter_ids):
+        return None
+    return {"cat_id": chapter_ids[index], "category_name": names[chapter_ids[index]]}
+
+
+# ============================================================
+# ROUTE: SKIP A CHAPTER (feat/skippable-chapter)
+# ============================================================
+@learner_bp.route("/api/chapters/<int:cat_id>/skip", methods=["POST"])
+def skip_chapter(cat_id):
+    """
+    The learner answered "Yes" on a Skippable chapter's "Already set up?"
+    card. Only their own record, only an open chapter whose Skippable switch
+    is ON and that they have not passed yet - all checked here, never in
+    the browser. Nothing is marked completed (chapter_skips.py).
+    """
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+
+    try:
+        ensure_chapter_skip_schema(connection)   # DDL first - it commits implicitly
+        ensure_retake_schema(connection)   # Module 85% gate reads answers.retake_id
+        cursor = connection.cursor(dictionary=True)
+
+        live_rows = live_course_rows(cursor, cat_id)
+        if not live_rows:
+            cursor.close()
+            return jsonify({"success": False, "message": "Chapter not found."}), 404
+        if not chapter_skip_settings(cursor, cat_id)["is_skippable"]:
+            cursor.close()
+            return jsonify({"success": False, "message": "This chapter can't be skipped."}), 400
+        if chapter_locked_for_learner(cursor, acc_id, cat_id):
+            cursor.close()
+            return jsonify({"success": False, "message": "This chapter is still locked."}), 400
+
+        module_ids = list(dict.fromkeys(r["module_id"] for r in live_rows))
+        if all(module_performance(cursor, acc_id, m)["passed"] for m in module_ids):
+            cursor.close()
+            return jsonify({"success": False, "message": "You already finished this chapter."}), 400
+
+        record_skip(cursor, acc_id, cat_id)
+        connection.commit()
+        next_chapter = _chapter_after(cursor, cat_id)
+        cursor.close()
+        return jsonify({"success": True, "next_chapter": next_chapter}), 200
+
+    except Error as e:
+        connection.rollback()
+        print(f"learner_routes: failed to skip chapter {cat_id} for {acc_id}: {e}")
+        return jsonify({"success": False, "message": "Could not skip this chapter. Please try again."}), 500
     finally:
         if connection.is_connected():
             connection.close()

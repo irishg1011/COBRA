@@ -58,6 +58,7 @@ from module_review import module_review_summary  # Module Review status in the C
 from lesson_insights import lesson_insights  # Strong / Needs work in the lesson progress modal
 from learner_exercise import EXERCISE_ITEMS  # an exercise is one gradable item
 from admin_time import fmt_datetime  # 'Oct 5, 2026 4:53 PM'
+from chapter_skips import skipped_at_by_learner  # feat/skippable-chapter: "Skipped" tag in the Course Progress modal
 import progress_insights as insights  # feat/learner-progress-insights: bands, needs help, lesson stats
 
 DEFAULT_PER_PAGE = 8
@@ -1254,6 +1255,7 @@ def get_learner_course_detail(acc_id):
             (acc_id,)
         )
         unlocked = {r["entity_id"] for r in cursor.fetchall()}
+        skipped_at = skipped_at_by_learner(cursor, [acc_id]).get(acc_id, {})   # feat/skippable-chapter
         avatar_url = get_avatar_url(cursor, acc_id)
         # Module Review status per module (same states the learner sees on
         # the card at the end of each module).
@@ -1322,10 +1324,16 @@ def get_learner_course_detail(acc_id):
                 or previous_finished
                 or stats["lessons_touched"] > 0
             )
+            finished = stats["lessons_total"] > 0 and stats["lessons_completed"] == stats["lessons_total"]
+            # feat/skippable-chapter: skipped and not finished since - shown
+            # as "Skipped" (never as completed) with the date.
+            chapter_skipped = chapter["cat_id"] in skipped_at and not finished
             chapters_out.append({
                 "cat_id": chapter["cat_id"],
                 "name": chapter["name"],
                 "locked": locked,
+                "skipped": chapter_skipped,
+                "skipped_at": fmt_datetime(skipped_at[chapter["cat_id"]]) if chapter_skipped else None,
                 "is_current": any(m["is_current"] for m in modules_out),
                 "modules_total": len(modules_out),
                 "modules_completed": sum(
@@ -1335,7 +1343,7 @@ def get_learner_course_detail(acc_id):
                 **stats,
                 "modules": modules_out,
             })
-            previous_finished = stats["lessons_total"] > 0 and stats["lessons_completed"] == stats["lessons_total"]
+            previous_finished = finished or chapter_skipped
 
         result = _strip_private(summary)
         result["insights"] = extras

@@ -204,6 +204,10 @@
                 const lockTag = ch.locked
                     ? `<span class="badge badge-inactive"><i class="fa-solid fa-lock"></i> Locked</span>`
                     : "";
+                // feat/skippable-chapter: the learner skipped this chapter (never shown as completed)
+                const skipTag = ch.skipped
+                    ? `<span class="badge badge-inactive" title="Skipped on ${escapeHtml(ch.skipped_at || "")}"><i class="fa-solid fa-forward"></i> Skipped</span>`
+                    : "";
 
                 const modules = ch.modules.map((m) => `
                     <details class="course-module" ${m.is_current ? "open" : ""}>
@@ -223,7 +227,7 @@
                         <summary class="course-summary">
                             <span class="course-summary-title">
                                 <i class="fa-solid fa-chevron-right course-caret"></i>
-                                ${escapeHtml(ch.name)} ${lockTag}
+                                ${escapeHtml(ch.name)} ${lockTag}${skipTag}
                             </span>
                             <span class="course-summary-stats">${groupStatsHtml(ch)}</span>
                         </summary>

@@ -8,6 +8,7 @@
     <title>CobraByte Admin - Manage Course</title>
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/datetime.css') }}">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/chapter-skip.css') }}">  {# feat/skippable-chapter #}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -230,6 +231,7 @@
 <script src="{{ url_for('admin_bp.static', filename='js/admin-script.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/datetime.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/admin-auth-guard.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/chapter-skip-settings.js') }}"></script>  {# feat/skippable-chapter: before the page script #}
 <script src="{{ url_for('admin_bp.static', filename='js/admin-manage-course.js') }}"></script>
 <script src="{{ url_for('admin_bp.static', filename='js/admin-title-history.js') }}"></script>  {# feat/module-title-history #}
 <script src="{{ url_for('admin_bp.static', filename='js/admin-bulk-restore.js') }}"></script>  {# bulk restore: checkboxes in the Archive tables #}

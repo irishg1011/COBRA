@@ -536,3 +536,107 @@
         justify-content: center;
     }
 }
+
+/* ---- feat/skippable-chapter: "Already set up?" / "You skipped this chapter" ---- */
+.chapter-skip-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    border: 1.5px solid #fcd34d;
+    background: #fffbeb;
+}
+
+.chapter-skip-card[hidden] {
+    display: none;
+}
+
+.chapter-skip-card.is-skipped {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.chapter-skip-card.is-compact {
+    padding: 14px 20px;
+}
+
+.chapter-skip-icon {
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 20px;
+}
+
+.chapter-skip-card.is-skipped .chapter-skip-icon {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.chapter-skip-body {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.chapter-skip-body h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.chapter-skip-body p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.chapter-skip-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.chapter-skip-actions a.lesson-action-btn {
+    text-decoration: none;
+}
+
+.lesson-action-btn.action-secondary {
+    background: #ffffff;
+    color: #334155;
+    border: 1.5px solid #cbd5e1;
+}
+
+.lesson-action-btn.action-secondary:hover {
+    background: #f1f5f9;
+}
+
+.chapter-skip-link {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    color: #b45309;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.lesson-badge.status-skipped {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+@media (max-width: 600px) {
+    .chapter-skip-actions,
+    .chapter-skip-actions .lesson-action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

@@ -1076,6 +1076,7 @@
             editCategoryNameInput.value = currentName;
             editCategoryModal.style.display = "flex";
             editCategoryNameInput.focus();
+            if (window.CobraChapterSkip) window.CobraChapterSkip.load(id);   // feat/skippable-chapter
         }
 
         function closeEditCategoryModal() {
@@ -1102,6 +1103,12 @@
                 const result = await resp.json();
                 if (!result.success) {
                     showAlertModal(result.message, "Error");
+                    return;
+                }
+                // feat/skippable-chapter: the Skippable switch is saved on its own route
+                const skipResult = window.CobraChapterSkip ? await window.CobraChapterSkip.save(catId) : { success: true };
+                if (!skipResult.success) {
+                    showAlertModal(skipResult.message || "Could not save the skip setting.", "Error");
                     return;
                 }
                 closeEditCategoryModal();

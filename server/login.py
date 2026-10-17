@@ -110,6 +110,24 @@ def _prepare_account_tools():
 
 _prepare_account_tools()
 
+
+# feat/skippable-chapter: category_tbl.is_skippable / skip_question and
+# learner_chapter_skips_tbl. Best-effort - never stops the app starting.
+def _prepare_chapter_skips():
+    from cobradb import get_db_connection as _connect
+    from chapter_skips import ensure_chapter_skip_schema
+    connection = _connect()
+    if connection is None:
+        return
+    try:
+        ensure_chapter_skip_schema(connection)
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+_prepare_chapter_skips()
+
 # feat/admin-extras: every server error (crash or 5xx answer) -> error_log_tbl
 # (System Health "errors today"); the Activity Log tables are made here too.
 from audit import init_error_log, ensure_audit_schema as _ensure_audit_schema

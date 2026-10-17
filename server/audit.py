@@ -111,6 +111,7 @@ ROUTE_ACTIONS = {
     # Chapters / modules
     "manage_course_create_category": ("create", "content", "chapter"),
     "manage_course_update_category": ("edit", "content", "chapter"),
+    "manage_course_save_category_skip_settings": None,   # logs itself with what changed (feat/skippable-chapter)
     "manage_course_category_ready_to_publish": ("mark_ready", "content", "chapter"),
     "manage_course_category_move_to_draft": ("move_to_draft", "content", "chapter"),
     "manage_course_publish_category": ("publish", "content", "chapter"),
