@@ -456,6 +456,10 @@
         btn.appendChild(document.createTextNode(opts.button || "Start"));
         card.appendChild(btn);
         cover.appendChild(card);
+        // feat/welcome-tour: the first time a learner sees this card, a short
+        // tip explains lives, the timer and leaving (shows once - tour.js;
+        // staff Preview Play does not load tour.js, so nothing shows there).
+        if (window.CobraTour) window.CobraTour.auto("game", { target: card });
         return new Promise((resolve) => {
             btn.addEventListener("click", () => {
                 btn.disabled = true;

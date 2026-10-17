@@ -62,6 +62,7 @@ from chapter_skips import (  # feat/skippable-chapter
     skipped_chapter_ids, skippable_chapter_ids, chapter_skip_settings, record_skip,
     ensure_chapter_skip_schema,
 )
+from learner_tour import ensure_tour_schema, tour_status, save_tour_status  # feat/welcome-tour
 
 learner_bp = Blueprint('learner_bp', __name__)
 
@@ -830,6 +831,48 @@ def _chapter_after(cursor, cat_id):
     if index >= len(chapter_ids):
         return None
     return {"cat_id": chapter_ids[index], "category_name": names[chapter_ids[index]]}
+
+
+# ============================================================
+# ROUTES: FIRST-TIME TOUR (feat/welcome-tour) - learner_tour.py
+# ============================================================
+@learner_bp.route("/api/tour", methods=["GET"])
+def tour_state():
+    """Which tour parts this learner already saw, so each one shows only once."""
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+    try:
+        ensure_tour_schema(connection)
+        cursor = connection.cursor()
+        seen = tour_status(cursor, acc_id)
+        cursor.close()
+        # pass_percent: the tour explains the module pass mark - never hard-coded in the browser
+        return jsonify({"success": True, "seen": seen, "pass_percent": PASS_PERCENT}), 200
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+@learner_bp.route("/api/tour/<tour_key>", methods=["POST"])
+def tour_save(tour_key):
+    """The learner finished or skipped one part (body: status=finished|skipped)."""
+    acc_id = get_current_learner_acc_id()
+    if not acc_id:
+        return jsonify({"success": False, "message": "Not logged in."}), 401
+    data = request.form if request.form else (request.get_json(silent=True) or {})
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"success": False, "message": "Could not connect to database."}), 500
+    try:
+        success, message = save_tour_status(connection, acc_id, tour_key, data.get("status"))
+        return jsonify({"success": success, "message": message}), (200 if success else 400)
+    finally:
+        if connection.is_connected():
+            connection.close()
 
 
 # ============================================================

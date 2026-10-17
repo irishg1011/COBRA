@@ -141,6 +141,7 @@ from staff_presence import heartbeat as presence_heartbeat, leave as presence_le
 from learner_where import describe_many as describe_learners_doing  # feat/learner-activity: "Doing now"
 from staff_notifications import list_notifications, unread_count, mark_read  # feat/admin-bell: the header bell
 from title_history import get_title_history  # feat/module-title-history: History modal data
+from learner_tour import tour_summary  # feat/welcome-tour: Learner Progress > First-time tour
 from chapter_skips import (  # feat/skippable-chapter: Edit Chapter > Skippable
     ensure_chapter_skip_schema, chapter_skip_settings, save_chapter_skip_settings,
 )
@@ -4269,6 +4270,24 @@ def _read_learner_view_filters():
     }
 
 
+def _tour_summary_safe():
+    """feat/welcome-tour: finished / skipped / not seen per tour part, or None on a database error."""
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        summary = tour_summary(cursor)
+        cursor.close()
+        return summary
+    except Exception as e:
+        print(f"admin_routes: tour summary failed: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
 @admin_bp.route('/learner-progress/learners')
 def learner_progress_learners():
     """
@@ -4295,6 +4314,7 @@ def learner_progress_learners():
         module_id=str(filters["module_id"] or ''),
         active_from=filters["active_from"] or '',
         active_to=filters["active_to"] or '',
+        tour=_tour_summary_safe(),   # feat/welcome-tour
     )
 
 

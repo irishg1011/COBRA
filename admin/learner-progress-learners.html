@@ -102,6 +102,26 @@
                     </div>
                 </div>
 
+                {# feat/welcome-tour: how many learners finished / skipped each part of the first-time tour #}
+                {% if tour %}
+                <div class="lp-tour" aria-label="First-time tour">
+                    <h3><i class="fa-solid fa-route" aria-hidden="true"></i> First-time tour
+                        <span class="lp-info" tabindex="0" role="note" data-tip="Each part of the learner tour shows once. Finished = they read every popup, Skipped = they pressed Skip tour, Not seen = they haven't reached that part yet. All {{ tour.learners }} learner accounts, not the filters.">i</span></h3>
+                    <div class="lp-tour-parts">
+                        {% for part in tour.parts %}
+                        <div class="lp-tour-part">
+                            <span class="lp-tour-label">{{ part.label }}</span>
+                            <span class="lp-tour-nums">
+                                <span class="lp-tour-good">{{ part.finished }} finished</span> &middot;
+                                <span>{{ part.skipped }} skipped</span> &middot;
+                                <span class="lp-tour-muted">{{ part.not_seen }} not seen</span>
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Learners Table Card -->
                 <div class="table-card">
 

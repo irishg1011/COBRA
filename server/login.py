@@ -112,15 +112,18 @@ _prepare_account_tools()
 
 
 # feat/skippable-chapter: category_tbl.is_skippable / skip_question and
-# learner_chapter_skips_tbl. Best-effort - never stops the app starting.
+# learner_chapter_skips_tbl (+ feat/welcome-tour: learner_tour_tbl).
+# Best-effort - never stops the app starting.
 def _prepare_chapter_skips():
     from cobradb import get_db_connection as _connect
     from chapter_skips import ensure_chapter_skip_schema
+    from learner_tour import ensure_tour_schema   # feat/welcome-tour: learner_tour_tbl
     connection = _connect()
     if connection is None:
         return
     try:
         ensure_chapter_skip_schema(connection)
+        ensure_tour_schema(connection)
     finally:
         if connection.is_connected():
             connection.close()

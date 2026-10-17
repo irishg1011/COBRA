@@ -415,3 +415,20 @@ th .lp-info::after { top: calc(100% + 6px); }
     white-space: normal;
 }
 .lp-learner-name .presence-doing[hidden] { display: none; }
+
+/* feat/welcome-tour: First-time tour counts (Learner Progress > By Learner) */
+.lp-tour {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+.lp-tour h3 { margin: 0 0 10px; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.lp-tour h3 > i { color: var(--lp-pass); }
+.lp-tour-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 16px; }
+.lp-tour-part { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.lp-tour-label { font-weight: 600; color: #111827; }
+.lp-tour-nums { color: #374151; }
+.lp-tour-muted { color: #9ca3af; }
+.lp-tour-good { color: var(--lp-pass); font-weight: 600; }
