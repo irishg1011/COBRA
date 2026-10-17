@@ -56,6 +56,8 @@ PROGRESS_TABLES = (
     ("learner_time_tbl", "Learning time", "acc_id = %s"),
     ("sandbox_runs_tbl", "Coding sandbox runs", "acc_id = %s"),
     ("sandbox_snippets_tbl", "Coding sandbox saved code", "acc_id = %s"),
+    ("learner_chapter_skips_tbl", "Skipped chapters", "acc_id = %s"),    # feat/skippable-chapter
+    ("learner_tour_tbl", "First-time tour", "acc_id = %s"),             # feat/welcome-tour: shows again
     # ALL of them (security, lives, snippets too) - a fresh "Welcome to
     # CobraByte!" is added again after the reset, like a new account's.
     ("notifications_tbl", "Notifications", "acc_id = %s"),
