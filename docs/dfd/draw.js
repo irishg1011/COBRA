@@ -1,0 +1,135 @@
+// Browser side: window.drawDiagram(spec) -> lays out with ELK, draws SVG into #diagram.
+(function () {
+  const FONT = 'Arial, Helvetica, sans-serif';
+  const NODE_PX = 14, LABEL_PX = 12.5, LINE = 1.2;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  function textW(s, px, bold) {
+    ctx.font = (bold ? 'bold ' : '') + px + 'px ' + FONT;
+    return Math.max(...String(s).split('\n').map((l) => ctx.measureText(l).width));
+  }
+  const lines = (s) => String(s).split('\n');
+
+  function nodeSize(n) {
+    const tw = textW(n.label, NODE_PX, n.type === 'system');
+    const nl = lines(n.label).length;
+    if (n.type === 'entity') return { width: Math.max(120, tw + 34), height: Math.max(58, nl * 16 + 30) };
+    if (n.type === 'store') return { width: Math.max(150, tw + 40 + 26), height: 32 };
+    if (n.type === 'system') return { width: Math.max(220, tw + 40), height: Math.max(130, nl * 17 + 60) };
+    return { width: Math.max(112, tw + 26), height: 24 + Math.max(58, nl * 16 + 26) };
+  }
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(svgNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function text(parent, s, x, y, px, opts = {}) {
+    const ls = lines(s);
+    const lh = px * 1.22;
+    const y0 = y - ((ls.length - 1) * lh) / 2;
+    ls.forEach((l, i) => {
+      const t = el('text', {
+        x, y: y0 + i * lh, 'font-family': FONT, 'font-size': px,
+        'text-anchor': opts.anchor || 'middle', 'dominant-baseline': 'central', fill: '#000',
+        'font-weight': opts.bold ? 'bold' : 'normal',
+      }, parent);
+      if (opts.halo) { t.setAttribute('stroke', '#fff'); t.setAttribute('stroke-width', '4'); t.setAttribute('paint-order', 'stroke'); t.setAttribute('stroke-linejoin', 'round'); }
+      t.textContent = l;
+    });
+  }
+
+  window.drawDiagram = async function (spec) {
+    const partOf = { entity: 0, process: 1, system: 1, store: 2 };
+    const nById = Object.fromEntries(spec.nodes.map((n) => [n.id, n]));
+    const rank = (id) => { const n = nById[id]; return n.part != null ? n.part : partOf[n.type]; };
+    // Lay every flow out left-to-right; a flow that really goes right-to-left gets its arrow at the start.
+    const flip = (e) => rank(e.from) > rank(e.to);
+    const flipped = new Set(spec.edges.map((e, i) => (flip(e) ? 'e' + i : null)).filter(Boolean));
+    const graph = {
+      id: 'root',
+      layoutOptions: Object.assign({
+        'elk.algorithm': 'layered',
+        'elk.layered.layering.strategy': 'LONGEST_PATH',
+        'elk.direction': 'RIGHT',
+        'elk.edgeRouting': 'ORTHOGONAL',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '34',
+        'elk.spacing.nodeNode': '26',
+        'elk.spacing.edgeEdge': '10',
+        'elk.spacing.edgeNode': '12',
+        'elk.layered.spacing.edgeNodeBetweenLayers': '12',
+        'elk.layered.spacing.edgeEdgeBetweenLayers': '9',
+        'elk.spacing.edgeLabel': '3',
+        'elk.layered.edgeLabels.sideSelection': 'SMART_UP',
+        'elk.partitioning.activate': 'true',
+        'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+        'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+        'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
+        'elk.layered.thoroughness': '30',
+        'elk.padding': '[top=16,left=16,bottom=16,right=16]',
+      }, spec.layout || {}),
+      children: spec.nodes.map((n) => ({
+        id: n.id, ...nodeSize(n),
+        layoutOptions: Object.assign({ 'elk.partitioning.partition': String(rank(n.id)) },
+          rank(n.id) === 0 ? { 'elk.layered.layering.layerConstraint': 'FIRST' } : {},
+          rank(n.id) === 2 ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}),
+      })),
+      edges: spec.edges.map((e, i) => ({
+        id: 'e' + i, sources: [flip(e) ? e.to : e.from], targets: [flip(e) ? e.from : e.to],
+        labels: e.label ? [{ text: e.label, width: textW(e.label, LABEL_PX) + 6, height: lines(e.label).length * LABEL_PX * 1.22 + 2,
+          layoutOptions: { 'elk.edgeLabels.placement': 'CENTER' } }] : [],
+      })),
+    };
+    const res = await new ELK().layout(graph);
+    const W = Math.ceil(res.width), H = Math.ceil(res.height);
+    let host = document.getElementById('diagram');
+    if (host) host.remove();
+    host = document.createElement('div');
+    host.id = 'diagram';
+    host.style.cssText = `width:${W}px;height:${H}px;background:#fff;display:inline-block`;
+    document.body.appendChild(host);
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}` }, host);
+    const defs = el('defs', {}, svg);
+    const m = el('marker', { id: 'arr', viewBox: '0 0 10 10', refX: 10, refY: 5, markerWidth: 9, markerHeight: 9, orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse' }, defs);
+    el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#000' }, m);
+    el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }, svg);
+
+    const byId = Object.fromEntries(spec.nodes.map((n) => [n.id, n]));
+    const gEdges = el('g', {}, svg), gNodes = el('g', {}, svg), gLabels = el('g', {}, svg);
+
+    res.edges.forEach((e) => {
+      (e.sections || []).forEach((s) => {
+        const pts = [s.startPoint, ...(s.bendPoints || []), s.endPoint];
+        el('polyline', { points: pts.map((p) => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: '#000', 'stroke-width': LINE, [flipped.has(e.id) ? 'marker-start' : 'marker-end']: 'url(#arr)' }, gEdges);
+      });
+      (e.labels || []).forEach((l) => text(gLabels, l.text, l.x + l.width / 2, l.y + l.height / 2, LABEL_PX, { halo: true }));
+    });
+
+    res.children.forEach((c) => {
+      const n = byId[c.id];
+      const { x, y, width: w, height: h } = c;
+      const st = { fill: '#fff', stroke: '#000', 'stroke-width': LINE };
+      if (n.type === 'entity') {
+        el('rect', { x, y, width: w, height: h, ...st }, gNodes);
+        text(gNodes, n.label, x + w / 2, y + h / 2, NODE_PX);
+      } else if (n.type === 'system') {
+        el('rect', { x, y, width: w, height: h, rx: 18, ...st }, gNodes);
+        text(gNodes, n.label, x + w / 2, y + h / 2, NODE_PX, { bold: true });
+      } else if (n.type === 'process') {
+        el('rect', { x, y, width: w, height: h, rx: 10, ...st }, gNodes);
+        el('line', { x1: x, y1: y + 24, x2: x + w, y2: y + 24, stroke: '#000', 'stroke-width': LINE }, gNodes);
+        text(gNodes, n.num, x + w / 2, y + 12, 12);
+        text(gNodes, n.label, x + w / 2, y + 24 + (h - 24) / 2, NODE_PX);
+      } else if (n.type === 'store') {
+        el('rect', { x, y, width: w, height: h, fill: '#fff', stroke: 'none' }, gNodes);
+        el('polyline', { points: `${x + w},${y} ${x},${y} ${x},${y + h} ${x + w},${y + h}`, fill: 'none', stroke: '#000', 'stroke-width': LINE }, gNodes);
+        el('line', { x1: x + 40, y1: y, x2: x + 40, y2: y + h, stroke: '#000', 'stroke-width': LINE }, gNodes);
+        text(gNodes, n.num, x + 20, y + h / 2, 12);
+        text(gNodes, n.label, x + 40 + 10, y + h / 2, NODE_PX, { anchor: 'start' });
+      }
+    });
+    return { w: W, h: H };
+  };
+})();

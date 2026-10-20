@@ -1,0 +1,13 @@
+{
+  "name": "cobrabyte-dfd",
+  "private": true,
+  "description": "Generates docs/CobraByte_Context_Diagram_and_DFD.docx",
+  "scripts": {
+    "render": "node render.js",
+    "build": "node render.js && python3 build_docx.py ../CobraByte_Context_Diagram_and_DFD.docx"
+  },
+  "dependencies": {
+    "elkjs": "0.9.3",
+    "playwright-core": "1.47.2"
+  }
+}
