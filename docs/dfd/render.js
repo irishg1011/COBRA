@@ -29,10 +29,13 @@ async function main() {
       if (fit(sizeDown) > fit(size) * 1.05) size = { ...sizeDown, dir: 'DOWN' };
       else size = await page.evaluate((spec) => window.drawDiagram(spec), d);
     }
+    // check the finished drawing itself: no line through a label or a box, no labels on top of each other
+    const problems = await page.evaluate(() => window.checkDrawing());
+    size.overlaps = problems;
     const el = await page.$('#diagram');
     await el.screenshot({ path: path.join(OUT, d.id + '.png') });
     meta.push({ id: d.id, ...size });
-    console.log(d.id, size.w, 'x', size.h, size.dir || '', size.overlaps.length ? `OVERLAPS: ${size.overlaps.join('; ')}` : 'no overlaps');
+    console.log(d.id, size.w, 'x', size.h, size.dir || '', size.overlaps.length ? `OVERLAPS: ${size.overlaps.join('; ')}` : 'no overlaps', size.crossings ? `CROSSINGS: ${size.crossings}` : '');
     delete size.overlaps;
   }
   if (!only) fs.writeFileSync(path.join(OUT, 'meta.json'), JSON.stringify(meta, null, 1));

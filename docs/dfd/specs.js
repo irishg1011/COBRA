@@ -200,14 +200,14 @@ function diagram(id, title, level, processes, flows, order, opts = {}) {
     const m = merged.get(key);
     if (!m.labels.includes(label)) m.labels.push(label);
   });
-  // with repeat, each process gets its own copy of a user or store (id 'D1@3.0');
+  // with repeat: 'stores', each process gets its own copy of a data store (id 'D1@3.0');
   // a box drawn more than once carries the duplicate mark
   const uses = {};
   merged.forEach(({ from, to }) => [[from, to], [to, from]].forEach(([k, p]) => {
     if (!isProc(k)) (uses[k] = uses[k] || new Set()).add(p);
   }));
   const storeRef = (k, proc) => {
-    if (!opts.repeat || isProc(k)) return ref(k);
+    if (opts.repeat !== 'stores' || !STORES[k]) return ref(k);
     const id = `${k}@${proc}`;
     add({ id, type: STORES[k] ? 'store' : 'entity', num: STORES[k] ? k : undefined, label: STORES[k] || ENTITIES[k], duplicate: uses[k].size > 1 });
     return id;
@@ -255,21 +255,21 @@ specs.push(context);
 // (as in the reference paper), with the Gane-Sarson duplicate mark, so no line
 // has to cross the whole diagram.
 const level0 = diagram('level0', 'Data Flow Diagram Level 0', '0', LEVEL0_PROCESSES, level0Flows,
-  [], { repeat: true });
+  [], { repeat: 'stores' });
 level0.flows = level0Flows;
 level0.layout = { 'elk.layered.considerModelOrder.components': 'MODEL_ORDER', 'elk.aspectRatio': '1.45', 'elk.spacing.componentComponent': '40', 'elk.direction': 'RIGHT' };
 level0.inDocument = false;  // printed as the three parts below
 specs.push(level0);
 
 // Level 0 has close to 100 flows, too many to read on one page. Each process sits in
-// its own group (its users and stores are repeated), so the figure is printed in
+// its own group (its data stores are repeated; each user is drawn once), so the figure is printed in
 // one column across three pages.
 const LEVEL0_PARTS = [['1.0', '2.0', '3.0', '4.0', '5.0'], ['6.0', '7.0'], ['8.0', '9.0']];
 LEVEL0_PARTS.forEach((nums, i) => {
   const part = diagram(`level0_part${i + 1}`,
     `Data Flow Diagram Level 0 (Part ${i + 1} of ${LEVEL0_PARTS.length}: ${nums[0]} to ${nums[nums.length - 1]})`, '0',
     LEVEL0_PROCESSES.filter(([n]) => nums.includes(n)),
-    level0Flows.filter(([a, , b]) => nums.includes(a) || nums.includes(b)), [], { repeat: true });
+    level0Flows.filter(([a, , b]) => nums.includes(a) || nums.includes(b)), [], { repeat: 'stores' });
   part.layout = { 'elk.layered.considerModelOrder.components': 'MODEL_ORDER', 'elk.aspectRatio': '0.2', 'elk.spacing.componentComponent': '40', 'elk.direction': 'RIGHT' };
   part.figure = 'level0';  // one figure number for all parts
   part.column = true;
@@ -282,5 +282,5 @@ LEVEL1.forEach((p) => specs.push(Object.assign(diagram(
   'l1_' + p.num.split('.')[0],
   `Data Flow Diagram Level 1 - ${p.num} ${p.name.replace(/\n/g, ' ')}`,
   '1', p.processes, p.flows,
-  [], { repeat: true },  // users and stores drawn next to each sub-process: straight lines
+  [], { repeat: 'stores' },  // each user drawn once; a data store is drawn next to each process that uses it
 ), { column: true, layout: { 'elk.direction': 'RIGHT' } })));
