@@ -44,12 +44,18 @@ def spacing(p, double=True):
 MAX_W, MAX_H = 6.5, 7.6       # room for the caption under the diagram on the same page
 MAX_SCALE = 0.01              # in per px: small diagrams keep about 9 pt text instead of filling the page
 LEVEL_ORDER = ['Context', '0', '1', '2', '3', '4']
-diagrams = sorted((d for d in specs if d['level'] != 'legend'), key=lambda d: LEVEL_ORDER.index(d['level']))
-missing = [d['id'] for d in diagrams if d['id'] not in text]
+diagrams = sorted((d for d in specs if d.get('inDocument', True)), key=lambda d: LEVEL_ORDER.index(d['level']))
+# the parts of one figure share its number; the description follows the last part
+figure_of = lambda d: d.get('figure', d['id'])
+missing = sorted({figure_of(d) for d in diagrams} - set(text))
 if missing:
     sys.exit('no description for: ' + ', '.join(missing))
 
+numbers = {}
+for d in diagrams:
+    numbers.setdefault(figure_of(d), FIRST_FIGURE + len(numbers))
 for i, d in enumerate(diagrams):
+    last_part = i + 1 == len(diagrams) or figure_of(diagrams[i + 1]) != figure_of(d)
     m = meta[d['id']]
     scale = min(MAX_W / m['w'], MAX_H / m['h'], MAX_SCALE)
     pic = doc.add_paragraph()
@@ -62,15 +68,15 @@ for i, d in enumerate(diagrams):
     cap = doc.add_paragraph()
     spacing(cap)
     cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cap.add_run(f'Figure {FIRST_FIGURE + i}')
+    run = cap.add_run(f'Figure {numbers[figure_of(d)]}')
     run.add_break(WD_BREAK.LINE)
     cap.add_run(d['title'])
 
-    for para in text[d['id']]:
+    for para in (text[figure_of(d)] if last_part else []):
         p = doc.add_paragraph(para)
         spacing(p)
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         p.paragraph_format.first_line_indent = Inches(0.5)
 
 doc.save(OUT)
-print('saved', OUT, len(diagrams), 'figures')
+print('saved', OUT, len(numbers), 'figures on', len(diagrams), 'diagram pages')

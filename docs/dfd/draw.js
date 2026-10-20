@@ -143,6 +143,8 @@
       if (n.type === 'entity') {
         el('rect', { x, y, width: w, height: h, ...st }, gNodes);
         text(gNodes, n.label, x + w / 2, y + h / 2, NODE_PX);
+        // Gane-Sarson duplicate mark: a diagonal line across the lower right corner
+        if (n.duplicate) el('line', { x1: x + w - 16, y1: y + h, x2: x + w, y2: y + h - 16, stroke: '#000', 'stroke-width': LINE }, gNodes);
       } else if (n.type === 'system') {
         el('rect', { x, y, width: w, height: h, rx: 18, ...st }, gNodes);
         text(gNodes, n.label, x + w / 2, y + h / 2, NODE_PX, { bold: true });
@@ -156,7 +158,9 @@
         el('rect', { x, y, width: w, height: h, fill: '#fff', stroke: '#000', 'stroke-width': LINE }, gNodes);
         const c = storeCell(n);
         el('line', { x1: x + c, y1: y, x2: x + c, y2: y + h, stroke: '#000', 'stroke-width': LINE }, gNodes);
-        if (n.num) text(gNodes, n.num, x + c / 2, y + h / 2, 12);
+        // Gane-Sarson duplicate mark: a second line in the ID strip
+        if (n.duplicate) el('line', { x1: x + 5, y1: y, x2: x + 5, y2: y + h, stroke: '#000', 'stroke-width': LINE }, gNodes);
+        if (n.num) text(gNodes, n.num, x + c / 2 + (n.duplicate ? 2 : 0), y + h / 2, 12);
         text(gNodes, n.label, x + c + 10, y + h / 2, NODE_PX, { anchor: 'start' });
       }
     });
