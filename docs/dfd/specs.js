@@ -23,7 +23,7 @@ function diagram(id, title, level, opts) {
   (opts.nodes || []).forEach((n) => add(n));
   const ref = (k) => {
     if (ENTITIES[k]) { add({ id: k, type: 'entity', label: ENTITIES[k], part: opts.parts && opts.parts[k] }); return k; }
-    if (STORES[k]) { add({ id: k, type: 'store', num: '', label: STORES[k], part: opts.parts && opts.parts[k] }); return k; }
+    if (STORES[k]) { add({ id: k, type: 'store', num: k, label: STORES[k], part: opts.parts && opts.parts[k] }); return k; }
     if (seen.has('p' + k)) return 'p' + k;
     if (seen.has(k)) return k;
     throw new Error(`${id}: unknown node ${k}`);
@@ -60,7 +60,7 @@ function byUser(users, id, title, level, opts) {
     const flows = opts.flows.filter(([a, , b, only]) => ok(a) && ok(b) && (keep.has(a) || keep.has(b)) && (!only || only.includes(u)));
     const used = new Set(flows.flatMap(([a, , b]) => [a, b]));
     const name = ENTITIES[u];
-    return diagram(`${id}_${u}`, level === '0' ? `${title} – ${name}` : `${title} (${name})`, level, {
+    return diagram(`${id}_${u}`, level === '0' ? `${title} - ${name}` : `${title} (${name})`, level, {
       ...opts,
       processes: opts.processes.filter(([num]) => keep.has(num)),
       order: (opts.order || []).filter((k) => used.has(k)),
@@ -74,8 +74,8 @@ module.exports = specs;
 module.exports.STORES = STORES;
 
 // ---------------------------------------------------------------- Context
-specs.push(diagram('context', 'Context Diagram', 'Context', {
-  nodes: [{ id: 'sys', type: 'system', label: 'CobraByte:\nLearn Python\nthe Interactive Way' }],
+specs.push(diagram('context', 'Context Diagram of CobraByte', 'Context', {
+  nodes: [{ id: 'sys', type: 'process', num: '0', label: 'CobraByte:\nLearn Python\nthe Interactive Way' }],
   parts: { admin: 0, mentor: 0, learner: 2 },
   flows: [
     ['admin', 'Username and Password', 'sys'],
@@ -110,7 +110,7 @@ specs.push(diagram('context', 'Context Diagram', 'Context', {
 }));
 
 // ---------------------------------------------------------------- Level 0
-specs.push(...byUser(['admin', 'mentor', 'learner'], 'level0', 'DFD Level 0', '0', {
+specs.push(...byUser(['admin', 'mentor', 'learner'], 'level0', 'Data Flow Diagram Level 0', '0', {
   order: ['mentor', 'admin', 'learner', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D19', 'D20'],
   layout: { 'elk.layered.crossingMinimization.forceNodeModelOrder': 'true' },
   processes: [
@@ -187,7 +187,7 @@ specs.push(...byUser(['admin', 'mentor', 'learner'], 'level0', 'DFD Level 0', '0
 }));
 
 // ================================================================ 1.0 Registration
-specs.push(...byUser(['admin', 'learner'], 'l1_registration', 'Registration – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'learner'], 'l1_registration', 'Data Flow Diagram Level 1 - 1.0 Registration', '1', {
   processes: [['1.1', 'Enter\nRegistration\nDetails'], ['1.2', 'Validate\nRegistration'], ['1.3', 'Send\nVerification\nCode'], ['1.4', 'Verify Code'], ['1.5', 'Create Learner\nAccount'], ['1.6', 'Create Admin /\nMentor Account']],
   flows: [
     ['learner', 'Name, Birthdate, Gender,\nEmail, Username, Password', '1.1'],
@@ -210,7 +210,7 @@ specs.push(...byUser(['admin', 'learner'], 'l1_registration', 'Registration – 
   ],
 }));
 
-specs.push(diagram('l2_validate_registration', 'Validate Registration – DFD Level 2', '2', {
+specs.push(diagram('l2_validate_registration', 'Data Flow Diagram Level 2 - 1.2 Validate Registration', '2', {
   processes: [['1.2.1', 'Check Required\nFields'], ['1.2.2', 'Check Age\n(13 to 60)'], ['1.2.3', 'Check Password\nRules'], ['1.2.4', 'Check Email and\nUsername'], ['1.2.5', 'Accept\nRegistration']],
   flows: [
     ['learner', 'Registration Details', '1.2.1'],
@@ -228,7 +228,7 @@ specs.push(diagram('l2_validate_registration', 'Validate Registration – DFD Le
 }));
 
 // ================================================================ 2.0 User Authentication
-specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_auth', 'User Authentication – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_auth', 'Data Flow Diagram Level 1 - 2.0 User Authentication', '1', {
   processes: [['2.1', 'Log In'], ['2.2', 'Check Terms\nConsent'], ['2.3', 'Recover\nPassword'], ['2.4', 'Recover\nUsername'], ['2.5', 'Change\nPassword'], ['2.6', 'Log Out']],
   order: ['learner', 'mentor', 'admin'],
   flows: [
@@ -271,7 +271,7 @@ specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_auth', 'User Authentica
   ],
 }));
 
-specs.push(diagram('l2_login', 'Log In – DFD Level 2', '2', {
+specs.push(diagram('l2_login', 'Data Flow Diagram Level 2 - 2.1 Log In', '2', {
   processes: [['2.1.1', 'Check Login\nDoor and Role'], ['2.1.2', 'Check Account\nStatus'], ['2.1.3', 'Verify\nPassword'], ['2.1.4', 'Create\nSession'], ['2.1.5', 'Open Role\nHome Page']],
   flows: [
     ['user', 'Username and Password', '2.1.1'],
@@ -292,26 +292,26 @@ specs.push(diagram('l2_login', 'Log In – DFD Level 2', '2', {
   ],
 }));
 
-specs.push(diagram('l2_recover_password', 'Recover Password – DFD Level 2', '2', {
+specs.push(diagram('l2_recover_password', 'Data Flow Diagram Level 2 - 2.3 Recover Password', '2', {
   processes: [['2.3.1', 'Find Account\nby Email'], ['2.3.2', 'Send Reset\nCode'], ['2.3.3', 'Verify Reset\nCode'], ['2.3.4', 'Check Password\nRules'], ['2.3.5', 'Save New\nPassword']],
   flows: [
-    ['learner', 'Registered Email', '2.3.1'],
+    ['user', 'Registered Email', '2.3.1'],
     ['D1', 'Account Details', '2.3.1'],
     ['2.3.1', 'Matched Account', '2.3.2'],
-    ['2.3.2', 'Reset Code', 'learner'],
-    ['learner', 'Reset Code', '2.3.3'],
-    ['2.3.3', 'Invalid or\nExpired Code', 'learner'],
+    ['2.3.2', 'Reset Code', 'user'],
+    ['user', 'Reset Code', '2.3.3'],
+    ['2.3.3', 'Invalid or\nExpired Code', 'user'],
     ['2.3.3', 'Verified Code', '2.3.4'],
-    ['learner', 'New and Confirm\nPassword', '2.3.4'],
-    ['2.3.4', 'Password Rules\nNot Met', 'learner'],
+    ['user', 'New and Confirm\nPassword', '2.3.4'],
+    ['2.3.4', 'Password Rules\nNot Met', 'user'],
     ['2.3.4', 'Valid Password', '2.3.5'],
     ['2.3.5', 'Password Hash', 'D1'],
     ['2.3.5', 'Password Reset Log', 'D2'],
-    ['2.3.5', 'Password Changed', 'learner'],
+    ['2.3.5', 'Password Changed', 'user'],
   ],
 }));
 
-specs.push(diagram('l3_verify_password', 'User Authentication – DFD Level 3', '3', {
+specs.push(diagram('l3_verify_password', 'Data Flow Diagram Level 3 - 2.1.3 Verify Password', '3', {
   processes: [['2.1.3.1', 'Check\nLockout'], ['2.1.3.2', 'Compare\nPassword Hash'], ['2.1.3.3', 'Handle Failed\nAttempt'], ['2.1.3.4', 'Clear Failed\nAttempts']],
   flows: [
     ['user', 'Password', '2.1.3.2'],
@@ -330,7 +330,7 @@ specs.push(diagram('l3_verify_password', 'User Authentication – DFD Level 3', 
   ],
 }));
 
-specs.push(diagram('l4_failed_attempt', 'User Authentication – DFD Level 4', '4', {
+specs.push(diagram('l4_failed_attempt', 'Data Flow Diagram Level 4 - 2.1.3.3 Handle Failed Attempt', '4', {
   processes: [['2.1.3.3.1', 'Log Failed\nAttempt'], ['2.1.3.3.2', 'Add to Failed\nCount'], ['2.1.3.3.3', 'Check Attempt\nLimit (5)'], ['2.1.3.3.4', 'Lock Account\nfor 1 Minute'], ['2.1.3.3.5', 'Log Lockout\nand Alert Admins'], ['2.1.3.3.6', 'Show Remaining\nAttempts']],
   flows: [
     ['user', 'Wrong Password', '2.1.3.3.1'],
@@ -351,7 +351,7 @@ specs.push(diagram('l4_failed_attempt', 'User Authentication – DFD Level 4', '
 }));
 
 // ================================================================ 3.0 Course Content Management
-specs.push(diagram('l1_course', 'Course Content Management – DFD Level 1', '1', {
+specs.push(diagram('l1_course', 'Data Flow Diagram Level 1 - 3.0 Course Content Management', '1', {
   processes: [['3.1', 'Manage\nChapters'], ['3.2', 'Manage\nModules'], ['3.3', 'Manage\nLessons'], ['3.4', 'Manage Video\nTutorials'], ['3.5', 'Archive and\nRestore Content'], ['3.6', 'Track Title\nHistory']],
   flows: [
     ['mentor', 'Chapter Details,\nSkip Settings', '3.1'],
@@ -379,7 +379,7 @@ specs.push(diagram('l1_course', 'Course Content Management – DFD Level 1', '1'
   ],
 }));
 
-specs.push(diagram('l2_lessons', 'Manage Lessons – DFD Level 2', '2', {
+specs.push(diagram('l2_lessons', 'Data Flow Diagram Level 2 - 3.3 Manage Lessons', '2', {
   processes: [['3.3.1', 'Select Chapter\nand Module'], ['3.3.2', 'Check Lesson\nName'], ['3.3.3', 'Write Lesson\nContent'], ['3.3.4', 'Upload\nImages'], ['3.3.5', 'Save Draft'], ['3.3.6', 'Mark Ready\nto Publish']],
   flows: [
     ['D5', 'Chapter List', '3.3.1'],
@@ -403,7 +403,7 @@ specs.push(diagram('l2_lessons', 'Manage Lessons – DFD Level 2', '2', {
   ],
 }));
 
-specs.push(diagram('l2_archive', 'Archive and Restore Content – DFD Level 2', '2', {
+specs.push(diagram('l2_archive', 'Data Flow Diagram Level 2 - 3.5 Archive and Restore Content', '2', {
   processes: [['3.5.1', 'Check Archive\nImpact'], ['3.5.2', 'Archive Item'], ['3.5.3', 'Choose Restore\nOptions'], ['3.5.4', 'Restore Items'], ['3.5.5', 'Permanently\nDelete']],
   flows: [
     ['mentor', 'Archive Request', '3.5.1'],
@@ -426,7 +426,7 @@ specs.push(diagram('l2_archive', 'Archive and Restore Content – DFD Level 2', 
 }));
 
 // ================================================================ 4.0 Learning Activity Management
-specs.push(...byUser(['admin', 'mentor'], 'l1_activities', 'Learning Activity Management – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor'], 'l1_activities', 'Data Flow Diagram Level 1 - 4.0 Learning Activity Management', '1', {
   processes: [['4.1', 'Enter Activity\nInformation'], ['4.2', 'Build Multiple\nChoice Items'], ['4.3', 'Build Fill in\nthe Blanks'], ['4.4', 'Build\nFlashcards'], ['4.5', 'Create Coding\nExercise'], ['4.6', 'Quick Edit\nItems'], ['4.7', 'Set Game\nSettings']],
   order: ['mentor', 'admin'],
   flows: [
@@ -453,7 +453,7 @@ specs.push(...byUser(['admin', 'mentor'], 'l1_activities', 'Learning Activity Ma
   ],
 }));
 
-specs.push(diagram('l2_mcq', 'Build Multiple Choice Items – DFD Level 2', '2', {
+specs.push(diagram('l2_mcq', 'Data Flow Diagram Level 2 - 4.2 Build Multiple Choice Items', '2', {
   processes: [['4.2.1', 'Enter\nQuestion'], ['4.2.2', 'Enter\nOptions'], ['4.2.3', 'Mark Correct\nAnswer'], ['4.2.4', 'Check Item\nRules'], ['4.2.5', 'Save Items']],
   flows: [
     ['mentor', 'Question Text', '4.2.1'],
@@ -470,7 +470,7 @@ specs.push(diagram('l2_mcq', 'Build Multiple Choice Items – DFD Level 2', '2',
   ],
 }));
 
-specs.push(diagram('l2_exercise', 'Create Coding Exercise – DFD Level 2', '2', {
+specs.push(diagram('l2_exercise', 'Data Flow Diagram Level 2 - 4.5 Create Coding Exercise', '2', {
   processes: [['4.5.1', 'Enter Exercise\nDetails'], ['4.5.2', 'Check Exercise\nTitle'], ['4.5.3', 'Generate\nExpected Output'], ['4.5.4', 'Set Required\nTags'], ['4.5.5', 'Save Draft or\nMark Ready']],
   flows: [
     ['mentor', 'Title, Instructions,\nAnswer Code', '4.5.1'],
@@ -491,7 +491,7 @@ specs.push(diagram('l2_exercise', 'Create Coding Exercise – DFD Level 2', '2',
 }));
 
 // ================================================================ 5.0 Publishing
-specs.push(...byUser(['admin', 'mentor'], 'l1_publishing', 'Publishing – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor'], 'l1_publishing', 'Data Flow Diagram Level 1 - 5.0 Publishing', '1', {
   processes: [['5.1', 'Load Content\nTree'], ['5.2', 'Mark Ready\nto Publish'], ['5.3', 'Publish\nContent'], ['5.4', 'Unpublish\nContent'], ['5.5', 'Reorder\nContent'], ['5.6', 'Preview\nContent']],
   order: ['mentor', 'admin'],
   flows: [
@@ -526,7 +526,7 @@ specs.push(...byUser(['admin', 'mentor'], 'l1_publishing', 'Publishing – DFD L
   ],
 }));
 
-specs.push(diagram('l2_publish', 'Publish Content – DFD Level 2', '2', {
+specs.push(diagram('l2_publish', 'Data Flow Diagram Level 2 - 5.3 Publish Content', '2', {
   processes: [['5.3.1', 'Check Item\nis Ready'], ['5.3.2', 'Check Parent\nis Published'], ['5.3.3', 'Run Publish\nChecklist'], ['5.3.4', 'Publish Item\nand Children'], ['5.3.5', 'Log and\nConfirm']],
   flows: [
     ['mentor', 'Publish Request', '5.3.1'],
@@ -549,7 +549,7 @@ specs.push(diagram('l2_publish', 'Publish Content – DFD Level 2', '2', {
 }));
 
 // ================================================================ 6.0 Learning
-specs.push(diagram('l1_learning', 'Learning – DFD Level 1', '1', {
+specs.push(diagram('l1_learning', 'Data Flow Diagram Level 1 - 6.0 Learning', '1', {
   processes: [['6.1', 'View Learning\nMap'], ['6.2', 'Read Lesson and\nWatch Video'], ['6.3', 'Play Learning\nActivity'], ['6.4', 'Solve Coding\nExercise'], ['6.5', 'Retake Missed\nItems'], ['6.6', 'Use Coding\nSandbox'], ['6.7', 'Skip\nChapter']],
   flows: [
     ['D5', 'Published Chapters', '6.1'],
@@ -583,7 +583,7 @@ specs.push(diagram('l1_learning', 'Learning – DFD Level 1', '1', {
   ],
 }));
 
-specs.push(diagram('l2_play', 'Play Learning Activity – DFD Level 2', '2', {
+specs.push(diagram('l2_play', 'Data Flow Diagram Level 2 - 6.3 Play Learning Activity', '2', {
   processes: [['6.3.1', 'Draw 5\nUnseen Items'], ['6.3.2', 'Reveal Item and\nStart Timer'], ['6.3.3', 'Check Answer'], ['6.3.4', 'Update Lives'], ['6.3.5', 'Detect Leaving\nthe Page'], ['6.3.6', 'Finish Play\nand Score']],
   flows: [
     ['learner', 'Start Activity', '6.3.1'],
@@ -611,7 +611,7 @@ specs.push(diagram('l2_play', 'Play Learning Activity – DFD Level 2', '2', {
   ],
 }));
 
-specs.push(diagram('l2_solve', 'Solve Coding Exercise – DFD Level 2', '2', {
+specs.push(diagram('l2_solve', 'Data Flow Diagram Level 2 - 6.4 Solve Coding Exercise', '2', {
   processes: [['6.4.1', 'Load\nExercise'], ['6.4.2', 'Run Code in\nBrowser'], ['6.4.3', 'Compare\nOutput'], ['6.4.4', 'Check Required\nTags'], ['6.4.5', 'Save Result\nand Progress']],
   flows: [
     ['learner', 'Open Exercise', '6.4.1'],
@@ -631,7 +631,7 @@ specs.push(diagram('l2_solve', 'Solve Coding Exercise – DFD Level 2', '2', {
 }));
 
 // ================================================================ 7.0 Progress and Achievements
-specs.push(...byUser(['mentor', 'learner'], 'l1_progress', 'Progress and Achievements – DFD Level 1', '1', {
+specs.push(...byUser(['mentor', 'learner'], 'l1_progress', 'Data Flow Diagram Level 1 - 7.0 Progress and Achievements', '1', {
   processes: [['7.1', 'Compute Lesson\nPerformance'], ['7.2', 'Check Module\nGate (80%)'], ['7.3', 'Unlock Next\nContent'], ['7.4', 'Find Weak\nSpots'], ['7.5', 'Manage\nBadges'], ['7.6', 'Award\nBadges'], ['7.7', 'Issue\nCertificate'], ['7.8', 'Show\nNotifications']],
   order: ['learner', 'mentor', 'D11', 'D12', 'D13', 'D7', 'D16', 'D14', 'D15', 'D17'],
   roles: { '7.1': ['learner'], '7.2': ['learner'], '7.3': ['learner'], '7.6': ['learner'] },
@@ -665,7 +665,7 @@ specs.push(...byUser(['mentor', 'learner'], 'l1_progress', 'Progress and Achieve
 }));
 
 
-specs.push(diagram('l2_weak_spots', 'Find Weak Spots – DFD Level 2', '2', {
+specs.push(diagram('l2_weak_spots', 'Data Flow Diagram Level 2 - 7.4 Find Weak Spots', '2', {
   processes: [['7.4.1', 'Collect Missed\nItems'], ['7.4.2', 'Extract Key\nTerms'], ['7.4.3', 'Split Lesson\ninto Parts'], ['7.4.4', 'Score Parts'], ['7.4.5', 'Save\nRecommendation'], ['7.4.6', 'Track Review\nStatus']],
   order: ['learner', 'mentor'],
   flows: [
@@ -684,7 +684,7 @@ specs.push(diagram('l2_weak_spots', 'Find Weak Spots – DFD Level 2', '2', {
   ],
 }));
 
-specs.push(diagram('l2_badges', 'Award Badges – DFD Level 2', '2', {
+specs.push(diagram('l2_badges', 'Data Flow Diagram Level 2 - 7.6 Award Badges', '2', {
   processes: [['7.6.1', 'Build Learner\nFacts'], ['7.6.2', 'Load Active\nBadges'], ['7.6.3', 'Compare Rule\nwith Facts'], ['7.6.4', 'Save Earned\nBadge'], ['7.6.5', 'Notify\nLearner']],
   flows: [
     ['learner', 'Open Profile /\nBell Sync', '7.6.1'],
@@ -702,7 +702,7 @@ specs.push(diagram('l2_badges', 'Award Badges – DFD Level 2', '2', {
 }));
 
 // ================================================================ 8.0 Account Management
-specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_accounts', 'Account Management – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_accounts', 'Data Flow Diagram Level 1 - 8.0 Account Management', '1', {
   processes: [['8.1', 'Search and View\nAccounts'], ['8.2', 'Archive and\nRestore Accounts'], ['8.3', 'Unlock\nAccounts'], ['8.4', 'Handle Help\nRequests'], ['8.5', 'Reset Learner\nProgress'], ['8.6', 'Update\nProfile'], ['8.7', 'Delete Own\nAccount']],
   order: ['admin', 'mentor', 'learner'],
   flows: [
@@ -717,7 +717,7 @@ specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_accounts', 'Account Man
     ['8.3', 'Lockout Cleared', 'D1'],
     ['8.3', 'Unlock Log', 'D2'],
     ['mentor', 'Help Request', '8.4'],
-    ['8.4', 'Help Request', 'D19'],
+    ['8.4', 'Help Request', 'D19', ['mentor']],
     ['D19', 'Open Requests', '8.4', ['admin']],
     ['admin', 'Reset / Unlock / Done', '8.4'],
     ['8.4', 'Temporary Password', 'admin'],
@@ -740,7 +740,7 @@ specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_accounts', 'Account Man
   ],
 }));
 
-specs.push(diagram('l2_archive_account', 'Archive and Restore Accounts – DFD Level 2', '2', {
+specs.push(diagram('l2_archive_account', 'Data Flow Diagram Level 2 - 8.2 Archive and Restore Accounts', '2', {
   processes: [['8.2.1', 'Check Archive\nRules'], ['8.2.2', 'Archive\nAccount'], ['8.2.3', 'End Active\nSessions'], ['8.2.4', 'Restore\nAccount'], ['8.2.5', 'Log Account\nAction']],
   flows: [
     ['admin', 'Archive Request', '8.2.1'],
@@ -760,7 +760,7 @@ specs.push(diagram('l2_archive_account', 'Archive and Restore Accounts – DFD L
   ],
 }));
 
-specs.push(diagram('l2_help', 'Handle Help Requests – DFD Level 2', '2', {
+specs.push(diagram('l2_help', 'Data Flow Diagram Level 2 - 8.4 Handle Help Requests', '2', {
   processes: [['8.4.1', 'Submit Help\nRequest'], ['8.4.2', 'Notify\nAdmins'], ['8.4.3', 'Review\nRequest'], ['8.4.4', 'Reset\nPassword'], ['8.4.5', 'Unlock\nAccount'], ['8.4.6', 'Mark Done']],
   order: ['mentor', 'admin'],
   flows: [
@@ -787,7 +787,7 @@ specs.push(diagram('l2_help', 'Handle Help Requests – DFD Level 2', '2', {
 }));
 
 // ================================================================ 9.0 Reports and Monitoring
-specs.push(...byUser(['admin', 'mentor'], 'l1_reports', 'Reports and Monitoring – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor'], 'l1_reports', 'Data Flow Diagram Level 1 - 9.0 Reports and Monitoring', '1', {
   processes: [['9.1', 'Show Admin\nDashboard'], ['9.2', 'Show Online\nUsers'], ['9.3', 'Monitor Learner\nProgress'], ['9.4', 'Generate\nReports'], ['9.5', 'View Logs and\nExport CSV'], ['9.6', 'Monitor Coding\nSandbox'], ['9.7', 'Check System\nHealth'], ['9.8', 'Show Mentor\nDashboard']],
   order: ['admin', 'mentor'],
   flows: [
@@ -815,7 +815,7 @@ specs.push(...byUser(['admin', 'mentor'], 'l1_reports', 'Reports and Monitoring 
   ],
 }));
 
-specs.push(diagram('l2_generate_reports', 'Generate Reports – DFD Level 2', '2', {
+specs.push(diagram('l2_generate_reports', 'Data Flow Diagram Level 2 - 9.4 Generate Reports', '2', {
   processes: [['9.4.1', 'Select Report\nand Filters'], ['9.4.2', 'Collect Learner\nResults'], ['9.4.3', 'Rank\nLearners'], ['9.4.4', 'Summarize\nChapters/Modules'], ['9.4.5', 'List\nCertificates'], ['9.4.6', 'Display\nReport']],
   flows: [
     ['admin', 'Report Type, Status,\nDate Range', '9.4.1'],
