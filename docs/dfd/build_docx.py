@@ -82,7 +82,8 @@ for i, d in enumerate(diagrams):
     run.add_break(WD_BREAK.LINE)
     cap.add_run(d['title'])
 
-    for para in (text.get(figure_of(d), []) if last_part else []):
+    # a part of a figure can have its own description; otherwise the figure's follows its last part
+    for para in text.get(d['id'], text.get(figure_of(d), []) if last_part else []):
         p = doc.add_paragraph(para)
         spacing(p)
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
