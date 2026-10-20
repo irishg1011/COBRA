@@ -36,7 +36,7 @@ const LEVEL1 = [
     ],
   },
   {
-    num: '2.0', name: 'Authenticate User', repeat: true,
+    num: '2.0', name: 'Authenticate User',
     processes: [['2.1', 'Verify\nCredentials'], ['2.2', 'Create\nSession']],
     flows: [
       ['learner', 'Login Credentials', '2.1'],
@@ -102,7 +102,7 @@ const LEVEL1 = [
     ],
   },
   {
-    num: '6.0', name: 'Deliver Lessons\nand Activities', repeat: true,
+    num: '6.0', name: 'Deliver Lessons\nand Activities',
     processes: [['6.1', 'Display\nLesson'], ['6.2', 'Check Activity\nAnswers'], ['6.3', 'Check Exercise\nCode']],
     flows: [
       ['D13', 'Unlocked Lessons', '6.1'],
@@ -125,7 +125,7 @@ const LEVEL1 = [
     ],
   },
   {
-    num: '7.0', name: 'Track Progress\nand Rewards', repeat: true,
+    num: '7.0', name: 'Track Progress\nand Rewards',
     processes: [['7.1', 'Compute Lesson\nScore'], ['7.2', 'Check Module\nPass'], ['7.3', 'Find Weak\nSpots'], ['7.4', 'Award Badges and\nCertificate'], ['7.5', 'Define\nBadges']],
     flows: [
       ['D11', 'Answer Record', '7.1'],
@@ -246,6 +246,8 @@ module.exports.LEVEL1 = LEVEL1;
 const context = diagram('context', 'Context Diagram of CobraByte', 'Context',
   [['0', 'CobraByte:\nLearn Python\nthe Interactive Way']], contextFlows);
 context.parts = { admin: 0, mentor: 0, learner: 2 };
+context.star = { admin: 'left', mentor: 'right', learner: 'bottom' };  // drawn by hand: straight arrows
+context.layout = { 'elk.direction': 'RIGHT' };
 context.nodes.forEach((n) => { if (context.parts[n.id] != null) n.part = context.parts[n.id]; });
 specs.push(context);
 
@@ -279,6 +281,5 @@ LEVEL1.forEach((p) => specs.push(Object.assign(diagram(
   'l1_' + p.num.split('.')[0],
   `Data Flow Diagram Level 1 - ${p.num} ${p.name.replace(/\n/g, ' ')}`,
   '1', p.processes, p.flows,
-  p.repeat ? [] : ['mentor', 'admin', 'learner', ...Object.keys(STORES)].filter((k) => p.flows.some(([a, , b]) => a === k || b === k)),
-  { repeat: p.repeat },
-), p.repeat ? { layout: { ...IN_ORDER, 'elk.direction': p.direction || 'RIGHT' } } : {})));
+  [], { repeat: true },  // users and stores drawn next to each sub-process: straight lines
+), { layout: { ...IN_ORDER, 'elk.direction': 'RIGHT' } })));

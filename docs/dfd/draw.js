@@ -42,7 +42,87 @@
     });
   }
 
+
+  // Context Diagram: the system in the middle and each user on one side (left,
+  // right or bottom), joined by a pair of straight parallel arrows - in and out.
+  function drawStar(spec) {
+    const byId = Object.fromEntries(spec.nodes.map((n) => [n.id, n]));
+    const center = spec.nodes.find((n) => n.type === 'process');
+    const C = nodeSize(center), GAP = 14, PAD = 20, LH = LABEL_PX * 1.22;
+    const sides = spec.star;
+    const flowsOf = (id) => ({
+      inn: spec.edges.find((e) => e.from === id), out: spec.edges.find((e) => e.to === id),
+    });
+    const block = (label) => ({ w: label ? textW(label, LABEL_PX) : 0, h: label ? lines(label).length * LH : 0 });
+    const ent = {};
+    Object.keys(sides).forEach((id) => { ent[id] = { ...nodeSize(byId[id]), ...flowsOf(id) }; });
+    const hGap = (id) => (id ? Math.max(block(ent[id].inn && ent[id].inn.label).w, block(ent[id].out && ent[id].out.label).w) + 60 : 0);
+    const left = Object.keys(sides).find((k) => sides[k] === 'left');
+    const right = Object.keys(sides).find((k) => sides[k] === 'right');
+    const bottom = Object.keys(sides).find((k) => sides[k] === 'bottom');
+    const sideBlockH = (id) => (id ? Math.max(block(ent[id].inn && ent[id].inn.label).h, block(ent[id].out && ent[id].out.label).h) : 0);
+    const above = Math.max(sideBlockH(left), sideBlockH(right)) + 16;
+    const cx = PAD + (left ? ent[left].width + hGap(left) : 0) + C.width / 2;
+    const cy = PAD + Math.max(above, left ? ent[left].height / 2 : 0, C.height / 2);
+    const lowSide = cy + GAP / 2 + Math.max(sideBlockH(left), sideBlockH(right)) + 8;   // bottom of the side labels
+    const bTop = Math.max(cy + C.height / 2, lowSide);
+    const bGap = bottom ? Math.max(block(ent[bottom].inn && ent[bottom].inn.label).h, block(ent[bottom].out && ent[bottom].out.label).h) + 40 : 0;
+    const W = Math.ceil(cx + C.width / 2 + (right ? hGap(right) + ent[right].width : 0) + PAD);
+    const H = Math.ceil((bottom ? bTop + bGap + ent[bottom].height : cy + C.height / 2) + PAD);
+
+    let host = document.getElementById('diagram');
+    if (host) host.remove();
+    host = document.createElement('div');
+    host.id = 'diagram';
+    host.style.cssText = `width:${W}px;height:${H}px;background:#fff;display:inline-block`;
+    document.body.appendChild(host);
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}` }, host);
+    const m = el('marker', { id: 'arr', viewBox: '0 0 10 10', refX: 10, refY: 5, markerWidth: 9, markerHeight: 9, orient: 'auto', markerUnits: 'userSpaceOnUse' }, el('defs', {}, svg));
+    el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#000' }, m);
+    el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }, svg);
+    const st = { fill: '#fff', stroke: '#000', 'stroke-width': LINE };
+    const arrow = (x1, y1, x2, y2) => el('line', { x1, y1, x2, y2, stroke: '#000', 'stroke-width': LINE, 'marker-end': 'url(#arr)' }, svg);
+    const box = (n, x, y) => {
+      const { width: w, height: h } = nodeSize(n);
+      if (n.type === 'process') {
+        el('rect', { x, y, width: w, height: h, rx: 10, ...st }, svg);
+        el('line', { x1: x, y1: y + 24, x2: x + w, y2: y + 24, stroke: '#000', 'stroke-width': LINE }, svg);
+        text(svg, n.num, x + w / 2, y + 12, 12);
+        text(svg, n.label, x + w / 2, y + 24 + (h - 24) / 2, NODE_PX);
+      } else {
+        el('rect', { x, y, width: w, height: h, ...st }, svg);
+        text(svg, n.label, x + w / 2, y + h / 2, NODE_PX);
+      }
+    };
+    const P = { x: cx - C.width / 2, y: cy - C.height / 2 };
+    box(center, P.x, P.y);
+    const yIn = cy - GAP / 2, yOut = cy + GAP / 2;
+    if (left) {
+      const e = ent[left], ex = PAD, ey = cy - e.height / 2;
+      box(byId[left], ex, ey);
+      const x1 = ex + e.width, x2 = P.x, mid = (x1 + x2) / 2;
+      if (e.inn) { arrow(x1, yIn, x2, yIn); text(svg, e.inn.label, mid, yIn - 6 - block(e.inn.label).h / 2, LABEL_PX); }
+      if (e.out) { arrow(x2, yOut, x1, yOut); text(svg, e.out.label, mid, yOut + 6 + block(e.out.label).h / 2, LABEL_PX); }
+    }
+    if (right) {
+      const e = ent[right], ex = P.x + C.width + hGap(right), ey = cy - e.height / 2;
+      box(byId[right], ex, ey);
+      const x1 = P.x + C.width, x2 = ex, mid = (x1 + x2) / 2;
+      if (e.inn) { arrow(x2, yIn, x1, yIn); text(svg, e.inn.label, mid, yIn - 6 - block(e.inn.label).h / 2, LABEL_PX); }
+      if (e.out) { arrow(x1, yOut, x2, yOut); text(svg, e.out.label, mid, yOut + 6 + block(e.out.label).h / 2, LABEL_PX); }
+    }
+    if (bottom) {
+      const e = ent[bottom], ey = bTop + bGap, ex = cx - e.width / 2, mid = (cy + C.height / 2 + ey) / 2;
+      box(byId[bottom], ex, ey);
+      const xIn = cx - GAP / 2, xOut = cx + GAP / 2;
+      if (e.inn) { arrow(xIn, ey, xIn, P.y + C.height); text(svg, e.inn.label, xIn - 10 - block(e.inn.label).w / 2, mid, LABEL_PX); }
+      if (e.out) { arrow(xOut, P.y + C.height, xOut, ey); text(svg, e.out.label, xOut + 10 + block(e.out.label).w / 2, mid, LABEL_PX); }
+    }
+    return { w: W, h: H, bends: 0, jogs: 0, edges: spec.edges.length, overlaps: [] };
+  }
+
   window.drawDiagram = async function (spec) {
+    if (spec.star) return drawStar(spec);
     const partOf = { entity: 0, process: 1, system: 1, store: 2 };
     const nById = Object.fromEntries(spec.nodes.map((n) => [n.id, n]));
     const rank = (id) => { const n = nById[id]; return n.part != null ? n.part : partOf[n.type]; };
