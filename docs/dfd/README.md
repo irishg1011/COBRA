@@ -2,10 +2,10 @@
 
 `../CobraByte_Context_Diagram_and_DFD.docx` is generated from the files here.
 
-- `specs.js` – every diagram: processes, data flows, and the D1–D23 data stores
+- `specs.js` – every diagram: processes, data flows, and the data stores (`STORES`)
 - `draw.js` – Gane-Sarson shapes; layout by ELK (orthogonal lines)
 - `render.js` – renders each diagram to `png/` with headless Chromium
-- `build_docx.py` – assembles the Word document (needs `python-docx`); the store → table list is in `STORE_TABLES`
+- `build_docx.py` – assembles the Word document (needs `python-docx`), laid out like the sample: a title line above each diagram, portrait Letter pages
 
 To change a diagram, edit `specs.js`, then:
 

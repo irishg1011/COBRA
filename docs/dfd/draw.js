@@ -9,12 +9,13 @@
     return Math.max(...String(s).split('\n').map((l) => ctx.measureText(l).width));
   }
   const lines = (s) => String(s).split('\n');
+  const storeCell = (n) => (n.num ? 40 : 12);  // the sample's stores have only a narrow blank cell
 
   function nodeSize(n) {
     const tw = textW(n.label, NODE_PX, n.type === 'system');
     const nl = lines(n.label).length;
     if (n.type === 'entity') return { width: Math.max(120, tw + 34), height: Math.max(58, nl * 16 + 30) };
-    if (n.type === 'store') return { width: Math.max(150, tw + 40 + 26), height: 32 };
+    if (n.type === 'store') return { width: Math.max(130, tw + storeCell(n) + 26), height: 32 };
     if (n.type === 'system') return { width: Math.max(220, tw + 40), height: Math.max(130, nl * 17 + 60) };
     return { width: Math.max(112, tw + 26), height: 24 + Math.max(58, nl * 16 + 26) };
   }
@@ -125,9 +126,10 @@
       } else if (n.type === 'store') {
         el('rect', { x, y, width: w, height: h, fill: '#fff', stroke: 'none' }, gNodes);
         el('polyline', { points: `${x + w},${y} ${x},${y} ${x},${y + h} ${x + w},${y + h}`, fill: 'none', stroke: '#000', 'stroke-width': LINE }, gNodes);
-        el('line', { x1: x + 40, y1: y, x2: x + 40, y2: y + h, stroke: '#000', 'stroke-width': LINE }, gNodes);
-        text(gNodes, n.num, x + 20, y + h / 2, 12);
-        text(gNodes, n.label, x + 40 + 10, y + h / 2, NODE_PX, { anchor: 'start' });
+        const c = storeCell(n);
+        el('line', { x1: x + c, y1: y, x2: x + c, y2: y + h, stroke: '#000', 'stroke-width': LINE }, gNodes);
+        if (n.num) text(gNodes, n.num, x + c / 2, y + h / 2, 12);
+        text(gNodes, n.label, x + c + 10, y + h / 2, NODE_PX, { anchor: 'start' });
       }
     });
     return { w: W, h: H };

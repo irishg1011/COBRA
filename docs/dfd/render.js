@@ -20,8 +20,8 @@ async function main() {
   const meta = [];
   for (const d of specs) {
     if (only && d.id !== only) continue;
-    // Page body is about 6.5 x 9 in; keep whichever direction fills it at the larger scale.
-    const fit = (sz) => Math.max(Math.min(6.5 / sz.w, 7.7 / sz.h), Math.min(9 / sz.w, 5.7 / sz.h));
+    // Portrait Letter, 1 in margins (like the sample): keep whichever direction fills it at the larger scale.
+    const fit = (sz) => Math.min(6.5 / sz.w, 8.4 / sz.h);
     let size = await page.evaluate((spec) => window.drawDiagram(spec), d);
     if (!(d.layout && d.layout['elk.direction'])) {
       const down = { ...d, layout: { ...(d.layout || {}), 'elk.direction': 'DOWN' } };
