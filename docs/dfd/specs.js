@@ -272,6 +272,7 @@ LEVEL0_PARTS.forEach((nums, i) => {
     level0Flows.filter(([a, , b]) => nums.includes(a) || nums.includes(b)), [], { repeat: true });
   part.layout = { 'elk.layered.considerModelOrder.components': 'MODEL_ORDER', 'elk.aspectRatio': '0.2', 'elk.spacing.componentComponent': '40', 'elk.direction': 'RIGHT' };
   part.figure = 'level0';  // one figure number for all parts
+  part.column = true;
   part.isCheckedElsewhere = true;
   specs.push(part);
 });
@@ -282,4 +283,4 @@ LEVEL1.forEach((p) => specs.push(Object.assign(diagram(
   `Data Flow Diagram Level 1 - ${p.num} ${p.name.replace(/\n/g, ' ')}`,
   '1', p.processes, p.flows,
   [], { repeat: true },  // users and stores drawn next to each sub-process: straight lines
-), { layout: { ...IN_ORDER, 'elk.direction': 'RIGHT' } })));
+), { column: true, layout: { 'elk.direction': 'RIGHT' } })));

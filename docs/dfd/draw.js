@@ -17,7 +17,9 @@
     if (n.type === 'entity') return { width: Math.max(120, tw + 34), height: Math.max(58, nl * 16 + 30) };
     if (n.type === 'store') return { width: Math.max(130, tw + storeCell(n) + 26), height: 32 };
     if (n.type === 'system') return { width: Math.max(220, tw + 40), height: Math.max(130, nl * 17 + 60) };
-    return { width: Math.max(112, tw + 26), height: 24 + Math.max(58, nl * 16 + 26) };
+    // a process with many lines on one side is made taller, so each line can leave
+    // it level with the box at the other end and run straight
+    return { width: Math.max(112, tw + 26), height: Math.max(24 + Math.max(58, nl * 16 + 26), (n.sideLines || 0) * 30 + 14) };
   }
 
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -121,14 +123,175 @@
     return { w: W, h: H, bends: 0, jogs: 0, edges: spec.edges.length, overlaps: [] };
   }
 
+
+  // Column layout for Level 0 parts and Level 1: processes in one column in number
+  // order, each with its users stacked on the left and its data stores on the right.
+  // Every line to a user or store is a straight horizontal line at that box's
+  // height; flows between processes run straight down to the next process.
+  function drawColumn(spec) {
+    const byId = Object.fromEntries(spec.nodes.map((n) => [n.id, n]));
+    const procs = spec.nodes.filter((n) => n.type === 'process');
+    const isP = (id) => byId[id].type === 'process';
+    const LH = LABEL_PX * 1.22, PAIR = 14, PAD = 20, ROWGAP = 12, PROC_W = Math.max(...procs.map((p) => nodeSize(p).width), 150);
+    const blockH = (l) => (l ? lines(l).length * LH : 0);
+    const blockW = (l) => (l ? textW(l, LABEL_PX) : 0);
+    // the users / stores of each process, with the flow(s) to and from it
+    const groups = procs.map((p) => {
+      const rows = { left: [], right: [] };
+      spec.edges.forEach((e) => {
+        if (e.from !== p.id && e.to !== p.id) return;
+        const other = e.from === p.id ? e.to : e.from;
+        if (isP(other)) return;
+        const side = byId[other].type === 'entity' ? 'left' : 'right';
+        let r = rows[side].find((x) => x.id === other);
+        if (!r) rows[side].push(r = { id: other, inn: null, out: null });
+        if (e.to === p.id) r.inn = e; else r.out = e;
+      });
+      return { p, rows };
+    });
+    const rowSize = (r) => {
+      const n = (r.inn ? 1 : 0) + (r.out ? 1 : 0);
+      const first = r.inn || r.out, second = r.inn && r.out ? r.out : null;
+      const above = blockH(first.label) + 4, below = second ? blockH(second.label) + 4 : 0;
+      const box = nodeSize(byId[r.id]).height;
+      const linesH = (n - 1) * PAIR;
+      const h = Math.max(above + linesH + below, box) + ROWGAP;
+      return { h, above, linesH, box };
+    };
+    const stackH = (rows) => rows.reduce((t, r) => t + rowSize(r).h, 0);
+    const maxLabel = (side) => Math.max(0, ...groups.flatMap((g) => g.rows[side].flatMap((r) => [blockW(r.inn && r.inn.label), blockW(r.out && r.out.label)])));
+    const entW = Math.max(0, ...groups.flatMap((g) => g.rows.left.map((r) => nodeSize(byId[r.id]).width)));
+    const storeW = Math.max(0, ...groups.flatMap((g) => g.rows.right.map((r) => nodeSize(byId[r.id]).width)));
+    const leftGap = entW ? maxLabel('left') + 70 : 0, rightGap = storeW ? maxLabel('right') + 50 : 0;
+    const procX = PAD + entW + leftGap, entX = PAD, storeX = procX + PROC_W + rightGap;
+    // flows between processes
+    const inner = spec.edges.filter((e) => isP(e.from) && isP(e.to));
+    const index = Object.fromEntries(procs.map((p, i) => [p.id, i]));
+    // a gap holds the label of the flow to the next process, plus a row for the label
+    // of any flow that skips ahead along the lane
+    const skips = (i) => inner.filter((e) => index[e.from] === i && index[e.to] > i + 1);
+    const gapAfter = procs.map((p, i) => {
+      const here = inner.filter((e) => Math.min(index[e.from], index[e.to]) === i && Math.abs(index[e.to] - index[e.from]) === 1);
+      const next = here.length ? Math.max(...here.map((e) => blockH(e.label))) + 36 : 24;
+      return Math.max(next, ...skips(i).map((e) => blockH(e.label) + 30));
+    });
+    // vertical positions
+    let y = PAD;
+    const placed = groups.map((g, i) => {
+      const h = Math.max(stackH(g.rows.left), stackH(g.rows.right), nodeSize(g.p).height + ROWGAP);
+      const top = y;
+      y += h + (i < groups.length - 1 ? gapAfter[i] : 0);
+      return { ...g, top, h };
+    });
+    const W = Math.ceil(storeX + storeW + PAD), H = Math.ceil(y + PAD);
+
+    let host = document.getElementById('diagram');
+    if (host) host.remove();
+    host = document.createElement('div');
+    host.id = 'diagram';
+    host.style.cssText = `width:${W}px;height:${H}px;background:#fff;display:inline-block`;
+    document.body.appendChild(host);
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}` }, host);
+    const mk = el('marker', { id: 'arr', viewBox: '0 0 10 10', refX: 10, refY: 5, markerWidth: 9, markerHeight: 9, orient: 'auto', markerUnits: 'userSpaceOnUse' }, el('defs', {}, svg));
+    el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#000' }, mk);
+    el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }, svg);
+    const gL = el('g', {}, svg), gB = el('g', {}, svg), gT = el('g', {}, svg);
+    const path = (pts) => el('polyline', { points: pts.map((q) => `${q.x},${q.y}`).join(' '), fill: 'none', stroke: '#000', 'stroke-width': LINE, 'marker-end': 'url(#arr)' }, gL);
+    const st = { fill: '#fff', stroke: '#000', 'stroke-width': LINE };
+    const drawBox = (n, x, yy, w, h) => {
+      if (n.type === 'process') {
+        el('rect', { x, y: yy, width: w, height: h, rx: 10, ...st }, gB);
+        el('line', { x1: x, y1: yy + 24, x2: x + w, y2: yy + 24, stroke: '#000', 'stroke-width': LINE }, gB);
+        text(gB, n.num, x + w / 2, yy + 12, 12);
+        text(gB, n.label, x + w / 2, yy + 24 + (h - 24) / 2, NODE_PX);
+      } else if (n.type === 'entity') {
+        el('rect', { x, y: yy, width: w, height: h, ...st }, gB);
+        text(gB, n.label, x + w / 2, yy + h / 2, NODE_PX);
+        if (n.duplicate) el('line', { x1: x + w - 16, y1: yy + h, x2: x + w, y2: yy + h - 16, stroke: '#000', 'stroke-width': LINE }, gB);
+      } else {
+        const c = storeCell(n);
+        el('rect', { x, y: yy, width: w, height: h, ...st }, gB);
+        el('line', { x1: x + c, y1: yy, x2: x + c, y2: yy + h, stroke: '#000', 'stroke-width': LINE }, gB);
+        if (n.duplicate) el('line', { x1: x + 5, y1: yy, x2: x + 5, y2: yy + h, stroke: '#000', 'stroke-width': LINE }, gB);
+        text(gB, n.num, x + c / 2 + (n.duplicate ? 2 : 0), yy + h / 2, 12);
+        text(gB, n.label, x + c + 10, yy + h / 2, NODE_PX, { anchor: 'start' });
+      }
+    };
+    const procBox = {};
+    placed.forEach(({ p, rows, top, h }) => {
+      const pTop = top, pH = h - ROWGAP;
+      procBox[p.id] = { x: procX, y: pTop, w: PROC_W, h: pH };
+      ['left', 'right'].forEach((side) => {
+        let ry = top + (h - stackH(rows[side])) / 2;
+        rows[side].forEach((r) => {
+          const sz = rowSize(r), n = byId[r.id], { width: bw, height: bh } = nodeSize(n);
+          const y1 = ry + sz.above + Math.max(0, (sz.h - ROWGAP - sz.above - sz.linesH - (sz.h - ROWGAP - sz.box > 0 ? 0 : 0)) - (sz.h - ROWGAP) + sz.above) * 0;
+          const lineTop = ry + Math.max(sz.above, (sz.box - sz.linesH) / 2);
+          const lineBot = lineTop + sz.linesH;
+          const midY = (lineTop + lineBot) / 2;
+          const bx = side === 'left' ? entX + (entW - bw) : storeX;
+          drawBox(n, bx, midY - bh / 2, bw, bh);
+          const near = side === 'left' ? bx + bw : bx;              // the box's side facing the process
+          const far = side === 'left' ? procX : procX + PROC_W;     // the process side
+          const mid = (near + far) / 2;
+          const first = r.inn || r.out, second = r.inn && r.out ? r.out : null;
+          const draw = (e, yy) => (e === r.inn ? path([{ x: near, y: yy }, { x: far, y: yy }]) : path([{ x: far, y: yy }, { x: near, y: yy }]));
+          draw(first, lineTop);
+          text(gT, first.label, mid, lineTop - 4 - blockH(first.label) / 2, LABEL_PX, { halo: true });
+          if (second) { draw(second, lineBot); text(gT, second.label, mid, lineBot + 4 + blockH(second.label) / 2, LABEL_PX, { halo: true }); }
+          ry += sz.h;
+        });
+      });
+    });
+    placed.forEach(({ p }) => { const b = procBox[p.id]; drawBox(p, b.x, b.y, b.w, b.h); });
+    // flows between processes: straight down to the next process; to a later one,
+    // along a lane just left of the process column
+    const cx = procX + PROC_W / 2;
+    let lane = 0;
+    inner.forEach((e) => {
+      const a = procBox[e.from], b = procBox[e.to], down = index[e.to] > index[e.from];
+      const adjacent = Math.abs(index[e.to] - index[e.from]) === 1;
+      const siblings = inner.filter((o) => Math.min(index[o.from], index[o.to]) === Math.min(index[e.from], index[e.to]) && Math.abs(index[o.to] - index[o.from]) === 1);
+      if (adjacent) {
+        const k = siblings.indexOf(e), x = cx + (k - (siblings.length - 1) / 2) * 30;
+        const y1 = down ? a.y + a.h : a.y, y2 = down ? b.y : b.y + b.h;
+        const laneRows = 0;
+        path([{ x, y: y1 }, { x, y: y2 }]);
+        text(gT, e.label, x + 8 + blockW(e.label) / 2, (Math.min(y1, y2) + laneRows + Math.max(y1, y2)) / 2, LABEL_PX, { halo: true });
+      } else {
+        // leaves the left side of the process, runs down a lane beside the column and
+        // enters the later process from the left; its label sits left of the lane,
+        // in the empty space beside the gap below the first process
+        const lx = procX - 18 - lane++ * 12;
+        const yOut = a.y + a.h - 16, yIn = b.y + 34;
+        path([{ x: procX, y: yOut }, { x: lx, y: yOut }, { x: lx, y: yIn }, { x: procX, y: yIn }]);
+        const next = procs[index[e.from] + 1];
+        const gapMid = (a.y + a.h + procBox[next.id].y) / 2;
+        text(gT, e.label, lx - 8 - blockW(e.label) / 2, gapMid, LABEL_PX, { halo: true });
+      }
+    });
+    return { w: W, h: H, bends: 0, jogs: 0, edges: spec.edges.length, overlaps: [] };
+  }
+
   window.drawDiagram = async function (spec) {
     if (spec.star) return drawStar(spec);
+    if (spec.column) return drawColumn(spec);
     const partOf = { entity: 0, process: 1, system: 1, store: 2 };
     const nById = Object.fromEntries(spec.nodes.map((n) => [n.id, n]));
     const rank = (id) => { const n = nById[id]; return n.part != null ? n.part : partOf[n.type]; };
     // Lay every flow out left-to-right; a flow that really goes right-to-left gets its arrow at the start.
     const flip = (e) => rank(e.from) > rank(e.to);
     const flipped = new Set(spec.edges.map((e, i) => (flip(e) ? 'e' + i : null)).filter(Boolean));
+    // lines on the busier side (left or right) of each box
+    const sideLines = (id) => {
+      const counts = [0, 0];
+      spec.edges.forEach((e) => {
+        if (e.from !== id && e.to !== id) return;
+        const other = e.from === id ? e.to : e.from;
+        counts[rank(other) < rank(id) ? 0 : 1]++;
+      });
+      return Math.max(...counts);
+    };
     const graph = {
       id: 'root',
       layoutOptions: Object.assign({
@@ -152,7 +315,7 @@
         'elk.padding': '[top=16,left=16,bottom=16,right=16]',
       }, spec.layout || {}),
       children: spec.nodes.map((n) => ({
-        id: n.id, ...nodeSize(n),
+        id: n.id, ...nodeSize(Object.assign(n, { sideLines: sideLines(n.id) })),
         layoutOptions: Object.assign({ 'elk.partitioning.partition': String(rank(n.id)) },
           rank(n.id) === 0 ? { 'elk.layered.layering.layerConstraint': 'FIRST' } : {},
           rank(n.id) === 2 ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}),

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from docx import Document
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK, WD_LINE_SPACING
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
@@ -41,7 +42,8 @@ def spacing(p, double=True):
     f.line_spacing_rule = WD_LINE_SPACING.DOUBLE if double else WD_LINE_SPACING.SINGLE
 
 
-MAX_W, MAX_H = 6.5, 7.6       # room for the caption under the diagram on the same page
+MAX_W, MAX_H = 6.5, 7.6       # portrait: room for the caption under the diagram on the same page
+LAND_W, LAND_H = 9.0, 5.1     # landscape
 MAX_SCALE = 0.01              # in per px: small diagrams keep about 9 pt text instead of filling the page
 LEVEL_ORDER = ['Context', '0', '1', '2', '3', '4']
 diagrams = sorted((d for d in specs if d.get('inDocument', True)), key=lambda d: LEVEL_ORDER.index(d['level']))
@@ -54,11 +56,22 @@ for d in diagrams:
 for i, d in enumerate(diagrams):
     last_part = i + 1 == len(diagrams) or figure_of(diagrams[i + 1]) != figure_of(d)
     m = meta[d['id']]
-    scale = min(MAX_W / m['w'], MAX_H / m['h'], MAX_SCALE)
+    # portrait or landscape: whichever shows the diagram larger
+    port = min(MAX_W / m['w'], MAX_H / m['h'], MAX_SCALE)
+    land = min(LAND_W / m['w'], LAND_H / m['h'], MAX_SCALE)
+    landscape = land > port * 1.05
+    scale = max(port, land) if landscape else port
+    if i == 0:
+        sec = doc.sections[0]
+    else:
+        sec = doc.add_section(WD_SECTION.NEW_PAGE)
+    sec.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
+    sec.page_width, sec.page_height = (Inches(11), Inches(8.5)) if landscape else (Inches(8.5), Inches(11))
+    for side in ('left_margin', 'right_margin', 'top_margin', 'bottom_margin'):
+        setattr(sec, side, Inches(1))
     pic = doc.add_paragraph()
     spacing(pic, double=False)
     pic.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    pic.paragraph_format.page_break_before = i > 0
     pic.paragraph_format.keep_with_next = True
     pic.add_run().add_picture(str(HERE / 'png' / (d['id'] + '.png')), width=Inches(m['w'] * scale))
 
