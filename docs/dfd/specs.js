@@ -33,6 +33,29 @@ function diagram(id, title, level, opts) {
   return { id, title, level, intro: opts.intro, layout: opts.layout, nodes, edges };
 }
 
+// One copy of a diagram per user: only that user's flows, the processes they
+// reach, and those processes' flows with the data stores. A flow can name the
+// users it belongs to as a 4th item; processes with no user flow of their own
+// are listed in opts.roles ({ '7.1': ['learner'] }) or appear for every user.
+function byUser(users, id, title, level, opts) {
+  const procNums = new Set((opts.processes || []).map(([num]) => num));
+  return users.map((u) => {
+    const touchesUser = (num) => opts.flows.some(([a, , b]) => (a === u && b === num) || (b === u && a === num));
+    const usedBy = (num) => (opts.roles && opts.roles[num]) || null;
+    const keep = new Set([...procNums].filter((num) => (usedBy(num) ? usedBy(num).includes(u) : touchesUser(num) || !opts.flows.some(([a, , b]) => (a === num && ENTITIES[b]) || (b === num && ENTITIES[a])))));
+    const ok = (k) => k === u || keep.has(k) || STORES[k];
+    const flows = opts.flows.filter(([a, , b, only]) => ok(a) && ok(b) && (keep.has(a) || keep.has(b)) && (!only || only.includes(u)));
+    const used = new Set(flows.flatMap(([a, , b]) => [a, b]));
+    const name = ENTITIES[u];
+    return diagram(`${id}_${u}`, level === '0' ? `${title} – ${name}` : `${title} (${name})`, level, {
+      ...opts,
+      processes: opts.processes.filter(([num]) => keep.has(num)),
+      order: (opts.order || []).filter((k) => used.has(k)),
+      flows,
+    });
+  });
+}
+
 const specs = [];
 module.exports = specs;
 module.exports.STORES = STORES;
@@ -74,7 +97,7 @@ specs.push(diagram('context', 'Context Diagram', 'Context', {
 }));
 
 // ---------------------------------------------------------------- Level 0
-specs.push(diagram('level0', 'DFD Level 0', '0', {
+specs.push(...byUser(['admin', 'mentor', 'learner'], 'level0', 'DFD Level 0', '0', {
   order: ['mentor', 'admin', 'learner', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D19', 'D20'],
   layout: { 'elk.layered.crossingMinimization.forceNodeModelOrder': 'true' },
   processes: [
@@ -91,11 +114,13 @@ specs.push(diagram('level0', 'DFD Level 0', '0', {
     ['mentor', 'Username and Password', '2.0'],
     ['admin', 'Username and Password', '2.0'],
     ['2.0', 'User Access', 'learner'],
+    ['2.0', 'User Access', 'mentor'],
+    ['2.0', 'User Access', 'admin'],
     ['2.0', 'Reset Code', 'learner'],
     ['D1', 'Account Verification', '2.0'],
     ['2.0', 'Login Attempt', 'D2'],
     ['2.0', 'Active Session', 'D3'],
-    ['2.0', 'Accepted Terms', 'D4'],
+    ['2.0', 'Accepted Terms', 'D4', ['learner']],
     ['mentor', 'Chapter, Module and\nLesson Details', '3.0'],
     ['3.0', 'Chapters', 'D5'],
     ['3.0', 'Modules', 'D6'],
@@ -107,8 +132,10 @@ specs.push(diagram('level0', 'DFD Level 0', '0', {
     ['4.0', 'Exercises and\nTest Cases', 'D10'],
     ['mentor', 'Publishing Actions', '5.0'],
     ['admin', 'Preview Request', '5.0'],
-    ['5.0', 'Content Status', 'D7'],
-    ['5.0', 'Activity Status', 'D9'],
+    ['D7', 'Content Tree', '5.0'],
+    ['5.0', 'Content Status', 'D7', ['mentor']],
+    ['5.0', 'Activity Status', 'D9', ['mentor']],
+    ['5.0', 'Content Preview', 'admin'],
     ['5.0', 'Content Preview', 'mentor'],
     ['learner', 'Answers and Code', '6.0'],
     ['D7', 'Published Lessons', '6.0'],
@@ -118,32 +145,36 @@ specs.push(diagram('level0', 'DFD Level 0', '0', {
     ['6.0', 'Answers and Scores', 'D11'],
     ['6.0', 'Code Submissions', 'D12'],
     ['6.0', 'Lesson Progress', 'D13'],
-    ['D11', 'Scores', '7.0'],
-    ['D12', 'Exercise Results', '7.0'],
+    ['D11', 'Scores', '7.0', ['learner']],
+    ['D12', 'Exercise Results', '7.0', ['learner']],
     ['mentor', 'Badge Details', '7.0'],
-    ['7.0', 'Unlocks', 'D13'],
-    ['7.0', 'Earned Badges', 'D14'],
-    ['7.0', 'Certificate', 'D15'],
-    ['7.0', 'Weak Spots', 'D16'],
-    ['7.0', 'Alerts', 'D17'],
+    ['7.0', 'Unlocks', 'D13', ['learner']],
+    ['7.0', 'Earned Badges', 'D14', ['learner']],
+    ['7.0', 'Badge Rules', 'D14', ['mentor']],
+    ['7.0', 'Certificate', 'D15', ['learner']],
+    ['7.0', 'Weak Spots', 'D16', ['learner']],
+    ['D16', 'Recommendations', '7.0', ['mentor']],
+    ['7.0', 'Recommendations', 'mentor'],
+    ['7.0', 'Alerts', 'D17', ['learner']],
     ['7.0', 'Badges and Certificate', 'learner'],
     ['admin', 'Account Actions', '8.0'],
     ['learner', 'Profile Changes', '8.0'],
     ['mentor', 'Help Request', '8.0'],
     ['8.0', 'Account Changes', 'D1'],
-    ['8.0', 'Help Requests', 'D19'],
-    ['8.0', 'Action Log', 'D20'],
-    ['D1', 'Accounts', '9.0'],
-    ['D2', 'Login Logs', '9.0'],
+    ['8.0', 'Help Requests', 'D19', ['mentor', 'admin']],
+    ['8.0', 'Action Log', 'D20', ['admin']],
+    ['D1', 'Accounts', '9.0', ['admin']],
+    ['D2', 'Login Logs', '9.0', ['admin']],
     ['D13', 'Progress', '9.0'],
-    ['D20', 'Activity Log', '9.0'],
+    ['D20', 'Activity Log', '9.0', ['admin']],
+    ['D9', 'Content Status', '9.0', ['mentor']],
     ['9.0', 'Reports and Analytics', 'admin'],
     ['9.0', 'Learner Progress', 'mentor'],
   ],
 }));
 
 // ================================================================ 1.0 Registration
-specs.push(diagram('l1_registration', 'Registration – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'learner'], 'l1_registration', 'Registration – DFD Level 1', '1', {
   processes: [['1.1', 'Enter\nRegistration\nDetails'], ['1.2', 'Validate\nRegistration'], ['1.3', 'Send\nVerification\nCode'], ['1.4', 'Verify Code'], ['1.5', 'Create Learner\nAccount'], ['1.6', 'Create Admin /\nMentor Account']],
   flows: [
     ['learner', 'Name, Birthdate, Gender,\nEmail, Username, Password', '1.1'],
@@ -184,7 +215,7 @@ specs.push(diagram('l2_validate_registration', 'Validate Registration – DFD Le
 }));
 
 // ================================================================ 2.0 User Authentication
-specs.push(diagram('l1_auth', 'User Authentication – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_auth', 'User Authentication – DFD Level 1', '1', {
   processes: [['2.1', 'Log In'], ['2.2', 'Check Terms\nConsent'], ['2.3', 'Recover\nPassword'], ['2.4', 'Recover\nUsername'], ['2.5', 'Change\nPassword'], ['2.6', 'Log Out']],
   order: ['learner', 'mentor', 'admin'],
   flows: [
@@ -204,8 +235,11 @@ specs.push(diagram('l1_auth', 'User Authentication – DFD Level 1', '1', {
     ['2.2', 'Consent Record', 'D4'],
     ['learner', 'Registered Email,\nReset Code, New Password', '2.3'],
     ['mentor', 'Registered Email,\nReset Code, New Password', '2.3'],
+    ['admin', 'Registered Email,\nReset Code, New Password', '2.3'],
     ['D1', 'Account by Email', '2.3'],
     ['2.3', 'Reset Code', 'learner'],
+    ['2.3', 'Reset Code', 'mentor'],
+    ['2.3', 'Reset Code', 'admin'],
     ['2.3', 'New Password', 'D1'],
     ['2.3', 'Password Reset Log', 'D2'],
     ['learner', 'Registered Email\nand Code', '2.4'],
@@ -214,9 +248,11 @@ specs.push(diagram('l1_auth', 'User Authentication – DFD Level 1', '1', {
     ['2.4', 'Username', 'learner'],
     ['mentor', 'Old Password, Code,\nNew Password', '2.5'],
     ['learner', 'Old Password, Code,\nNew Password', '2.5'],
+    ['admin', 'Old Password, Code,\nNew Password', '2.5'],
     ['2.5', 'Password Changes', 'D1'],
     ['2.5', 'Other Devices\nSigned Out', 'D3'],
     ['learner', 'Log Out Request', '2.6'],
+    ['mentor', 'Log Out Request', '2.6'],
     ['admin', 'Log Out Request', '2.6'],
     ['2.6', 'Ended Session', 'D3'],
   ],
@@ -387,7 +423,7 @@ specs.push(diagram('l2_archive', 'Archive and Restore Content – DFD Level 2', 
 }));
 
 // ================================================================ 4.0 Learning Activity Management
-specs.push(diagram('l1_activities', 'Learning Activity Management – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor'], 'l1_activities', 'Learning Activity Management – DFD Level 1', '1', {
   processes: [['4.1', 'Enter Activity\nInformation'], ['4.2', 'Build Multiple\nChoice Items'], ['4.3', 'Build Fill in\nthe Blanks'], ['4.4', 'Build\nFlashcards'], ['4.5', 'Create Coding\nExercise'], ['4.6', 'Quick Edit\nItems'], ['4.7', 'Set Game\nSettings']],
   order: ['mentor', 'admin'],
   flows: [
@@ -452,7 +488,7 @@ specs.push(diagram('l2_exercise', 'Create Coding Exercise – DFD Level 2', '2',
 }));
 
 // ================================================================ 5.0 Publishing
-specs.push(diagram('l1_publishing', 'Publishing – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor'], 'l1_publishing', 'Publishing – DFD Level 1', '1', {
   processes: [['5.1', 'Load Content\nTree'], ['5.2', 'Mark Ready\nto Publish'], ['5.3', 'Publish\nContent'], ['5.4', 'Unpublish\nContent'], ['5.5', 'Reorder\nContent'], ['5.6', 'Preview\nContent']],
   order: ['mentor', 'admin'],
   flows: [
@@ -592,9 +628,10 @@ specs.push(diagram('l2_solve', 'Solve Coding Exercise – DFD Level 2', '2', {
 }));
 
 // ================================================================ 7.0 Progress and Achievements
-specs.push(diagram('l1_progress', 'Progress and Achievements – DFD Level 1', '1', {
+specs.push(...byUser(['mentor', 'learner'], 'l1_progress', 'Progress and Achievements – DFD Level 1', '1', {
   processes: [['7.1', 'Compute Lesson\nPerformance'], ['7.2', 'Check Module\nGate (80%)'], ['7.3', 'Unlock Next\nContent'], ['7.4', 'Find Weak\nSpots'], ['7.5', 'Manage\nBadges'], ['7.6', 'Award\nBadges'], ['7.7', 'Issue\nCertificate'], ['7.8', 'Show\nNotifications']],
   order: ['learner', 'mentor', 'D11', 'D12', 'D13', 'D7', 'D16', 'D14', 'D15', 'D17'],
+  roles: { '7.1': ['learner'], '7.2': ['learner'], '7.3': ['learner'], '7.6': ['learner'] },
   flows: [
     ['D11', 'First-Attempt Results', '7.1'],
     ['D12', 'Exercise Results', '7.1'],
@@ -603,10 +640,11 @@ specs.push(diagram('l1_progress', 'Progress and Achievements – DFD Level 1', '
     ['7.2', 'Module Passed', 'D13'],
     ['D13', 'Passed Modules', '7.3'],
     ['7.3', 'Chapter Unlock', 'D13'],
-    ['D11', 'Missed Items', '7.4'],
-    ['D7', 'Lesson Parts', '7.4'],
-    ['7.4', 'Lesson Recommendation', 'D16'],
+    ['D11', 'Missed Items', '7.4', ['learner']],
+    ['D7', 'Lesson Parts', '7.4', ['learner']],
+    ['7.4', 'Lesson Recommendation', 'D16', ['learner']],
     ['7.4', 'Weak Spot Review', 'learner'],
+    ['D16', 'Recommendations', '7.4', ['mentor']],
     ['7.4', 'Recommendations', 'mentor'],
     ['mentor', 'Badge Name, Rule,\nRequired Value', '7.5'],
     ['7.5', 'Badge', 'D14'],
@@ -661,7 +699,7 @@ specs.push(diagram('l2_badges', 'Award Badges – DFD Level 2', '2', {
 }));
 
 // ================================================================ 8.0 Account Management
-specs.push(diagram('l1_accounts', 'Account Management – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_accounts', 'Account Management – DFD Level 1', '1', {
   processes: [['8.1', 'Search and View\nAccounts'], ['8.2', 'Archive and\nRestore Accounts'], ['8.3', 'Unlock\nAccounts'], ['8.4', 'Handle Help\nRequests'], ['8.5', 'Reset Learner\nProgress'], ['8.6', 'Update\nProfile'], ['8.7', 'Delete Own\nAccount']],
   order: ['admin', 'mentor', 'learner'],
   flows: [
@@ -677,17 +715,22 @@ specs.push(diagram('l1_accounts', 'Account Management – DFD Level 1', '1', {
     ['8.3', 'Unlock Log', 'D2'],
     ['mentor', 'Help Request', '8.4'],
     ['8.4', 'Help Request', 'D19'],
-    ['D19', 'Open Requests', '8.4'],
+    ['D19', 'Open Requests', '8.4', ['admin']],
     ['admin', 'Reset / Unlock / Done', '8.4'],
     ['8.4', 'Temporary Password', 'admin'],
-    ['8.4', 'Temporary Password Hash', 'D1'],
+    ['8.4', 'Temporary Password Hash', 'D1', ['admin']],
+    ['8.4', 'Request Sent', 'mentor'],
     ['admin', 'Progress Reset', '8.5'],
     ['D23', 'Reset Allowed Setting', '8.5'],
     ['8.5', 'Erased Learning Data', 'D13'],
     ['learner', 'Name, Photo, Email', '8.6'],
     ['8.6', 'Email Verification Code', 'learner'],
+    ['mentor', 'Profile Photo', '8.6'],
+    ['admin', 'Profile Photo', '8.6'],
     ['8.6', 'Updated Profile', 'D1'],
     ['learner', 'Password Confirmation', '8.7'],
+    ['mentor', 'Password Confirmation', '8.7'],
+    ['admin', 'Password Confirmation', '8.7'],
     ['8.7', 'Deletion Due Date\n(30 days)', 'D1'],
     ['8.7', 'Devices Signed Out', 'D3'],
     ['8.7', 'Deletion Alert', 'D17'],
@@ -741,7 +784,7 @@ specs.push(diagram('l2_help', 'Handle Help Requests – DFD Level 2', '2', {
 }));
 
 // ================================================================ 9.0 Reports and Monitoring
-specs.push(diagram('l1_reports', 'Reports and Monitoring – DFD Level 1', '1', {
+specs.push(...byUser(['admin', 'mentor'], 'l1_reports', 'Reports and Monitoring – DFD Level 1', '1', {
   processes: [['9.1', 'Show Admin\nDashboard'], ['9.2', 'Show Online\nUsers'], ['9.3', 'Monitor Learner\nProgress'], ['9.4', 'Generate\nReports'], ['9.5', 'View Logs and\nExport CSV'], ['9.6', 'Monitor Coding\nSandbox'], ['9.7', 'Check System\nHealth'], ['9.8', 'Show Mentor\nDashboard']],
   order: ['admin', 'mentor'],
   flows: [

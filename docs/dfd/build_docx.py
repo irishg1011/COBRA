@@ -29,6 +29,7 @@ normal.font.name = 'Calibri'
 normal.font.size = Pt(11)
 
 MAX_W, MAX_H = 6.5, 8.4
+MAX_SCALE = 0.01  # in per px: small diagrams stay at about 9 pt text instead of filling the page
 LEVEL_ORDER = ['Context', '0', '1', '2', '3', '4']  # same order as the sample: all of one level, then the next
 diagrams = sorted((d for d in specs if d['level'] != 'legend'), key=lambda d: LEVEL_ORDER.index(d['level']))
 for i, d in enumerate(diagrams):
@@ -36,7 +37,7 @@ for i, d in enumerate(diagrams):
     if i:
         title.paragraph_format.page_break_before = True
     m = meta[d['id']]
-    scale = min(MAX_W / m['w'], MAX_H / m['h'])
+    scale = min(MAX_W / m['w'], MAX_H / m['h'], MAX_SCALE)
     doc.add_paragraph().add_run().add_picture(str(HERE / 'png' / (d['id'] + '.png')), width=Inches(m['w'] * scale))
 
 doc.save(OUT)
