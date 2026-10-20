@@ -104,6 +104,12 @@
     // short jog and runs on in the same direction, slide the end that touches the box so
     // the line goes in straight - as long as it still lands on that box's side.
     const boxes = Object.fromEntries(res.children.map((c) => [c.id, c]));
+    const labelRects = [];
+    res.edges.forEach((e) => (e.labels || []).forEach((l) => labelRects.push({ x: l.x - 2, y: l.y - 2, w: l.width + 4, h: l.height + 4 })));
+    const crossesLabel = (a, b) => labelRects.some((r) => {
+      const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x), y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y);
+      return x2 > r.x && x1 < r.x + r.w && y2 > r.y && y1 < r.y + r.h;
+    });
     const JOG = 14;
     function straighten(pts, srcId, dstId) {
       const ax = (a, b) => (Math.abs(a.y - b.y) < 0.5 ? 'h' : Math.abs(a.x - b.x) < 0.5 ? 'v' : null);
@@ -116,13 +122,13 @@
         const d0 = ax(pts[0], pts[1]);
         if (d0 && ax(pts[1], pts[2]) && ax(pts[2], pts[3]) === d0 && len(pts[1], pts[2]) < JOG) {
           const np = d0 === 'h' ? { x: pts[0].x, y: pts[2].y } : { x: pts[2].x, y: pts[0].y };
-          if (along(np, boxes[srcId], d0)) { pts.splice(0, 3, np); changed = true; continue; }
+          if (along(np, boxes[srcId], d0) && !crossesLabel(np, pts[3])) { pts.splice(0, 3, np); changed = true; continue; }
         }
         const n = pts.length;
         const d1 = ax(pts[n - 1], pts[n - 2]);
         if (d1 && ax(pts[n - 2], pts[n - 3]) && ax(pts[n - 3], pts[n - 4]) === d1 && len(pts[n - 2], pts[n - 3]) < JOG) {
           const np = d1 === 'h' ? { x: pts[n - 1].x, y: pts[n - 3].y } : { x: pts[n - 3].x, y: pts[n - 1].y };
-          if (along(np, boxes[dstId], d1)) { pts.splice(n - 3, 3, np); changed = true; }
+          if (along(np, boxes[dstId], d1) && !crossesLabel(pts[n - 4], np)) { pts.splice(n - 3, 3, np); changed = true; }
         }
       }
       return pts;
@@ -174,6 +180,27 @@
         if (d < 12 && i > 1 && i < pts.length - 1) jogs++;
       }
     }));
-    return { w: W, h: H, bends, jogs, edges: res.edges.length };
+    // Overlaps: a label touching a line of another flow, a box, or another label.
+    const overlaps = [];
+    const labels = [];
+    res.edges.forEach((e) => (e.labels || []).forEach((l) => labels.push({ e, r: { x: l.x - 1, y: l.y - 1, w: l.width + 2, h: l.height + 2 }, text: l.text })));
+    const hit = (r, a, b) => {  // axis-aligned segment a-b crosses rectangle r
+      const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x), y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y);
+      return x2 > r.x && x1 < r.x + r.w && y2 > r.y && y1 < r.y + r.h;
+    };
+    const boxHit = (r, c) => r.x < c.x + c.width && r.x + r.w > c.x && r.y < c.y + c.height && r.y + r.h > c.y;
+    labels.forEach(({ e, r, text: t }) => {
+      res.edges.forEach((o) => {
+        (o.sections || []).forEach((sec) => {
+          const pts = [sec.startPoint, ...(sec.bendPoints || []), sec.endPoint];
+          for (let i = 1; i < pts.length; i++) if (hit(r, pts[i - 1], pts[i])) { overlaps.push(`"${t.split('\n')[0]}" crosses a line`); return; }
+        });
+      });
+      res.children.forEach((c) => { if (boxHit(r, c)) overlaps.push(`"${t.split('\n')[0]}" touches box ${c.id}`); });
+    });
+    labels.forEach((a, i) => labels.slice(i + 1).forEach((b) => {
+      if (a.r.x < b.r.x + b.r.w && a.r.x + a.r.w > b.r.x && a.r.y < b.r.y + b.r.h && a.r.y + a.r.h > b.r.y) overlaps.push(`"${a.text.split('\n')[0]}" and "${b.text.split('\n')[0]}" overlap`);
+    }));
+    return { w: W, h: H, bends, jogs, edges: res.edges.length, overlaps };
   };
 })();

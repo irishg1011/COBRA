@@ -32,7 +32,8 @@ async function main() {
     const el = await page.$('#diagram');
     await el.screenshot({ path: path.join(OUT, d.id + '.png') });
     meta.push({ id: d.id, ...size });
-    console.log(d.id, size.w, 'x', size.h, size.dir || '');
+    console.log(d.id, size.w, 'x', size.h, size.dir || '', size.overlaps.length ? `OVERLAPS: ${size.overlaps.join('; ')}` : 'no overlaps');
+    delete size.overlaps;
   }
   if (!only) fs.writeFileSync(path.join(OUT, 'meta.json'), JSON.stringify(meta, null, 1));
   await browser.close();

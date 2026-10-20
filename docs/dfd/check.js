@@ -7,7 +7,7 @@ const { ENTITIES, STORES, LEVEL1 } = specs;
 
 const VERBS = new Set(['Register', 'Validate', 'Send', 'Verify', 'Save', 'Create', 'Authenticate', 'Reset',
   'Manage', 'Add', 'Attach', 'Set', 'Publish', 'Preview', 'Update', 'Deliver', 'Display', 'Check', 'Track',
-  'Compute', 'Find', 'Award', 'Define', 'Submit', 'Resolve', 'Generate']);
+  'Compute', 'Find', 'Award', 'Define', 'Submit', 'Resolve', 'Generate', 'Review']);
 const kind = (n) => (n.type === 'entity' ? 'entity' : n.type === 'store' ? 'store' : 'process');
 const problems = [];
 const say = (d, msg) => problems.push(`${d.id}: ${msg}`);
@@ -45,8 +45,9 @@ const key = (other, dir, label) => `${other} ${dir} ${label}`;
 for (const p of LEVEL1) {
   const above = new Set(level0.flows.filter(([a, , b]) => a === p.num || b === p.num)
     .map(([a, l, b]) => (a === p.num ? key(b, 'out', l) : key(a, 'in', l))));
+  // a Level 1 flow that is part of a broader Level 0 flow balances against that flow
   const below = new Set(p.flows.filter(([a, , b]) => outside(a) || outside(b))
-    .map(([a, l, b]) => (outside(b) ? key(b, 'out', l) : key(a, 'in', l))));
+    .map(([a, l, b, parent]) => (outside(b) ? key(b, 'out', parent || l) : key(a, 'in', parent || l))));
   for (const k of above) if (!below.has(k)) problems.push(`${p.num} not balanced: Level 0 has "${k}" but Level 1 does not`);
   for (const k of below) if (!above.has(k)) problems.push(`${p.num} not balanced: Level 1 has "${k}" but Level 0 does not`);
 }

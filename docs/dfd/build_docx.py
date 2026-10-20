@@ -2,8 +2,8 @@
 
 Laid out like the capstone papers it is modelled on: portrait Letter, 1 in
 margins, Arial 12. Each figure starts a page: the diagram centred, the caption
-("Figure N" / title) centred under it, then the description - double-spaced,
-justified, first line indented 0.5 in.
+("Figure N" / title) centred under it, then the description, if descriptions.js has
+one - double-spaced, justified, first line indented 0.5 in.
 """
 import json
 import subprocess
@@ -47,9 +47,6 @@ LEVEL_ORDER = ['Context', '0', '1', '2', '3', '4']
 diagrams = sorted((d for d in specs if d.get('inDocument', True)), key=lambda d: LEVEL_ORDER.index(d['level']))
 # the parts of one figure share its number; the description follows the last part
 figure_of = lambda d: d.get('figure', d['id'])
-missing = sorted({figure_of(d) for d in diagrams} - set(text))
-if missing:
-    sys.exit('no description for: ' + ', '.join(missing))
 
 numbers = {}
 for d in diagrams:
@@ -72,7 +69,7 @@ for i, d in enumerate(diagrams):
     run.add_break(WD_BREAK.LINE)
     cap.add_run(d['title'])
 
-    for para in (text[figure_of(d)] if last_part else []):
+    for para in (text.get(figure_of(d), []) if last_part else []):
         p = doc.add_paragraph(para)
         spacing(p)
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
