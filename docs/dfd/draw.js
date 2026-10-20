@@ -80,7 +80,7 @@
       edges: spec.edges.map((e, i) => ({
         id: 'e' + i, sources: [flip(e) ? e.to : e.from], targets: [flip(e) ? e.from : e.to],
         labels: e.label ? [{ text: e.label, width: textW(e.label, LABEL_PX) + 6, height: lines(e.label).length * LABEL_PX * 1.22 + 2,
-          layoutOptions: { 'elk.edgeLabels.placement': 'CENTER' } }] : [],
+          layoutOptions: { 'elk.edgeLabels.placement': spec.labelPlacement || 'CENTER' } }] : [],
       })),
     };
     const res = await new ELK().layout(graph);
@@ -100,9 +100,37 @@
     const byId = Object.fromEntries(spec.nodes.map((n) => [n.id, n]));
     const gEdges = el('g', {}, svg), gNodes = el('g', {}, svg), gLabels = el('g', {}, svg);
 
+    // Remove the small steps ELK leaves next to a box: when a line runs straight, makes a
+    // short jog and runs on in the same direction, slide the end that touches the box so
+    // the line goes in straight - as long as it still lands on that box's side.
+    const boxes = Object.fromEntries(res.children.map((c) => [c.id, c]));
+    const JOG = 14;
+    function straighten(pts, srcId, dstId) {
+      const ax = (a, b) => (Math.abs(a.y - b.y) < 0.5 ? 'h' : Math.abs(a.x - b.x) < 0.5 ? 'v' : null);
+      const along = (p, box, dir) => (dir === 'h' ? p.y > box.y + 4 && p.y < box.y + box.height - 4 : p.x > box.x + 4 && p.x < box.x + box.width - 4);
+      const len = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      let changed = true;
+      while (changed && pts.length >= 4) {
+        changed = false;
+        // start end: p0 -> p1 (dir d), p1 -> p2 short jog, p2 -> p3 (same dir d)
+        const d0 = ax(pts[0], pts[1]);
+        if (d0 && ax(pts[1], pts[2]) && ax(pts[2], pts[3]) === d0 && len(pts[1], pts[2]) < JOG) {
+          const np = d0 === 'h' ? { x: pts[0].x, y: pts[2].y } : { x: pts[2].x, y: pts[0].y };
+          if (along(np, boxes[srcId], d0)) { pts.splice(0, 3, np); changed = true; continue; }
+        }
+        const n = pts.length;
+        const d1 = ax(pts[n - 1], pts[n - 2]);
+        if (d1 && ax(pts[n - 2], pts[n - 3]) && ax(pts[n - 3], pts[n - 4]) === d1 && len(pts[n - 2], pts[n - 3]) < JOG) {
+          const np = d1 === 'h' ? { x: pts[n - 1].x, y: pts[n - 3].y } : { x: pts[n - 3].x, y: pts[n - 1].y };
+          if (along(np, boxes[dstId], d1)) { pts.splice(n - 3, 3, np); changed = true; }
+        }
+      }
+      return pts;
+    }
     res.edges.forEach((e) => {
       (e.sections || []).forEach((s) => {
-        const pts = [s.startPoint, ...(s.bendPoints || []), s.endPoint];
+        const pts = straighten([s.startPoint, ...(s.bendPoints || []), s.endPoint], e.sources[0], e.targets[0]);
+        s.startPoint = pts[0]; s.endPoint = pts[pts.length - 1]; s.bendPoints = pts.slice(1, -1);
         el('polyline', { points: pts.map((p) => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: '#000', 'stroke-width': LINE, [flipped.has(e.id) ? 'marker-start' : 'marker-end']: 'url(#arr)' }, gEdges);
       });
       (e.labels || []).forEach((l) => text(gLabels, l.text, l.x + l.width / 2, l.y + l.height / 2, LABEL_PX, { halo: true }));
@@ -125,13 +153,23 @@
         text(gNodes, n.label, x + w / 2, y + 24 + (h - 24) / 2, NODE_PX);
       } else if (n.type === 'store') {
         el('rect', { x, y, width: w, height: h, fill: '#fff', stroke: 'none' }, gNodes);
-        el('polyline', { points: `${x + w},${y} ${x},${y} ${x},${y + h} ${x + w},${y + h}`, fill: 'none', stroke: '#000', 'stroke-width': LINE }, gNodes);
+        el('rect', { x, y, width: w, height: h, fill: '#fff', stroke: '#000', 'stroke-width': LINE }, gNodes);
         const c = storeCell(n);
         el('line', { x1: x + c, y1: y, x2: x + c, y2: y + h, stroke: '#000', 'stroke-width': LINE }, gNodes);
         if (n.num) text(gNodes, n.num, x + c / 2, y + h / 2, 12);
         text(gNodes, n.label, x + c + 10, y + h / 2, NODE_PX, { anchor: 'start' });
       }
     });
-    return { w: W, h: H };
+    // Bends per diagram (small jogs < 6px counted separately) - used to compare layout settings.
+    let bends = 0, jogs = 0;
+    res.edges.forEach((e) => (e.sections || []).forEach((sec) => {
+      const pts = [sec.startPoint, ...(sec.bendPoints || []), sec.endPoint];
+      for (let i = 1; i < pts.length - 1; i++) bends++;
+      for (let i = 1; i < pts.length; i++) {
+        const d = Math.abs(pts[i].x - pts[i - 1].x) + Math.abs(pts[i].y - pts[i - 1].y);
+        if (d < 12 && i > 1 && i < pts.length - 1) jogs++;
+      }
+    }));
+    return { w: W, h: H, bends, jogs, edges: res.edges.length };
   };
 })();

@@ -11,7 +11,7 @@ const STORES = {
   D21: 'Title History', D22: 'Game Settings', D23: 'System Settings',
 };
 
-const ENTITIES = { admin: 'Admin', mentor: 'Mentor', learner: 'Learner' };
+const ENTITIES = { admin: 'Admin', mentor: 'Mentor', learner: 'Learner', user: 'User\n(Learner, Mentor,\nAdmin)' };
 
 // Build one diagram. nodes: entity keys, store keys ('D1'), or processes
 // written as ['1.0', 'Registration'] (id = number). part overrides the column.
@@ -28,8 +28,21 @@ function diagram(id, title, level, opts) {
     if (seen.has(k)) return k;
     throw new Error(`${id}: unknown node ${k}`);
   };
-  (opts.order || []).forEach(ref);
-  const edges = opts.flows.map(([from, label, to]) => ({ from: ref(from), to: ref(to), label }));
+  // Like the sample: flows between the same two boxes in the same direction share one
+  // arrow with stacked labels, and Level 0/1 leave out writes to the log stores
+  // (Login Logs, Audit Logs) - those side effects are drawn from Level 2 down.
+  const LOG_STORES = new Set(['D2', 'D20']);
+  const merged = new Map();
+  opts.flows
+    .filter(([from, , to]) => !((level === '0' || level === '1') && LOG_STORES.has(to) && !STORES[from]))
+    .forEach(([from, label, to]) => {
+      const key = from + '>' + to;
+      if (merged.has(key)) { const m = merged.get(key); if (!m.label.split('\n').includes(label)) m.label += '\n' + label; }
+      else merged.set(key, { from, to, label });
+    });
+  const used = new Set([...merged.values()].flatMap(({ from, to }) => [from, to]));
+  (opts.order || []).filter((k) => used.has(k)).forEach(ref);  // never add a box with no lines
+  const edges = [...merged.values()].map(({ from, to, label }) => ({ from: ref(from), to: ref(to), label }));
   return { id, title, level, intro: opts.intro, layout: opts.layout, nodes, edges };
 }
 
@@ -260,27 +273,22 @@ specs.push(...byUser(['admin', 'mentor', 'learner'], 'l1_auth', 'User Authentica
 
 specs.push(diagram('l2_login', 'Log In – DFD Level 2', '2', {
   processes: [['2.1.1', 'Check Login\nDoor and Role'], ['2.1.2', 'Check Account\nStatus'], ['2.1.3', 'Verify\nPassword'], ['2.1.4', 'Create\nSession'], ['2.1.5', 'Open Role\nHome Page']],
-  order: ['learner', 'mentor', 'admin'],
   flows: [
-    ['learner', 'Username and Password', '2.1.1'],
-    ['mentor', 'Username and Password', '2.1.1'],
-    ['admin', 'Username and Password', '2.1.1'],
+    ['user', 'Username and Password', '2.1.1'],
     ['D1', 'Account Role', '2.1.1'],
-    ['2.1.1', 'Wrong Door: Invalid\nUsername or Password', 'learner'],
+    ['2.1.1', 'Wrong Door: Invalid\nUsername or Password', 'user'],
     ['2.1.1', 'Failed Attempt', 'D2'],
     ['2.1.1', 'Matched Account', '2.1.2'],
     ['D1', 'Archived, Inactive,\nPending Deletion', '2.1.2'],
-    ['2.1.2', 'Account Archived or\nRestore Prompt', 'learner'],
+    ['2.1.2', 'Account Archived or\nRestore Prompt', 'user'],
     ['2.1.2', 'Active Account', '2.1.3'],
     ['2.1.3', 'Correct Password', '2.1.4'],
-    ['2.1.3', 'Remaining Attempts\nor Lockout', 'learner'],
+    ['2.1.3', 'Remaining Attempts\nor Lockout', 'user'],
     ['2.1.4', 'Last Login, Status Active', 'D1'],
     ['2.1.4', 'Successful Login', 'D2'],
     ['2.1.4', 'Session Token', 'D3'],
     ['2.1.4', 'Role', '2.1.5'],
-    ['2.1.5', 'Learner Dashboard', 'learner'],
-    ['2.1.5', 'Mentor Dashboard', 'mentor'],
-    ['2.1.5', 'Admin Dashboard', 'admin'],
+    ['2.1.5', 'Role Home Page', 'user'],
   ],
 }));
 
@@ -305,32 +313,27 @@ specs.push(diagram('l2_recover_password', 'Recover Password – DFD Level 2', '2
 
 specs.push(diagram('l3_verify_password', 'User Authentication – DFD Level 3', '3', {
   processes: [['2.1.3.1', 'Check\nLockout'], ['2.1.3.2', 'Compare\nPassword Hash'], ['2.1.3.3', 'Handle Failed\nAttempt'], ['2.1.3.4', 'Clear Failed\nAttempts']],
-  order: ['learner', 'mentor', 'admin'],
   flows: [
-    ['learner', 'Password', '2.1.3.2'],
-    ['mentor', 'Password', '2.1.3.2'],
-    ['admin', 'Password', '2.1.3.2'],
+    ['user', 'Password', '2.1.3.2'],
     ['D1', 'Lockout Until', '2.1.3.1'],
     ['2.1.3.1', 'Expired Lockout\nCleared', 'D1'],
-    ['2.1.3.1', 'Try Again in\n1 Minute', 'learner'],
+    ['2.1.3.1', 'Try Again in\n1 Minute', 'user'],
     ['2.1.3.1', 'Not Locked', '2.1.3.2'],
     ['D1', 'Stored Password Hash', '2.1.3.2'],
     ['2.1.3.2', 'Wrong Password', '2.1.3.3'],
     ['2.1.3.2', 'Correct Password', '2.1.3.4'],
     ['2.1.3.3', 'Failed Attempts', 'D1'],
     ['2.1.3.3', 'Failed Login,\nLockout Event', 'D2'],
-    ['2.1.3.3', 'Remaining Attempts\nor Locked', 'learner'],
+    ['2.1.3.3', 'Remaining Attempts\nor Locked', 'user'],
     ['2.1.3.4', 'Failed Attempts = 0', 'D1'],
-    ['2.1.3.4', 'User Access', 'learner'],
-    ['2.1.3.4', 'User Access', 'mentor'],
-    ['2.1.3.4', 'User Access', 'admin'],
+    ['2.1.3.4', 'User Access', 'user'],
   ],
 }));
 
 specs.push(diagram('l4_failed_attempt', 'User Authentication – DFD Level 4', '4', {
   processes: [['2.1.3.3.1', 'Log Failed\nAttempt'], ['2.1.3.3.2', 'Add to Failed\nCount'], ['2.1.3.3.3', 'Check Attempt\nLimit (5)'], ['2.1.3.3.4', 'Lock Account\nfor 1 Minute'], ['2.1.3.3.5', 'Log Lockout\nand Alert Admins'], ['2.1.3.3.6', 'Show Remaining\nAttempts']],
   flows: [
-    ['learner', 'Wrong Password', '2.1.3.3.1'],
+    ['user', 'Wrong Password', '2.1.3.3.1'],
     ['2.1.3.3.1', 'Failed Login, IP Address', 'D2'],
     ['2.1.3.3.1', 'Failed Attempt', '2.1.3.3.2'],
     ['D1', 'Failed Attempts', '2.1.3.3.2'],
@@ -339,11 +342,11 @@ specs.push(diagram('l4_failed_attempt', 'User Authentication – DFD Level 4', '
     ['2.1.3.3.3', 'Below Limit', '2.1.3.3.6'],
     ['2.1.3.3.4', 'Lockout Until', 'D1'],
     ['2.1.3.3.4', 'Locked Account', '2.1.3.3.5'],
-    ['2.1.3.3.4', 'Too Many Failed\nAttempts', 'learner'],
+    ['2.1.3.3.4', 'Too Many Failed\nAttempts', 'user'],
     ['2.1.3.3.5', 'Lockout Event', 'D2'],
     ['2.1.3.3.5', 'Lockout Alert', 'D17'],
     ['2.1.3.3.6', 'Failed Attempts', 'D1'],
-    ['2.1.3.3.6', 'Attempts Remaining', 'learner'],
+    ['2.1.3.3.6', 'Attempts Remaining', 'user'],
   ],
 }));
 
